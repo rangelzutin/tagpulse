@@ -9,6 +9,9 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   DIRECT_URL: z.string().min(1),
   FRONTEND_URL: z.url(),
+  TAGPLUS_BASE_URL: z.url(),
+  TAGPLUS_API_VERSION: z.string().min(1),
+  TAGPLUS_ACCESS_TOKEN: z.string().min(1),
 });
 
 export type Env = z.infer<typeof envSchema>;
