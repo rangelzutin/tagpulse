@@ -7,6 +7,16 @@ const env = loadEnv();
 const app = await buildApp({
   databaseHealth: createDatabaseHealthChecker(prisma),
   frontendUrl: env.FRONTEND_URL,
+  tagPlusOAuth: {
+    config: {
+      authUrl: env.TAGPLUS_AUTH_URL,
+      baseUrl: env.TAGPLUS_BASE_URL,
+      clientId: env.TAGPLUS_CLIENT_ID,
+      clientSecret: env.TAGPLUS_CLIENT_SECRET,
+      scopes: env.TAGPLUS_SCOPES,
+      apiVersion: env.TAGPLUS_API_VERSION,
+    },
+  },
 });
 
 let shuttingDown = false;

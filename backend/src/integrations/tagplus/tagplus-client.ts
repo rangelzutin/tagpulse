@@ -36,6 +36,13 @@ export class TagPlusInvalidResponseError extends Error {
   }
 }
 
+export class TagPlusNetworkError extends Error {
+  constructor() {
+    super("TagPlus request failed due to a network error");
+    this.name = "TagPlusNetworkError";
+  }
+}
+
 export interface TagPlusClient {
   get<T = unknown>(path: string): Promise<TagPlusResponse<T>>;
 }
@@ -79,7 +86,14 @@ export function createTagPlusClient(
           throw new TagPlusTimeoutError();
         }
 
-        throw error;
+        if (
+          error instanceof TagPlusHttpError ||
+          error instanceof TagPlusInvalidResponseError
+        ) {
+          throw error;
+        }
+
+        throw new TagPlusNetworkError();
       } finally {
         clearTimeout(timeout);
       }

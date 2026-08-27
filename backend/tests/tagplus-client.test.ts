@@ -3,6 +3,7 @@ import {
   createTagPlusClient,
   TagPlusHttpError,
   TagPlusInvalidResponseError,
+  TagPlusNetworkError,
   TagPlusTimeoutError,
 } from "../src/integrations/tagplus/tagplus-client.js";
 
@@ -109,6 +110,22 @@ describe("TagPlus client", () => {
     const request = client.get("/clientes");
 
     await expect(request).rejects.toBeInstanceOf(TagPlusInvalidResponseError);
+    try {
+      await request;
+    } catch (error: unknown) {
+      expectSecretsSanitized(error);
+    }
+  });
+
+  it("turns a fetch failure into a controlled network error", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockRejectedValue(new TypeError(`network ${secrets.accessToken}`));
+    const client = createClient(fetchMock);
+
+    const request = client.get("/clientes");
+
+    await expect(request).rejects.toBeInstanceOf(TagPlusNetworkError);
     try {
       await request;
     } catch (error: unknown) {
