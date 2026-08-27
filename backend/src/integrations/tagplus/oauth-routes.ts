@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { inspectTagPlusConnection } from "./connection-inspection.js";
 import { createTagPlusClient } from "./tagplus-client.js";
+import { inspectClientesPagination } from "./inspection/clientes-pagination.js";
 import {
   createAuthorizationUrl,
   createStateStore,
@@ -21,6 +22,27 @@ export function registerTagPlusOAuthRoutes(
 ): void {
   const states = createStateStore();
   let currentTokens: TagPlusTokens | undefined;
+
+  app.get("/integrations/tagplus/inspect-clientes-pagination", async (_request, reply) => {
+    if (!currentTokens) {
+      return reply.code(409).send({ status: "error", message: "OAuth authorization required" });
+    }
+    const client = createTagPlusClient({
+      baseUrl: options.config.baseUrl,
+      apiVersion: options.config.apiVersion,
+      accessToken: currentTokens.accessToken,
+      ...(options.fetch ? { fetch: options.fetch } : {}),
+    });
+    try {
+      return await inspectClientesPagination(client, options.config.apiVersion);
+    } catch (error: unknown) {
+      _request.log.warn(
+        { stage: "pagination_inspection", category: error instanceof Error ? error.name : "unknown_error" },
+        "TagPlus pagination inspection stopped",
+      );
+      return reply.code(502).send({ status: "error", message: "Pagination inspection stopped" });
+    }
+  });
 
   app.get("/integrations/tagplus/authorize", async (_request, reply) => {
     const state = states.issue();

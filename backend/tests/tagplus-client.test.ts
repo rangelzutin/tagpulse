@@ -44,7 +44,11 @@ describe("TagPlus client", () => {
 
     const result = await client.get<{ id: number }[]>("/clientes?page=1");
 
-    expect(result).toEqual({ status: 200, data: [{ id: 1 }] });
+    expect(result).toEqual({
+      status: 200,
+      data: [{ id: 1 }],
+      paginationHeaders: {},
+    });
     expect(fetchMock).toHaveBeenCalledOnce();
     const [url, init] = fetchMock.mock.calls[0] ?? [];
     expect(String(url)).toBe("https://api.tagplus.com.br/clientes?page=1");

@@ -13,6 +13,7 @@ export interface TagPlusClientOptions {
 export interface TagPlusResponse<T> {
   status: number;
   data: T;
+  paginationHeaders: Record<string, string>;
 }
 
 export class TagPlusHttpError extends Error {
@@ -77,7 +78,11 @@ export function createTagPlusClient(
 
         try {
           const data = (await response.json()) as T;
-          return { status: response.status, data };
+          return {
+            status: response.status,
+            data,
+            paginationHeaders: extractPaginationHeaders(response.headers),
+          };
         } catch {
           throw new TagPlusInvalidResponseError();
         }
@@ -99,6 +104,24 @@ export function createTagPlusClient(
       }
     },
   };
+}
+
+const PAGINATION_HEADERS = [
+  "link",
+  "x-page",
+  "x-per-page",
+  "x-total",
+  "x-total-count",
+  "x-pagination-total",
+] as const;
+
+function extractPaginationHeaders(headers: Headers): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const name of PAGINATION_HEADERS) {
+    const value = headers.get(name);
+    if (value !== null) result[name] = value;
+  }
+  return result;
 }
 
 function ensureTrailingSlash(url: URL): URL {
