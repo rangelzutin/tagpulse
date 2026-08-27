@@ -25,6 +25,20 @@ async function createApp(fetchMock = vi.fn<typeof fetch>()) {
 }
 
 describe("TagPlus OAuth routes", () => {
+  it("rejects field characterization without OAuth authorization", async () => {
+    const app = await createApp();
+    const response = await app.inject({
+      method: "GET",
+      url: "/integrations/tagplus/inspect-clientes-fields",
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toEqual({
+      status: "error",
+      message: "OAuth authorization required",
+    });
+  });
+
   it("rejects structural inspection without OAuth authorization", async () => {
     const app = await createApp();
     const response = await app.inject({
@@ -191,5 +205,80 @@ describe("TagPlus OAuth routes", () => {
     expect(response.body).not.toContain("SENSITIVE_CANARY_ROUTE_7B91");
     expect(response.body).not.toContain("fake-route@example.invalid");
     expect(response.body).not.toContain("synthetic-route-token");
+  });
+
+  it("runs privacy-safe field characterization through the authorized client", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ access_token: "synthetic-field-route-token" }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify([{ status: "validation-only" }]), {
+          status: 200,
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            {
+              id: "ENTITY_ID_CANARY",
+              id_entidade: "CUSTOMER_ID_CANARY",
+              razao_social: "CLIENT_SECRET_CANARY",
+              cpf: "12345678901",
+              cnpj: null,
+            },
+          ]),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify([]), { status: 200 }));
+    const app = await createApp(fetchMock);
+    const authorize = await app.inject({
+      method: "GET",
+      url: "/integrations/tagplus/authorize",
+    });
+    const state = new URL(authorize.headers.location ?? "").searchParams.get(
+      "state",
+    );
+    await app.inject({
+      method: "GET",
+      url: `/integrations/tagplus/callback?code=valid-code&state=${state}`,
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/integrations/tagplus/inspect-clientes-fields",
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      resource: "clientes",
+      scan: {
+        recordsFetched: 1,
+        nonEmptyPages: 1,
+        lastNonEmptyPage: 1,
+        lastPageRecords: 1,
+        emptyTerminationPage: 2,
+        endpointExhausted: true,
+      },
+      execution: {
+        executionComplete: true,
+        status: "COMPLETE_ENDPOINT_EXHAUSTED",
+      },
+    });
+    expect(fetchMock.mock.calls[2]?.[1]?.headers).toMatchObject({
+      Authorization: "Bearer synthetic-field-route-token",
+    });
+    for (const canary of [
+      "synthetic-field-route-token",
+      "ENTITY_ID_CANARY",
+      "CUSTOMER_ID_CANARY",
+      "CLIENT_SECRET_CANARY",
+      "12345678901",
+    ])
+      expect(response.body).not.toContain(canary);
   });
 });

@@ -3,6 +3,7 @@ import { inspectTagPlusConnection } from "./connection-inspection.js";
 import { createTagPlusClient } from "./tagplus-client.js";
 import { inspectClientesPagination } from "./inspection/clientes-pagination.js";
 import { inspectClientesStructure } from "./inspection/clientes-structural-inspection.js";
+import { characterizeClientesFields } from "./inspection/clientes-field-characterization.js";
 import {
   createAuthorizationUrl,
   createStateStore,
@@ -55,6 +56,24 @@ export function registerTagPlusOAuthRoutes(
           .code(502)
           .send({ status: "error", message: "Pagination inspection stopped" });
       }
+    },
+  );
+
+  app.get(
+    "/integrations/tagplus/inspect-clientes-fields",
+    async (_request, reply) => {
+      if (!currentTokens) {
+        return reply
+          .code(409)
+          .send({ status: "error", message: "OAuth authorization required" });
+      }
+      const client = createTagPlusClient({
+        baseUrl: options.config.baseUrl,
+        apiVersion: options.config.apiVersion,
+        accessToken: currentTokens.accessToken,
+        ...(options.fetch ? { fetch: options.fetch } : {}),
+      });
+      return characterizeClientesFields(client, options.config.apiVersion);
     },
   );
 
