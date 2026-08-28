@@ -1,0 +1,276 @@
+{
+  "resource": "clientes",
+  "projection": "fields_all",
+  "apiVersion": "2.0",
+  "history": {
+    "firstAttempt": {
+      "serverHttpStatus": 200,
+      "serverDurationMs": 53451.5235,
+      "responseCaptured": false,
+      "reason": "Local 30-second collection window ended before the response."
+    },
+    "authorizedRerun": {
+      "performed": true,
+      "additionalScanAttempts": false,
+      "serverHttpStatus": 200,
+      "clientDurationSeconds": 75.435722,
+      "responseCaptured": true
+    }
+  },
+  "execution": {
+    "recordsFetched": 2844,
+    "nonEmptyPages": 29,
+    "lastNonEmptyPage": 29,
+    "lastNonEmptyPageRecordCount": 44,
+    "emptyTerminationPage": 30,
+    "endpointExhausted": true,
+    "executionComplete": true,
+    "status": "COMPLETE_ENDPOINT_EXHAUSTED",
+    "stoppedAtPage": null,
+    "warnings": []
+  },
+  "structure": {
+    "uniquePathCount": 195,
+    "maximumDepth": 5,
+    "arrayPaths": [
+      "$.anexos",
+      "$.contatos",
+      "$.enderecos",
+      "$.saldo_devedor.<dynamic-key>.lancamentos",
+      "$.tributo_ncm",
+      "$.vendedores"
+    ],
+    "objectPaths": [
+      "$",
+      "$.categoria",
+      "$.contatos[]",
+      "$.contatos[].tipo_cadastro",
+      "$.contatos[].tipo_contato",
+      "$.enderecos[]",
+      "$.enderecos[].cidade",
+      "$.enderecos[].cidade.estado",
+      "$.enderecos[].pais",
+      "$.enderecos[].tipo_cadastro",
+      "$.extras",
+      "$.saldo_devedor",
+      "$.saldo_devedor.<dynamic-key>",
+      "$.saldo_devedor.<dynamic-key>.lancamentos[]",
+      "$.tributo_ncm[]",
+      "$.tributo_ncm[].tributo_detalhe",
+      "$.vendedores[]"
+    ],
+    "multiTypePaths": 31,
+    "structuralShapeCount": 189,
+    "dynamicKeyParentsNormalized": 1
+  },
+  "explorationComparison": {
+    "explorationPathCount": 87,
+    "censusPathCount": 195,
+    "newPathCount": 108,
+    "newPathListComplete": false,
+    "newPathListOmissionReason": "The response was received, but the conversation display truncated the intermediate section of the 195-path aggregate. No second scan was made."
+  },
+  "capturedOptionalPathHighlights": [
+    {
+      "path": "$.categoria",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 2506,
+      "observedTypes": ["null", "object"]
+    },
+    {
+      "path": "$.categoria.descricao",
+      "presentCount": 338,
+      "missingCount": 2506,
+      "nullCount": 0,
+      "observedTypes": ["string"]
+    },
+    {
+      "path": "$.contatos[]",
+      "presentCount": 1871,
+      "missingCount": 973,
+      "nullCount": 0,
+      "observedTypes": ["object"]
+    },
+    {
+      "path": "$.contatos[].tipo_cadastro.descricao",
+      "presentCount": 199,
+      "missingCount": 2645,
+      "nullCount": 0,
+      "observedTypes": ["string"]
+    },
+    {
+      "path": "$.enderecos[]",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": ["object"]
+    },
+    {
+      "path": "$.enderecos[].tipo_cadastro.descricao",
+      "presentCount": 1107,
+      "missingCount": 1737,
+      "nullCount": 0,
+      "observedTypes": ["string"]
+    },
+    {
+      "path": "$.extras.id_forma_pagamento",
+      "presentCount": 700,
+      "missingCount": 2144,
+      "nullCount": 674,
+      "observedTypes": ["null", "number", "string"]
+    },
+    {
+      "path": "$.saldo_devedor.<dynamic-key>.lancamentos[]",
+      "presentCount": 1390,
+      "missingCount": 1454,
+      "nullCount": 0,
+      "observedTypes": ["object"]
+    },
+    {
+      "path": "$.tributo_ncm[]",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": ["object"]
+    },
+    {
+      "path": "$.vendedores[]",
+      "presentCount": 294,
+      "missingCount": 2550,
+      "nullCount": 0,
+      "observedTypes": ["object"]
+    }
+  ],
+  "multiTypePathNames": [
+    "$.categoria",
+    "$.cnae",
+    "$.cnpj",
+    "$.codigo",
+    "$.codigo_externo",
+    "$.conjuge_cpf",
+    "$.conjuge_nome",
+    "$.conjuge_profissao",
+    "$.contatos[].detalhes",
+    "$.contatos[].tipo_cadastro",
+    "$.contatos[].tipo_contato",
+    "$.cpf",
+    "$.data_alteracao",
+    "$.data_nascimento",
+    "$.enderecos[].informacoes_adicionais",
+    "$.enderecos[].tipo_cadastro",
+    "$.estado_civil",
+    "$.extras",
+    "$.extras.id_forma_pagamento",
+    "$.filiacao_mae",
+    "$.filiacao_pai",
+    "$.identidade_estrangeiro",
+    "$.ie",
+    "$.im",
+    "$.informacao_adicional",
+    "$.nome_fantasia",
+    "$.profissao",
+    "$.responsavel",
+    "$.rg",
+    "$.sexo",
+    "$.suframa"
+  ],
+  "shapeSummary": {
+    "distributionCompleteInEvidence": false,
+    "omissionReason": "The response display truncated part of the long aggregate; the totals and leading distribution were captured without rerunning the endpoint.",
+    "leadingShapes": [
+      {
+        "shapeId": "SHAPE_001",
+        "recordCount": 781,
+        "percentage": 0.27461322081575246,
+        "pathCount": 80
+      },
+      {
+        "shapeId": "SHAPE_002",
+        "recordCount": 443,
+        "percentage": 0.15576652601969057,
+        "pathCount": 90
+      },
+      {
+        "shapeId": "SHAPE_003",
+        "recordCount": 262,
+        "percentage": 0.09212376933895922,
+        "pathCount": 102
+      },
+      {
+        "shapeId": "SHAPE_004",
+        "recordCount": 190,
+        "percentage": 0.06680731364275667,
+        "pathCount": 97
+      },
+      {
+        "shapeId": "SHAPE_005",
+        "recordCount": 171,
+        "percentage": 0.060126582278481014,
+        "pathCount": 101
+      },
+      {
+        "shapeId": "SHAPE_006",
+        "recordCount": 75,
+        "percentage": 0.026371308016877638,
+        "pathCount": 96
+      },
+      {
+        "shapeId": "SHAPE_007",
+        "recordCount": 53,
+        "percentage": 0.018635724331926864,
+        "pathCount": 99
+      },
+      {
+        "shapeId": "SHAPE_008",
+        "recordCount": 30,
+        "percentage": 0.010548523206751054,
+        "pathCount": 95
+      },
+      {
+        "shapeId": "SHAPE_009",
+        "recordCount": 28,
+        "percentage": 0.009845288326300985,
+        "pathCount": 87
+      },
+      {
+        "shapeId": "SHAPE_010",
+        "recordCount": 27,
+        "percentage": 0.00949367088607595,
+        "pathCount": 87
+      }
+    ]
+  },
+  "novelty": {
+    "firstNovelPathRecord": 1,
+    "firstNovelPathPage": 1,
+    "lastNovelPathRecord": 1530,
+    "lastNovelPathPage": 16,
+    "firstNovelShapeRecord": 1,
+    "firstNovelShapePage": 1,
+    "lastNovelShapeRecord": 2841,
+    "lastNovelShapePage": 29,
+    "profilerSaturationReached": true,
+    "profilerSaturationRecord": 2530,
+    "profilerSaturationPage": 26
+  },
+  "privacy": {
+    "rawPayloadPersisted": false,
+    "realFixtureCreated": false,
+    "customerValuesPersisted": false,
+    "customerIdsPersisted": false,
+    "emailValuesPersisted": false,
+    "phoneValuesPersisted": false,
+    "addressValuesPersisted": false,
+    "documentValuesPersisted": false,
+    "financialValuesPersisted": false,
+    "piiLogged": false,
+    "tokenPersisted": false,
+    "refreshTokenPersisted": false,
+    "authorizationHeaderPersisted": false,
+    "customerFingerprintOrHashPersisted": false,
+    "individualExamplesPersisted": false,
+    "concreteItemUrlPersistedOrExposed": false,
+    "dynamicBusinessKeysExposed": false
+  }
+}

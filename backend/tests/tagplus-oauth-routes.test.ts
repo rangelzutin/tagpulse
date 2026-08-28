@@ -25,6 +25,34 @@ async function createApp(fetchMock = vi.fn<typeof fetch>()) {
 }
 
 describe("TagPlus OAuth routes", () => {
+  it("rejects full structural census without OAuth authorization", async () => {
+    const app = await createApp();
+    const response = await app.inject({
+      method: "GET",
+      url: "/integrations/tagplus/inspect-clientes-full-structure-census",
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toEqual({
+      status: "error",
+      message: "OAuth authorization required",
+    });
+  });
+
+  it("rejects full structure discovery without OAuth authorization", async () => {
+    const app = await createApp();
+    const response = await app.inject({
+      method: "GET",
+      url: "/integrations/tagplus/inspect-clientes-full-structure",
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toEqual({
+      status: "error",
+      message: "OAuth authorization required",
+    });
+  });
+
   it("rejects field characterization without OAuth authorization", async () => {
     const app = await createApp();
     const response = await app.inject({
@@ -278,6 +306,163 @@ describe("TagPlus OAuth routes", () => {
       "CUSTOMER_ID_CANARY",
       "CLIENT_SECRET_CANARY",
       "12345678901",
+    ])
+      expect(response.body).not.toContain(canary);
+  });
+
+  it("runs privacy-safe full structure discovery through the authorized client", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ access_token: "synthetic-discovery-route-token" }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify([{ status: "validation-only" }]), {
+          status: 200,
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            { id: 73, razao_social: "CUSTOMER_NAME_ROUTE_CANARY" },
+          ]),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([{ id: 73, email: "EMAIL_ROUTE_CANARY" }]),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: 73,
+            contatos: [{ valor: "PHONE_ROUTE_CANARY" }],
+          }),
+          { status: 200 },
+        ),
+      );
+    const app = await createApp(fetchMock);
+    const authorize = await app.inject({
+      method: "GET",
+      url: "/integrations/tagplus/authorize",
+    });
+    const state = new URL(authorize.headers.location ?? "").searchParams.get(
+      "state",
+    );
+    await app.inject({
+      method: "GET",
+      url: `/integrations/tagplus/callback?code=valid-code&state=${state}`,
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/integrations/tagplus/inspect-clientes-full-structure",
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      resource: "clientes",
+      execution: {
+        status: "COMPLETE",
+        sameRecordAcrossCollections: true,
+        itemMatchesDefault: true,
+      },
+      comparison: {
+        pathsOnlyInFieldsAll: ["$.email"],
+        pathsOnlyInItem: ["$.contatos", "$.contatos[]", "$.contatos[].valor"],
+      },
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(String(fetchMock.mock.calls[2]?.[0])).toBe(
+      "https://api.tagplus.com.br/clientes?page=1&per_page=1",
+    );
+    expect(String(fetchMock.mock.calls[3]?.[0])).toBe(
+      "https://api.tagplus.com.br/clientes?fields=*&page=1&per_page=1",
+    );
+    expect(String(fetchMock.mock.calls[4]?.[0])).toBe(
+      "https://api.tagplus.com.br/clientes/73",
+    );
+    expect(fetchMock.mock.calls[4]?.[1]?.headers).toMatchObject({
+      Authorization: "Bearer synthetic-discovery-route-token",
+    });
+    for (const canary of [
+      "synthetic-discovery-route-token",
+      "CUSTOMER_NAME_ROUTE_CANARY",
+      "EMAIL_ROUTE_CANARY",
+      "PHONE_ROUTE_CANARY",
+      "/clientes/73",
+    ])
+      expect(response.body).not.toContain(canary);
+  });
+
+  it("runs the full structural census sequentially without returning values", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ access_token: "census-route-token" }), {
+          status: 200,
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify([{ status: "validation-only" }]), {
+          status: 200,
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            {
+              id: "CUSTOMER_CENSUS_CANARY",
+              email: "fake-census@example.invalid",
+            },
+          ]),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify([]), { status: 200 }));
+    const app = await createApp(fetchMock);
+    const authorize = await app.inject({
+      method: "GET",
+      url: "/integrations/tagplus/authorize",
+    });
+    const state = new URL(authorize.headers.location ?? "").searchParams.get(
+      "state",
+    );
+    await app.inject({
+      method: "GET",
+      url: `/integrations/tagplus/callback?code=valid-code&state=${state}`,
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/integrations/tagplus/inspect-clientes-full-structure-census",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      resource: "clientes",
+      projection: "fields_all",
+      execution: {
+        recordsFetched: 1,
+        emptyTerminationPage: 2,
+        status: "COMPLETE_ENDPOINT_EXHAUSTED",
+      },
+    });
+    expect(String(fetchMock.mock.calls[2]?.[0])).toBe(
+      "https://api.tagplus.com.br/clientes?fields=*&page=1&per_page=100",
+    );
+    expect(String(fetchMock.mock.calls[3]?.[0])).toBe(
+      "https://api.tagplus.com.br/clientes?fields=*&page=2&per_page=100",
+    );
+    for (const canary of [
+      "census-route-token",
+      "CUSTOMER_CENSUS_CANARY",
+      "fake-census@example.invalid",
     ])
       expect(response.body).not.toContain(canary);
   });

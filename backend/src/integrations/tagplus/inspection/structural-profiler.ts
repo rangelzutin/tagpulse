@@ -90,6 +90,7 @@ export interface RecordInspection {
   newPaths: number;
   newTypeEvents: number;
   newArrayElementTypeEvents: number;
+  newStructuralShape: boolean;
   noveltyEvents: StructuralNovelty[];
 }
 
@@ -318,6 +319,7 @@ export function createStructuralProfiler(
       newArrayElementTypeEvents: noveltyEvents.filter(
         (event) => event.kind === "NEW_ARRAY_ELEMENT_TYPE",
       ).length,
+      newStructuralShape: existingShape === undefined,
       noveltyEvents,
     };
   }

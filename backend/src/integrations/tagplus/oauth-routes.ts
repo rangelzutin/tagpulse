@@ -4,6 +4,8 @@ import { createTagPlusClient } from "./tagplus-client.js";
 import { inspectClientesPagination } from "./inspection/clientes-pagination.js";
 import { inspectClientesStructure } from "./inspection/clientes-structural-inspection.js";
 import { characterizeClientesFields } from "./inspection/clientes-field-characterization.js";
+import { discoverClientesFullStructure } from "./inspection/clientes-full-structure-discovery.js";
+import { censusClientesFullStructure } from "./inspection/clientes-full-structural-census.js";
 import {
   createAuthorizationUrl,
   createStateStore,
@@ -56,6 +58,42 @@ export function registerTagPlusOAuthRoutes(
           .code(502)
           .send({ status: "error", message: "Pagination inspection stopped" });
       }
+    },
+  );
+
+  app.get(
+    "/integrations/tagplus/inspect-clientes-full-structure-census",
+    async (_request, reply) => {
+      if (!currentTokens) {
+        return reply
+          .code(409)
+          .send({ status: "error", message: "OAuth authorization required" });
+      }
+      const client = createTagPlusClient({
+        baseUrl: options.config.baseUrl,
+        apiVersion: options.config.apiVersion,
+        accessToken: currentTokens.accessToken,
+        ...(options.fetch ? { fetch: options.fetch } : {}),
+      });
+      return censusClientesFullStructure(client, options.config.apiVersion);
+    },
+  );
+
+  app.get(
+    "/integrations/tagplus/inspect-clientes-full-structure",
+    async (_request, reply) => {
+      if (!currentTokens) {
+        return reply
+          .code(409)
+          .send({ status: "error", message: "OAuth authorization required" });
+      }
+      const client = createTagPlusClient({
+        baseUrl: options.config.baseUrl,
+        apiVersion: options.config.apiVersion,
+        accessToken: currentTokens.accessToken,
+        ...(options.fetch ? { fetch: options.fetch } : {}),
+      });
+      return discoverClientesFullStructure(client, options.config.apiVersion);
     },
   );
 
