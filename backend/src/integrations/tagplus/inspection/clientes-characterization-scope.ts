@@ -1,0 +1,118 @@
+export const SCALAR_VALUE_PATHS = [
+  "$.id",
+  "$.id_entidade",
+  "$.codigo",
+  "$.codigo_externo",
+  "$.tipo",
+  "$.razao_social",
+  "$.nome_fantasia",
+  "$.cpf",
+  "$.cnpj",
+  "$.ativo",
+  "$.data_cadastro",
+  "$.data_alteracao",
+  "$.data_nascimento",
+  "$.email",
+  "$.telefone",
+  "$.recebe_email",
+  "$.exterior",
+  "$.ie",
+  "$.im",
+  "$.cnae",
+  "$.suframa",
+  "$.indicador_ie",
+] as const;
+
+export const OBJECT_PATHS = [
+  "$.contatos[].tipo_cadastro",
+  "$.contatos[].tipo_contato",
+  "$.enderecos[].cidade",
+  "$.enderecos[].cidade.estado",
+  "$.enderecos[].pais",
+  "$.enderecos[].tipo_cadastro",
+  "$.categoria",
+] as const;
+
+export const ARRAY_PATHS = ["$.contatos", "$.enderecos"] as const;
+
+export const ARRAY_ELEMENT_PATHS = [
+  "$.contatos[]",
+  "$.contatos[].id",
+  "$.contatos[].descricao",
+  "$.contatos[].detalhes",
+  "$.contatos[].principal",
+  "$.contatos[].estrangeiro",
+  "$.contatos[].tipo_cadastro.id",
+  "$.contatos[].tipo_cadastro.descricao",
+  "$.contatos[].tipo_contato.id",
+  "$.contatos[].tipo_contato.descricao",
+  "$.enderecos[]",
+  "$.enderecos[].id",
+  "$.enderecos[].id_endereco_entidade",
+  "$.enderecos[].logradouro",
+  "$.enderecos[].numero",
+  "$.enderecos[].complemento",
+  "$.enderecos[].bairro",
+  "$.enderecos[].cep",
+  "$.enderecos[].cidade.id",
+  "$.enderecos[].cidade.codigo",
+  "$.enderecos[].cidade.nome",
+  "$.enderecos[].cidade.estado.id",
+  "$.enderecos[].cidade.estado.codigo",
+  "$.enderecos[].cidade.estado.nome",
+  "$.enderecos[].cidade.estado.sigla",
+  "$.enderecos[].pais.id",
+  "$.enderecos[].pais.codigo",
+  "$.enderecos[].pais.nome",
+  "$.enderecos[].principal",
+  "$.enderecos[].exterior",
+  "$.enderecos[].tipo_cadastro.id",
+  "$.enderecos[].tipo_cadastro.descricao",
+  "$.enderecos[].informacoes_adicionais",
+] as const;
+
+export const CATEGORY_ELEMENT_PATHS = [
+  "$.categoria.id",
+  "$.categoria.id_categoria_mae",
+  "$.categoria.descricao",
+] as const;
+
+export const DEFERRED_PATHS = [
+  "$.sexo",
+  "$.estado_civil",
+  "$.profissao",
+  "$.filiacao_mae",
+  "$.filiacao_pai",
+  "$.rg",
+  "$.identidade_estrangeiro",
+  "$.conjuge_cpf",
+  "$.conjuge_data_nascimento",
+  "$.conjuge_nome",
+  "$.conjuge_profissao",
+  "$.limite_credito",
+  "$.renda_mensal",
+  "$.saldo",
+  "$.saldo_devedor",
+  "$.saldo_devedor.<dynamic-key>",
+  "$.saldo_devedor.<dynamic-key>.lancamentos",
+  "$.saldo_devedor.<dynamic-key>.total",
+  "$.saldo_devedor.<dynamic-key>.total_com_juros",
+  "$.tributo_ncm",
+  "$.vendedores",
+  "$.anexos",
+  "$.extras",
+  "$.possui_vinculo",
+  "$.responsavel",
+  "$.informacao_adicional",
+] as const;
+
+export const CHARACTERIZATION_PATHS = [
+  ...SCALAR_VALUE_PATHS,
+  ...OBJECT_PATHS,
+  ...ARRAY_PATHS,
+  ...ARRAY_ELEMENT_PATHS,
+  ...CATEGORY_ELEMENT_PATHS,
+] as const;
+
+export type ScalarValuePath = (typeof SCALAR_VALUE_PATHS)[number];
+export type ArrayElementPath = (typeof ARRAY_ELEMENT_PATHS)[number];
