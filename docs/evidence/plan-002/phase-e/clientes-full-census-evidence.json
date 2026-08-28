@@ -13,7 +13,8 @@
       "performed": true,
       "additionalScanAttempts": false,
       "serverHttpStatus": 200,
-      "clientDurationSeconds": 75.435722,
+      "serverDurationMs": 77422.9394,
+      "clientDurationSeconds": 77.424504,
       "responseCaptured": true
     }
   },
@@ -67,180 +68,5389 @@
     "explorationPathCount": 87,
     "censusPathCount": 195,
     "newPathCount": 108,
-    "newPathListComplete": false,
-    "newPathListOmissionReason": "The response was received, but the conversation display truncated the intermediate section of the 195-path aggregate. No second scan was made."
+    "newPaths": [
+      "$.categoria.descricao",
+      "$.categoria.id",
+      "$.categoria.id_categoria_mae",
+      "$.contatos[].tipo_cadastro.descricao",
+      "$.contatos[].tipo_cadastro.id",
+      "$.enderecos[].tipo_cadastro.descricao",
+      "$.enderecos[].tipo_cadastro.id",
+      "$.extras.id_forma_pagamento",
+      "$.extras.pasta",
+      "$.extras.servidor",
+      "$.extras.url_get",
+      "$.saldo_devedor.<dynamic-key>.lancamentos[]",
+      "$.saldo_devedor.<dynamic-key>.lancamentos[].descricao",
+      "$.saldo_devedor.<dynamic-key>.lancamentos[].email",
+      "$.saldo_devedor.<dynamic-key>.lancamentos[].id_financeiro",
+      "$.saldo_devedor.<dynamic-key>.lancamentos[].telefone",
+      "$.saldo_devedor.<dynamic-key>.lancamentos[].valor",
+      "$.saldo_devedor.<dynamic-key>.lancamentos[].valor_com_juros",
+      "$.saldo_devedor.<dynamic-key>.lancamentos[].vencimento",
+      "$.tributo_ncm[]",
+      "$.tributo_ncm[].descricao",
+      "$.tributo_ncm[].id",
+      "$.tributo_ncm[].ncm",
+      "$.tributo_ncm[].tributo_detalhe",
+      "$.tributo_ncm[].tributo_detalhe.aliquota_calculo_credito",
+      "$.tributo_ncm[].tributo_detalhe.aliquota_cbs",
+      "$.tributo_ncm[].tributo_detalhe.aliquota_cide",
+      "$.tributo_ncm[].tributo_detalhe.aliquota_cofins",
+      "$.tributo_ncm[].tributo_detalhe.aliquota_cofins_st",
+      "$.tributo_ncm[].tributo_detalhe.aliquota_cred_presumido",
+      "$.tributo_ncm[].tributo_detalhe.aliquota_diferimento_cbs",
+      "$.tributo_ncm[].tributo_detalhe.aliquota_diferimento_estadual",
+      "$.tributo_ncm[].tributo_detalhe.aliquota_diferimento_municipal",
+      "$.tributo_ncm[].tributo_detalhe.aliquota_fcp",
+      "$.tributo_ncm[].tributo_detalhe.aliquota_fcp_interestadual",
+      "$.tributo_ncm[].tributo_detalhe.aliquota_fcp_st",
+      "$.tributo_ncm[].tributo_detalhe.aliquota_fcp_st_ret",
+      "$.tributo_ncm[].tributo_detalhe.aliquota_ibs_estadual",
+      "$.tributo_ncm[].tributo_detalhe.aliquota_ibs_municipal",
+      "$.tributo_ncm[].tributo_detalhe.aliquota_icms",
+      "$.tributo_ncm[].tributo_detalhe.aliquota_icms_desonerado",
+      "$.tributo_ncm[].tributo_detalhe.aliquota_icms_desonerado_st",
+      "$.tributo_ncm[].tributo_detalhe.aliquota_icms_efetivo",
+      "$.tributo_ncm[].tributo_detalhe.aliquota_icms_st",
+      "$.tributo_ncm[].tributo_detalhe.aliquota_icms_st_fcp",
+      "$.tributo_ncm[].tributo_detalhe.aliquota_ii",
+      "$.tributo_ncm[].tributo_detalhe.aliquota_interna_uf_destino_fcp",
+      "$.tributo_ncm[].tributo_detalhe.aliquota_iof",
+      "$.tributo_ncm[].tributo_detalhe.aliquota_ipi",
+      "$.tributo_ncm[].tributo_detalhe.aliquota_pis",
+      "$.tributo_ncm[].tributo_detalhe.aliquota_pis_st",
+      "$.tributo_ncm[].tributo_detalhe.base_calculo_cide",
+      "$.tributo_ncm[].tributo_detalhe.base_calculo_icms",
+      "$.tributo_ncm[].tributo_detalhe.calculo_icms_interestadual",
+      "$.tributo_ncm[].tributo_detalhe.cest",
+      "$.tributo_ncm[].tributo_detalhe.cfop",
+      "$.tributo_ncm[].tributo_detalhe.class_trib_descricao",
+      "$.tributo_ncm[].tributo_detalhe.cod_class_trib",
+      "$.tributo_ncm[].tributo_detalhe.cod_cred_presumido",
+      "$.tributo_ncm[].tributo_detalhe.codigo_autorizacao",
+      "$.tributo_ncm[].tributo_detalhe.codigo_beneficio_fiscal",
+      "$.tributo_ncm[].tributo_detalhe.codigo_produto_anp",
+      "$.tributo_ncm[].tributo_detalhe.csosn",
+      "$.tributo_ncm[].tributo_detalhe.cst_a",
+      "$.tributo_ncm[].tributo_detalhe.cst_b",
+      "$.tributo_ncm[].tributo_detalhe.cst_cofins",
+      "$.tributo_ncm[].tributo_detalhe.cst_ipi",
+      "$.tributo_ncm[].tributo_detalhe.cst_is",
+      "$.tributo_ncm[].tributo_detalhe.cst_pis",
+      "$.tributo_ncm[].tributo_detalhe.descricao_produto_anp",
+      "$.tributo_ncm[].tributo_detalhe.enquadramento_ipi",
+      "$.tributo_ncm[].tributo_detalhe.id",
+      "$.tributo_ncm[].tributo_detalhe.informacoes_interesse_fisco",
+      "$.tributo_ncm[].tributo_detalhe.modalidade_base_calculo_icms",
+      "$.tributo_ncm[].tributo_detalhe.modalidade_base_calculo_icms_st",
+      "$.tributo_ncm[].tributo_detalhe.modalidade_calculo_ipi",
+      "$.tributo_ncm[].tributo_detalhe.modalidade_cofins",
+      "$.tributo_ncm[].tributo_detalhe.modalidade_cofins_st",
+      "$.tributo_ncm[].tributo_detalhe.modalidade_pis",
+      "$.tributo_ncm[].tributo_detalhe.modalidade_pis_st",
+      "$.tributo_ncm[].tributo_detalhe.motivo_desonerado",
+      "$.tributo_ncm[].tributo_detalhe.motivo_desonerado_st",
+      "$.tributo_ncm[].tributo_detalhe.mva_icms_st",
+      "$.tributo_ncm[].tributo_detalhe.natureza_operacao",
+      "$.tributo_ncm[].tributo_detalhe.observacoes_item",
+      "$.tributo_ncm[].tributo_detalhe.percentual_gas_natural_importado",
+      "$.tributo_ncm[].tributo_detalhe.percentual_gas_natural_nacional",
+      "$.tributo_ncm[].tributo_detalhe.percentual_glp_petroleo",
+      "$.tributo_ncm[].tributo_detalhe.quantidade_combustivel",
+      "$.tributo_ncm[].tributo_detalhe.reducao_base_calculo_efetivo",
+      "$.tributo_ncm[].tributo_detalhe.reducao_base_calculo_icms",
+      "$.tributo_ncm[].tributo_detalhe.reducao_base_calculo_icms_st",
+      "$.tributo_ncm[].tributo_detalhe.st_cofins",
+      "$.tributo_ncm[].tributo_detalhe.st_pis",
+      "$.tributo_ncm[].tributo_detalhe.uf_consumo",
+      "$.tributo_ncm[].tributo_detalhe.valor_aliquota_cofins",
+      "$.tributo_ncm[].tributo_detalhe.valor_aliquota_cofins_st",
+      "$.tributo_ncm[].tributo_detalhe.valor_aliquota_pis",
+      "$.tributo_ncm[].tributo_detalhe.valor_aliquota_pis_st",
+      "$.tributo_ncm[].tributo_detalhe.valor_cide",
+      "$.tributo_ncm[].tributo_detalhe.valor_icms_substituto",
+      "$.tributo_ncm[].tributo_detalhe.valor_partida",
+      "$.tributo_ncm[].tributo_detalhe.valor_unidade_tributavel",
+      "$.vendedores[]",
+      "$.vendedores[].cpf",
+      "$.vendedores[].data_alteracao",
+      "$.vendedores[].id",
+      "$.vendedores[].nome"
+    ]
   },
-  "capturedOptionalPathHighlights": [
+  "paths": [
+    {
+      "path": "$",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 0,
+      "observedTypes": [
+        "object"
+      ],
+      "objectCount": 2844,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.anexos",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 0,
+      "observedTypes": [
+        "array"
+      ],
+      "objectCount": 0,
+      "arrayCount": 2844
+    },
+    {
+      "path": "$.ativo",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 0,
+      "observedTypes": [
+        "boolean"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
     {
       "path": "$.categoria",
       "presentCount": 2844,
       "missingCount": 0,
       "nullCount": 2506,
-      "observedTypes": ["null", "object"]
+      "observedTypes": [
+        "null",
+        "object"
+      ],
+      "objectCount": 338,
+      "arrayCount": 0
     },
     {
       "path": "$.categoria.descricao",
       "presentCount": 338,
       "missingCount": 2506,
       "nullCount": 0,
-      "observedTypes": ["string"]
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.categoria.id",
+      "presentCount": 338,
+      "missingCount": 2506,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.categoria.id_categoria_mae",
+      "presentCount": 338,
+      "missingCount": 2506,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.cnae",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 2777,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.cnpj",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 2355,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.codigo",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 21,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.codigo_externo",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 2227,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.conjuge_cpf",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 1800,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.conjuge_data_nascimento",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 2844,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.conjuge_nome",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 1377,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.conjuge_profissao",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 1800,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.contatos",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 0,
+      "observedTypes": [
+        "array"
+      ],
+      "objectCount": 0,
+      "arrayCount": 2844
     },
     {
       "path": "$.contatos[]",
       "presentCount": 1871,
       "missingCount": 973,
       "nullCount": 0,
-      "observedTypes": ["object"]
+      "observedTypes": [
+        "object"
+      ],
+      "objectCount": 3002,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.contatos[].descricao",
+      "presentCount": 1871,
+      "missingCount": 973,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.contatos[].detalhes",
+      "presentCount": 1871,
+      "missingCount": 973,
+      "nullCount": 552,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.contatos[].estrangeiro",
+      "presentCount": 1871,
+      "missingCount": 973,
+      "nullCount": 0,
+      "observedTypes": [
+        "boolean"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.contatos[].id",
+      "presentCount": 1871,
+      "missingCount": 973,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.contatos[].principal",
+      "presentCount": 1871,
+      "missingCount": 973,
+      "nullCount": 0,
+      "observedTypes": [
+        "boolean"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.contatos[].tipo_cadastro",
+      "presentCount": 1871,
+      "missingCount": 973,
+      "nullCount": 1696,
+      "observedTypes": [
+        "null",
+        "object"
+      ],
+      "objectCount": 433,
+      "arrayCount": 0
     },
     {
       "path": "$.contatos[].tipo_cadastro.descricao",
       "presentCount": 199,
       "missingCount": 2645,
       "nullCount": 0,
-      "observedTypes": ["string"]
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.contatos[].tipo_cadastro.id",
+      "presentCount": 199,
+      "missingCount": 2645,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.contatos[].tipo_contato",
+      "presentCount": 1871,
+      "missingCount": 973,
+      "nullCount": 31,
+      "observedTypes": [
+        "null",
+        "object"
+      ],
+      "objectCount": 2967,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.contatos[].tipo_contato.descricao",
+      "presentCount": 1867,
+      "missingCount": 977,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.contatos[].tipo_contato.id",
+      "presentCount": 1867,
+      "missingCount": 977,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.cpf",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 490,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.data_alteracao",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 93,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.data_cadastro",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.data_nascimento",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 2820,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.email",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 0,
+      "observedTypes": [
+        "array"
+      ],
+      "objectCount": 0,
+      "arrayCount": 2844
     },
     {
       "path": "$.enderecos[]",
       "presentCount": 2800,
       "missingCount": 44,
       "nullCount": 0,
-      "observedTypes": ["object"]
+      "observedTypes": [
+        "object"
+      ],
+      "objectCount": 2929,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].bairro",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].cep",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].cidade",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "object"
+      ],
+      "objectCount": 2929,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].cidade.codigo",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].cidade.estado",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "object"
+      ],
+      "objectCount": 2929,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].cidade.estado.codigo",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].cidade.estado.id",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].cidade.estado.nome",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].cidade.estado.sigla",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].cidade.id",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].cidade.nome",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].complemento",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].exterior",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "boolean"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].id",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].id_endereco_entidade",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].informacoes_adicionais",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 84,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].logradouro",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].numero",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].pais",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "object"
+      ],
+      "objectCount": 2929,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].pais.codigo",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].pais.id",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].pais.nome",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].principal",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "boolean"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].tipo_cadastro",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 1729,
+      "observedTypes": [
+        "null",
+        "object"
+      ],
+      "objectCount": 1151,
+      "arrayCount": 0
     },
     {
       "path": "$.enderecos[].tipo_cadastro.descricao",
       "presentCount": 1107,
       "missingCount": 1737,
       "nullCount": 0,
-      "observedTypes": ["string"]
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].tipo_cadastro.id",
+      "presentCount": 1107,
+      "missingCount": 1737,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.estado_civil",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 1760,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.exterior",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 0,
+      "observedTypes": [
+        "boolean"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.extras",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 881,
+      "observedTypes": [
+        "null",
+        "object"
+      ],
+      "objectCount": 1963,
+      "arrayCount": 0
     },
     {
       "path": "$.extras.id_forma_pagamento",
       "presentCount": 700,
       "missingCount": 2144,
       "nullCount": 674,
-      "observedTypes": ["null", "number", "string"]
+      "observedTypes": [
+        "null",
+        "number",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.extras.pasta",
+      "presentCount": 1265,
+      "missingCount": 1579,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.extras.servidor",
+      "presentCount": 1265,
+      "missingCount": 1579,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.extras.url_get",
+      "presentCount": 1265,
+      "missingCount": 1579,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.filiacao_mae",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 1800,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.filiacao_pai",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 1800,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.id",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.id_entidade",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.identidade_estrangeiro",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 1377,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.ie",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 1327,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.im",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 2314,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.indicador_ie",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 0,
+      "observedTypes": [
+        "boolean"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.informacao_adicional",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 52,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.limite_credito",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.nome_fantasia",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 2005,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.possui_vinculo",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 0,
+      "observedTypes": [
+        "boolean"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.profissao",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 1800,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.razao_social",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.recebe_email",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 0,
+      "observedTypes": [
+        "boolean"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.renda_mensal",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.responsavel",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 2749,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.rg",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 1800,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.saldo",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.saldo_devedor",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 0,
+      "observedTypes": [
+        "object"
+      ],
+      "objectCount": 2844,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.saldo_devedor.<dynamic-key>",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 0,
+      "observedTypes": [
+        "object"
+      ],
+      "objectCount": 8532,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.saldo_devedor.<dynamic-key>.lancamentos",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 0,
+      "observedTypes": [
+        "array"
+      ],
+      "objectCount": 0,
+      "arrayCount": 8532
     },
     {
       "path": "$.saldo_devedor.<dynamic-key>.lancamentos[]",
       "presentCount": 1390,
       "missingCount": 1454,
       "nullCount": 0,
-      "observedTypes": ["object"]
+      "observedTypes": [
+        "object"
+      ],
+      "objectCount": 6421,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.saldo_devedor.<dynamic-key>.lancamentos[].descricao",
+      "presentCount": 1390,
+      "missingCount": 1454,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.saldo_devedor.<dynamic-key>.lancamentos[].email",
+      "presentCount": 1390,
+      "missingCount": 1454,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.saldo_devedor.<dynamic-key>.lancamentos[].id_financeiro",
+      "presentCount": 1390,
+      "missingCount": 1454,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.saldo_devedor.<dynamic-key>.lancamentos[].telefone",
+      "presentCount": 1390,
+      "missingCount": 1454,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.saldo_devedor.<dynamic-key>.lancamentos[].valor",
+      "presentCount": 1390,
+      "missingCount": 1454,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.saldo_devedor.<dynamic-key>.lancamentos[].valor_com_juros",
+      "presentCount": 1390,
+      "missingCount": 1454,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.saldo_devedor.<dynamic-key>.lancamentos[].vencimento",
+      "presentCount": 1390,
+      "missingCount": 1454,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.saldo_devedor.<dynamic-key>.total",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.saldo_devedor.<dynamic-key>.total_com_juros",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.sexo",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 497,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.suframa",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 1377,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.telefone",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tipo",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 0,
+      "observedTypes": [
+        "array"
+      ],
+      "objectCount": 0,
+      "arrayCount": 2844
     },
     {
       "path": "$.tributo_ncm[]",
       "presentCount": 2,
       "missingCount": 2842,
       "nullCount": 0,
-      "observedTypes": ["object"]
+      "observedTypes": [
+        "object"
+      ],
+      "objectCount": 16,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].descricao",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].id",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].ncm",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "object"
+      ],
+      "objectCount": 16,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_calculo_credito",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_cbs",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_cide",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_cofins",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_cofins_st",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_cred_presumido",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_diferimento_cbs",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_diferimento_estadual",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_diferimento_municipal",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_fcp",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_fcp_interestadual",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_fcp_st",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_fcp_st_ret",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_ibs_estadual",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_ibs_municipal",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_icms",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_icms_desonerado",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_icms_desonerado_st",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_icms_efetivo",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_icms_st",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_icms_st_fcp",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_ii",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_interna_uf_destino_fcp",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_iof",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_ipi",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_pis",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_pis_st",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.base_calculo_cide",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.base_calculo_icms",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.calculo_icms_interestadual",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.cest",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.cfop",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.class_trib_descricao",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.cod_class_trib",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.cod_cred_presumido",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.codigo_autorizacao",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.codigo_beneficio_fiscal",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.codigo_produto_anp",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.csosn",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.cst_a",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.cst_b",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.cst_cofins",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.cst_ipi",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.cst_is",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.cst_pis",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.descricao_produto_anp",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.enquadramento_ipi",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.id",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.informacoes_interesse_fisco",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.modalidade_base_calculo_icms",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.modalidade_base_calculo_icms_st",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.modalidade_calculo_ipi",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.modalidade_cofins",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.modalidade_cofins_st",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.modalidade_pis",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.modalidade_pis_st",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.motivo_desonerado",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.motivo_desonerado_st",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.mva_icms_st",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.natureza_operacao",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.observacoes_item",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.percentual_gas_natural_importado",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.percentual_gas_natural_nacional",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.percentual_glp_petroleo",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.quantidade_combustivel",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.reducao_base_calculo_efetivo",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.reducao_base_calculo_icms",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.reducao_base_calculo_icms_st",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.st_cofins",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.st_pis",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.uf_consumo",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.valor_aliquota_cofins",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.valor_aliquota_cofins_st",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.valor_aliquota_pis",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.valor_aliquota_pis_st",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.valor_cide",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.valor_icms_substituto",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.valor_partida",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.valor_unidade_tributavel",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.vendedores",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 0,
+      "observedTypes": [
+        "array"
+      ],
+      "objectCount": 0,
+      "arrayCount": 2844
     },
     {
       "path": "$.vendedores[]",
       "presentCount": 294,
       "missingCount": 2550,
       "nullCount": 0,
-      "observedTypes": ["object"]
+      "observedTypes": [
+        "object"
+      ],
+      "objectCount": 294,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.vendedores[].cpf",
+      "presentCount": 294,
+      "missingCount": 2550,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.vendedores[].data_alteracao",
+      "presentCount": 294,
+      "missingCount": 2550,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.vendedores[].id",
+      "presentCount": 294,
+      "missingCount": 2550,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.vendedores[].nome",
+      "presentCount": 294,
+      "missingCount": 2550,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
     }
   ],
-  "multiTypePathNames": [
-    "$.categoria",
-    "$.cnae",
-    "$.cnpj",
-    "$.codigo",
-    "$.codigo_externo",
-    "$.conjuge_cpf",
-    "$.conjuge_nome",
-    "$.conjuge_profissao",
-    "$.contatos[].detalhes",
-    "$.contatos[].tipo_cadastro",
-    "$.contatos[].tipo_contato",
-    "$.cpf",
-    "$.data_alteracao",
-    "$.data_nascimento",
-    "$.enderecos[].informacoes_adicionais",
-    "$.enderecos[].tipo_cadastro",
-    "$.estado_civil",
-    "$.extras",
-    "$.extras.id_forma_pagamento",
-    "$.filiacao_mae",
-    "$.filiacao_pai",
-    "$.identidade_estrangeiro",
-    "$.ie",
-    "$.im",
-    "$.informacao_adicional",
-    "$.nome_fantasia",
-    "$.profissao",
-    "$.responsavel",
-    "$.rg",
-    "$.sexo",
-    "$.suframa"
+  "optionalOrRarePaths": [
+    {
+      "path": "$.categoria.descricao",
+      "presentCount": 338,
+      "missingCount": 2506,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.categoria.id",
+      "presentCount": 338,
+      "missingCount": 2506,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.categoria.id_categoria_mae",
+      "presentCount": 338,
+      "missingCount": 2506,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.contatos[]",
+      "presentCount": 1871,
+      "missingCount": 973,
+      "nullCount": 0,
+      "observedTypes": [
+        "object"
+      ],
+      "objectCount": 3002,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.contatos[].descricao",
+      "presentCount": 1871,
+      "missingCount": 973,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.contatos[].detalhes",
+      "presentCount": 1871,
+      "missingCount": 973,
+      "nullCount": 552,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.contatos[].estrangeiro",
+      "presentCount": 1871,
+      "missingCount": 973,
+      "nullCount": 0,
+      "observedTypes": [
+        "boolean"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.contatos[].id",
+      "presentCount": 1871,
+      "missingCount": 973,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.contatos[].principal",
+      "presentCount": 1871,
+      "missingCount": 973,
+      "nullCount": 0,
+      "observedTypes": [
+        "boolean"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.contatos[].tipo_cadastro",
+      "presentCount": 1871,
+      "missingCount": 973,
+      "nullCount": 1696,
+      "observedTypes": [
+        "null",
+        "object"
+      ],
+      "objectCount": 433,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.contatos[].tipo_cadastro.descricao",
+      "presentCount": 199,
+      "missingCount": 2645,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.contatos[].tipo_cadastro.id",
+      "presentCount": 199,
+      "missingCount": 2645,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.contatos[].tipo_contato",
+      "presentCount": 1871,
+      "missingCount": 973,
+      "nullCount": 31,
+      "observedTypes": [
+        "null",
+        "object"
+      ],
+      "objectCount": 2967,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.contatos[].tipo_contato.descricao",
+      "presentCount": 1867,
+      "missingCount": 977,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.contatos[].tipo_contato.id",
+      "presentCount": 1867,
+      "missingCount": 977,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[]",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "object"
+      ],
+      "objectCount": 2929,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].bairro",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].cep",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].cidade",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "object"
+      ],
+      "objectCount": 2929,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].cidade.codigo",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].cidade.estado",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "object"
+      ],
+      "objectCount": 2929,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].cidade.estado.codigo",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].cidade.estado.id",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].cidade.estado.nome",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].cidade.estado.sigla",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].cidade.id",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].cidade.nome",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].complemento",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].exterior",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "boolean"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].id",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].id_endereco_entidade",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].informacoes_adicionais",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 84,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].logradouro",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].numero",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].pais",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "object"
+      ],
+      "objectCount": 2929,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].pais.codigo",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].pais.id",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].pais.nome",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].principal",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 0,
+      "observedTypes": [
+        "boolean"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].tipo_cadastro",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 1729,
+      "observedTypes": [
+        "null",
+        "object"
+      ],
+      "objectCount": 1151,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].tipo_cadastro.descricao",
+      "presentCount": 1107,
+      "missingCount": 1737,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].tipo_cadastro.id",
+      "presentCount": 1107,
+      "missingCount": 1737,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.extras.id_forma_pagamento",
+      "presentCount": 700,
+      "missingCount": 2144,
+      "nullCount": 674,
+      "observedTypes": [
+        "null",
+        "number",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.extras.pasta",
+      "presentCount": 1265,
+      "missingCount": 1579,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.extras.servidor",
+      "presentCount": 1265,
+      "missingCount": 1579,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.extras.url_get",
+      "presentCount": 1265,
+      "missingCount": 1579,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.saldo_devedor.<dynamic-key>.lancamentos[]",
+      "presentCount": 1390,
+      "missingCount": 1454,
+      "nullCount": 0,
+      "observedTypes": [
+        "object"
+      ],
+      "objectCount": 6421,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.saldo_devedor.<dynamic-key>.lancamentos[].descricao",
+      "presentCount": 1390,
+      "missingCount": 1454,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.saldo_devedor.<dynamic-key>.lancamentos[].email",
+      "presentCount": 1390,
+      "missingCount": 1454,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.saldo_devedor.<dynamic-key>.lancamentos[].id_financeiro",
+      "presentCount": 1390,
+      "missingCount": 1454,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.saldo_devedor.<dynamic-key>.lancamentos[].telefone",
+      "presentCount": 1390,
+      "missingCount": 1454,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.saldo_devedor.<dynamic-key>.lancamentos[].valor",
+      "presentCount": 1390,
+      "missingCount": 1454,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.saldo_devedor.<dynamic-key>.lancamentos[].valor_com_juros",
+      "presentCount": 1390,
+      "missingCount": 1454,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.saldo_devedor.<dynamic-key>.lancamentos[].vencimento",
+      "presentCount": 1390,
+      "missingCount": 1454,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[]",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "object"
+      ],
+      "objectCount": 16,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].descricao",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].id",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].ncm",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "object"
+      ],
+      "objectCount": 16,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_calculo_credito",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_cbs",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_cide",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_cofins",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_cofins_st",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_cred_presumido",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_diferimento_cbs",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_diferimento_estadual",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_diferimento_municipal",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_fcp",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_fcp_interestadual",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_fcp_st",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_fcp_st_ret",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_ibs_estadual",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_ibs_municipal",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_icms",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_icms_desonerado",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_icms_desonerado_st",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_icms_efetivo",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_icms_st",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_icms_st_fcp",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_ii",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_interna_uf_destino_fcp",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_iof",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_ipi",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_pis",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.aliquota_pis_st",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.base_calculo_cide",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.base_calculo_icms",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.calculo_icms_interestadual",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.cest",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.cfop",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.class_trib_descricao",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.cod_class_trib",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.cod_cred_presumido",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.codigo_autorizacao",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.codigo_beneficio_fiscal",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.codigo_produto_anp",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.csosn",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.cst_a",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.cst_b",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.cst_cofins",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.cst_ipi",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.cst_is",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.cst_pis",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.descricao_produto_anp",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.enquadramento_ipi",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.id",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.informacoes_interesse_fisco",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.modalidade_base_calculo_icms",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.modalidade_base_calculo_icms_st",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.modalidade_calculo_ipi",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.modalidade_cofins",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.modalidade_cofins_st",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.modalidade_pis",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.modalidade_pis_st",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.motivo_desonerado",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.motivo_desonerado_st",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.mva_icms_st",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.natureza_operacao",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.observacoes_item",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.percentual_gas_natural_importado",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.percentual_gas_natural_nacional",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.percentual_glp_petroleo",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.quantidade_combustivel",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.reducao_base_calculo_efetivo",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.reducao_base_calculo_icms",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.reducao_base_calculo_icms_st",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.st_cofins",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.st_pis",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.uf_consumo",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.valor_aliquota_cofins",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.valor_aliquota_cofins_st",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.valor_aliquota_pis",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.valor_aliquota_pis_st",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.valor_cide",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.valor_icms_substituto",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.valor_partida",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 2,
+      "observedTypes": [
+        "null"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.tributo_ncm[].tributo_detalhe.valor_unidade_tributavel",
+      "presentCount": 2,
+      "missingCount": 2842,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.vendedores[]",
+      "presentCount": 294,
+      "missingCount": 2550,
+      "nullCount": 0,
+      "observedTypes": [
+        "object"
+      ],
+      "objectCount": 294,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.vendedores[].cpf",
+      "presentCount": 294,
+      "missingCount": 2550,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.vendedores[].data_alteracao",
+      "presentCount": 294,
+      "missingCount": 2550,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.vendedores[].id",
+      "presentCount": 294,
+      "missingCount": 2550,
+      "nullCount": 0,
+      "observedTypes": [
+        "number"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.vendedores[].nome",
+      "presentCount": 294,
+      "missingCount": 2550,
+      "nullCount": 0,
+      "observedTypes": [
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    }
   ],
-  "shapeSummary": {
-    "distributionCompleteInEvidence": false,
-    "omissionReason": "The response display truncated part of the long aggregate; the totals and leading distribution were captured without rerunning the endpoint.",
-    "leadingShapes": [
-      {
-        "shapeId": "SHAPE_001",
-        "recordCount": 781,
-        "percentage": 0.27461322081575246,
-        "pathCount": 80
-      },
-      {
-        "shapeId": "SHAPE_002",
-        "recordCount": 443,
-        "percentage": 0.15576652601969057,
-        "pathCount": 90
-      },
-      {
-        "shapeId": "SHAPE_003",
-        "recordCount": 262,
-        "percentage": 0.09212376933895922,
-        "pathCount": 102
-      },
-      {
-        "shapeId": "SHAPE_004",
-        "recordCount": 190,
-        "percentage": 0.06680731364275667,
-        "pathCount": 97
-      },
-      {
-        "shapeId": "SHAPE_005",
-        "recordCount": 171,
-        "percentage": 0.060126582278481014,
-        "pathCount": 101
-      },
-      {
-        "shapeId": "SHAPE_006",
-        "recordCount": 75,
-        "percentage": 0.026371308016877638,
-        "pathCount": 96
-      },
-      {
-        "shapeId": "SHAPE_007",
-        "recordCount": 53,
-        "percentage": 0.018635724331926864,
-        "pathCount": 99
-      },
-      {
-        "shapeId": "SHAPE_008",
-        "recordCount": 30,
-        "percentage": 0.010548523206751054,
-        "pathCount": 95
-      },
-      {
-        "shapeId": "SHAPE_009",
-        "recordCount": 28,
-        "percentage": 0.009845288326300985,
-        "pathCount": 87
-      },
-      {
-        "shapeId": "SHAPE_010",
-        "recordCount": 27,
-        "percentage": 0.00949367088607595,
-        "pathCount": 87
-      }
-    ]
-  },
+  "multiTypePaths": [
+    {
+      "path": "$.categoria",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 2506,
+      "observedTypes": [
+        "null",
+        "object"
+      ],
+      "objectCount": 338,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.cnae",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 2777,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.cnpj",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 2355,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.codigo",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 21,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.codigo_externo",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 2227,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.conjuge_cpf",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 1800,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.conjuge_nome",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 1377,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.conjuge_profissao",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 1800,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.contatos[].detalhes",
+      "presentCount": 1871,
+      "missingCount": 973,
+      "nullCount": 552,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.contatos[].tipo_cadastro",
+      "presentCount": 1871,
+      "missingCount": 973,
+      "nullCount": 1696,
+      "observedTypes": [
+        "null",
+        "object"
+      ],
+      "objectCount": 433,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.contatos[].tipo_contato",
+      "presentCount": 1871,
+      "missingCount": 973,
+      "nullCount": 31,
+      "observedTypes": [
+        "null",
+        "object"
+      ],
+      "objectCount": 2967,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.cpf",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 490,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.data_alteracao",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 93,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.data_nascimento",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 2820,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].informacoes_adicionais",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 84,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.enderecos[].tipo_cadastro",
+      "presentCount": 2800,
+      "missingCount": 44,
+      "nullCount": 1729,
+      "observedTypes": [
+        "null",
+        "object"
+      ],
+      "objectCount": 1151,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.estado_civil",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 1760,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.extras",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 881,
+      "observedTypes": [
+        "null",
+        "object"
+      ],
+      "objectCount": 1963,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.extras.id_forma_pagamento",
+      "presentCount": 700,
+      "missingCount": 2144,
+      "nullCount": 674,
+      "observedTypes": [
+        "null",
+        "number",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.filiacao_mae",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 1800,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.filiacao_pai",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 1800,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.identidade_estrangeiro",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 1377,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.ie",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 1327,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.im",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 2314,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.informacao_adicional",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 52,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.nome_fantasia",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 2005,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.profissao",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 1800,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.responsavel",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 2749,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.rg",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 1800,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.sexo",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 497,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    },
+    {
+      "path": "$.suframa",
+      "presentCount": 2844,
+      "missingCount": 0,
+      "nullCount": 1377,
+      "observedTypes": [
+        "null",
+        "string"
+      ],
+      "objectCount": 0,
+      "arrayCount": 0
+    }
+  ],
+  "shapes": [
+    {
+      "shapeId": "SHAPE_001",
+      "recordCount": 781,
+      "percentage": 0.27461322081575246,
+      "pathCount": 80
+    },
+    {
+      "shapeId": "SHAPE_002",
+      "recordCount": 443,
+      "percentage": 0.15576652601969057,
+      "pathCount": 90
+    },
+    {
+      "shapeId": "SHAPE_003",
+      "recordCount": 262,
+      "percentage": 0.09212376933895922,
+      "pathCount": 102
+    },
+    {
+      "shapeId": "SHAPE_004",
+      "recordCount": 190,
+      "percentage": 0.06680731364275667,
+      "pathCount": 97
+    },
+    {
+      "shapeId": "SHAPE_005",
+      "recordCount": 171,
+      "percentage": 0.060126582278481014,
+      "pathCount": 101
+    },
+    {
+      "shapeId": "SHAPE_006",
+      "recordCount": 75,
+      "percentage": 0.026371308016877638,
+      "pathCount": 96
+    },
+    {
+      "shapeId": "SHAPE_007",
+      "recordCount": 53,
+      "percentage": 0.018635724331926864,
+      "pathCount": 99
+    },
+    {
+      "shapeId": "SHAPE_008",
+      "recordCount": 30,
+      "percentage": 0.010548523206751054,
+      "pathCount": 95
+    },
+    {
+      "shapeId": "SHAPE_009",
+      "recordCount": 28,
+      "percentage": 0.009845288326300985,
+      "pathCount": 87
+    },
+    {
+      "shapeId": "SHAPE_010",
+      "recordCount": 27,
+      "percentage": 0.00949367088607595,
+      "pathCount": 87
+    },
+    {
+      "shapeId": "SHAPE_011",
+      "recordCount": 27,
+      "percentage": 0.00949367088607595,
+      "pathCount": 98
+    },
+    {
+      "shapeId": "SHAPE_012",
+      "recordCount": 27,
+      "percentage": 0.00949367088607595,
+      "pathCount": 101
+    },
+    {
+      "shapeId": "SHAPE_013",
+      "recordCount": 24,
+      "percentage": 0.008438818565400843,
+      "pathCount": 87
+    },
+    {
+      "shapeId": "SHAPE_014",
+      "recordCount": 24,
+      "percentage": 0.008438818565400843,
+      "pathCount": 98
+    },
+    {
+      "shapeId": "SHAPE_015",
+      "recordCount": 23,
+      "percentage": 0.00808720112517581,
+      "pathCount": 91
+    },
+    {
+      "shapeId": "SHAPE_016",
+      "recordCount": 21,
+      "percentage": 0.007383966244725738,
+      "pathCount": 85
+    },
+    {
+      "shapeId": "SHAPE_017",
+      "recordCount": 21,
+      "percentage": 0.007383966244725738,
+      "pathCount": 87
+    },
+    {
+      "shapeId": "SHAPE_018",
+      "recordCount": 20,
+      "percentage": 0.007032348804500703,
+      "pathCount": 52
+    },
+    {
+      "shapeId": "SHAPE_019",
+      "recordCount": 19,
+      "percentage": 0.006680731364275668,
+      "pathCount": 99
+    },
+    {
+      "shapeId": "SHAPE_020",
+      "recordCount": 19,
+      "percentage": 0.006680731364275668,
+      "pathCount": 99
+    },
+    {
+      "shapeId": "SHAPE_021",
+      "recordCount": 19,
+      "percentage": 0.006680731364275668,
+      "pathCount": 91
+    },
+    {
+      "shapeId": "SHAPE_022",
+      "recordCount": 18,
+      "percentage": 0.006329113924050633,
+      "pathCount": 88
+    },
+    {
+      "shapeId": "SHAPE_023",
+      "recordCount": 18,
+      "percentage": 0.006329113924050633,
+      "pathCount": 101
+    },
+    {
+      "shapeId": "SHAPE_024",
+      "recordCount": 17,
+      "percentage": 0.005977496483825597,
+      "pathCount": 96
+    },
+    {
+      "shapeId": "SHAPE_025",
+      "recordCount": 16,
+      "percentage": 0.005625879043600563,
+      "pathCount": 100
+    },
+    {
+      "shapeId": "SHAPE_026",
+      "recordCount": 14,
+      "percentage": 0.004922644163150493,
+      "pathCount": 97
+    },
+    {
+      "shapeId": "SHAPE_027",
+      "recordCount": 12,
+      "percentage": 0.004219409282700422,
+      "pathCount": 98
+    },
+    {
+      "shapeId": "SHAPE_028",
+      "recordCount": 12,
+      "percentage": 0.004219409282700422,
+      "pathCount": 88
+    },
+    {
+      "shapeId": "SHAPE_029",
+      "recordCount": 11,
+      "percentage": 0.003867791842475387,
+      "pathCount": 96
+    },
+    {
+      "shapeId": "SHAPE_030",
+      "recordCount": 11,
+      "percentage": 0.003867791842475387,
+      "pathCount": 99
+    },
+    {
+      "shapeId": "SHAPE_031",
+      "recordCount": 10,
+      "percentage": 0.0035161744022503515,
+      "pathCount": 100
+    },
+    {
+      "shapeId": "SHAPE_032",
+      "recordCount": 10,
+      "percentage": 0.0035161744022503515,
+      "pathCount": 86
+    },
+    {
+      "shapeId": "SHAPE_033",
+      "recordCount": 9,
+      "percentage": 0.0031645569620253164,
+      "pathCount": 101
+    },
+    {
+      "shapeId": "SHAPE_034",
+      "recordCount": 9,
+      "percentage": 0.0031645569620253164,
+      "pathCount": 95
+    },
+    {
+      "shapeId": "SHAPE_035",
+      "recordCount": 9,
+      "percentage": 0.0031645569620253164,
+      "pathCount": 98
+    },
+    {
+      "shapeId": "SHAPE_036",
+      "recordCount": 9,
+      "percentage": 0.0031645569620253164,
+      "pathCount": 101
+    },
+    {
+      "shapeId": "SHAPE_037",
+      "recordCount": 8,
+      "percentage": 0.0028129395218002813,
+      "pathCount": 96
+    },
+    {
+      "shapeId": "SHAPE_038",
+      "recordCount": 8,
+      "percentage": 0.0028129395218002813,
+      "pathCount": 98
+    },
+    {
+      "shapeId": "SHAPE_039",
+      "recordCount": 8,
+      "percentage": 0.0028129395218002813,
+      "pathCount": 87
+    },
+    {
+      "shapeId": "SHAPE_040",
+      "recordCount": 7,
+      "percentage": 0.0024613220815752463,
+      "pathCount": 98
+    },
+    {
+      "shapeId": "SHAPE_041",
+      "recordCount": 7,
+      "percentage": 0.0024613220815752463,
+      "pathCount": 98
+    },
+    {
+      "shapeId": "SHAPE_042",
+      "recordCount": 7,
+      "percentage": 0.0024613220815752463,
+      "pathCount": 89
+    },
+    {
+      "shapeId": "SHAPE_043",
+      "recordCount": 7,
+      "percentage": 0.0024613220815752463,
+      "pathCount": 86
+    },
+    {
+      "shapeId": "SHAPE_044",
+      "recordCount": 7,
+      "percentage": 0.0024613220815752463,
+      "pathCount": 91
+    },
+    {
+      "shapeId": "SHAPE_045",
+      "recordCount": 7,
+      "percentage": 0.0024613220815752463,
+      "pathCount": 88
+    },
+    {
+      "shapeId": "SHAPE_046",
+      "recordCount": 6,
+      "percentage": 0.002109704641350211,
+      "pathCount": 89
+    },
+    {
+      "shapeId": "SHAPE_047",
+      "recordCount": 6,
+      "percentage": 0.002109704641350211,
+      "pathCount": 95
+    },
+    {
+      "shapeId": "SHAPE_048",
+      "recordCount": 6,
+      "percentage": 0.002109704641350211,
+      "pathCount": 97
+    },
+    {
+      "shapeId": "SHAPE_049",
+      "recordCount": 6,
+      "percentage": 0.002109704641350211,
+      "pathCount": 94
+    },
+    {
+      "shapeId": "SHAPE_050",
+      "recordCount": 6,
+      "percentage": 0.002109704641350211,
+      "pathCount": 93
+    },
+    {
+      "shapeId": "SHAPE_051",
+      "recordCount": 6,
+      "percentage": 0.002109704641350211,
+      "pathCount": 95
+    },
+    {
+      "shapeId": "SHAPE_052",
+      "recordCount": 6,
+      "percentage": 0.002109704641350211,
+      "pathCount": 101
+    },
+    {
+      "shapeId": "SHAPE_053",
+      "recordCount": 6,
+      "percentage": 0.002109704641350211,
+      "pathCount": 100
+    },
+    {
+      "shapeId": "SHAPE_054",
+      "recordCount": 6,
+      "percentage": 0.002109704641350211,
+      "pathCount": 100
+    },
+    {
+      "shapeId": "SHAPE_055",
+      "recordCount": 6,
+      "percentage": 0.002109704641350211,
+      "pathCount": 87
+    },
+    {
+      "shapeId": "SHAPE_056",
+      "recordCount": 6,
+      "percentage": 0.002109704641350211,
+      "pathCount": 99
+    },
+    {
+      "shapeId": "SHAPE_057",
+      "recordCount": 6,
+      "percentage": 0.002109704641350211,
+      "pathCount": 97
+    },
+    {
+      "shapeId": "SHAPE_058",
+      "recordCount": 6,
+      "percentage": 0.002109704641350211,
+      "pathCount": 87
+    },
+    {
+      "shapeId": "SHAPE_059",
+      "recordCount": 5,
+      "percentage": 0.0017580872011251757,
+      "pathCount": 100
+    },
+    {
+      "shapeId": "SHAPE_060",
+      "recordCount": 5,
+      "percentage": 0.0017580872011251757,
+      "pathCount": 102
+    },
+    {
+      "shapeId": "SHAPE_061",
+      "recordCount": 5,
+      "percentage": 0.0017580872011251757,
+      "pathCount": 100
+    },
+    {
+      "shapeId": "SHAPE_062",
+      "recordCount": 5,
+      "percentage": 0.0017580872011251757,
+      "pathCount": 60
+    },
+    {
+      "shapeId": "SHAPE_063",
+      "recordCount": 4,
+      "percentage": 0.0014064697609001407,
+      "pathCount": 96
+    },
+    {
+      "shapeId": "SHAPE_064",
+      "recordCount": 4,
+      "percentage": 0.0014064697609001407,
+      "pathCount": 90
+    },
+    {
+      "shapeId": "SHAPE_065",
+      "recordCount": 4,
+      "percentage": 0.0014064697609001407,
+      "pathCount": 65
+    },
+    {
+      "shapeId": "SHAPE_066",
+      "recordCount": 4,
+      "percentage": 0.0014064697609001407,
+      "pathCount": 98
+    },
+    {
+      "shapeId": "SHAPE_067",
+      "recordCount": 3,
+      "percentage": 0.0010548523206751054,
+      "pathCount": 104
+    },
+    {
+      "shapeId": "SHAPE_068",
+      "recordCount": 3,
+      "percentage": 0.0010548523206751054,
+      "pathCount": 96
+    },
+    {
+      "shapeId": "SHAPE_069",
+      "recordCount": 3,
+      "percentage": 0.0010548523206751054,
+      "pathCount": 61
+    },
+    {
+      "shapeId": "SHAPE_070",
+      "recordCount": 3,
+      "percentage": 0.0010548523206751054,
+      "pathCount": 98
+    },
+    {
+      "shapeId": "SHAPE_071",
+      "recordCount": 3,
+      "percentage": 0.0010548523206751054,
+      "pathCount": 100
+    },
+    {
+      "shapeId": "SHAPE_072",
+      "recordCount": 3,
+      "percentage": 0.0010548523206751054,
+      "pathCount": 95
+    },
+    {
+      "shapeId": "SHAPE_073",
+      "recordCount": 3,
+      "percentage": 0.0010548523206751054,
+      "pathCount": 96
+    },
+    {
+      "shapeId": "SHAPE_074",
+      "recordCount": 3,
+      "percentage": 0.0010548523206751054,
+      "pathCount": 100
+    },
+    {
+      "shapeId": "SHAPE_075",
+      "recordCount": 3,
+      "percentage": 0.0010548523206751054,
+      "pathCount": 99
+    },
+    {
+      "shapeId": "SHAPE_076",
+      "recordCount": 3,
+      "percentage": 0.0010548523206751054,
+      "pathCount": 91
+    },
+    {
+      "shapeId": "SHAPE_077",
+      "recordCount": 3,
+      "percentage": 0.0010548523206751054,
+      "pathCount": 88
+    },
+    {
+      "shapeId": "SHAPE_078",
+      "recordCount": 3,
+      "percentage": 0.0010548523206751054,
+      "pathCount": 100
+    },
+    {
+      "shapeId": "SHAPE_079",
+      "recordCount": 2,
+      "percentage": 0.0007032348804500703,
+      "pathCount": 87
+    },
+    {
+      "shapeId": "SHAPE_080",
+      "recordCount": 2,
+      "percentage": 0.0007032348804500703,
+      "pathCount": 95
+    },
+    {
+      "shapeId": "SHAPE_081",
+      "recordCount": 2,
+      "percentage": 0.0007032348804500703,
+      "pathCount": 100
+    },
+    {
+      "shapeId": "SHAPE_082",
+      "recordCount": 2,
+      "percentage": 0.0007032348804500703,
+      "pathCount": 99
+    },
+    {
+      "shapeId": "SHAPE_083",
+      "recordCount": 2,
+      "percentage": 0.0007032348804500703,
+      "pathCount": 88
+    },
+    {
+      "shapeId": "SHAPE_084",
+      "recordCount": 2,
+      "percentage": 0.0007032348804500703,
+      "pathCount": 88
+    },
+    {
+      "shapeId": "SHAPE_085",
+      "recordCount": 2,
+      "percentage": 0.0007032348804500703,
+      "pathCount": 100
+    },
+    {
+      "shapeId": "SHAPE_086",
+      "recordCount": 2,
+      "percentage": 0.0007032348804500703,
+      "pathCount": 98
+    },
+    {
+      "shapeId": "SHAPE_087",
+      "recordCount": 2,
+      "percentage": 0.0007032348804500703,
+      "pathCount": 79
+    },
+    {
+      "shapeId": "SHAPE_088",
+      "recordCount": 2,
+      "percentage": 0.0007032348804500703,
+      "pathCount": 91
+    },
+    {
+      "shapeId": "SHAPE_089",
+      "recordCount": 2,
+      "percentage": 0.0007032348804500703,
+      "pathCount": 55
+    },
+    {
+      "shapeId": "SHAPE_090",
+      "recordCount": 2,
+      "percentage": 0.0007032348804500703,
+      "pathCount": 61
+    },
+    {
+      "shapeId": "SHAPE_091",
+      "recordCount": 2,
+      "percentage": 0.0007032348804500703,
+      "pathCount": 87
+    },
+    {
+      "shapeId": "SHAPE_092",
+      "recordCount": 2,
+      "percentage": 0.0007032348804500703,
+      "pathCount": 89
+    },
+    {
+      "shapeId": "SHAPE_093",
+      "recordCount": 2,
+      "percentage": 0.0007032348804500703,
+      "pathCount": 92
+    },
+    {
+      "shapeId": "SHAPE_094",
+      "recordCount": 2,
+      "percentage": 0.0007032348804500703,
+      "pathCount": 95
+    },
+    {
+      "shapeId": "SHAPE_095",
+      "recordCount": 2,
+      "percentage": 0.0007032348804500703,
+      "pathCount": 53
+    },
+    {
+      "shapeId": "SHAPE_096",
+      "recordCount": 2,
+      "percentage": 0.0007032348804500703,
+      "pathCount": 98
+    },
+    {
+      "shapeId": "SHAPE_097",
+      "recordCount": 2,
+      "percentage": 0.0007032348804500703,
+      "pathCount": 91
+    },
+    {
+      "shapeId": "SHAPE_098",
+      "recordCount": 2,
+      "percentage": 0.0007032348804500703,
+      "pathCount": 53
+    },
+    {
+      "shapeId": "SHAPE_099",
+      "recordCount": 2,
+      "percentage": 0.0007032348804500703,
+      "pathCount": 87
+    },
+    {
+      "shapeId": "SHAPE_100",
+      "recordCount": 2,
+      "percentage": 0.0007032348804500703,
+      "pathCount": 96
+    },
+    {
+      "shapeId": "SHAPE_101",
+      "recordCount": 2,
+      "percentage": 0.0007032348804500703,
+      "pathCount": 103
+    },
+    {
+      "shapeId": "SHAPE_102",
+      "recordCount": 2,
+      "percentage": 0.0007032348804500703,
+      "pathCount": 101
+    },
+    {
+      "shapeId": "SHAPE_103",
+      "recordCount": 2,
+      "percentage": 0.0007032348804500703,
+      "pathCount": 98
+    },
+    {
+      "shapeId": "SHAPE_104",
+      "recordCount": 2,
+      "percentage": 0.0007032348804500703,
+      "pathCount": 103
+    },
+    {
+      "shapeId": "SHAPE_105",
+      "recordCount": 2,
+      "percentage": 0.0007032348804500703,
+      "pathCount": 87
+    },
+    {
+      "shapeId": "SHAPE_106",
+      "recordCount": 2,
+      "percentage": 0.0007032348804500703,
+      "pathCount": 52
+    },
+    {
+      "shapeId": "SHAPE_107",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 89
+    },
+    {
+      "shapeId": "SHAPE_108",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 95
+    },
+    {
+      "shapeId": "SHAPE_109",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 99
+    },
+    {
+      "shapeId": "SHAPE_110",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 97
+    },
+    {
+      "shapeId": "SHAPE_111",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 101
+    },
+    {
+      "shapeId": "SHAPE_112",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 97
+    },
+    {
+      "shapeId": "SHAPE_113",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 98
+    },
+    {
+      "shapeId": "SHAPE_114",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 104
+    },
+    {
+      "shapeId": "SHAPE_115",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 87
+    },
+    {
+      "shapeId": "SHAPE_116",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 93
+    },
+    {
+      "shapeId": "SHAPE_117",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 103
+    },
+    {
+      "shapeId": "SHAPE_118",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 99
+    },
+    {
+      "shapeId": "SHAPE_119",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 90
+    },
+    {
+      "shapeId": "SHAPE_120",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 90
+    },
+    {
+      "shapeId": "SHAPE_121",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 97
+    },
+    {
+      "shapeId": "SHAPE_122",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 90
+    },
+    {
+      "shapeId": "SHAPE_123",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 94
+    },
+    {
+      "shapeId": "SHAPE_124",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 89
+    },
+    {
+      "shapeId": "SHAPE_125",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 89
+    },
+    {
+      "shapeId": "SHAPE_126",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 100
+    },
+    {
+      "shapeId": "SHAPE_127",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 97
+    },
+    {
+      "shapeId": "SHAPE_128",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 93
+    },
+    {
+      "shapeId": "SHAPE_129",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 86
+    },
+    {
+      "shapeId": "SHAPE_130",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 89
+    },
+    {
+      "shapeId": "SHAPE_131",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 98
+    },
+    {
+      "shapeId": "SHAPE_132",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 98
+    },
+    {
+      "shapeId": "SHAPE_133",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 99
+    },
+    {
+      "shapeId": "SHAPE_134",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 78
+    },
+    {
+      "shapeId": "SHAPE_135",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 87
+    },
+    {
+      "shapeId": "SHAPE_136",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 78
+    },
+    {
+      "shapeId": "SHAPE_137",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 100
+    },
+    {
+      "shapeId": "SHAPE_138",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 98
+    },
+    {
+      "shapeId": "SHAPE_139",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 86
+    },
+    {
+      "shapeId": "SHAPE_140",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 96
+    },
+    {
+      "shapeId": "SHAPE_141",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 98
+    },
+    {
+      "shapeId": "SHAPE_142",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 89
+    },
+    {
+      "shapeId": "SHAPE_143",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 100
+    },
+    {
+      "shapeId": "SHAPE_144",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 88
+    },
+    {
+      "shapeId": "SHAPE_145",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 88
+    },
+    {
+      "shapeId": "SHAPE_146",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 91
+    },
+    {
+      "shapeId": "SHAPE_147",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 88
+    },
+    {
+      "shapeId": "SHAPE_148",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 91
+    },
+    {
+      "shapeId": "SHAPE_149",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 98
+    },
+    {
+      "shapeId": "SHAPE_150",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 98
+    },
+    {
+      "shapeId": "SHAPE_151",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 88
+    },
+    {
+      "shapeId": "SHAPE_152",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 87
+    },
+    {
+      "shapeId": "SHAPE_153",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 53
+    },
+    {
+      "shapeId": "SHAPE_154",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 97
+    },
+    {
+      "shapeId": "SHAPE_155",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 98
+    },
+    {
+      "shapeId": "SHAPE_156",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 108
+    },
+    {
+      "shapeId": "SHAPE_157",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 62
+    },
+    {
+      "shapeId": "SHAPE_158",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 100
+    },
+    {
+      "shapeId": "SHAPE_159",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 85
+    },
+    {
+      "shapeId": "SHAPE_160",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 80
+    },
+    {
+      "shapeId": "SHAPE_161",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 91
+    },
+    {
+      "shapeId": "SHAPE_162",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 98
+    },
+    {
+      "shapeId": "SHAPE_163",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 83
+    },
+    {
+      "shapeId": "SHAPE_164",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 80
+    },
+    {
+      "shapeId": "SHAPE_165",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 104
+    },
+    {
+      "shapeId": "SHAPE_166",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 89
+    },
+    {
+      "shapeId": "SHAPE_167",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 89
+    },
+    {
+      "shapeId": "SHAPE_168",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 183
+    },
+    {
+      "shapeId": "SHAPE_169",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 98
+    },
+    {
+      "shapeId": "SHAPE_170",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 98
+    },
+    {
+      "shapeId": "SHAPE_171",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 89
+    },
+    {
+      "shapeId": "SHAPE_172",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 99
+    },
+    {
+      "shapeId": "SHAPE_173",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 101
+    },
+    {
+      "shapeId": "SHAPE_174",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 171
+    },
+    {
+      "shapeId": "SHAPE_175",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 87
+    },
+    {
+      "shapeId": "SHAPE_176",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 96
+    },
+    {
+      "shapeId": "SHAPE_177",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 101
+    },
+    {
+      "shapeId": "SHAPE_178",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 100
+    },
+    {
+      "shapeId": "SHAPE_179",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 85
+    },
+    {
+      "shapeId": "SHAPE_180",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 89
+    },
+    {
+      "shapeId": "SHAPE_181",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 88
+    },
+    {
+      "shapeId": "SHAPE_182",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 103
+    },
+    {
+      "shapeId": "SHAPE_183",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 98
+    },
+    {
+      "shapeId": "SHAPE_184",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 95
+    },
+    {
+      "shapeId": "SHAPE_185",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 86
+    },
+    {
+      "shapeId": "SHAPE_186",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 91
+    },
+    {
+      "shapeId": "SHAPE_187",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 100
+    },
+    {
+      "shapeId": "SHAPE_188",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 95
+    },
+    {
+      "shapeId": "SHAPE_189",
+      "recordCount": 1,
+      "percentage": 0.00035161744022503517,
+      "pathCount": 77
+    }
+  ],
   "novelty": {
     "firstNovelPathRecord": 1,
     "firstNovelPathPage": 1,
@@ -254,6 +5464,20 @@
     "profilerSaturationRecord": 2530,
     "profilerSaturationPage": 26
   },
+  "dynamicKeyClasses": [
+    "$.saldo_devedor.<dynamic-key>",
+    "$.saldo_devedor.<dynamic-key>.lancamentos",
+    "$.saldo_devedor.<dynamic-key>.lancamentos[]",
+    "$.saldo_devedor.<dynamic-key>.lancamentos[].descricao",
+    "$.saldo_devedor.<dynamic-key>.lancamentos[].email",
+    "$.saldo_devedor.<dynamic-key>.lancamentos[].id_financeiro",
+    "$.saldo_devedor.<dynamic-key>.lancamentos[].telefone",
+    "$.saldo_devedor.<dynamic-key>.lancamentos[].valor",
+    "$.saldo_devedor.<dynamic-key>.lancamentos[].valor_com_juros",
+    "$.saldo_devedor.<dynamic-key>.lancamentos[].vencimento",
+    "$.saldo_devedor.<dynamic-key>.total",
+    "$.saldo_devedor.<dynamic-key>.total_com_juros"
+  ],
   "privacy": {
     "rawPayloadPersisted": false,
     "realFixtureCreated": false,
