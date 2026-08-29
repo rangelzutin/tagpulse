@@ -149,8 +149,14 @@ export function createCustomerFullSync(
       }
     } catch (error: unknown) {
       const category = categorize(error, stage);
+      const persistedCategory =
+        error instanceof CustomerNormalizationError ? error.category : category;
       try {
-        await dependencies.syncRepository.failRun(run.id, now(), category);
+        await dependencies.syncRepository.failRun(
+          run.id,
+          now(),
+          persistedCategory,
+        );
       } catch {
         throw new CustomerSyncError("CUSTOMER_SYNC_ERROR");
       }

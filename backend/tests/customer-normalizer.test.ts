@@ -50,6 +50,19 @@ describe("TagPlus customer normalizer", () => {
     );
   });
 
+  it("accepts the observed boolean IE indicator as an opaque string", () => {
+    expect(
+      normalizeTagPlusCustomer({ id: 1, indicador_ie: true }),
+    ).toMatchObject({ ieIndicator: "true" });
+    expect(
+      normalizeTagPlusCustomer({ id: 1, indicador_ie: "synthetic" }),
+    ).toMatchObject({ ieIndicator: "synthetic" });
+    expectCategory(
+      () => normalizeTagPlusCustomer({ id: 1, indicador_ie: 1 }),
+      "CUSTOMER_NORMALIZATION_ERROR",
+    );
+  });
+
   it("parses timezone-qualified timestamps and preserves a civil birth date", () => {
     const result = normalizeTagPlusCustomer({
       id: 1,

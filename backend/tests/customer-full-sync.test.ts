@@ -108,8 +108,21 @@ describe("customer full sync orchestration", () => {
     await expect(h.sync("connection")).rejects.toMatchObject({
       category: "CUSTOMER_SYNC_NORMALIZATION_ERROR",
     });
+    expect(h.state.errorCategory).toBe("CUSTOMER_INVALID_SOURCE_ID");
     expect(h.state.progress.lastCompletedPage).toBeUndefined();
     expect(h.state.reconciliations).toBe(0);
+  });
+
+  it("persists only a safe normalization subcategory", async () => {
+    const unsafeValue = "synthetic-secret-value";
+    const h = harness([[{ id: 1, ativo: unsafeValue }]]);
+    const error = await h.sync("connection").catch((caught: unknown) => caught);
+    expect(error).toMatchObject({
+      category: "CUSTOMER_SYNC_NORMALIZATION_ERROR",
+    });
+    expect(h.state.errorCategory).toBe("CUSTOMER_NORMALIZATION_ERROR");
+    expect(JSON.stringify(error)).not.toContain(unsafeValue);
+    expect(JSON.stringify(h.state)).not.toContain(unsafeValue);
   });
 
   it("keeps partial counters without completing a partially failed page", async () => {

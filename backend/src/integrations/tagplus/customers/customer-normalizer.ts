@@ -124,7 +124,7 @@ export function normalizeTagPlusCustomer(value: unknown): NormalizedCustomer {
     municipalRegistration: optionalString(value.im),
     cnae: optionalString(value.cnae),
     suframa: optionalString(value.suframa),
-    ieIndicator: optionalString(value.indicador_ie),
+    ieIndicator: optionalBooleanString(value.indicador_ie),
     foreignCustomer: optionalBoolean(value.exterior),
     contacts: normalizeCollection(value.contatos, normalizeContact),
     addresses: normalizeCollection(value.enderecos, normalizeAddress),
@@ -222,6 +222,13 @@ function optionalBoolean(value: unknown): boolean | null {
   if (typeof value !== "boolean")
     throw new CustomerNormalizationError("CUSTOMER_NORMALIZATION_ERROR");
   return value;
+}
+
+function optionalBooleanString(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "boolean") return String(value);
+  if (typeof value === "string") return value;
+  throw new CustomerNormalizationError("CUSTOMER_NORMALIZATION_ERROR");
 }
 
 function optionalId(value: unknown): string | null {
