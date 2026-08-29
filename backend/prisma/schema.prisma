@@ -9,12 +9,166 @@ datasource db {
 }
 
 model Company {
-  id        String   @id @default(uuid()) @db.Uuid
-  name      String
-  slug      String   @unique
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id                 String              @id @default(uuid()) @db.Uuid
+  name               String
+  slug               String              @unique
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+  tagPlusConnections TagPlusConnection[]
 
   @@map("companies")
 }
 
+enum TagPlusConnectionStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum CustomerSyncRunStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model TagPlusConnection {
+  id         String                  @id @default(uuid()) @db.Uuid
+  companyId  String                  @map("company_id") @db.Uuid
+  name       String
+  status     TagPlusConnectionStatus
+  apiVersion String                  @map("api_version")
+  createdAt  DateTime                @default(now()) @map("created_at")
+  updatedAt  DateTime                @updatedAt @map("updated_at")
+  company    Company                 @relation(fields: [companyId], references: [id])
+  syncRuns   CustomerSyncRun[]
+  customers  Customer[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@map("tagplus_connections")
+}
+
+model CustomerSyncRun {
+  id                      String                @id @default(uuid()) @db.Uuid
+  connectionId            String                @map("connection_id") @db.Uuid
+  status                  CustomerSyncRunStatus @default(RUNNING)
+  startedAt               DateTime              @default(now()) @map("started_at")
+  completedAt             DateTime?             @map("completed_at")
+  pagesFetched            Int                   @default(0) @map("pages_fetched")
+  recordsFetched          Int                   @default(0) @map("records_fetched")
+  recordsInserted         Int                   @default(0) @map("records_inserted")
+  recordsUpdated          Int                   @default(0) @map("records_updated")
+  recordsUnchanged        Int                   @default(0) @map("records_unchanged")
+  recordsNoLongerObserved Int                   @default(0) @map("records_no_longer_observed")
+  lastCompletedPage       Int                   @default(0) @map("last_completed_page")
+  terminalEmptyPage       Int?                  @map("terminal_empty_page")
+  errorCategory           String?               @map("error_category")
+  createdAt               DateTime              @default(now()) @map("created_at")
+  connection              TagPlusConnection     @relation(fields: [connectionId], references: [id])
+  customersLastSeen       Customer[]            @relation("CustomersLastSeenInRun")
+
+  @@index([connectionId])
+  @@map("customer_sync_runs")
+}
+
+model Customer {
+  id                    String            @id @default(uuid()) @db.Uuid
+  connectionId          String            @map("connection_id") @db.Uuid
+  /// TagPlus identifiers are persisted as opaque strings. Normalization converts source numbers to decimal strings.
+  sourceId              String            @map("source_id")
+  sourceEntityId        String?           @map("source_entity_id")
+  code                  String?
+  externalCode          String?           @map("external_code")
+  type                  String?
+  legalName             String?           @map("legal_name")
+  tradeName             String?           @map("trade_name")
+  sourceActive          Boolean?          @map("source_active")
+  cpf                   String?
+  cnpj                  String?
+  email                 String?
+  phone                 String?
+  acceptsEmail          Boolean?          @map("accepts_email")
+  sourceCreatedAt       DateTime?         @map("source_created_at")
+  sourceUpdatedAt       DateTime?         @map("source_updated_at")
+  birthDate             DateTime?         @map("birth_date") @db.Date
+  stateRegistration     String?           @map("state_registration")
+  municipalRegistration String?           @map("municipal_registration")
+  cnae                  String?
+  suframa               String?
+  ieIndicator           String?           @map("ie_indicator")
+  foreignCustomer       Boolean?          @map("foreign_customer")
+  sourcePresent         Boolean           @map("source_present")
+  lastSeenAt            DateTime          @map("last_seen_at")
+  lastSyncedAt          DateTime          @map("last_synced_at")
+  lastSeenSyncRunId     String?           @map("last_seen_sync_run_id") @db.Uuid
+  createdAt             DateTime          @default(now()) @map("created_at")
+  updatedAt             DateTime          @updatedAt @map("updated_at")
+  connection            TagPlusConnection @relation(fields: [connectionId], references: [id])
+  lastSeenSyncRun       CustomerSyncRun?  @relation("CustomersLastSeenInRun", fields: [lastSeenSyncRunId], references: [id], onDelete: SetNull)
+  contacts              CustomerContact[]
+  addresses             CustomerAddress[]
+
+  @@unique([connectionId, sourceId])
+  @@index([connectionId, sourceEntityId])
+  @@index([connectionId, code])
+  @@index([connectionId, sourcePresent])
+  @@map("customers")
+}
+
+model CustomerContact {
+  id                          String   @id @default(uuid()) @db.Uuid
+  customerId                  String   @map("customer_id") @db.Uuid
+  /// Opaque TagPlus identifier; converted to String by the future normalization layer.
+  sourceId                    String   @map("source_id")
+  description                 String?
+  details                     String?
+  primary                     Boolean?
+  foreignContact              Boolean? @map("foreign_contact")
+  registrationTypeId          String?  @map("registration_type_id")
+  registrationTypeDescription String?  @map("registration_type_description")
+  contactTypeId               String?  @map("contact_type_id")
+  contactTypeDescription      String?  @map("contact_type_description")
+  position                    Int
+  createdAt                   DateTime @default(now()) @map("created_at")
+  updatedAt                   DateTime @updatedAt @map("updated_at")
+  customer                    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, sourceId])
+  @@index([customerId])
+  @@map("customer_contacts")
+}
+
+model CustomerAddress {
+  id                          String   @id @default(uuid()) @db.Uuid
+  customerId                  String   @map("customer_id") @db.Uuid
+  /// Opaque TagPlus identifiers; converted to String by the future normalization layer.
+  sourceId                    String   @map("source_id")
+  sourceEntityAddressId       String?  @map("source_entity_address_id")
+  street                      String?
+  number                      String?
+  complement                  String?
+  district                    String?
+  postalCode                  String?  @map("postal_code")
+  primary                     Boolean?
+  foreignAddress              Boolean? @map("foreign_address")
+  additionalInformation       String?  @map("additional_information")
+  cityId                      String?  @map("city_id")
+  cityCode                    String?  @map("city_code")
+  cityName                    String?  @map("city_name")
+  stateId                     String?  @map("state_id")
+  stateCode                   String?  @map("state_code")
+  stateName                   String?  @map("state_name")
+  stateAbbreviation           String?  @map("state_abbreviation")
+  countryId                   String?  @map("country_id")
+  countryCode                 String?  @map("country_code")
+  countryName                 String?  @map("country_name")
+  registrationTypeId          String?  @map("registration_type_id")
+  registrationTypeDescription String?  @map("registration_type_description")
+  position                    Int
+  createdAt                   DateTime @default(now()) @map("created_at")
+  updatedAt                   DateTime @updatedAt @map("updated_at")
+  customer                    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, sourceId])
+  @@index([customerId])
+  @@map("customer_addresses")
+}
