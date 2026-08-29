@@ -13,12 +13,16 @@ import {
   exchangeAuthorizationCode,
   TagPlusOAuthError,
   type TagPlusOAuthConfig,
-  type TagPlusTokens,
 } from "./oauth.js";
+import {
+  createTagPlusOAuthTokenStore,
+  type TagPlusOAuthTokenStore,
+} from "./oauth-token-store.js";
 
 export interface RegisterTagPlusOAuthOptions {
   config: TagPlusOAuthConfig & { apiVersion: string };
   fetch?: typeof globalThis.fetch;
+  tokenStore?: TagPlusOAuthTokenStore;
 }
 
 export function registerTagPlusOAuthRoutes(
@@ -26,11 +30,12 @@ export function registerTagPlusOAuthRoutes(
   options: RegisterTagPlusOAuthOptions,
 ): void {
   const states = createStateStore();
-  let currentTokens: TagPlusTokens | undefined;
+  const tokenStore = options.tokenStore ?? createTagPlusOAuthTokenStore();
 
   app.get(
     "/integrations/tagplus/inspect-clientes-characterization",
     async (_request, reply) => {
+      const currentTokens = tokenStore.get();
       if (!currentTokens) {
         return reply
           .code(409)
@@ -49,6 +54,7 @@ export function registerTagPlusOAuthRoutes(
   app.get(
     "/integrations/tagplus/inspect-clientes-pagination",
     async (_request, reply) => {
+      const currentTokens = tokenStore.get();
       if (!currentTokens) {
         return reply
           .code(409)
@@ -83,6 +89,7 @@ export function registerTagPlusOAuthRoutes(
   app.get(
     "/integrations/tagplus/inspect-clientes-full-structure-census",
     async (_request, reply) => {
+      const currentTokens = tokenStore.get();
       if (!currentTokens) {
         return reply
           .code(409)
@@ -101,6 +108,7 @@ export function registerTagPlusOAuthRoutes(
   app.get(
     "/integrations/tagplus/inspect-clientes-full-structure",
     async (_request, reply) => {
+      const currentTokens = tokenStore.get();
       if (!currentTokens) {
         return reply
           .code(409)
@@ -119,6 +127,7 @@ export function registerTagPlusOAuthRoutes(
   app.get(
     "/integrations/tagplus/inspect-clientes-fields",
     async (_request, reply) => {
+      const currentTokens = tokenStore.get();
       if (!currentTokens) {
         return reply
           .code(409)
@@ -137,6 +146,7 @@ export function registerTagPlusOAuthRoutes(
   app.get(
     "/integrations/tagplus/inspect-clientes-structure",
     async (_request, reply) => {
+      const currentTokens = tokenStore.get();
       if (!currentTokens) {
         return reply
           .code(409)
@@ -183,9 +193,14 @@ export function registerTagPlusOAuthRoutes(
       }
 
       try {
-        currentTokens = await exchangeAuthorizationCode(options.config, code, {
-          ...(options.fetch ? { fetch: options.fetch } : {}),
-        });
+        const currentTokens = await exchangeAuthorizationCode(
+          options.config,
+          code,
+          {
+            ...(options.fetch ? { fetch: options.fetch } : {}),
+          },
+        );
+        tokenStore.set(currentTokens);
         const client = createTagPlusClient({
           baseUrl: options.config.baseUrl,
           apiVersion: options.config.apiVersion,

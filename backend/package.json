@@ -10,6 +10,7 @@
     "test": "vitest run",
     "test:db:prepare": "tsx tests/helpers/prepare-test-database.ts",
     "test:integration": "vitest run --passWithNoTests tests/integration",
+    "ensure:tagplus-connection": "tsx src/scripts/ensure-tagplus-connection.ts",
     "lint": "eslint .",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
