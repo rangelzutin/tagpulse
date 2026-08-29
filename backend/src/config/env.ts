@@ -8,6 +8,7 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(3001),
   DATABASE_URL: z.string().min(1),
   DIRECT_URL: z.string().min(1),
+  TEST_DATABASE_URL: z.string().min(1).optional(),
   FRONTEND_URL: z.url(),
   TAGPLUS_BASE_URL: z.url(),
   TAGPLUS_API_VERSION: z.string().min(1),

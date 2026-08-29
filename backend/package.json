@@ -8,6 +8,8 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "test": "vitest run",
+    "test:db:prepare": "tsx tests/helpers/prepare-test-database.ts",
+    "test:integration": "vitest run --passWithNoTests tests/integration",
     "lint": "eslint .",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",

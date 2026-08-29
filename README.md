@@ -33,6 +33,15 @@ npm run prisma:seed --workspace backend
 
 `DATABASE_URL` é a conexão usada pela aplicação e `DIRECT_URL` é a conexão direta usada para migrations, quando exigida pelo provedor.
 
+Testes de integração com Prisma exigem um PostgreSQL isolado configurado explicitamente em `TEST_DATABASE_URL`. Eles nunca usam `DATABASE_URL` como fallback e recusam a execução se ambas apontarem para a mesma URL. Para preparar e testar o banco isolado:
+
+```bash
+npm run test:db:prepare --workspace backend
+npm run test:integration --workspace backend
+```
+
+Esses comandos nunca devem apontar para banco compartilhado ou de produção.
+
 ## Desenvolvimento
 
 Em terminais separados:
