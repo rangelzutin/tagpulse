@@ -12,6 +12,7 @@ export interface CustomerNormalizationDiagnostics {
   path: "$.data_cadastro" | "$.data_alteracao" | "$.data_nascimento";
   observedType: JsonStructuralType;
   expectedFormat: "timezone-qualified-datetime" | "YYYY-MM-DD";
+  dateFormatClass?: Exclude<DateFormatClass, "OTHER_TYPE">;
 }
 
 export class CustomerNormalizationError extends Error {
@@ -298,11 +299,21 @@ function invalidDate(
   path: CustomerNormalizationDiagnostics["path"],
   expectedFormat: CustomerNormalizationDiagnostics["expectedFormat"],
 ): CustomerNormalizationError {
+  const dateFormatClass = safeDateFormatClass(value);
   return new CustomerNormalizationError("CUSTOMER_INVALID_DATE", {
     path,
     observedType: structuralType(value),
     expectedFormat,
+    ...(dateFormatClass ? { dateFormatClass } : {}),
   });
+}
+
+function safeDateFormatClass(
+  value: unknown,
+): Exclude<DateFormatClass, "OTHER_TYPE"> | undefined {
+  if (typeof value !== "string") return undefined;
+  const result = classifyDate(value);
+  return result === "OTHER_TYPE" ? undefined : result;
 }
 
 function structuralType(value: unknown): JsonStructuralType {
@@ -321,3 +332,7 @@ function optionalRecord(value: unknown): SourceRecord | null {
 function isRecord(value: unknown): value is SourceRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+import {
+  classifyDate,
+  type DateFormatClass,
+} from "../inspection/clientes-format-classifiers.js";

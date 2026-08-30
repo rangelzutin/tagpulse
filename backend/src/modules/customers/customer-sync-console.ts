@@ -72,6 +72,9 @@ function safeDiagnostics(error: unknown): Record<string, string> {
     path: diagnostics.path,
     observedType: diagnostics.observedType,
     expectedFormat: diagnostics.expectedFormat,
+    ...(isSafeDateFormatClass(diagnostics.dateFormatClass)
+      ? { dateFormatClass: diagnostics.dateFormatClass }
+      : {}),
   };
 }
 
@@ -96,6 +99,16 @@ function isSafeObservedType(value: unknown): value is string {
 
 function isSafeExpectedFormat(value: unknown): value is string {
   return value === "timezone-qualified-datetime" || value === "YYYY-MM-DD";
+}
+
+function isSafeDateFormatClass(value: unknown): value is string {
+  return (
+    value === "DATE_ONLY" ||
+    value === "DATETIME_WITH_TIMEZONE" ||
+    value === "DATETIME_WITHOUT_TIMEZONE" ||
+    value === "EMPTY" ||
+    value === "INVALID_OR_UNCLASSIFIED"
+  );
 }
 
 function isUuid(value: string): boolean {

@@ -11,6 +11,7 @@ describe("customer sync console diagnostics", () => {
         path: "$.data_nascimento",
         observedType: "string",
         expectedFormat: "YYYY-MM-DD",
+        dateFormatClass: "INVALID_OR_UNCLASSIFIED",
       },
       "CUSTOMER_INVALID_DATE",
     );
@@ -28,6 +29,7 @@ describe("customer sync console diagnostics", () => {
       path: "$.data_nascimento",
       observedType: "string",
       expectedFormat: "YYYY-MM-DD",
+      dateFormatClass: "INVALID_OR_UNCLASSIFIED",
     });
     expect(output).not.toContain(unsafeValue);
     expect(output).not.toContain("payload");

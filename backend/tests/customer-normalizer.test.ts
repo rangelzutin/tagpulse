@@ -121,6 +121,54 @@ describe("TagPlus customer normalizer", () => {
     expect(JSON.stringify(error)).not.toContain(JSON.stringify(fixture.value));
   });
 
+  it.each([
+    ["data_cadastro", "2026-08-29T10:30:00", "DATETIME_WITHOUT_TIMEZONE"],
+    ["data_cadastro", "2026-08-29", "DATE_ONLY"],
+    ["data_cadastro", "", "EMPTY"],
+    ["data_cadastro", "synthetic-unclassified", "INVALID_OR_UNCLASSIFIED"],
+    ["data_alteracao", "2026-08-29T10:30:00", "DATETIME_WITHOUT_TIMEZONE"],
+    ["data_alteracao", "2026-08-29", "DATE_ONLY"],
+    ["data_alteracao", "", "EMPTY"],
+    ["data_alteracao", "synthetic-unclassified", "INVALID_OR_UNCLASSIFIED"],
+  ])(
+    "classifies invalid %s strings without accepting them",
+    (field, value, dateFormatClass) => {
+      const error = captureError(() =>
+        normalizeTagPlusCustomer({ id: 1, [field]: value }),
+      );
+      expect(error).toMatchObject({
+        category: "CUSTOMER_INVALID_DATE",
+        diagnostics: { observedType: "string", dateFormatClass },
+      });
+      expect(JSON.stringify(error)).not.toContain(JSON.stringify(value));
+    },
+  );
+
+  it("classifies a timezone datetime as invalid for data_nascimento", () => {
+    const value = "2026-08-29T10:30:00Z";
+    const error = captureError(() =>
+      normalizeTagPlusCustomer({ id: 1, data_nascimento: value }),
+    );
+    expect(error).toMatchObject({
+      category: "CUSTOMER_INVALID_DATE",
+      diagnostics: {
+        path: "$.data_nascimento",
+        observedType: "string",
+        expectedFormat: "YYYY-MM-DD",
+        dateFormatClass: "DATETIME_WITH_TIMEZONE",
+      },
+    });
+    expect(JSON.stringify(error)).not.toContain(value);
+  });
+
+  it("omits date format classification for non-string values", () => {
+    const error = captureError(() =>
+      normalizeTagPlusCustomer({ id: 1, data_cadastro: 123456 }),
+    );
+    expect(error.diagnostics).toMatchObject({ observedType: "number" });
+    expect(error.diagnostics).not.toHaveProperty("dateFormatClass");
+  });
+
   it("distinguishes missing, empty and populated child collections", () => {
     const missing = normalizeTagPlusCustomer({ id: 1 });
     const nullCollections = normalizeTagPlusCustomer({

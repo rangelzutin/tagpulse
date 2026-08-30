@@ -136,6 +136,7 @@ describe("customer full sync orchestration", () => {
         path: "$.data_alteracao",
         observedType: "string",
         expectedFormat: "timezone-qualified-datetime",
+        dateFormatClass: "INVALID_OR_UNCLASSIFIED",
       },
     });
     expect(h.state.errorCategory).toBe("CUSTOMER_INVALID_DATE");
