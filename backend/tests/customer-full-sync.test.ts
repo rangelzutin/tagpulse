@@ -126,7 +126,7 @@ describe("customer full sync orchestration", () => {
   });
 
   it("propagates safe date diagnostics without persisting the raw value", async () => {
-    const unsafeValue = "synthetic-invalid-updated-at";
+    const unsafeValue = "2099/07/31 23:58:41";
     const h = harness([[{ id: 1, data_alteracao: unsafeValue }]]);
     const error = await h.sync("connection").catch((caught: unknown) => caught);
     expect(error).toMatchObject({
@@ -137,11 +137,16 @@ describe("customer full sync orchestration", () => {
         observedType: "string",
         expectedFormat: "timezone-qualified-datetime",
         dateFormatClass: "INVALID_OR_UNCLASSIFIED",
+        dateStructuralPattern: "####/##/## ##:##:##",
       },
     });
     expect(h.state.errorCategory).toBe("CUSTOMER_INVALID_DATE");
     expect(JSON.stringify(error)).not.toContain(unsafeValue);
     expect(JSON.stringify(h.state)).not.toContain(unsafeValue);
+    for (const fragment of ["2099", "07", "31", "23", "58", "41"]) {
+      expect(JSON.stringify(error)).not.toContain(fragment);
+      expect(JSON.stringify(h.state)).not.toContain(fragment);
+    }
   });
 
   it("keeps partial counters without completing a partially failed page", async () => {

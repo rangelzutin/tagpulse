@@ -13,6 +13,7 @@ export interface CustomerNormalizationDiagnostics {
   observedType: JsonStructuralType;
   expectedFormat: "timezone-qualified-datetime" | "YYYY-MM-DD";
   dateFormatClass?: Exclude<DateFormatClass, "OTHER_TYPE">;
+  dateStructuralPattern?: string;
 }
 
 export class CustomerNormalizationError extends Error {
@@ -305,7 +306,22 @@ function invalidDate(
     observedType: structuralType(value),
     expectedFormat,
     ...(dateFormatClass ? { dateFormatClass } : {}),
+    ...(typeof value === "string" &&
+    dateFormatClass === "INVALID_OR_UNCLASSIFIED"
+      ? { dateStructuralPattern: createDateStructuralPattern(value) }
+      : {}),
   });
+}
+
+export function createDateStructuralPattern(value: string): string {
+  return Array.from(value, (character) => {
+    if (/\p{Number}/u.test(character)) return "#";
+    if (/\p{Letter}/u.test(character)) {
+      return character === "T" || character === "Z" ? character : "A";
+    }
+    if (/\s/u.test(character)) return " ";
+    return character;
+  }).join("");
 }
 
 function safeDateFormatClass(

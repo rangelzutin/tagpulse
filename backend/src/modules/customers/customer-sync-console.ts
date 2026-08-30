@@ -75,7 +75,26 @@ function safeDiagnostics(error: unknown): Record<string, string> {
     ...(isSafeDateFormatClass(diagnostics.dateFormatClass)
       ? { dateFormatClass: diagnostics.dateFormatClass }
       : {}),
+    ...(diagnostics.observedType === "string" &&
+    diagnostics.dateFormatClass === "INVALID_OR_UNCLASSIFIED" &&
+    isSafeDateStructuralPattern(diagnostics.dateStructuralPattern)
+      ? { dateStructuralPattern: diagnostics.dateStructuralPattern }
+      : {}),
   };
+}
+
+function isSafeDateStructuralPattern(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    Array.from(value).every(
+      (character) =>
+        !/\p{Number}/u.test(character) &&
+        (!/\p{Letter}/u.test(character) ||
+          character === "A" ||
+          character === "T" ||
+          character === "Z"),
+    )
+  );
 }
 
 function isSafePath(value: unknown): value is string {

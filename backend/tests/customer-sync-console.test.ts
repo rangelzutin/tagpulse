@@ -12,6 +12,7 @@ describe("customer sync console diagnostics", () => {
         observedType: "string",
         expectedFormat: "YYYY-MM-DD",
         dateFormatClass: "INVALID_OR_UNCLASSIFIED",
+        dateStructuralPattern: "####/##/## ##:##:##",
       },
       "CUSTOMER_INVALID_DATE",
     );
@@ -30,9 +31,29 @@ describe("customer sync console diagnostics", () => {
       observedType: "string",
       expectedFormat: "YYYY-MM-DD",
       dateFormatClass: "INVALID_OR_UNCLASSIFIED",
+      dateStructuralPattern: "####/##/## ##:##:##",
     });
     expect(output).not.toContain(unsafeValue);
     expect(output).not.toContain("payload");
     expect(output).not.toContain("value");
+  });
+
+  it("rejects a structural pattern containing raw digits or letters", () => {
+    const output = formatCustomerSyncConsoleError(
+      new CustomerSyncError(
+        "CUSTOMER_SYNC_NORMALIZATION_ERROR",
+        {
+          path: "$.data_cadastro",
+          observedType: "string",
+          expectedFormat: "timezone-qualified-datetime",
+          dateFormatClass: "INVALID_OR_UNCLASSIFIED",
+          dateStructuralPattern: "2099/AA/private",
+        },
+        "CUSTOMER_INVALID_DATE",
+      ),
+    );
+    expect(JSON.parse(output)).not.toHaveProperty("dateStructuralPattern");
+    expect(output).not.toContain("2099");
+    expect(output).not.toContain("private");
   });
 });

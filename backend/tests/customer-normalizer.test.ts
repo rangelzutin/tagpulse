@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  createDateStructuralPattern,
   CustomerNormalizationError,
   normalizeExternalId,
   normalizeTagPlusCustomer,
@@ -143,6 +144,36 @@ describe("TagPlus customer normalizer", () => {
       expect(JSON.stringify(error)).not.toContain(JSON.stringify(value));
     },
   );
+
+  it.each([
+    ["2026/08/30 12:44:15", "####/##/## ##:##:##"],
+    ["30/08/2026 12:44:15", "##/##/#### ##:##:##"],
+    ["20260830124415", "##############"],
+    ["2026-08-30T12:44:15.123", "####-##-##T##:##:##.###"],
+  ])("masks a date structure: %s", (value, pattern) => {
+    const result = createDateStructuralPattern(value);
+    expect(result).toBe(pattern);
+    expect(result).not.toMatch(/2026|08|30|12|44|15|123/);
+  });
+
+  it.each([
+    ["2026-08-29T10:30:00", "DATETIME_WITHOUT_TIMEZONE"],
+    ["2026-08-30T12:44:15.123", "DATETIME_WITHOUT_TIMEZONE"],
+    ["2026-08-29", "DATE_ONLY"],
+    ["", "EMPTY"],
+  ])("omits a structural pattern for %s classified as %s", (value) => {
+    const error = captureError(() =>
+      normalizeTagPlusCustomer({ id: 1, data_cadastro: value }),
+    );
+    expect(error.diagnostics).not.toHaveProperty("dateStructuralPattern");
+  });
+
+  it("omits a structural pattern for non-string dates", () => {
+    const error = captureError(() =>
+      normalizeTagPlusCustomer({ id: 1, data_cadastro: 123456 }),
+    );
+    expect(error.diagnostics).not.toHaveProperty("dateStructuralPattern");
+  });
 
   it("classifies a timezone datetime as invalid for data_nascimento", () => {
     const value = "2026-08-29T10:30:00Z";
