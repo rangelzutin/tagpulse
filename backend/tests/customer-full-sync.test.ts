@@ -5,6 +5,7 @@ import {
   CustomerSyncError,
 } from "../src/modules/customers/customer-full-sync.js";
 import type { CustomerSyncRepository } from "../src/modules/customers/customer-sync-repository.js";
+import { CustomerPersistenceError } from "../src/modules/customers/customer-repository.js";
 
 const customer = (id: number) => ({ id, razao_social: `Synthetic ${id}` });
 
@@ -166,6 +167,31 @@ describe("customer full sync orchestration", () => {
     });
     expect(h.state.progress.lastCompletedPage).toBeUndefined();
     expect(h.state.reconciliations).toBe(0);
+  });
+
+  it("propagates only safe persistence diagnostics and persists only the category", async () => {
+    const canary = "RAW_DB_CANARY customer@example.invalid source-123";
+    const h = harness([[customer(1)]]);
+    const repositoryError = new CustomerPersistenceError({
+      persistenceStage: "CONTACTS",
+      persistenceOperation: "UPSERT",
+      persistenceErrorClass: "VALUE_TOO_LONG",
+    });
+    Object.assign(repositoryError, { rawMessage: canary, payload: canary });
+    h.customerRepository.upsertCustomer.mockRejectedValueOnce(repositoryError);
+
+    const error = await h.sync("connection").catch((caught: unknown) => caught);
+    expect(error).toMatchObject({
+      category: "CUSTOMER_SYNC_PERSISTENCE_ERROR",
+      persistenceDiagnostics: {
+        persistenceStage: "CONTACTS",
+        persistenceOperation: "UPSERT",
+        persistenceErrorClass: "VALUE_TOO_LONG",
+      },
+    });
+    expect(h.state.errorCategory).toBe("CUSTOMER_SYNC_PERSISTENCE_ERROR");
+    expect(JSON.stringify(error)).not.toContain(canary);
+    expect(JSON.stringify(h.state)).not.toContain(canary);
   });
 
   it("counts every repository outcome", async () => {

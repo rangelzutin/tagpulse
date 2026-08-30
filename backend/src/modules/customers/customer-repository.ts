@@ -6,9 +6,36 @@ import type {
   NormalizedCustomerContact,
 } from "../../integrations/tagplus/customers/customer-normalizer.js";
 
+export type CustomerPersistenceStage =
+  "CUSTOMER" | "CONTACTS" | "ADDRESSES" | "TRANSACTION" | "UNKNOWN";
+
+export type CustomerPersistenceOperation =
+  "UPSERT" | "DELETE_MISSING_CHILDREN" | "COMMIT" | "UNKNOWN";
+
+export type CustomerPersistenceErrorClass =
+  | "UNIQUE_CONSTRAINT"
+  | "FOREIGN_KEY_CONSTRAINT"
+  | "NOT_NULL_CONSTRAINT"
+  | "VALUE_TOO_LONG"
+  | "INVALID_DATABASE_VALUE"
+  | "TRANSACTION_ERROR"
+  | "DATABASE_UNAVAILABLE"
+  | "UNKNOWN_DATABASE_ERROR";
+
+export interface CustomerPersistenceDiagnostics {
+  persistenceStage: CustomerPersistenceStage;
+  persistenceOperation: CustomerPersistenceOperation;
+  persistenceErrorClass: CustomerPersistenceErrorClass;
+}
+
+interface PersistenceContext {
+  stage: CustomerPersistenceStage;
+  operation: CustomerPersistenceOperation;
+}
+
 export class CustomerPersistenceError extends Error {
   readonly category = "CUSTOMER_PERSISTENCE_ERROR";
-  constructor() {
+  constructor(public readonly diagnostics: CustomerPersistenceDiagnostics) {
     super("CUSTOMER_PERSISTENCE_ERROR");
     this.name = "CustomerPersistenceError";
   }
@@ -36,10 +63,30 @@ export function createCustomerRepository(
     async upsertCustomer(
       input: UpsertCustomerInput,
     ): Promise<UpsertCustomerResult> {
+      const context: PersistenceContext = {
+        stage: "TRANSACTION",
+        operation: "UNKNOWN",
+      };
+      let transactionCallbackCompleted = false;
       try {
-        return await client.$transaction((tx) => persistCustomer(tx, input));
-      } catch {
-        throw new CustomerPersistenceError();
+        return await client.$transaction(async (tx) => {
+          const result = await persistCustomer(tx, input, context);
+          transactionCallbackCompleted = true;
+          return result;
+        });
+      } catch (error: unknown) {
+        throw new CustomerPersistenceError({
+          persistenceStage: transactionCallbackCompleted
+            ? "TRANSACTION"
+            : context.stage,
+          persistenceOperation: transactionCallbackCompleted
+            ? "COMMIT"
+            : context.operation,
+          persistenceErrorClass: classifyPersistenceError(
+            error,
+            transactionCallbackCompleted,
+          ),
+        });
       }
     },
   };
@@ -72,7 +119,10 @@ const customerSourceSelect = {
 async function persistCustomer(
   tx: Prisma.TransactionClient,
   input: UpsertCustomerInput,
+  context: PersistenceContext,
 ): Promise<UpsertCustomerResult> {
+  context.stage = "CUSTOMER";
+  context.operation = "UPSERT";
   const key = {
     connectionId_sourceId: {
       connectionId: input.connectionId,
@@ -115,11 +165,17 @@ async function persistCustomer(
     outcome = parentChanged ? "UPDATED" : "UNCHANGED";
   }
 
-  const contacts = await syncContacts(tx, customerId, input.customer.contacts);
+  const contacts = await syncContacts(
+    tx,
+    customerId,
+    input.customer.contacts,
+    context,
+  );
   const addresses = await syncAddresses(
     tx,
     customerId,
     input.customer.addresses,
+    context,
   );
   if (existing && (parentChanged || contacts.changed || addresses.changed)) {
     outcome = "UPDATED";
@@ -173,10 +229,13 @@ async function syncContacts(
   tx: Prisma.TransactionClient,
   customerId: string,
   collection: NormalizedCollection<NormalizedCustomerContact>,
+  context: PersistenceContext,
 ) {
   if (collection.state === "NOT_PROVIDED") {
     return { processed: 0, removed: 0, changed: false };
   }
+  context.stage = "CONTACTS";
+  context.operation = "UPSERT";
   const before = await tx.customerContact.findMany({ where: { customerId } });
   const changed = collectionChanged(before, collection.items);
   for (const item of collection.items) {
@@ -186,6 +245,7 @@ async function syncContacts(
       update: item,
     });
   }
+  context.operation = "DELETE_MISSING_CHILDREN";
   const removed = await tx.customerContact.deleteMany({
     where: {
       customerId,
@@ -205,10 +265,13 @@ async function syncAddresses(
   tx: Prisma.TransactionClient,
   customerId: string,
   collection: NormalizedCollection<NormalizedCustomerAddress>,
+  context: PersistenceContext,
 ) {
   if (collection.state === "NOT_PROVIDED") {
     return { processed: 0, removed: 0, changed: false };
   }
+  context.stage = "ADDRESSES";
+  context.operation = "UPSERT";
   const before = await tx.customerAddress.findMany({ where: { customerId } });
   const changed = collectionChanged(before, collection.items);
   for (const item of collection.items) {
@@ -218,6 +281,7 @@ async function syncAddresses(
       update: item,
     });
   }
+  context.operation = "DELETE_MISSING_CHILDREN";
   const removed = await tx.customerAddress.deleteMany({
     where: {
       customerId,
@@ -231,6 +295,35 @@ async function syncAddresses(
     removed: removed.count,
     changed,
   };
+}
+
+function classifyPersistenceError(
+  error: unknown,
+  transactionCallbackCompleted: boolean,
+): CustomerPersistenceErrorClass {
+  if (transactionCallbackCompleted) return "TRANSACTION_ERROR";
+  const code = safePrismaCode(error);
+  if (code === "P2002") return "UNIQUE_CONSTRAINT";
+  if (code === "P2003") return "FOREIGN_KEY_CONSTRAINT";
+  if (code === "P2011") return "NOT_NULL_CONSTRAINT";
+  if (code === "P2000") return "VALUE_TOO_LONG";
+  if (code === "P2006") return "INVALID_DATABASE_VALUE";
+  if (code === "P2028") return "TRANSACTION_ERROR";
+  if (code === "P2024" || /^P10\d{2}$/.test(code ?? ""))
+    return "DATABASE_UNAVAILABLE";
+  return "UNKNOWN_DATABASE_ERROR";
+}
+
+function safePrismaCode(error: unknown): string | undefined {
+  if (
+    typeof error !== "object" ||
+    error === null ||
+    !("code" in error) ||
+    typeof error.code !== "string"
+  ) {
+    return undefined;
+  }
+  return /^P\d{4}$/.test(error.code) ? error.code : undefined;
 }
 
 function collectionChanged<T extends { sourceId: string }>(

@@ -6,6 +6,7 @@ import {
 } from "../../integrations/tagplus/customers/customer-normalizer.js";
 import type { CustomerPageFetcher } from "../../integrations/tagplus/customers/customer-page-fetcher.js";
 import type {
+  CustomerPersistenceDiagnostics,
   UpsertCustomerInput,
   UpsertCustomerResult,
 } from "./customer-repository.js";
@@ -28,6 +29,7 @@ export class CustomerSyncError extends Error {
     public readonly category: CustomerSyncErrorCategory,
     public readonly diagnostics?: CustomerNormalizationDiagnostics,
     public readonly normalizationCategory?: CustomerNormalizationErrorCategory,
+    public readonly persistenceDiagnostics?: CustomerPersistenceDiagnostics,
   ) {
     super(category);
     this.name = "CustomerSyncError";
@@ -173,6 +175,9 @@ export function createCustomerFullSync(
           : undefined,
         error instanceof CustomerNormalizationError
           ? error.category
+          : undefined,
+        error instanceof CustomerPersistenceError
+          ? error.diagnostics
           : undefined,
       );
     }

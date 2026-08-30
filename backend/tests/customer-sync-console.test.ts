@@ -56,4 +56,50 @@ describe("customer sync console diagnostics", () => {
     expect(output).not.toContain("2099");
     expect(output).not.toContain("private");
   });
+
+  it("outputs only whitelisted persistence diagnostics", () => {
+    const canary = "RAW_DB_CANARY customer@example.invalid source-123";
+    const error = new CustomerSyncError(
+      "CUSTOMER_SYNC_PERSISTENCE_ERROR",
+      undefined,
+      undefined,
+      {
+        persistenceStage: "ADDRESSES",
+        persistenceOperation: "DELETE_MISSING_CHILDREN",
+        persistenceErrorClass: "FOREIGN_KEY_CONSTRAINT",
+      },
+    );
+    Object.assign(error, {
+      rawMessage: canary,
+      query: canary,
+      payload: canary,
+    });
+    const output = formatCustomerSyncConsoleError(error);
+    expect(JSON.parse(output)).toEqual({
+      status: "ERROR",
+      category: "CUSTOMER_SYNC_PERSISTENCE_ERROR",
+      persistenceStage: "ADDRESSES",
+      persistenceOperation: "DELETE_MISSING_CHILDREN",
+      persistenceErrorClass: "FOREIGN_KEY_CONSTRAINT",
+    });
+    expect(output).not.toContain(canary);
+    expect(output).not.toContain("rawMessage");
+    expect(output).not.toContain("query");
+    expect(output).not.toContain("payload");
+  });
+
+  it("rejects non-whitelisted persistence diagnostics", () => {
+    const output = formatCustomerSyncConsoleError({
+      category: "CUSTOMER_SYNC_PERSISTENCE_ERROR",
+      persistenceDiagnostics: {
+        persistenceStage: "CUSTOMER source-123",
+        persistenceOperation: "RAW SQL",
+        persistenceErrorClass: "private database message",
+      },
+    });
+    expect(JSON.parse(output)).toEqual({
+      status: "ERROR",
+      category: "CUSTOMER_SYNC_PERSISTENCE_ERROR",
+    });
+  });
 });

@@ -35,6 +35,7 @@ export function formatCustomerSyncConsoleError(error: unknown): string {
       ? String(error.category)
       : "CUSTOMER_SYNC_ERROR";
   const diagnostics = safeDiagnostics(error);
+  const persistenceDiagnostics = safePersistenceDiagnostics(error);
   const safeNormalizationCategory =
     typeof error === "object" &&
     error !== null &&
@@ -47,7 +48,62 @@ export function formatCustomerSyncConsoleError(error: unknown): string {
     category,
     ...safeNormalizationCategory,
     ...diagnostics,
+    ...persistenceDiagnostics,
   });
+}
+
+function safePersistenceDiagnostics(error: unknown): Record<string, string> {
+  if (
+    typeof error !== "object" ||
+    error === null ||
+    !("persistenceDiagnostics" in error) ||
+    typeof error.persistenceDiagnostics !== "object" ||
+    error.persistenceDiagnostics === null
+  ) {
+    return {};
+  }
+  const diagnostics = error.persistenceDiagnostics as Record<string, unknown>;
+  if (
+    !isPersistenceStage(diagnostics.persistenceStage) ||
+    !isPersistenceOperation(diagnostics.persistenceOperation) ||
+    !isPersistenceErrorClass(diagnostics.persistenceErrorClass)
+  ) {
+    return {};
+  }
+  return {
+    persistenceStage: diagnostics.persistenceStage,
+    persistenceOperation: diagnostics.persistenceOperation,
+    persistenceErrorClass: diagnostics.persistenceErrorClass,
+  };
+}
+
+function isPersistenceStage(value: unknown): value is string {
+  return [
+    "CUSTOMER",
+    "CONTACTS",
+    "ADDRESSES",
+    "TRANSACTION",
+    "UNKNOWN",
+  ].includes(String(value));
+}
+
+function isPersistenceOperation(value: unknown): value is string {
+  return ["UPSERT", "DELETE_MISSING_CHILDREN", "COMMIT", "UNKNOWN"].includes(
+    String(value),
+  );
+}
+
+function isPersistenceErrorClass(value: unknown): value is string {
+  return [
+    "UNIQUE_CONSTRAINT",
+    "FOREIGN_KEY_CONSTRAINT",
+    "NOT_NULL_CONSTRAINT",
+    "VALUE_TOO_LONG",
+    "INVALID_DATABASE_VALUE",
+    "TRANSACTION_ERROR",
+    "DATABASE_UNAVAILABLE",
+    "UNKNOWN_DATABASE_ERROR",
+  ].includes(String(value));
 }
 
 function safeDiagnostics(error: unknown): Record<string, string> {
