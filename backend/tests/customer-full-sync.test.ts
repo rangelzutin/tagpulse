@@ -125,6 +125,24 @@ describe("customer full sync orchestration", () => {
     expect(JSON.stringify(h.state)).not.toContain(unsafeValue);
   });
 
+  it("propagates safe date diagnostics without persisting the raw value", async () => {
+    const unsafeValue = "synthetic-invalid-updated-at";
+    const h = harness([[{ id: 1, data_alteracao: unsafeValue }]]);
+    const error = await h.sync("connection").catch((caught: unknown) => caught);
+    expect(error).toMatchObject({
+      category: "CUSTOMER_SYNC_NORMALIZATION_ERROR",
+      normalizationCategory: "CUSTOMER_INVALID_DATE",
+      diagnostics: {
+        path: "$.data_alteracao",
+        observedType: "string",
+        expectedFormat: "timezone-qualified-datetime",
+      },
+    });
+    expect(h.state.errorCategory).toBe("CUSTOMER_INVALID_DATE");
+    expect(JSON.stringify(error)).not.toContain(unsafeValue);
+    expect(JSON.stringify(h.state)).not.toContain(unsafeValue);
+  });
+
   it("keeps partial counters without completing a partially failed page", async () => {
     const h = harness([[customer(1), customer(2), customer(3)]]);
     h.customerRepository.upsertCustomer

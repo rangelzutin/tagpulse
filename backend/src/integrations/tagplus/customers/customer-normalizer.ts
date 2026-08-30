@@ -5,8 +5,20 @@ export type CustomerNormalizationErrorCategory =
   | "CUSTOMER_INVALID_ADDRESS_ID"
   | "CUSTOMER_NORMALIZATION_ERROR";
 
+export type JsonStructuralType =
+  "null" | "string" | "number" | "boolean" | "object" | "array";
+
+export interface CustomerNormalizationDiagnostics {
+  path: "$.data_cadastro" | "$.data_alteracao" | "$.data_nascimento";
+  observedType: JsonStructuralType;
+  expectedFormat: "timezone-qualified-datetime" | "YYYY-MM-DD";
+}
+
 export class CustomerNormalizationError extends Error {
-  constructor(public readonly category: CustomerNormalizationErrorCategory) {
+  constructor(
+    public readonly category: CustomerNormalizationErrorCategory,
+    public readonly diagnostics?: CustomerNormalizationDiagnostics,
+  ) {
     super(category);
     this.name = "CustomerNormalizationError";
   }
@@ -117,9 +129,9 @@ export function normalizeTagPlusCustomer(value: unknown): NormalizedCustomer {
     email: optionalString(value.email),
     phone: optionalString(value.telefone),
     acceptsEmail: optionalBoolean(value.recebe_email),
-    sourceCreatedAt: optionalDateTime(value.data_cadastro),
-    sourceUpdatedAt: optionalDateTime(value.data_alteracao),
-    birthDate: optionalCivilDate(value.data_nascimento),
+    sourceCreatedAt: optionalDateTime(value.data_cadastro, "$.data_cadastro"),
+    sourceUpdatedAt: optionalDateTime(value.data_alteracao, "$.data_alteracao"),
+    birthDate: optionalCivilDate(value.data_nascimento, "$.data_nascimento"),
     stateRegistration: optionalString(value.ie),
     municipalRegistration: optionalString(value.im),
     cnae: optionalString(value.cnae),
@@ -246,7 +258,10 @@ function requiredChildId(
   }
 }
 
-function optionalDateTime(value: unknown): Date | null {
+function optionalDateTime(
+  value: unknown,
+  path: "$.data_cadastro" | "$.data_alteracao",
+): Date | null {
   if (value === null || value === undefined) return null;
   if (
     typeof value !== "string" ||
@@ -254,25 +269,49 @@ function optionalDateTime(value: unknown): Date | null {
       value,
     )
   ) {
-    throw new CustomerNormalizationError("CUSTOMER_INVALID_DATE");
+    throw invalidDate(value, path, "timezone-qualified-datetime");
   }
   const result = new Date(value);
   if (Number.isNaN(result.getTime()))
-    throw new CustomerNormalizationError("CUSTOMER_INVALID_DATE");
+    throw invalidDate(value, path, "timezone-qualified-datetime");
   return result;
 }
 
-function optionalCivilDate(value: unknown): Date | null {
+function optionalCivilDate(
+  value: unknown,
+  path: "$.data_nascimento",
+): Date | null {
   if (value === null || value === undefined) return null;
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    throw new CustomerNormalizationError("CUSTOMER_INVALID_DATE");
+    throw invalidDate(value, path, "YYYY-MM-DD");
   }
   const [year, month, day] = value.split("-").map(Number);
   const result = new Date(Date.UTC(year!, month! - 1, day));
   if (result.toISOString().slice(0, 10) !== value) {
-    throw new CustomerNormalizationError("CUSTOMER_INVALID_DATE");
+    throw invalidDate(value, path, "YYYY-MM-DD");
   }
   return result;
+}
+
+function invalidDate(
+  value: unknown,
+  path: CustomerNormalizationDiagnostics["path"],
+  expectedFormat: CustomerNormalizationDiagnostics["expectedFormat"],
+): CustomerNormalizationError {
+  return new CustomerNormalizationError("CUSTOMER_INVALID_DATE", {
+    path,
+    observedType: structuralType(value),
+    expectedFormat,
+  });
+}
+
+function structuralType(value: unknown): JsonStructuralType {
+  if (value === null) return "null";
+  if (Array.isArray(value)) return "array";
+  if (typeof value === "string") return "string";
+  if (typeof value === "number") return "number";
+  if (typeof value === "boolean") return "boolean";
+  return "object";
 }
 
 function optionalRecord(value: unknown): SourceRecord | null {

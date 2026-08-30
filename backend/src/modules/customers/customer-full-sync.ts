@@ -1,6 +1,8 @@
 import {
   CustomerNormalizationError,
   normalizeTagPlusCustomer,
+  type CustomerNormalizationDiagnostics,
+  type CustomerNormalizationErrorCategory,
 } from "../../integrations/tagplus/customers/customer-normalizer.js";
 import type { CustomerPageFetcher } from "../../integrations/tagplus/customers/customer-page-fetcher.js";
 import type {
@@ -22,7 +24,11 @@ export type CustomerSyncErrorCategory =
   | "CUSTOMER_SYNC_ERROR";
 
 export class CustomerSyncError extends Error {
-  constructor(public readonly category: CustomerSyncErrorCategory) {
+  constructor(
+    public readonly category: CustomerSyncErrorCategory,
+    public readonly diagnostics?: CustomerNormalizationDiagnostics,
+    public readonly normalizationCategory?: CustomerNormalizationErrorCategory,
+  ) {
     super(category);
     this.name = "CustomerSyncError";
   }
@@ -160,7 +166,15 @@ export function createCustomerFullSync(
       } catch {
         throw new CustomerSyncError("CUSTOMER_SYNC_ERROR");
       }
-      throw new CustomerSyncError(category);
+      throw new CustomerSyncError(
+        category,
+        error instanceof CustomerNormalizationError
+          ? error.diagnostics
+          : undefined,
+        error instanceof CustomerNormalizationError
+          ? error.category
+          : undefined,
+      );
     }
   };
 }

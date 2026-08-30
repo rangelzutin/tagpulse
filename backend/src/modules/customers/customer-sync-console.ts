@@ -26,11 +26,76 @@ function report(result: { status: string; runId?: string }): void {
 }
 
 function reportError(error: unknown): void {
+  process.stderr.write(`${formatCustomerSyncConsoleError(error)}\n`);
+}
+
+export function formatCustomerSyncConsoleError(error: unknown): string {
   const category =
     typeof error === "object" && error !== null && "category" in error
       ? String(error.category)
       : "CUSTOMER_SYNC_ERROR";
-  process.stderr.write(`${JSON.stringify({ status: "ERROR", category })}\n`);
+  const diagnostics = safeDiagnostics(error);
+  const safeNormalizationCategory =
+    typeof error === "object" &&
+    error !== null &&
+    "normalizationCategory" in error &&
+    error.normalizationCategory === "CUSTOMER_INVALID_DATE"
+      ? { safeNormalizationCategory: "CUSTOMER_INVALID_DATE" }
+      : {};
+  return JSON.stringify({
+    status: "ERROR",
+    category,
+    ...safeNormalizationCategory,
+    ...diagnostics,
+  });
+}
+
+function safeDiagnostics(error: unknown): Record<string, string> {
+  if (
+    typeof error !== "object" ||
+    error === null ||
+    !("diagnostics" in error) ||
+    typeof error.diagnostics !== "object" ||
+    error.diagnostics === null
+  ) {
+    return {};
+  }
+  const diagnostics = error.diagnostics as Record<string, unknown>;
+  if (
+    !isSafePath(diagnostics.path) ||
+    !isSafeObservedType(diagnostics.observedType) ||
+    !isSafeExpectedFormat(diagnostics.expectedFormat)
+  ) {
+    return {};
+  }
+  return {
+    path: diagnostics.path,
+    observedType: diagnostics.observedType,
+    expectedFormat: diagnostics.expectedFormat,
+  };
+}
+
+function isSafePath(value: unknown): value is string {
+  return (
+    value === "$.data_cadastro" ||
+    value === "$.data_alteracao" ||
+    value === "$.data_nascimento"
+  );
+}
+
+function isSafeObservedType(value: unknown): value is string {
+  return (
+    value === "null" ||
+    value === "string" ||
+    value === "number" ||
+    value === "boolean" ||
+    value === "object" ||
+    value === "array"
+  );
+}
+
+function isSafeExpectedFormat(value: unknown): value is string {
+  return value === "timezone-qualified-datetime" || value === "YYYY-MM-DD";
 }
 
 function isUuid(value: string): boolean {

@@ -84,6 +84,43 @@ describe("TagPlus customer normalizer", () => {
     );
   });
 
+  it.each([
+    {
+      field: "data_cadastro",
+      value: "synthetic-invalid-created-at",
+      path: "$.data_cadastro",
+      observedType: "string",
+      expectedFormat: "timezone-qualified-datetime",
+    },
+    {
+      field: "data_alteracao",
+      value: 123456,
+      path: "$.data_alteracao",
+      observedType: "number",
+      expectedFormat: "timezone-qualified-datetime",
+    },
+    {
+      field: "data_nascimento",
+      value: ["synthetic-invalid-birth-date"],
+      path: "$.data_nascimento",
+      observedType: "array",
+      expectedFormat: "YYYY-MM-DD",
+    },
+  ])("reports safe date diagnostics for $field", (fixture) => {
+    const error = captureError(() =>
+      normalizeTagPlusCustomer({ id: 1, [fixture.field]: fixture.value }),
+    );
+    expect(error).toMatchObject({
+      category: "CUSTOMER_INVALID_DATE",
+      diagnostics: {
+        path: fixture.path,
+        observedType: fixture.observedType,
+        expectedFormat: fixture.expectedFormat,
+      },
+    });
+    expect(JSON.stringify(error)).not.toContain(JSON.stringify(fixture.value));
+  });
+
   it("distinguishes missing, empty and populated child collections", () => {
     const missing = normalizeTagPlusCustomer({ id: 1 });
     const nullCollections = normalizeTagPlusCustomer({
@@ -198,5 +235,15 @@ function expectCategory(
   } catch (error: unknown) {
     expect(error).toBeInstanceOf(CustomerNormalizationError);
     expect(error).toMatchObject({ category });
+  }
+}
+
+function captureError(action: () => unknown): CustomerNormalizationError {
+  try {
+    action();
+    throw new Error("Expected normalization to fail");
+  } catch (error: unknown) {
+    expect(error).toBeInstanceOf(CustomerNormalizationError);
+    return error as CustomerNormalizationError;
   }
 }
