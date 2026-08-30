@@ -86,6 +86,64 @@ describe("TagPlus customer normalizer", () => {
   });
 
   it.each([
+    ["data_cadastro", "2026-08-30 15:22:01", [2026, 7, 30, 15, 22, 1]],
+    ["data_alteracao", "2024-02-29 01:02:03", [2024, 1, 29, 1, 2, 3]],
+    ["data_cadastro", "2026-12-31 23:59:59", [2026, 11, 31, 23, 59, 59]],
+  ] as const)(
+    "parses TagPlus local datetime in %s: %s",
+    (field, value, components) => {
+      const result = normalizeTagPlusCustomer({ id: 1, [field]: value });
+      const date =
+        field === "data_cadastro"
+          ? result.sourceCreatedAt
+          : result.sourceUpdatedAt;
+      expect(date).not.toBeNull();
+      expect([
+        date!.getFullYear(),
+        date!.getMonth(),
+        date!.getDate(),
+        date!.getHours(),
+        date!.getMinutes(),
+        date!.getSeconds(),
+      ]).toEqual(components);
+    },
+  );
+
+  it.each([
+    "2026-02-30 10:00:00",
+    "2026-13-01 10:00:00",
+    "2026-01-01 24:00:00",
+    "2026-01-01 10:60:00",
+    "2026-01-01 10:00:60",
+    "30/08/2026 15:22:01",
+    "2026/08/30 15:22:01",
+    "20260830152201",
+    "2026-08-30 15:22",
+    "2026-08-30 15:22:01.123",
+  ])("rejects an unauthorized or impossible local datetime: %s", (value) => {
+    const error = captureError(() =>
+      normalizeTagPlusCustomer({ id: 1, data_cadastro: value }),
+    );
+    expect(error).toMatchObject({ category: "CUSTOMER_INVALID_DATE" });
+    expect(JSON.stringify(error)).not.toContain(value);
+  });
+
+  it("keeps data_nascimento restricted to a civil date", () => {
+    expect(
+      normalizeTagPlusCustomer({ id: 1, data_nascimento: "2024-02-29" })
+        .birthDate,
+    ).not.toBeNull();
+    expectCategory(
+      () =>
+        normalizeTagPlusCustomer({
+          id: 1,
+          data_nascimento: "2024-02-29 01:02:03",
+        }),
+      "CUSTOMER_INVALID_DATE",
+    );
+  });
+
+  it.each([
     {
       field: "data_cadastro",
       value: "synthetic-invalid-created-at",

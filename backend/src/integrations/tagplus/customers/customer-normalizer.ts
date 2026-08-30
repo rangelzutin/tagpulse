@@ -265,6 +265,10 @@ function optionalDateTime(
   path: "$.data_cadastro" | "$.data_alteracao",
 ): Date | null {
   if (value === null || value === undefined) return null;
+  if (typeof value === "string") {
+    const tagPlusLocalDateTime = parseTagPlusLocalDateTime(value);
+    if (tagPlusLocalDateTime) return tagPlusLocalDateTime;
+  }
   if (
     typeof value !== "string" ||
     !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(
@@ -276,6 +280,38 @@ function optionalDateTime(
   const result = new Date(value);
   if (Number.isNaN(result.getTime()))
     throw invalidDate(value, path, "timezone-qualified-datetime");
+  return result;
+}
+
+function parseTagPlusLocalDateTime(value: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/.exec(value);
+  if (!match) return null;
+  const [, yearText, monthText, dayText, hourText, minuteText, secondText] =
+    match;
+  const [year, month, day, hour, minute, second] = [
+    yearText,
+    monthText,
+    dayText,
+    hourText,
+    minuteText,
+    secondText,
+  ].map(Number);
+
+  // The observed TagPlus format has no timezone; preserve its civil components
+  // by constructing and validating the value in the runtime's local timezone.
+  const result = new Date(0);
+  result.setFullYear(year!, month! - 1, day);
+  result.setHours(hour!, minute!, second, 0);
+  if (
+    result.getFullYear() !== year ||
+    result.getMonth() !== month! - 1 ||
+    result.getDate() !== day ||
+    result.getHours() !== hour ||
+    result.getMinutes() !== minute ||
+    result.getSeconds() !== second
+  ) {
+    return null;
+  }
   return result;
 }
 
