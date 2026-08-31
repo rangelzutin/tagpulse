@@ -47,7 +47,7 @@ describe("TagPlus customer normalizer", () => {
     });
     expectCategory(
       () => normalizeTagPlusCustomer({ id: 1, ativo: 1 }),
-      "CUSTOMER_NORMALIZATION_ERROR",
+      "CUSTOMER_INVALID_TYPE",
     );
   });
 
@@ -60,7 +60,7 @@ describe("TagPlus customer normalizer", () => {
     ).toMatchObject({ ieIndicator: "synthetic" });
     expectCategory(
       () => normalizeTagPlusCustomer({ id: 1, indicador_ie: 1 }),
-      "CUSTOMER_NORMALIZATION_ERROR",
+      "CUSTOMER_INVALID_TYPE",
     );
   });
 
@@ -329,7 +329,7 @@ describe("TagPlus customer normalizer", () => {
     (contatos) => {
       expectCategory(
         () => normalizeTagPlusCustomer({ id: 1, contatos }),
-        "CUSTOMER_NORMALIZATION_ERROR",
+        "CUSTOMER_INVALID_STRUCTURE",
       );
     },
   );
@@ -339,7 +339,7 @@ describe("TagPlus customer normalizer", () => {
     (enderecos) => {
       expectCategory(
         () => normalizeTagPlusCustomer({ id: 1, enderecos }),
-        "CUSTOMER_NORMALIZATION_ERROR",
+        "CUSTOMER_INVALID_STRUCTURE",
       );
     },
   );
@@ -360,6 +360,43 @@ describe("TagPlus customer normalizer", () => {
       expect(String(error)).not.toContain(canary);
     }
   });
+
+  it.each([
+    [
+      { id: 1, ativo: "PRIVATE_INVALID" },
+      "CUSTOMER_INVALID_TYPE",
+      "$.ativo",
+      "boolean",
+    ],
+    [
+      { id: 1, contatos: "PRIVATE_INVALID" },
+      "CUSTOMER_INVALID_STRUCTURE",
+      "$.contatos",
+      "array",
+    ],
+    [
+      { id: 1, contatos: ["PRIVATE_INVALID"] },
+      "CUSTOMER_INVALID_CHILD_STRUCTURE",
+      "$.contatos[]",
+      "object",
+    ],
+    [
+      { id: 1, enderecos: ["PRIVATE_INVALID"] },
+      "CUSTOMER_INVALID_CHILD_STRUCTURE",
+      "$.enderecos[]",
+      "object",
+    ],
+  ])(
+    "classifies structural failures without retaining values",
+    (input, category, path, expectedTypeOrFormat) => {
+      const error = captureError(() => normalizeTagPlusCustomer(input));
+      expect(error).toMatchObject({
+        category,
+        diagnostics: { path, observedType: "string", expectedTypeOrFormat },
+      });
+      expect(JSON.stringify(error)).not.toContain("PRIVATE_INVALID");
+    },
+  );
 });
 
 function expectCategory(

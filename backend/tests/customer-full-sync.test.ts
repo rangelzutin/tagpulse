@@ -121,7 +121,15 @@ describe("customer full sync orchestration", () => {
     expect(error).toMatchObject({
       category: "CUSTOMER_SYNC_NORMALIZATION_ERROR",
     });
-    expect(h.state.errorCategory).toBe("CUSTOMER_NORMALIZATION_ERROR");
+    expect(h.state.errorCategory).toBe("CUSTOMER_INVALID_TYPE");
+    expect(error).toMatchObject({
+      normalizationCategory: "CUSTOMER_INVALID_TYPE",
+      diagnostics: {
+        path: "$.ativo",
+        observedType: "string",
+        expectedTypeOrFormat: "boolean",
+      },
+    });
     expect(JSON.stringify(error)).not.toContain(unsafeValue);
     expect(JSON.stringify(h.state)).not.toContain(unsafeValue);
   });
@@ -167,6 +175,29 @@ describe("customer full sync orchestration", () => {
     });
     expect(h.state.progress.lastCompletedPage).toBeUndefined();
     expect(h.state.reconciliations).toBe(0);
+  });
+
+  it("classifies an unexpected exception during normalization without leaking it", async () => {
+    const canary =
+      "PRIVATE_NAME private-id private@example.invalid 5511999999999 PRIVATE_BAD_VALUE";
+    const source = new Proxy(
+      {},
+      {
+        get() {
+          throw new Error(canary);
+        },
+      },
+    );
+    const h = harness([[source]]);
+    const error = await h.sync("connection").catch((caught: unknown) => caught);
+    expect(error).toMatchObject({
+      category: "CUSTOMER_SYNC_NORMALIZATION_ERROR",
+      normalizationCategory: "CUSTOMER_NORMALIZATION_UNEXPECTED",
+    });
+    expect(error.diagnostics).toBeUndefined();
+    expect(h.state.errorCategory).toBe("CUSTOMER_NORMALIZATION_UNEXPECTED");
+    expect(JSON.stringify(error)).not.toContain(canary);
+    expect(JSON.stringify(h.state)).not.toContain(canary);
   });
 
   it("propagates only safe persistence diagnostics and persists only the category", async () => {

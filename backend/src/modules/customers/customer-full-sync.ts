@@ -157,8 +157,13 @@ export function createCustomerFullSync(
       }
     } catch (error: unknown) {
       const category = categorize(error, stage);
-      const persistedCategory =
-        error instanceof CustomerNormalizationError ? error.category : category;
+      const normalizationCategory =
+        error instanceof CustomerNormalizationError
+          ? error.category
+          : category === "CUSTOMER_SYNC_NORMALIZATION_ERROR"
+            ? "CUSTOMER_NORMALIZATION_UNEXPECTED"
+            : undefined;
+      const persistedCategory = normalizationCategory ?? category;
       try {
         await dependencies.syncRepository.failRun(
           run.id,
@@ -173,9 +178,7 @@ export function createCustomerFullSync(
         error instanceof CustomerNormalizationError
           ? error.diagnostics
           : undefined,
-        error instanceof CustomerNormalizationError
-          ? error.category
-          : undefined,
+        normalizationCategory,
         error instanceof CustomerPersistenceError
           ? error.diagnostics
           : undefined,

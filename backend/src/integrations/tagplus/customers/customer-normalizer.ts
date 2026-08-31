@@ -3,15 +3,27 @@ export type CustomerNormalizationErrorCategory =
   | "CUSTOMER_INVALID_DATE"
   | "CUSTOMER_INVALID_CONTACT_ID"
   | "CUSTOMER_INVALID_ADDRESS_ID"
+  | "CUSTOMER_INVALID_TYPE"
+  | "CUSTOMER_INVALID_STRUCTURE"
+  | "CUSTOMER_INVALID_CHILD_STRUCTURE"
+  | "CUSTOMER_NORMALIZATION_UNEXPECTED"
   | "CUSTOMER_NORMALIZATION_ERROR";
 
 export type JsonStructuralType =
   "null" | "string" | "number" | "boolean" | "object" | "array";
 
 export interface CustomerNormalizationDiagnostics {
-  path: "$.data_cadastro" | "$.data_alteracao" | "$.data_nascimento";
+  path: string;
   observedType: JsonStructuralType;
-  expectedFormat: "timezone-qualified-datetime" | "YYYY-MM-DD";
+  expectedFormat?: "timezone-qualified-datetime" | "YYYY-MM-DD";
+  expectedTypeOrFormat?:
+    | "object"
+    | "array"
+    | "string"
+    | "boolean"
+    | "boolean-or-string"
+    | "string-or-safe-integer"
+    | "unique-child-identifiers";
   dateFormatClass?: Exclude<DateFormatClass, "OTHER_TYPE">;
   dateStructuralPattern?: string;
 }
@@ -100,48 +112,72 @@ type SourceRecord = Record<string, unknown>;
 export function normalizeExternalId(
   value: unknown,
   required = false,
+  path = "$",
 ): string | null {
   if (value === null || value === undefined) {
     if (required)
-      throw new CustomerNormalizationError("CUSTOMER_INVALID_SOURCE_ID");
+      throw structuralError(
+        "CUSTOMER_INVALID_SOURCE_ID",
+        path,
+        value,
+        "string-or-safe-integer",
+      );
     return null;
   }
   if (typeof value === "string") return value;
   if (typeof value === "number" && Number.isSafeInteger(value))
     return String(value);
   if (required)
-    throw new CustomerNormalizationError("CUSTOMER_INVALID_SOURCE_ID");
-  throw new CustomerNormalizationError("CUSTOMER_NORMALIZATION_ERROR");
+    throw structuralError(
+      "CUSTOMER_INVALID_SOURCE_ID",
+      path,
+      value,
+      "string-or-safe-integer",
+    );
+  throw structuralError(
+    "CUSTOMER_INVALID_TYPE",
+    path,
+    value,
+    "string-or-safe-integer",
+  );
 }
 
 export function normalizeTagPlusCustomer(value: unknown): NormalizedCustomer {
   if (!isRecord(value))
-    throw new CustomerNormalizationError("CUSTOMER_NORMALIZATION_ERROR");
+    throw structuralError("CUSTOMER_INVALID_STRUCTURE", "$", value, "object");
   return {
-    sourceId: normalizeExternalId(value.id, true)!,
-    sourceEntityId: optionalId(value.id_entidade),
-    code: optionalString(value.codigo),
-    externalCode: optionalString(value.codigo_externo),
-    type: optionalString(value.tipo),
-    legalName: optionalString(value.razao_social),
-    tradeName: optionalString(value.nome_fantasia),
-    sourceActive: optionalBoolean(value.ativo),
-    cpf: optionalString(value.cpf),
-    cnpj: optionalString(value.cnpj),
-    email: optionalString(value.email),
-    phone: optionalString(value.telefone),
-    acceptsEmail: optionalBoolean(value.recebe_email),
+    sourceId: normalizeExternalId(value.id, true, "$.id")!,
+    sourceEntityId: optionalId(value.id_entidade, "$.id_entidade"),
+    code: optionalString(value.codigo, "$.codigo"),
+    externalCode: optionalString(value.codigo_externo, "$.codigo_externo"),
+    type: optionalString(value.tipo, "$.tipo"),
+    legalName: optionalString(value.razao_social, "$.razao_social"),
+    tradeName: optionalString(value.nome_fantasia, "$.nome_fantasia"),
+    sourceActive: optionalBoolean(value.ativo, "$.ativo"),
+    cpf: optionalString(value.cpf, "$.cpf"),
+    cnpj: optionalString(value.cnpj, "$.cnpj"),
+    email: optionalString(value.email, "$.email"),
+    phone: optionalString(value.telefone, "$.telefone"),
+    acceptsEmail: optionalBoolean(value.recebe_email, "$.recebe_email"),
     sourceCreatedAt: optionalDateTime(value.data_cadastro, "$.data_cadastro"),
     sourceUpdatedAt: optionalDateTime(value.data_alteracao, "$.data_alteracao"),
     birthDate: optionalCivilDate(value.data_nascimento, "$.data_nascimento"),
-    stateRegistration: optionalString(value.ie),
-    municipalRegistration: optionalString(value.im),
-    cnae: optionalString(value.cnae),
-    suframa: optionalString(value.suframa),
-    ieIndicator: optionalBooleanString(value.indicador_ie),
-    foreignCustomer: optionalBoolean(value.exterior),
-    contacts: normalizeCollection(value.contatos, normalizeContact),
-    addresses: normalizeCollection(value.enderecos, normalizeAddress),
+    stateRegistration: optionalString(value.ie, "$.ie"),
+    municipalRegistration: optionalString(value.im, "$.im"),
+    cnae: optionalString(value.cnae, "$.cnae"),
+    suframa: optionalString(value.suframa, "$.suframa"),
+    ieIndicator: optionalBooleanString(value.indicador_ie, "$.indicador_ie"),
+    foreignCustomer: optionalBoolean(value.exterior, "$.exterior"),
+    contacts: normalizeCollection(
+      value.contatos,
+      normalizeContact,
+      "$.contatos",
+    ),
+    addresses: normalizeCollection(
+      value.enderecos,
+      normalizeAddress,
+      "$.enderecos",
+    ),
   };
 }
 
@@ -150,19 +186,40 @@ function normalizeContact(
   position: number,
 ): NormalizedCustomerContact {
   if (!isRecord(value))
-    throw new CustomerNormalizationError("CUSTOMER_NORMALIZATION_ERROR");
+    throw structuralError(
+      "CUSTOMER_INVALID_CHILD_STRUCTURE",
+      "$.contatos[]",
+      value,
+      "object",
+    );
   const registrationType = optionalRecord(value.tipo_cadastro);
   const contactType = optionalRecord(value.tipo_contato);
   return {
-    sourceId: requiredChildId(value.id, "CUSTOMER_INVALID_CONTACT_ID"),
-    description: optionalString(value.descricao),
-    details: optionalString(value.detalhes),
-    primary: optionalBoolean(value.principal),
-    foreignContact: optionalBoolean(value.estrangeiro),
-    registrationTypeId: optionalId(registrationType?.id),
-    registrationTypeDescription: optionalString(registrationType?.descricao),
-    contactTypeId: optionalId(contactType?.id),
-    contactTypeDescription: optionalString(contactType?.descricao),
+    sourceId: requiredChildId(
+      value.id,
+      "CUSTOMER_INVALID_CONTACT_ID",
+      "$.contatos[].id",
+    ),
+    description: optionalString(value.descricao, "$.contatos[].descricao"),
+    details: optionalString(value.detalhes, "$.contatos[].detalhes"),
+    primary: optionalBoolean(value.principal, "$.contatos[].principal"),
+    foreignContact: optionalBoolean(
+      value.estrangeiro,
+      "$.contatos[].estrangeiro",
+    ),
+    registrationTypeId: optionalId(
+      registrationType?.id,
+      "$.contatos[].tipo_cadastro.id",
+    ),
+    registrationTypeDescription: optionalString(
+      registrationType?.descricao,
+      "$.contatos[].tipo_cadastro.descricao",
+    ),
+    contactTypeId: optionalId(contactType?.id, "$.contatos[].tipo_contato.id"),
+    contactTypeDescription: optionalString(
+      contactType?.descricao,
+      "$.contatos[].tipo_contato.descricao",
+    ),
     position,
   };
 }
@@ -172,34 +229,58 @@ function normalizeAddress(
   position: number,
 ): NormalizedCustomerAddress {
   if (!isRecord(value))
-    throw new CustomerNormalizationError("CUSTOMER_NORMALIZATION_ERROR");
+    throw structuralError(
+      "CUSTOMER_INVALID_CHILD_STRUCTURE",
+      "$.enderecos[]",
+      value,
+      "object",
+    );
   const city = optionalRecord(value.cidade);
   const state = optionalRecord(city?.estado);
   const country = optionalRecord(value.pais);
   const registrationType = optionalRecord(value.tipo_cadastro);
   return {
-    sourceId: requiredChildId(value.id, "CUSTOMER_INVALID_ADDRESS_ID"),
-    sourceEntityAddressId: optionalId(value.id_endereco_entidade),
-    street: optionalString(value.logradouro),
-    number: optionalString(value.numero),
-    complement: optionalString(value.complemento),
-    district: optionalString(value.bairro),
-    postalCode: optionalString(value.cep),
-    primary: optionalBoolean(value.principal),
-    foreignAddress: optionalBoolean(value.exterior),
-    additionalInformation: optionalString(value.informacoes_adicionais),
-    cityId: optionalId(city?.id),
-    cityCode: optionalId(city?.codigo),
-    cityName: optionalString(city?.nome),
-    stateId: optionalId(state?.id),
-    stateCode: optionalId(state?.codigo),
-    stateName: optionalString(state?.nome),
-    stateAbbreviation: optionalString(state?.sigla),
-    countryId: optionalId(country?.id),
-    countryCode: optionalId(country?.codigo),
-    countryName: optionalString(country?.nome),
-    registrationTypeId: optionalId(registrationType?.id),
-    registrationTypeDescription: optionalString(registrationType?.descricao),
+    sourceId: requiredChildId(
+      value.id,
+      "CUSTOMER_INVALID_ADDRESS_ID",
+      "$.enderecos[].id",
+    ),
+    sourceEntityAddressId: optionalId(
+      value.id_endereco_entidade,
+      "$.enderecos[].id_endereco_entidade",
+    ),
+    street: optionalString(value.logradouro, "$.enderecos[].logradouro"),
+    number: optionalString(value.numero, "$.enderecos[].numero"),
+    complement: optionalString(value.complemento, "$.enderecos[].complemento"),
+    district: optionalString(value.bairro, "$.enderecos[].bairro"),
+    postalCode: optionalString(value.cep, "$.enderecos[].cep"),
+    primary: optionalBoolean(value.principal, "$.enderecos[].principal"),
+    foreignAddress: optionalBoolean(value.exterior, "$.enderecos[].exterior"),
+    additionalInformation: optionalString(
+      value.informacoes_adicionais,
+      "$.enderecos[].informacoes_adicionais",
+    ),
+    cityId: optionalId(city?.id, "$.enderecos[].cidade.id"),
+    cityCode: optionalId(city?.codigo, "$.enderecos[].cidade.codigo"),
+    cityName: optionalString(city?.nome, "$.enderecos[].cidade.nome"),
+    stateId: optionalId(state?.id, "$.enderecos[].cidade.estado.id"),
+    stateCode: optionalId(state?.codigo, "$.enderecos[].cidade.estado.codigo"),
+    stateName: optionalString(state?.nome, "$.enderecos[].cidade.estado.nome"),
+    stateAbbreviation: optionalString(
+      state?.sigla,
+      "$.enderecos[].cidade.estado.sigla",
+    ),
+    countryId: optionalId(country?.id, "$.enderecos[].pais.id"),
+    countryCode: optionalId(country?.codigo, "$.enderecos[].pais.codigo"),
+    countryName: optionalString(country?.nome, "$.enderecos[].pais.nome"),
+    registrationTypeId: optionalId(
+      registrationType?.id,
+      "$.enderecos[].tipo_cadastro.id",
+    ),
+    registrationTypeDescription: optionalString(
+      registrationType?.descricao,
+      "$.enderecos[].tipo_cadastro.descricao",
+    ),
     position,
   };
 }
@@ -207,56 +288,68 @@ function normalizeAddress(
 function normalizeCollection<T>(
   value: unknown,
   normalize: (item: unknown, position: number) => T,
+  path: "$.contatos" | "$.enderecos",
 ): NormalizedCollection<T> {
   if (value === null || value === undefined) {
     return { state: "NOT_PROVIDED" };
   }
   if (!Array.isArray(value)) {
-    throw new CustomerNormalizationError("CUSTOMER_NORMALIZATION_ERROR");
+    throw structuralError("CUSTOMER_INVALID_STRUCTURE", path, value, "array");
   }
   const items = value.map(normalize);
   const ids = new Set<string>();
   for (const item of items as Array<T & { sourceId: string }>) {
     if (ids.has(item.sourceId))
-      throw new CustomerNormalizationError("CUSTOMER_NORMALIZATION_ERROR");
+      throw structuralError(
+        "CUSTOMER_INVALID_CHILD_STRUCTURE",
+        `${path}[]`,
+        item.sourceId,
+        "unique-child-identifiers",
+      );
     ids.add(item.sourceId);
   }
   return { state: "PROVIDED", items };
 }
 
-function optionalString(value: unknown): string | null {
+function optionalString(value: unknown, path: string): string | null {
   if (value === null || value === undefined) return null;
   if (typeof value !== "string")
-    throw new CustomerNormalizationError("CUSTOMER_NORMALIZATION_ERROR");
+    throw structuralError("CUSTOMER_INVALID_TYPE", path, value, "string");
   return value;
 }
 
-function optionalBoolean(value: unknown): boolean | null {
+function optionalBoolean(value: unknown, path: string): boolean | null {
   if (value === null || value === undefined) return null;
   if (typeof value !== "boolean")
-    throw new CustomerNormalizationError("CUSTOMER_NORMALIZATION_ERROR");
+    throw structuralError("CUSTOMER_INVALID_TYPE", path, value, "boolean");
   return value;
 }
 
-function optionalBooleanString(value: unknown): string | null {
+function optionalBooleanString(value: unknown, path: string): string | null {
   if (value === null || value === undefined) return null;
   if (typeof value === "boolean") return String(value);
   if (typeof value === "string") return value;
-  throw new CustomerNormalizationError("CUSTOMER_NORMALIZATION_ERROR");
+  throw structuralError(
+    "CUSTOMER_INVALID_TYPE",
+    path,
+    value,
+    "boolean-or-string",
+  );
 }
 
-function optionalId(value: unknown): string | null {
-  return normalizeExternalId(value);
+function optionalId(value: unknown, path: string): string | null {
+  return normalizeExternalId(value, false, path);
 }
 
 function requiredChildId(
   value: unknown,
   category: CustomerNormalizationErrorCategory,
+  path: string,
 ): string {
   try {
-    return normalizeExternalId(value, true)!;
+    return normalizeExternalId(value, true, path)!;
   } catch {
-    throw new CustomerNormalizationError(category);
+    throw structuralError(category, path, value, "string-or-safe-integer");
   }
 }
 
@@ -333,8 +426,8 @@ function optionalCivilDate(
 
 function invalidDate(
   value: unknown,
-  path: CustomerNormalizationDiagnostics["path"],
-  expectedFormat: CustomerNormalizationDiagnostics["expectedFormat"],
+  path: "$.data_cadastro" | "$.data_alteracao" | "$.data_nascimento",
+  expectedFormat: "timezone-qualified-datetime" | "YYYY-MM-DD",
 ): CustomerNormalizationError {
   const dateFormatClass = safeDateFormatClass(value);
   return new CustomerNormalizationError("CUSTOMER_INVALID_DATE", {
@@ -346,6 +439,21 @@ function invalidDate(
     dateFormatClass === "INVALID_OR_UNCLASSIFIED"
       ? { dateStructuralPattern: createDateStructuralPattern(value) }
       : {}),
+  });
+}
+
+function structuralError(
+  category: CustomerNormalizationErrorCategory,
+  path: string,
+  value: unknown,
+  expectedTypeOrFormat: NonNullable<
+    CustomerNormalizationDiagnostics["expectedTypeOrFormat"]
+  >,
+): CustomerNormalizationError {
+  return new CustomerNormalizationError(category, {
+    path,
+    observedType: structuralType(value),
+    expectedTypeOrFormat,
   });
 }
 

@@ -40,8 +40,8 @@ export function formatCustomerSyncConsoleError(error: unknown): string {
     typeof error === "object" &&
     error !== null &&
     "normalizationCategory" in error &&
-    error.normalizationCategory === "CUSTOMER_INVALID_DATE"
-      ? { safeNormalizationCategory: "CUSTOMER_INVALID_DATE" }
+    isSafeNormalizationCategory(error.normalizationCategory)
+      ? { safeNormalizationCategory: error.normalizationCategory }
       : {};
   return JSON.stringify({
     status: "ERROR",
@@ -120,14 +120,20 @@ function safeDiagnostics(error: unknown): Record<string, string> {
   if (
     !isSafePath(diagnostics.path) ||
     !isSafeObservedType(diagnostics.observedType) ||
-    !isSafeExpectedFormat(diagnostics.expectedFormat)
+    (!isSafeExpectedFormat(diagnostics.expectedFormat) &&
+      !isSafeExpectedTypeOrFormat(diagnostics.expectedTypeOrFormat))
   ) {
     return {};
   }
   return {
     path: diagnostics.path,
     observedType: diagnostics.observedType,
-    expectedFormat: diagnostics.expectedFormat,
+    ...(isSafeExpectedFormat(diagnostics.expectedFormat)
+      ? { expectedFormat: diagnostics.expectedFormat }
+      : {}),
+    ...(isSafeExpectedTypeOrFormat(diagnostics.expectedTypeOrFormat)
+      ? { expectedTypeOrFormat: diagnostics.expectedTypeOrFormat }
+      : {}),
     ...(isSafeDateFormatClass(diagnostics.dateFormatClass)
       ? { dateFormatClass: diagnostics.dateFormatClass }
       : {}),
@@ -154,12 +160,69 @@ function isSafeDateStructuralPattern(value: unknown): value is string {
 }
 
 function isSafePath(value: unknown): value is string {
-  return (
-    value === "$.data_cadastro" ||
-    value === "$.data_alteracao" ||
-    value === "$.data_nascimento"
-  );
+  return SAFE_NORMALIZATION_PATHS.includes(String(value));
 }
+
+const SAFE_NORMALIZATION_PATHS = [
+  "$",
+  "$.id",
+  "$.id_entidade",
+  "$.codigo",
+  "$.codigo_externo",
+  "$.tipo",
+  "$.razao_social",
+  "$.nome_fantasia",
+  "$.ativo",
+  "$.cpf",
+  "$.cnpj",
+  "$.email",
+  "$.telefone",
+  "$.recebe_email",
+  "$.data_cadastro",
+  "$.data_alteracao",
+  "$.data_nascimento",
+  "$.ie",
+  "$.im",
+  "$.cnae",
+  "$.suframa",
+  "$.indicador_ie",
+  "$.exterior",
+  "$.contatos",
+  "$.contatos[]",
+  "$.contatos[].id",
+  "$.contatos[].descricao",
+  "$.contatos[].detalhes",
+  "$.contatos[].principal",
+  "$.contatos[].estrangeiro",
+  "$.contatos[].tipo_cadastro.id",
+  "$.contatos[].tipo_cadastro.descricao",
+  "$.contatos[].tipo_contato.id",
+  "$.contatos[].tipo_contato.descricao",
+  "$.enderecos",
+  "$.enderecos[]",
+  "$.enderecos[].id",
+  "$.enderecos[].id_endereco_entidade",
+  "$.enderecos[].logradouro",
+  "$.enderecos[].numero",
+  "$.enderecos[].complemento",
+  "$.enderecos[].bairro",
+  "$.enderecos[].cep",
+  "$.enderecos[].principal",
+  "$.enderecos[].exterior",
+  "$.enderecos[].informacoes_adicionais",
+  "$.enderecos[].cidade.id",
+  "$.enderecos[].cidade.codigo",
+  "$.enderecos[].cidade.nome",
+  "$.enderecos[].cidade.estado.id",
+  "$.enderecos[].cidade.estado.codigo",
+  "$.enderecos[].cidade.estado.nome",
+  "$.enderecos[].cidade.estado.sigla",
+  "$.enderecos[].pais.id",
+  "$.enderecos[].pais.codigo",
+  "$.enderecos[].pais.nome",
+  "$.enderecos[].tipo_cadastro.id",
+  "$.enderecos[].tipo_cadastro.descricao",
+];
 
 function isSafeObservedType(value: unknown): value is string {
   return (
@@ -174,6 +237,32 @@ function isSafeObservedType(value: unknown): value is string {
 
 function isSafeExpectedFormat(value: unknown): value is string {
   return value === "timezone-qualified-datetime" || value === "YYYY-MM-DD";
+}
+
+function isSafeExpectedTypeOrFormat(value: unknown): value is string {
+  return [
+    "object",
+    "array",
+    "string",
+    "boolean",
+    "boolean-or-string",
+    "string-or-safe-integer",
+    "unique-child-identifiers",
+  ].includes(String(value));
+}
+
+function isSafeNormalizationCategory(value: unknown): value is string {
+  return [
+    "CUSTOMER_INVALID_SOURCE_ID",
+    "CUSTOMER_INVALID_DATE",
+    "CUSTOMER_INVALID_CONTACT_ID",
+    "CUSTOMER_INVALID_ADDRESS_ID",
+    "CUSTOMER_INVALID_TYPE",
+    "CUSTOMER_INVALID_STRUCTURE",
+    "CUSTOMER_INVALID_CHILD_STRUCTURE",
+    "CUSTOMER_NORMALIZATION_UNEXPECTED",
+    "CUSTOMER_NORMALIZATION_ERROR",
+  ].includes(String(value));
 }
 
 function isSafeDateFormatClass(value: unknown): value is string {

@@ -57,6 +57,54 @@ describe("customer sync console diagnostics", () => {
     expect(output).not.toContain("private");
   });
 
+  it.each([
+    ["CUSTOMER_INVALID_TYPE", "$.ativo", "boolean"],
+    ["CUSTOMER_INVALID_STRUCTURE", "$.contatos", "array"],
+    ["CUSTOMER_INVALID_CHILD_STRUCTURE", "$.enderecos[]", "object"],
+  ] as const)(
+    "outputs a safe category and structural metadata for %s",
+    (normalizationCategory, path, expectedTypeOrFormat) => {
+      const canary =
+        "PRIVATE_NAME private-id private@example.invalid 5511999999999 PRIVATE_BAD_VALUE";
+      const error = new CustomerSyncError(
+        "CUSTOMER_SYNC_NORMALIZATION_ERROR",
+        { path, observedType: "string", expectedTypeOrFormat },
+        normalizationCategory,
+      );
+      Object.assign(error, {
+        message: canary,
+        stack: canary,
+        cause: canary,
+        payload: canary,
+      });
+      const output = formatCustomerSyncConsoleError(error);
+      expect(JSON.parse(output)).toEqual({
+        status: "ERROR",
+        category: "CUSTOMER_SYNC_NORMALIZATION_ERROR",
+        safeNormalizationCategory: normalizationCategory,
+        path,
+        observedType: "string",
+        expectedTypeOrFormat,
+      });
+      expect(output).not.toContain(canary);
+    },
+  );
+
+  it("always emits a safe category for unexpected normalization errors", () => {
+    const output = formatCustomerSyncConsoleError(
+      new CustomerSyncError(
+        "CUSTOMER_SYNC_NORMALIZATION_ERROR",
+        undefined,
+        "CUSTOMER_NORMALIZATION_UNEXPECTED",
+      ),
+    );
+    expect(JSON.parse(output)).toEqual({
+      status: "ERROR",
+      category: "CUSTOMER_SYNC_NORMALIZATION_ERROR",
+      safeNormalizationCategory: "CUSTOMER_NORMALIZATION_UNEXPECTED",
+    });
+  });
+
   it("outputs only whitelisted persistence diagnostics", () => {
     const canary = "RAW_DB_CANARY customer@example.invalid source-123";
     const error = new CustomerSyncError(
