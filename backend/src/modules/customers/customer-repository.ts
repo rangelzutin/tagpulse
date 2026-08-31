@@ -6,6 +6,8 @@ import type {
   NormalizedCustomerContact,
 } from "../../integrations/tagplus/customers/customer-normalizer.js";
 
+const CUSTOMER_TRANSACTION_TIMEOUT_MS = 30_000;
+
 export type CustomerPersistenceStage =
   "CUSTOMER" | "CONTACTS" | "ADDRESSES" | "TRANSACTION" | "UNKNOWN";
 
@@ -75,11 +77,14 @@ export function createCustomerRepository(
       };
       let transactionCallbackCompleted = false;
       try {
-        return await client.$transaction(async (tx) => {
-          const result = await persistCustomer(tx, input, context);
-          transactionCallbackCompleted = true;
-          return result;
-        });
+        return await client.$transaction(
+          async (tx) => {
+            const result = await persistCustomer(tx, input, context);
+            transactionCallbackCompleted = true;
+            return result;
+          },
+          { timeout: CUSTOMER_TRANSACTION_TIMEOUT_MS },
+        );
       } catch (error: unknown) {
         const persistenceErrorClass = classifyPersistenceError(
           error,

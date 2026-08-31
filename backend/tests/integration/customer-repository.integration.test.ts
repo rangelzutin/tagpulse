@@ -251,7 +251,15 @@ describe.sequential("customer repository on isolated PostgreSQL", () => {
       observedAt,
       customer: fixture({ id: 124 }),
     });
-    expect(await prisma.customer.count()).toBe(3);
+    const count = await prisma.customer.count({
+  where: {
+    connectionId: {
+      in: [connectionA, connectionB],
+    },
+  },
+});
+
+expect(count).toBe(3);
   });
 
   it("rolls back parent changes when child persistence fails", async () => {

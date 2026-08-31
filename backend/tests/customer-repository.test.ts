@@ -59,6 +59,18 @@ describe("customer repository safe persistence diagnostics", () => {
     });
   });
 
+  it("uses a bounded 30 second interactive transaction timeout", async () => {
+    const tx = transactionClient();
+    const transaction = vi.fn(async (callback) => callback(tx));
+    const repository = repositoryWithTransaction(transaction);
+
+    await repository.upsertCustomer(input());
+
+    expect(transaction).toHaveBeenCalledWith(expect.any(Function), {
+      timeout: 30_000,
+    });
+  });
+
   it.each([
     ["CUSTOMER", "UPSERT", "VALUE_TOO_LONG", "customer", "findUnique", "P2000"],
     [
