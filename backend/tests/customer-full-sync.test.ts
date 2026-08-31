@@ -9,7 +9,10 @@ import { CustomerPersistenceError } from "../src/modules/customers/customer-repo
 
 const customer = (id: number) => ({ id, razao_social: `Synthetic ${id}` });
 
-function harness(pages: unknown[]) {
+function harness(
+  pages: unknown[],
+  now = () => new Date("2026-08-29T12:00:00Z"),
+) {
   const run = { id: "00000000-0000-0000-0000-000000000001" } as CustomerSyncRun;
   const state = {
     run,
@@ -46,7 +49,7 @@ function harness(pages: unknown[]) {
     pageFetcher,
     customerRepository,
     syncRepository,
-    now: () => new Date("2026-08-29T12:00:00Z"),
+    now,
   });
   return { sync, state, pageFetcher, customerRepository, syncRepository };
 }
@@ -102,6 +105,60 @@ describe("customer full sync orchestration", () => {
     });
     expect(h.state.errorCategory).toBe("CUSTOMER_SYNC_FETCH_ERROR");
     expect(h.state.reconciliations).toBe(0);
+  });
+
+  it("classifies findRunning and createRun failures as safe run-state errors", async () => {
+    const canary =
+      "customer-name-CANARY email-canary@example.com 123456789 secret-value-CANARY";
+    const findHarness = harness([[]]);
+    vi.mocked(findHarness.syncRepository.findRunning).mockRejectedValueOnce(
+      new Error(canary),
+    );
+    const findError = await findHarness
+      .sync("connection")
+      .catch((caught: unknown) => caught);
+    expect(findError).toMatchObject({
+      category: "CUSTOMER_SYNC_ERROR",
+      syncDiagnostics: {
+        syncFailureStage: "RUN_STATE",
+        syncErrorClass: "DATABASE",
+      },
+    });
+    expect(JSON.stringify(findError)).not.toContain(canary);
+
+    const createHarness = harness([[]]);
+    vi.mocked(createHarness.syncRepository.createRun).mockRejectedValueOnce(
+      new Error(canary),
+    );
+    const createError = await createHarness
+      .sync("connection")
+      .catch((caught: unknown) => caught);
+    expect(createError).toMatchObject({
+      category: "CUSTOMER_SYNC_ERROR",
+      syncDiagnostics: {
+        syncFailureStage: "RUN_STATE",
+        syncErrorClass: "DATABASE",
+      },
+    });
+    expect(JSON.stringify(createError)).not.toContain(canary);
+  });
+
+  it("classifies an unexpected pre-run orchestration failure safely", async () => {
+    const canary =
+      "customer-name-CANARY email-canary@example.com 123456789 secret-value-CANARY";
+    const h = harness([[]], () => {
+      throw new Error(canary);
+    });
+    const error = await h.sync("connection").catch((caught: unknown) => caught);
+    expect(error).toMatchObject({
+      category: "CUSTOMER_SYNC_ERROR",
+      syncDiagnostics: {
+        syncFailureStage: "UNEXPECTED",
+        syncErrorClass: "UNEXPECTED",
+      },
+    });
+    expect(JSON.stringify(error)).not.toContain(canary);
+    expect(h.syncRepository.createRun).not.toHaveBeenCalled();
   });
 
   it("classifies normalization errors and does not reconcile", async () => {
@@ -198,6 +255,52 @@ describe("customer full sync orchestration", () => {
     expect(h.state.errorCategory).toBe("CUSTOMER_NORMALIZATION_UNEXPECTED");
     expect(JSON.stringify(error)).not.toContain(canary);
     expect(JSON.stringify(h.state)).not.toContain(canary);
+  });
+
+  it("reports a failRun failure without retaining the original error", async () => {
+    const canary =
+      "customer-name-CANARY email-canary@example.com 123456789 secret-value-CANARY";
+    const h = harness([[{ id: 1, ativo: canary }]]);
+    vi.mocked(h.syncRepository.failRun).mockRejectedValueOnce(
+      new Error(canary),
+    );
+    const error = await h.sync("connection").catch((caught: unknown) => caught);
+    expect(error).toMatchObject({
+      category: "CUSTOMER_SYNC_ERROR",
+      syncDiagnostics: {
+        syncFailureStage: "RUN_STATE",
+        syncErrorClass: "DATABASE",
+        page: 1,
+      },
+    });
+    expect(error.message).toBe("CUSTOMER_SYNC_ERROR");
+    expect(error).not.toHaveProperty("cause");
+    expect(JSON.stringify(error)).not.toContain(canary);
+    expect(h.state.errorCategory).toBeNull();
+  });
+
+  it("classifies a future generic orchestration error as unexpected", async () => {
+    const canary =
+      "customer-name-CANARY email-canary@example.com 123456789 secret-value-CANARY";
+    const original = new CustomerSyncError("CUSTOMER_SYNC_ERROR");
+    Object.assign(original, {
+      rawMessage: canary,
+      cause: canary,
+      payload: canary,
+    });
+    const h = harness([]);
+    h.pageFetcher.mockRejectedValueOnce(original);
+    const error = await h.sync("connection").catch((caught: unknown) => caught);
+    expect(error).toMatchObject({
+      category: "CUSTOMER_SYNC_ERROR",
+      syncDiagnostics: {
+        syncFailureStage: "UNEXPECTED",
+        syncErrorClass: "UNEXPECTED",
+        page: 1,
+      },
+    });
+    expect(JSON.stringify(error)).not.toContain(canary);
+    expect(h.state.errorCategory).toBe("CUSTOMER_SYNC_ERROR");
   });
 
   it("propagates only safe persistence diagnostics and persists only the category", async () => {

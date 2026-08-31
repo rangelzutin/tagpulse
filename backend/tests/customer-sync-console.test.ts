@@ -105,6 +105,55 @@ describe("customer sync console diagnostics", () => {
     });
   });
 
+  it("outputs only whitelisted generic sync diagnostics", () => {
+    const canary =
+      "customer-name-CANARY email-canary@example.com 123456789 secret-value-CANARY";
+    const error = new CustomerSyncError(
+      "CUSTOMER_SYNC_ERROR",
+      undefined,
+      undefined,
+      undefined,
+      {
+        syncFailureStage: "RUN_STATE",
+        syncErrorClass: "DATABASE",
+        page: 8,
+      },
+    );
+    Object.assign(error, {
+      message: canary,
+      stack: canary,
+      cause: canary,
+      payload: canary,
+      response: canary,
+    });
+    const output = formatCustomerSyncConsoleError(error);
+    expect(JSON.parse(output)).toEqual({
+      status: "ERROR",
+      category: "CUSTOMER_SYNC_ERROR",
+      syncFailureStage: "RUN_STATE",
+      syncErrorClass: "DATABASE",
+      page: 8,
+    });
+    expect(output).not.toContain(canary);
+  });
+
+  it("rejects arbitrary generic sync metadata and category content", () => {
+    const canary = "secret-value-CANARY";
+    const output = formatCustomerSyncConsoleError({
+      category: canary,
+      syncDiagnostics: {
+        syncFailureStage: canary,
+        syncErrorClass: canary,
+        page: -1,
+      },
+    });
+    expect(JSON.parse(output)).toEqual({
+      status: "ERROR",
+      category: "CUSTOMER_SYNC_ERROR",
+    });
+    expect(output).not.toContain(canary);
+  });
+
   it("outputs only whitelisted persistence diagnostics", () => {
     const canary = "RAW_DB_CANARY customer@example.invalid source-123";
     const error = new CustomerSyncError(

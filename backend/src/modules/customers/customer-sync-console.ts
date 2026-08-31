@@ -30,12 +30,16 @@ function reportError(error: unknown): void {
 }
 
 export function formatCustomerSyncConsoleError(error: unknown): string {
-  const category =
+  const candidateCategory =
     typeof error === "object" && error !== null && "category" in error
       ? String(error.category)
       : "CUSTOMER_SYNC_ERROR";
+  const category = isSafeSyncCategory(candidateCategory)
+    ? candidateCategory
+    : "CUSTOMER_SYNC_ERROR";
   const diagnostics = safeDiagnostics(error);
   const persistenceDiagnostics = safePersistenceDiagnostics(error);
+  const syncDiagnostics = safeSyncDiagnostics(error);
   const safeNormalizationCategory =
     typeof error === "object" &&
     error !== null &&
@@ -49,7 +53,57 @@ export function formatCustomerSyncConsoleError(error: unknown): string {
     ...safeNormalizationCategory,
     ...diagnostics,
     ...persistenceDiagnostics,
+    ...syncDiagnostics,
   });
+}
+
+function safeSyncDiagnostics(error: unknown): Record<string, string | number> {
+  if (
+    typeof error !== "object" ||
+    error === null ||
+    !("syncDiagnostics" in error) ||
+    typeof error.syncDiagnostics !== "object" ||
+    error.syncDiagnostics === null
+  ) {
+    return {};
+  }
+  const diagnostics = error.syncDiagnostics as Record<string, unknown>;
+  if (
+    !isSyncFailureStage(diagnostics.syncFailureStage) ||
+    !isSyncErrorClass(diagnostics.syncErrorClass) ||
+    (diagnostics.page !== undefined && !isSafePage(diagnostics.page))
+  ) {
+    return {};
+  }
+  return {
+    syncFailureStage: diagnostics.syncFailureStage,
+    syncErrorClass: diagnostics.syncErrorClass,
+    ...(isSafePage(diagnostics.page) ? { page: diagnostics.page } : {}),
+  };
+}
+
+function isSyncFailureStage(value: unknown): value is string {
+  return value === "RUN_STATE" || value === "UNEXPECTED";
+}
+
+function isSyncErrorClass(value: unknown): value is string {
+  return value === "DATABASE" || value === "UNEXPECTED";
+}
+
+function isSafePage(value: unknown): value is number {
+  return Number.isSafeInteger(value) && Number(value) > 0;
+}
+
+function isSafeSyncCategory(value: unknown): value is string {
+  return [
+    "CUSTOMER_SYNC_ALREADY_RUNNING",
+    "CUSTOMER_SYNC_INVALID_PAGE",
+    "CUSTOMER_SYNC_FETCH_ERROR",
+    "CUSTOMER_SYNC_NORMALIZATION_ERROR",
+    "CUSTOMER_SYNC_PERSISTENCE_ERROR",
+    "CUSTOMER_SYNC_RECONCILIATION_ERROR",
+    "CUSTOMER_SYNC_ERROR",
+  ].includes(String(value));
 }
 
 function safePersistenceDiagnostics(error: unknown): Record<string, string> {

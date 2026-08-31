@@ -24,12 +24,19 @@ export type CustomerSyncErrorCategory =
   | "CUSTOMER_SYNC_RECONCILIATION_ERROR"
   | "CUSTOMER_SYNC_ERROR";
 
+export interface CustomerSyncDiagnostics {
+  syncFailureStage: "RUN_STATE" | "UNEXPECTED";
+  syncErrorClass: "DATABASE" | "UNEXPECTED";
+  page?: number;
+}
+
 export class CustomerSyncError extends Error {
   constructor(
     public readonly category: CustomerSyncErrorCategory,
     public readonly diagnostics?: CustomerNormalizationDiagnostics,
     public readonly normalizationCategory?: CustomerNormalizationErrorCategory,
     public readonly persistenceDiagnostics?: CustomerPersistenceDiagnostics,
+    public readonly syncDiagnostics?: CustomerSyncDiagnostics,
   ) {
     super(category);
     this.name = "CustomerSyncError";
@@ -69,15 +76,31 @@ export function createCustomerFullSync(
   return async function syncCustomers(
     connectionId: string,
   ): Promise<CustomerFullSyncResult> {
-    if (await dependencies.syncRepository.findRunning(connectionId)) {
+    let running: { id: string } | null;
+    try {
+      running = await dependencies.syncRepository.findRunning(connectionId);
+    } catch {
+      throw runStateError();
+    }
+    if (running) {
       throw new CustomerSyncError("CUSTOMER_SYNC_ALREADY_RUNNING");
     }
 
-    const startedAt = now();
-    const run = await dependencies.syncRepository.createRun(
-      connectionId,
-      startedAt,
-    );
+    let startedAt: Date;
+    try {
+      startedAt = now();
+    } catch {
+      throw unexpectedSyncFailure();
+    }
+    let run: Awaited<ReturnType<CustomerSyncRepository["createRun"]>>;
+    try {
+      run = await dependencies.syncRepository.createRun(
+        connectionId,
+        startedAt,
+      );
+    } catch {
+      throw runStateError();
+    }
     const counters = {
       pagesFetched: 0,
       recordsFetched: 0,
@@ -87,9 +110,11 @@ export function createCustomerFullSync(
       lastCompletedPage: 0,
     };
     let stage: "FETCH" | "NORMALIZE" | "PERSIST" | "RECONCILE" = "FETCH";
+    let currentPage = 0;
 
     try {
       for (let page = 1; ; page += 1) {
+        currentPage = page;
         stage = "FETCH";
         const payload = await dependencies.pageFetcher({
           page,
@@ -164,15 +189,27 @@ export function createCustomerFullSync(
             ? "CUSTOMER_NORMALIZATION_UNEXPECTED"
             : undefined;
       const persistedCategory = normalizationCategory ?? category;
+      let failedAt: Date;
+      try {
+        failedAt = now();
+      } catch {
+        throw unexpectedSyncFailure(currentPage);
+      }
       try {
         await dependencies.syncRepository.failRun(
           run.id,
-          now(),
+          failedAt,
           persistedCategory,
         );
       } catch {
-        throw new CustomerSyncError("CUSTOMER_SYNC_ERROR");
+        throw runStateError(currentPage);
       }
+      const syncDiagnostics =
+        error instanceof CustomerSyncError && error.syncDiagnostics
+          ? error.syncDiagnostics
+          : category === "CUSTOMER_SYNC_ERROR"
+            ? unexpectedSyncError(currentPage)
+            : undefined;
       throw new CustomerSyncError(
         category,
         error instanceof CustomerNormalizationError
@@ -182,9 +219,42 @@ export function createCustomerFullSync(
         error instanceof CustomerPersistenceError
           ? error.diagnostics
           : undefined,
+        syncDiagnostics,
       );
     }
   };
+}
+
+function runStateError(page?: number): CustomerSyncError {
+  return new CustomerSyncError(
+    "CUSTOMER_SYNC_ERROR",
+    undefined,
+    undefined,
+    undefined,
+    {
+      syncFailureStage: "RUN_STATE",
+      syncErrorClass: "DATABASE",
+      ...(page && page > 0 ? { page } : {}),
+    },
+  );
+}
+
+function unexpectedSyncError(page?: number): CustomerSyncDiagnostics {
+  return {
+    syncFailureStage: "UNEXPECTED",
+    syncErrorClass: "UNEXPECTED",
+    ...(page && page > 0 ? { page } : {}),
+  };
+}
+
+function unexpectedSyncFailure(page?: number): CustomerSyncError {
+  return new CustomerSyncError(
+    "CUSTOMER_SYNC_ERROR",
+    undefined,
+    undefined,
+    undefined,
+    unexpectedSyncError(page),
+  );
 }
 
 function categorize(
