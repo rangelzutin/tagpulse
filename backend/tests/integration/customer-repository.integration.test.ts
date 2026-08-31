@@ -122,8 +122,8 @@ describe.sequential("customer repository on isolated PostgreSQL", () => {
         enderecos: [{ id: 11 }],
       }),
     });
-    expect(reduced.contactsRemoved).toBe(1);
-    expect(reduced.addressesRemoved).toBe(1);
+    expect(reduced.contactsRemoved).toBe(2);
+    expect(reduced.addressesRemoved).toBe(2);
     expect(reduced.outcome).toBe("UPDATED");
     const preserved = await repository.upsertCustomer({
       connectionId: connectionA,
@@ -141,6 +141,97 @@ describe.sequential("customer repository on isolated PostgreSQL", () => {
     });
     expect(await prisma.customerContact.count()).toBe(0);
     expect(await prisma.customerAddress.count()).toBe(0);
+  });
+
+  it("preserves duplicate child identifiers across resync, removal and reordering", async () => {
+    const repository = createCustomerRepository(prisma);
+    const duplicateChildren = fixture({
+      contatos: [
+        { id: "same-contact", descricao: "Synthetic Contact A" },
+        { id: "same-contact", descricao: "Synthetic Contact B" },
+      ],
+      enderecos: [
+        { id: "same-address", logradouro: "Synthetic Street A" },
+        { id: "same-address", logradouro: "Synthetic Street B" },
+      ],
+    });
+
+    const first = await repository.upsertCustomer({
+      connectionId: connectionA,
+      observedAt,
+      customer: duplicateChildren,
+    });
+    const second = await repository.upsertCustomer({
+      connectionId: connectionA,
+      observedAt,
+      customer: duplicateChildren,
+    });
+    expect(first.outcome).toBe("INSERTED");
+    expect(second.outcome).toBe("UNCHANGED");
+    expect(await prisma.customerContact.count()).toBe(2);
+    expect(await prisma.customerAddress.count()).toBe(2);
+
+    const reduced = await repository.upsertCustomer({
+      connectionId: connectionA,
+      observedAt,
+      customer: fixture({
+        contatos: [{ id: "same-contact", descricao: "Synthetic Contact A" }],
+        enderecos: [{ id: "same-address", logradouro: "Synthetic Street A" }],
+      }),
+    });
+    expect(reduced.outcome).toBe("UPDATED");
+    expect(reduced.contactsRemoved).toBe(1);
+    expect(reduced.addressesRemoved).toBe(1);
+
+    const reordered = await repository.upsertCustomer({
+      connectionId: connectionA,
+      observedAt,
+      customer: fixture({
+        contatos: [
+          { id: "same-contact", descricao: "Synthetic Contact B" },
+          { id: "same-contact", descricao: "Synthetic Contact A" },
+        ],
+        enderecos: [
+          { id: "same-address", logradouro: "Synthetic Street B" },
+          { id: "same-address", logradouro: "Synthetic Street A" },
+        ],
+      }),
+    });
+    expect(reordered.outcome).toBe("UPDATED");
+    expect(
+      await prisma.customerContact.findMany({
+        orderBy: { position: "asc" },
+        select: { sourceId: true, position: true, description: true },
+      }),
+    ).toEqual([
+      {
+        sourceId: "same-contact",
+        position: 0,
+        description: "Synthetic Contact B",
+      },
+      {
+        sourceId: "same-contact",
+        position: 1,
+        description: "Synthetic Contact A",
+      },
+    ]);
+    expect(
+      await prisma.customerAddress.findMany({
+        orderBy: { position: "asc" },
+        select: { sourceId: true, position: true, street: true },
+      }),
+    ).toEqual([
+      {
+        sourceId: "same-address",
+        position: 0,
+        street: "Synthetic Street B",
+      },
+      {
+        sourceId: "same-address",
+        position: 1,
+        street: "Synthetic Street A",
+      },
+    ]);
   });
 
   it("isolates identity by connection and does not use documents as identity", async () => {

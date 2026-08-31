@@ -240,19 +240,21 @@ async function syncContacts(
   const changed = collectionChanged(before, collection.items);
   for (const item of collection.items) {
     await tx.customerContact.upsert({
-      where: { customerId_sourceId: { customerId, sourceId: item.sourceId } },
+      where: {
+        customerId_sourceId_position: {
+          customerId,
+          sourceId: item.sourceId,
+          position: item.position,
+        },
+      },
       create: { customerId, ...item },
       update: item,
     });
   }
   context.operation = "DELETE_MISSING_CHILDREN";
+  const obsoleteIds = missingChildIds(before, collection.items);
   const removed = await tx.customerContact.deleteMany({
-    where: {
-      customerId,
-      ...(collection.items.length
-        ? { sourceId: { notIn: collection.items.map((item) => item.sourceId) } }
-        : {}),
-    },
+    where: { customerId, id: { in: obsoleteIds } },
   });
   return {
     processed: collection.items.length,
@@ -276,19 +278,21 @@ async function syncAddresses(
   const changed = collectionChanged(before, collection.items);
   for (const item of collection.items) {
     await tx.customerAddress.upsert({
-      where: { customerId_sourceId: { customerId, sourceId: item.sourceId } },
+      where: {
+        customerId_sourceId_position: {
+          customerId,
+          sourceId: item.sourceId,
+          position: item.position,
+        },
+      },
       create: { customerId, ...item },
       update: item,
     });
   }
   context.operation = "DELETE_MISSING_CHILDREN";
+  const obsoleteIds = missingChildIds(before, collection.items);
   const removed = await tx.customerAddress.deleteMany({
-    where: {
-      customerId,
-      ...(collection.items.length
-        ? { sourceId: { notIn: collection.items.map((item) => item.sourceId) } }
-        : {}),
-    },
+    where: { customerId, id: { in: obsoleteIds } },
   });
   return {
     processed: collection.items.length,
@@ -326,14 +330,32 @@ function safePrismaCode(error: unknown): string | undefined {
   return /^P\d{4}$/.test(error.code) ? error.code : undefined;
 }
 
-function collectionChanged<T extends { sourceId: string }>(
-  existing: Array<{ sourceId: string }>,
+function collectionChanged<T extends { sourceId: string; position: number }>(
+  existing: Array<{ sourceId: string; position: number }>,
   candidate: T[],
 ): boolean {
   if (existing.length !== candidate.length) return true;
-  const bySourceId = new Map(existing.map((item) => [item.sourceId, item]));
   return candidate.some((item) => {
-    const current = bySourceId.get(item.sourceId);
+    const current = existing.find(
+      (stored) =>
+        stored.sourceId === item.sourceId && stored.position === item.position,
+    );
     return !current || !sameSourceData(current, item);
   });
+}
+
+function missingChildIds<T extends { sourceId: string; position: number }>(
+  existing: Array<{ id: string; sourceId: string; position: number }>,
+  candidate: T[],
+): string[] {
+  return existing
+    .filter(
+      (stored) =>
+        !candidate.some(
+          (item) =>
+            item.sourceId === stored.sourceId &&
+            item.position === stored.position,
+        ),
+    )
+    .map((stored) => stored.id);
 }

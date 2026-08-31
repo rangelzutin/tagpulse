@@ -361,6 +361,34 @@ describe("TagPlus customer normalizer", () => {
     }
   });
 
+  it("preserves duplicate child source identifiers by array position", () => {
+    const result = normalizeTagPlusCustomer({
+      id: "synthetic-parent",
+      contatos: [
+        { id: "same-contact", descricao: "Synthetic Contact A" },
+        { id: "same-contact", descricao: "Synthetic Contact B" },
+      ],
+      enderecos: [
+        { id: "same-address", logradouro: "Synthetic Street A" },
+        { id: "same-address", logradouro: "Synthetic Street B" },
+      ],
+    });
+    expect(result.contacts).toMatchObject({
+      state: "PROVIDED",
+      items: [
+        { sourceId: "same-contact", position: 0 },
+        { sourceId: "same-contact", position: 1 },
+      ],
+    });
+    expect(result.addresses).toMatchObject({
+      state: "PROVIDED",
+      items: [
+        { sourceId: "same-address", position: 0 },
+        { sourceId: "same-address", position: 1 },
+      ],
+    });
+  });
+
   it.each([
     [
       { id: 1, ativo: "PRIVATE_INVALID" },

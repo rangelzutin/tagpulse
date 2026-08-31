@@ -297,17 +297,6 @@ function normalizeCollection<T>(
     throw structuralError("CUSTOMER_INVALID_STRUCTURE", path, value, "array");
   }
   const items = value.map(normalize);
-  const ids = new Set<string>();
-  for (const item of items as Array<T & { sourceId: string }>) {
-    if (ids.has(item.sourceId))
-      throw structuralError(
-        "CUSTOMER_INVALID_CHILD_STRUCTURE",
-        `${path}[]`,
-        item.sourceId,
-        "unique-child-identifiers",
-      );
-    ids.add(item.sourceId);
-  }
   return { state: "PROVIDED", items };
 }
 

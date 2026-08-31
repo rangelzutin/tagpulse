@@ -132,7 +132,7 @@ model CustomerContact {
   updatedAt                   DateTime @updatedAt @map("updated_at")
   customer                    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
-  @@unique([customerId, sourceId])
+  @@unique([customerId, sourceId, position])
   @@index([customerId])
   @@map("customer_contacts")
 }
@@ -168,7 +168,7 @@ model CustomerAddress {
   updatedAt                   DateTime @updatedAt @map("updated_at")
   customer                    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
-  @@unique([customerId, sourceId])
+  @@unique([customerId, sourceId, position])
   @@index([customerId])
   @@map("customer_addresses")
 }
