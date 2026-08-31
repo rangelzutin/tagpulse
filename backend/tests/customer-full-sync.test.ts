@@ -328,6 +328,35 @@ describe("customer full sync orchestration", () => {
     expect(JSON.stringify(h.state)).not.toContain(canary);
   });
 
+  it("propagates a safe transaction reason without retaining raw Prisma details", async () => {
+    const canary = "5000 SELECT * email-canary@example.com secret-value-CANARY";
+    const h = harness([[customer(1)]]);
+    const repositoryError = new CustomerPersistenceError({
+      persistenceStage: "CUSTOMER",
+      persistenceOperation: "UPSERT",
+      persistenceErrorClass: "TRANSACTION_ERROR",
+      transactionReason: "TRANSACTION_EXPIRED",
+    });
+    Object.assign(repositoryError, {
+      rawMessage: canary,
+      meta: { error: canary },
+    });
+    h.customerRepository.upsertCustomer.mockRejectedValueOnce(repositoryError);
+
+    const error = await h.sync("connection").catch((caught: unknown) => caught);
+    expect(error).toMatchObject({
+      category: "CUSTOMER_SYNC_PERSISTENCE_ERROR",
+      persistenceDiagnostics: {
+        persistenceStage: "CUSTOMER",
+        persistenceOperation: "UPSERT",
+        persistenceErrorClass: "TRANSACTION_ERROR",
+        transactionReason: "TRANSACTION_EXPIRED",
+      },
+    });
+    expect(JSON.stringify(error)).not.toContain(canary);
+    expect(h.state.errorCategory).toBe("CUSTOMER_SYNC_PERSISTENCE_ERROR");
+  });
+
   it("counts every repository outcome", async () => {
     const h = harness([[customer(1), customer(2), customer(3)], []]);
     h.customerRepository.upsertCustomer

@@ -141,4 +141,73 @@ describe("customer repository safe persistence diagnostics", () => {
     });
     expect(JSON.stringify(error)).not.toContain("RAW_UNKNOWN_CANARY");
   });
+
+  it.each([
+    [
+      "Transaction already closed: A query cannot be executed on an expired transaction. The timeout for this transaction was 5000 ms.",
+      "TRANSACTION_EXPIRED",
+    ],
+    ["Transaction API error. Last state: 'Expired'", "TRANSACTION_EXPIRED"],
+    [
+      "Transaction already closed after a technical state transition",
+      "TRANSACTION_ALREADY_CLOSED",
+    ],
+    [
+      "Unclassified transaction detail secret-value-CANARY",
+      "UNKNOWN_TRANSACTION_ERROR",
+    ],
+  ] as const)(
+    "classifies a safe P2028 reason as %s",
+    async (rawReason, expected) => {
+      const tx = transactionClient();
+      tx.customer.findUnique.mockRejectedValueOnce({
+        code: "P2028",
+        message: "raw-message-CANARY",
+        meta: { error: `${rawReason} SELECT * email-canary@example.com` },
+      });
+      const repository = repositoryWithTransaction(
+        vi.fn(async (callback) => callback(tx)),
+      );
+      const error = await repository
+        .upsertCustomer(input())
+        .catch((caught: unknown) => caught);
+      expect(error).toMatchObject({
+        diagnostics: {
+          persistenceStage: "CUSTOMER",
+          persistenceOperation: "UPSERT",
+          persistenceErrorClass: "TRANSACTION_ERROR",
+          transactionReason: expected,
+        },
+      });
+      const serialized = JSON.stringify(error);
+      for (const canary of [
+        rawReason,
+        "5000",
+        "SELECT *",
+        "email-canary@example.com",
+        "raw-message-CANARY",
+        "secret-value-CANARY",
+      ]) {
+        expect(serialized).not.toContain(canary);
+      }
+    },
+  );
+
+  it("does not attach a transaction reason to a non-P2028 error", async () => {
+    const tx = transactionClient();
+    tx.customer.findUnique.mockRejectedValueOnce({
+      code: "P2000",
+      meta: { error: "Transaction already closed" },
+    });
+    const repository = repositoryWithTransaction(
+      vi.fn(async (callback) => callback(tx)),
+    );
+    const error = await repository
+      .upsertCustomer(input())
+      .catch((caught: unknown) => caught);
+    expect(error.diagnostics).toMatchObject({
+      persistenceErrorClass: "VALUE_TOO_LONG",
+    });
+    expect(error.diagnostics).not.toHaveProperty("transactionReason");
+  });
 });

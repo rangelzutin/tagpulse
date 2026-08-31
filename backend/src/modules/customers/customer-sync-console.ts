@@ -128,7 +128,19 @@ function safePersistenceDiagnostics(error: unknown): Record<string, string> {
     persistenceStage: diagnostics.persistenceStage,
     persistenceOperation: diagnostics.persistenceOperation,
     persistenceErrorClass: diagnostics.persistenceErrorClass,
+    ...(diagnostics.persistenceErrorClass === "TRANSACTION_ERROR" &&
+    isTransactionReason(diagnostics.transactionReason)
+      ? { transactionReason: diagnostics.transactionReason }
+      : {}),
   };
+}
+
+function isTransactionReason(value: unknown): value is string {
+  return [
+    "TRANSACTION_EXPIRED",
+    "TRANSACTION_ALREADY_CLOSED",
+    "UNKNOWN_TRANSACTION_ERROR",
+  ].includes(String(value));
 }
 
 function isPersistenceStage(value: unknown): value is string {

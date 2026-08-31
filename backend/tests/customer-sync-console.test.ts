@@ -185,6 +185,46 @@ describe("customer sync console diagnostics", () => {
     expect(output).not.toContain("payload");
   });
 
+  it("outputs only a whitelisted transaction reason", () => {
+    const canary = "5000 SELECT * email-canary@example.com secret-value-CANARY";
+    const error = new CustomerSyncError(
+      "CUSTOMER_SYNC_PERSISTENCE_ERROR",
+      undefined,
+      undefined,
+      {
+        persistenceStage: "CUSTOMER",
+        persistenceOperation: "UPSERT",
+        persistenceErrorClass: "TRANSACTION_ERROR",
+        transactionReason: "TRANSACTION_EXPIRED",
+      },
+    );
+    Object.assign(error, { message: canary, meta: { error: canary } });
+    const output = formatCustomerSyncConsoleError(error);
+    expect(JSON.parse(output)).toEqual({
+      status: "ERROR",
+      category: "CUSTOMER_SYNC_PERSISTENCE_ERROR",
+      persistenceStage: "CUSTOMER",
+      persistenceOperation: "UPSERT",
+      persistenceErrorClass: "TRANSACTION_ERROR",
+      transactionReason: "TRANSACTION_EXPIRED",
+    });
+    expect(output).not.toContain(canary);
+  });
+
+  it("rejects a transaction reason outside the whitelist", () => {
+    const output = formatCustomerSyncConsoleError({
+      category: "CUSTOMER_SYNC_PERSISTENCE_ERROR",
+      persistenceDiagnostics: {
+        persistenceStage: "CUSTOMER",
+        persistenceOperation: "UPSERT",
+        persistenceErrorClass: "TRANSACTION_ERROR",
+        transactionReason: "secret-value-CANARY",
+      },
+    });
+    expect(JSON.parse(output)).not.toHaveProperty("transactionReason");
+    expect(output).not.toContain("secret-value-CANARY");
+  });
+
   it("rejects non-whitelisted persistence diagnostics", () => {
     const output = formatCustomerSyncConsoleError({
       category: "CUSTOMER_SYNC_PERSISTENCE_ERROR",

@@ -22,10 +22,16 @@ export type CustomerPersistenceErrorClass =
   | "DATABASE_UNAVAILABLE"
   | "UNKNOWN_DATABASE_ERROR";
 
+export type CustomerTransactionReason =
+  | "TRANSACTION_EXPIRED"
+  | "TRANSACTION_ALREADY_CLOSED"
+  | "UNKNOWN_TRANSACTION_ERROR";
+
 export interface CustomerPersistenceDiagnostics {
   persistenceStage: CustomerPersistenceStage;
   persistenceOperation: CustomerPersistenceOperation;
   persistenceErrorClass: CustomerPersistenceErrorClass;
+  transactionReason?: CustomerTransactionReason;
 }
 
 interface PersistenceContext {
@@ -75,6 +81,14 @@ export function createCustomerRepository(
           return result;
         });
       } catch (error: unknown) {
+        const persistenceErrorClass = classifyPersistenceError(
+          error,
+          transactionCallbackCompleted,
+        );
+        const transactionReason =
+          persistenceErrorClass === "TRANSACTION_ERROR"
+            ? classifyTransactionReason(error)
+            : undefined;
         throw new CustomerPersistenceError({
           persistenceStage: transactionCallbackCompleted
             ? "TRANSACTION"
@@ -82,10 +96,8 @@ export function createCustomerRepository(
           persistenceOperation: transactionCallbackCompleted
             ? "COMMIT"
             : context.operation,
-          persistenceErrorClass: classifyPersistenceError(
-            error,
-            transactionCallbackCompleted,
-          ),
+          persistenceErrorClass,
+          ...(transactionReason ? { transactionReason } : {}),
         });
       }
     },
@@ -328,6 +340,41 @@ function safePrismaCode(error: unknown): string | undefined {
     return undefined;
   }
   return /^P\d{4}$/.test(error.code) ? error.code : undefined;
+}
+
+function classifyTransactionReason(
+  error: unknown,
+): CustomerTransactionReason | undefined {
+  if (safePrismaCode(error) !== "P2028") return undefined;
+  const technicalReason = safePrismaMetaError(error);
+  if (!technicalReason) return "UNKNOWN_TRANSACTION_ERROR";
+  if (
+    /expired transaction/i.test(technicalReason) ||
+    /last state:\s*['"]?expired/i.test(technicalReason) ||
+    /transaction timeout/i.test(technicalReason) ||
+    /timeout for this transaction/i.test(technicalReason)
+  ) {
+    return "TRANSACTION_EXPIRED";
+  }
+  if (/transaction already closed/i.test(technicalReason)) {
+    return "TRANSACTION_ALREADY_CLOSED";
+  }
+  return "UNKNOWN_TRANSACTION_ERROR";
+}
+
+function safePrismaMetaError(error: unknown): string | undefined {
+  if (
+    typeof error !== "object" ||
+    error === null ||
+    !("meta" in error) ||
+    typeof error.meta !== "object" ||
+    error.meta === null ||
+    !("error" in error.meta) ||
+    typeof error.meta.error !== "string"
+  ) {
+    return undefined;
+  }
+  return error.meta.error;
 }
 
 function collectionChanged<T extends { sourceId: string; position: number }>(
