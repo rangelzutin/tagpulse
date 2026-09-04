@@ -79,10 +79,6 @@ describe("TagPlus customer normalizer", () => {
       () => normalizeTagPlusCustomer({ id: 1, data_cadastro: "invalid" }),
       "CUSTOMER_INVALID_DATE",
     );
-    expectCategory(
-      () => normalizeTagPlusCustomer({ id: 1, data_nascimento: "2000-02-30" }),
-      "CUSTOMER_INVALID_DATE",
-    );
   });
 
   it.each([
@@ -128,20 +124,49 @@ describe("TagPlus customer normalizer", () => {
     expect(JSON.stringify(error)).not.toContain(value);
   });
 
-  it("keeps data_nascimento restricted to a civil date", () => {
-    expect(
-      normalizeTagPlusCustomer({ id: 1, data_nascimento: "2024-02-29" })
-        .birthDate,
-    ).not.toBeNull();
-    expectCategory(
-      () =>
-        normalizeTagPlusCustomer({
-          id: 1,
-          data_nascimento: "2024-02-29 01:02:03",
-        }),
-      "CUSTOMER_INVALID_DATE",
-    );
+  it.each([
+    ["valid ordinary birth date", "2000-01-02", "2000-01-02"],
+    ["valid leap-day birth date", "2024-02-29", "2024-02-29"],
+  ])("preserves valid birth date (%s)", (_, value, expectedIsoDate) => {
+    const result = normalizeTagPlusCustomer({ id: 1, data_nascimento: value });
+    expect(result.birthDate).not.toBeNull();
+    expect(result.birthDate?.toISOString().slice(0, 10)).toBe(expectedIsoDate);
   });
+
+  it.each([
+    ["impossible day in exact YYYY-MM-DD", "2023-02-30"],
+    ["impossible month in exact YYYY-MM-DD", "2023-13-01"],
+    ["structurally valid but calendar-invalid (zeroed)", "0000-00-00"],
+    ["structurally valid but calendar-invalid (zero month)", "2023-00-15"],
+    ["null birth date", null],
+    ["missing birth date", undefined],
+  ])(
+    "normalizes %s to null birthDate without rejecting customer",
+    (_, value) => {
+      const payload =
+        value === undefined ? { id: 1 } : { id: 1, data_nascimento: value };
+      const result = normalizeTagPlusCustomer(payload);
+      expect(result.birthDate).toBeNull();
+      expect(result.sourceId).toBe("1");
+    },
+  );
+
+  it.each([
+    "2024/02/29",
+    "2024-2-29",
+    "2024-02-29 01:02:03",
+    "2026-08-29T10:30:00Z",
+    "invalid",
+    "123",
+  ])(
+    "retains strict rejection behavior for non-YYYY-MM-DD data_nascimento string: %s",
+    (value) => {
+      expectCategory(
+        () => normalizeTagPlusCustomer({ id: 1, data_nascimento: value }),
+        "CUSTOMER_INVALID_DATE",
+      );
+    },
+  );
 
   it.each([
     {

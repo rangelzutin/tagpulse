@@ -407,8 +407,11 @@ function optionalCivilDate(
   }
   const [year, month, day] = value.split("-").map(Number);
   const result = new Date(Date.UTC(year!, month! - 1, day));
-  if (result.toISOString().slice(0, 10) !== value) {
-    throw invalidDate(value, path, "YYYY-MM-DD");
+  if (
+    Number.isNaN(result.getTime()) ||
+    result.toISOString().slice(0, 10) !== value
+  ) {
+    return null;
   }
   return result;
 }
