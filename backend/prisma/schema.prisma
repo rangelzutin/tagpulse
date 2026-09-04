@@ -38,9 +38,11 @@ model TagPlusConnection {
   apiVersion String                  @map("api_version")
   createdAt  DateTime                @default(now()) @map("created_at")
   updatedAt  DateTime                @updatedAt @map("updated_at")
-  company    Company                 @relation(fields: [companyId], references: [id])
-  syncRuns   CustomerSyncRun[]
-  customers  Customer[]
+  company         Company                 @relation(fields: [companyId], references: [id])
+  syncRuns        CustomerSyncRun[]
+  customers       Customer[]
+  productSyncRuns ProductSyncRun[]
+  products        Product[]
 
   @@unique([companyId, name])
   @@index([companyId])
@@ -171,4 +173,87 @@ model CustomerAddress {
   @@unique([customerId, sourceId, position])
   @@index([customerId])
   @@map("customer_addresses")
+}
+
+enum ProductSyncRunStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model ProductSyncRun {
+  id                      String               @id @default(uuid()) @db.Uuid
+  connectionId            String               @map("connection_id") @db.Uuid
+  status                  ProductSyncRunStatus @default(RUNNING)
+  startedAt               DateTime             @default(now()) @map("started_at")
+  completedAt             DateTime?            @map("completed_at")
+  pagesFetched            Int                  @default(0) @map("pages_fetched")
+  recordsFetched          Int                  @default(0) @map("records_fetched")
+  recordsInserted         Int                  @default(0) @map("records_inserted")
+  recordsUpdated          Int                  @default(0) @map("records_updated")
+  recordsUnchanged        Int                  @default(0) @map("records_unchanged")
+  recordsNoLongerObserved Int                  @default(0) @map("records_no_longer_observed")
+  lastCompletedPage       Int                  @default(0) @map("last_completed_page")
+  terminalEmptyPage       Int?                 @map("terminal_empty_page")
+  errorCategory           String?              @map("error_category")
+  createdAt               DateTime             @default(now()) @map("created_at")
+  connection              TagPlusConnection    @relation(fields: [connectionId], references: [id])
+  productsLastSeen        Product[]            @relation("ProductsLastSeenInRun")
+
+  @@index([connectionId])
+  @@map("product_sync_runs")
+}
+
+model Product {
+  id                     String            @id @default(uuid()) @db.Uuid
+  connectionId           String            @map("connection_id") @db.Uuid
+  sourceId               String            @map("source_id")
+  code                   String?
+  externalCode           String?           @map("external_code")
+  barcode                String?
+  taxableBarcode         String?           @map("taxable_barcode")
+  gradeCode              String?           @map("grade_code")
+  description            String?
+  shortDescription       String?           @map("short_description")
+  active                 Boolean?
+  moved                  Boolean?
+  commercializable       Boolean?
+  soldSeparately         Boolean?          @map("sold_separately")
+  type                   String?
+  purpose                String?
+  brand                  String?
+  parentSourceId         String?           @map("parent_source_id")
+  categorySourceId       String?           @map("category_source_id")
+  categoryDescription    String?           @map("category_description")
+  departmentSourceId     String?           @map("department_source_id")
+  departmentDescription  String?           @map("department_description")
+  retailSalePrice        Decimal?          @map("retail_sale_price") @db.Decimal(12, 4)
+  offerPrice             Decimal?          @map("offer_price") @db.Decimal(12, 4)
+  effectiveCost          Decimal?          @map("effective_cost") @db.Decimal(12, 4)
+  averageCost            Decimal?          @map("average_cost") @db.Decimal(12, 4)
+  otherExpensesCost      Decimal?          @map("other_expenses_cost") @db.Decimal(12, 4)
+  stockQuantity          Decimal?          @map("stock_quantity") @db.Decimal(12, 4)
+  stockMinQuantity       Decimal?          @map("stock_min_quantity") @db.Decimal(12, 4)
+  stockMaxQuantity       Decimal?          @map("stock_max_quantity") @db.Decimal(12, 4)
+  outputUnitSourceId     String?           @map("output_unit_source_id")
+  outputUnitAbbreviation String?           @map("output_unit_abbreviation")
+  outputUnitDescription  String?           @map("output_unit_description")
+  outputUnitFractioned   Boolean?          @map("output_unit_fractioned")
+  sourceCreatedAt        DateTime?         @map("source_created_at")
+  sourceUpdatedAt        DateTime?         @map("source_updated_at")
+  sourcePresent          Boolean           @map("source_present")
+  lastSeenAt             DateTime          @map("last_seen_at")
+  lastSyncedAt           DateTime          @map("last_synced_at")
+  lastSeenSyncRunId      String?           @map("last_seen_sync_run_id") @db.Uuid
+  createdAt              DateTime          @default(now()) @map("created_at")
+  updatedAt              DateTime          @updatedAt @map("updated_at")
+  connection             TagPlusConnection @relation(fields: [connectionId], references: [id])
+  lastSeenSyncRun        ProductSyncRun?   @relation("ProductsLastSeenInRun", fields: [lastSeenSyncRunId], references: [id], onDelete: SetNull)
+
+  @@unique([connectionId, sourceId])
+  @@index([connectionId, code])
+  @@index([connectionId, barcode])
+  @@index([connectionId, parentSourceId])
+  @@index([connectionId, sourcePresent])
+  @@map("products")
 }
