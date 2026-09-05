@@ -7,6 +7,7 @@ import { characterizeClientesFields } from "./inspection/clientes-field-characte
 import { discoverClientesFullStructure } from "./inspection/clientes-full-structure-discovery.js";
 import { censusClientesFullStructure } from "./inspection/clientes-full-structural-census.js";
 import { characterizeClientesFull } from "./inspection/clientes-full-characterization.js";
+import { inspectSalesControlCase } from "./inspection/sales-control-case-inspection.js";
 import {
   createAuthorizationUrl,
   createStateStore,
@@ -31,6 +32,25 @@ export function registerTagPlusOAuthRoutes(
 ): void {
   const states = createStateStore();
   const tokenStore = options.tokenStore ?? createTagPlusOAuthTokenStore();
+
+  app.get(
+    "/integrations/tagplus/inspect-sales-control-case",
+    async (_request, reply) => {
+      const currentTokens = tokenStore.get();
+      if (!currentTokens) {
+        return reply
+          .code(409)
+          .send({ status: "error", message: "OAuth authorization required" });
+      }
+      const client = createTagPlusClient({
+        baseUrl: options.config.baseUrl,
+        apiVersion: options.config.apiVersion,
+        accessToken: currentTokens.accessToken,
+        ...(options.fetch ? { fetch: options.fetch } : {}),
+      });
+      return inspectSalesControlCase(client);
+    },
+  );
 
   app.get(
     "/integrations/tagplus/inspect-clientes-characterization",
