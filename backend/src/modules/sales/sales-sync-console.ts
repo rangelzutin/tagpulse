@@ -7,7 +7,7 @@ import {
 type Runner = ReturnType<typeof createProductionSalesSyncRunner>;
 
 export function registerSalesSyncConsole(runner: Runner): void {
-  if (!process.stdin.isTTY) {
+  if (!process.stdin.isTTY && process.env.ALLOW_NON_TTY_CONSOLE?.trim() !== "true") {
     throw new Error("SALES_SYNC_CONSOLE_REQUIRES_TTY");
   }
   process.stdin.setEncoding("utf8");

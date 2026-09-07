@@ -39,8 +39,10 @@ describe("sales sync console", () => {
   });
 
   describe("registerSalesSyncConsole", () => {
-    it("throws when process.stdin is not a TTY", () => {
+    it("throws when process.stdin is not a TTY and ALLOW_NON_TTY_CONSOLE is not enabled", () => {
       const originalIsTTY = process.stdin.isTTY;
+      const originalEnv = process.env.ALLOW_NON_TTY_CONSOLE;
+      delete process.env.ALLOW_NON_TTY_CONSOLE;
       Object.defineProperty(process.stdin, "isTTY", {
         value: false,
         configurable: true,
@@ -56,6 +58,34 @@ describe("sales sync console", () => {
           value: originalIsTTY,
           configurable: true,
         });
+        if (originalEnv !== undefined) {
+          process.env.ALLOW_NON_TTY_CONSOLE = originalEnv;
+        }
+      }
+    });
+
+    it("allows non-TTY when ALLOW_NON_TTY_CONSOLE=true is explicitly set", () => {
+      const originalIsTTY = process.stdin.isTTY;
+      const originalEnv = process.env.ALLOW_NON_TTY_CONSOLE;
+      process.env.ALLOW_NON_TTY_CONSOLE = "true";
+      Object.defineProperty(process.stdin, "isTTY", {
+        value: false,
+        configurable: true,
+      });
+
+      try {
+        const mockRunner = {} as Runner;
+        expect(() => registerSalesSyncConsole(mockRunner)).not.toThrow();
+      } finally {
+        Object.defineProperty(process.stdin, "isTTY", {
+          value: originalIsTTY,
+          configurable: true,
+        });
+        if (originalEnv !== undefined) {
+          process.env.ALLOW_NON_TTY_CONSOLE = originalEnv;
+        } else {
+          delete process.env.ALLOW_NON_TTY_CONSOLE;
+        }
       }
     });
 

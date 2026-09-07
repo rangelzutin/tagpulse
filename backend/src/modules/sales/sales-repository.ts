@@ -3,6 +3,8 @@ import { Prisma, SaleAnchorType } from "@prisma/client";
 import type { NormalizedSale } from "../../integrations/tagplus/sales/sales-normalizers.js";
 import { computeCommercialDate } from "./commercial-date.js";
 
+export const SALES_TRANSACTION_TIMEOUT_MS = 30000;
+
 export interface SalesRepository {
   persistPedido(
     connectionId: string,
@@ -138,7 +140,7 @@ export function createSalesRepository(prisma: PrismaClient): SalesRepository {
             lastSeenAt: observedAt,
           },
         });
-      });
+      }, { timeout: SALES_TRANSACTION_TIMEOUT_MS });
     },
 
     async persistChildSale(connectionId, childSale, observedAt) {
@@ -326,7 +328,7 @@ export function createSalesRepository(prisma: PrismaClient): SalesRepository {
             },
           });
         }
-      });
+      }, { timeout: SALES_TRANSACTION_TIMEOUT_MS });
     },
 
     async reconcileAbsentSourceDocs(connectionId, docType, observedSourceIds) {
