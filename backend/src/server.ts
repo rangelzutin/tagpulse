@@ -7,6 +7,8 @@ import { registerCustomerSyncConsole } from "./modules/customers/customer-sync-c
 import { createProductionCustomerSyncRunner } from "./modules/customers/production-customer-sync.js";
 import { registerProductSyncConsole } from "./modules/products/product-sync-console.js";
 import { createProductionProductSyncRunner } from "./modules/products/production-product-sync.js";
+import { registerSalesSyncConsole } from "./modules/sales/sales-sync-console.js";
+import { createProductionSalesSyncRunner } from "./modules/sales/production-sales-sync.js";
 
 const env = loadEnv();
 const tokenStore = createTagPlusOAuthTokenStore();
@@ -54,6 +56,22 @@ if (process.argv.includes("--product-sync-console")) {
     },
   });
   registerProductSyncConsole(runner);
+}
+
+if (process.argv.includes("--sales-sync-console")) {
+  const runner = createProductionSalesSyncRunner({
+    prisma,
+    tokenStore,
+    config: {
+      baseUrl: env.TAGPLUS_BASE_URL,
+      databaseUrl: env.DATABASE_URL,
+      scopes: env.TAGPLUS_SCOPES,
+      ...(env.TEST_DATABASE_URL
+        ? { testDatabaseUrl: env.TEST_DATABASE_URL }
+        : {}),
+    },
+  });
+  registerSalesSyncConsole(runner);
 }
 
 let shuttingDown = false;
