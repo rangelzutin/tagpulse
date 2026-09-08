@@ -5,12 +5,17 @@ import {
   registerTagPlusOAuthRoutes,
   type RegisterTagPlusOAuthOptions,
 } from "./integrations/tagplus/oauth-routes.js";
+import {
+  registerBiRoutes,
+  type BiRepository,
+} from "./modules/bi/index.js";
 
 export interface BuildAppOptions {
   databaseHealth: DatabaseHealthChecker;
   frontendUrl: string;
   logger?: boolean;
   tagPlusOAuth?: RegisterTagPlusOAuthOptions;
+  biRepository?: BiRepository;
 }
 
 export async function buildApp(
@@ -34,6 +39,10 @@ export async function buildApp(
 
   if (options.tagPlusOAuth) {
     registerTagPlusOAuthRoutes(app, options.tagPlusOAuth);
+  }
+
+  if (options.biRepository) {
+    registerBiRoutes(app, options.biRepository);
   }
 
   app.get("/health/database", async (_request, reply) => {

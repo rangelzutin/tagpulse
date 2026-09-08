@@ -3,6 +3,7 @@ import { loadEnv } from "./config/env.js";
 import { createDatabaseHealthChecker } from "./database/health.js";
 import { prisma } from "./database/prisma.js";
 import { createTagPlusOAuthTokenStore } from "./integrations/tagplus/oauth-token-store.js";
+import { createBiRepository } from "./modules/bi/bi-repository.js";
 import { registerCustomerSyncConsole } from "./modules/customers/customer-sync-console.js";
 import { createProductionCustomerSyncRunner } from "./modules/customers/production-customer-sync.js";
 import { registerProductSyncConsole } from "./modules/products/product-sync-console.js";
@@ -15,6 +16,7 @@ const tokenStore = createTagPlusOAuthTokenStore();
 const app = await buildApp({
   databaseHealth: createDatabaseHealthChecker(prisma),
   frontendUrl: env.FRONTEND_URL,
+  biRepository: createBiRepository(prisma),
   tagPlusOAuth: {
     config: {
       authUrl: env.TAGPLUS_AUTH_URL,
