@@ -20,6 +20,8 @@ export const REQUIRED_SALES_SCOPES = [
   "read:nfes",
 ] as const;
 
+export const SALES_TAGPLUS_REQUEST_TIMEOUT_MS = 30_000;
+
 export type ProductionSalesSyncErrorCategory =
   | "SALES_SYNC_CONNECTION_NOT_FOUND"
   | "SALES_SYNC_CONNECTION_INACTIVE"
@@ -66,9 +68,11 @@ export function createProductionSalesSyncRunner(input: {
   tokenStore: TagPlusOAuthTokenStore;
   config: ProductionSalesSyncConfig;
   syncFactory?: typeof createSalesFullSync;
+  clientFactory?: typeof createTagPlusClient;
 }) {
   let isRunning = false;
   const syncFactory = input.syncFactory ?? createSalesFullSync;
+  const clientFactory = input.clientFactory ?? createTagPlusClient;
 
   async function preflight(
     targetConnectionId: string,
@@ -134,10 +138,11 @@ export function createProductionSalesSyncRunner(input: {
 
       isRunning = true;
       try {
-        const client = createTagPlusClient({
+        const client = clientFactory({
           baseUrl: input.config.baseUrl,
           apiVersion: ready.apiVersion,
           accessToken: tokens.accessToken,
+          timeoutMs: SALES_TAGPLUS_REQUEST_TIMEOUT_MS,
           ...(input.config.fetch ? { fetch: input.config.fetch } : {}),
         });
 

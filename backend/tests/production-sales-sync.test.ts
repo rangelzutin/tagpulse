@@ -1,9 +1,11 @@
 import type { PrismaClient } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 import { createTagPlusOAuthTokenStore } from "../src/integrations/tagplus/oauth-token-store.js";
+import { createTagPlusClient } from "../src/integrations/tagplus/tagplus-client.js";
 import {
   createProductionSalesSyncRunner,
   NINECLOUDS_CONNECTION_ID,
+  SALES_TAGPLUS_REQUEST_TIMEOUT_MS,
   type ProductionSalesSyncConfig,
 } from "../src/modules/sales/production-sales-sync.js";
 import type { SalesFullSyncResult } from "../src/modules/sales/sales-full-sync.js";
@@ -28,6 +30,7 @@ function createHarness(options?: {
   scopes?: string;
   syncResult?: SalesFullSyncResult;
   configOverrides?: Partial<ProductionSalesSyncConfig>;
+  clientFactory?: typeof createTagPlusClient;
 }) {
   const connection =
     options?.connection !== undefined ? options.connection : activeConnection;
@@ -72,11 +75,14 @@ function createHarness(options?: {
   );
 
   const mockSyncFactory = vi.fn().mockReturnValue(mockSyncFn);
+  const mockClientFactory =
+    options?.clientFactory ?? vi.fn(createTagPlusClient);
 
   const runner = createProductionSalesSyncRunner({
     prisma,
     tokenStore,
     syncFactory: mockSyncFactory,
+    clientFactory: mockClientFactory,
     config: {
       baseUrl: "https://api.example.invalid",
       databaseUrl: "postgresql://application.invalid/tagpulse",
@@ -87,7 +93,15 @@ function createHarness(options?: {
     },
   });
 
-  return { runner, fetch, prisma, tokenStore, mockSyncFn, mockSyncFactory };
+  return {
+    runner,
+    fetch,
+    prisma,
+    tokenStore,
+    mockSyncFn,
+    mockSyncFactory,
+    mockClientFactory,
+  };
 }
 
 describe("production sales sync launcher", () => {
@@ -234,6 +248,86 @@ describe("production sales sync launcher", () => {
           salesRepository: expect.any(Object),
         }),
       );
+    });
+
+    it("F. passes explicit 30s HTTP timeout (SALES_TAGPLUS_REQUEST_TIMEOUT_MS) to createTagPlusClient", async () => {
+      const h = createHarness();
+      await h.runner.run(connectionId);
+
+      expect(SALES_TAGPLUS_REQUEST_TIMEOUT_MS).toBe(30_000);
+      expect(h.mockClientFactory).toHaveBeenCalledWith({
+        baseUrl: "https://api.example.invalid",
+        apiVersion: "2.0",
+        accessToken: "synthetic-preflight-token",
+        timeoutMs: 30_000,
+        fetch: h.fetch,
+      });
+    });
+
+    it("F. client created by default runner enforces 30s timeout without aborting at 10s", async () => {
+      vi.useFakeTimers();
+      try {
+        let capturedSignal: AbortSignal | undefined;
+        const delayedFetch = vi.fn<typeof globalThis.fetch>((_input, init) => {
+          capturedSignal = init?.signal ?? undefined;
+          return new Promise((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () => {
+              reject(new DOMException("aborted", "AbortError"));
+            });
+          });
+        });
+
+        let capturedPedidosFetcher:
+          | ((connectionId: string, page: number) => Promise<unknown>)
+          | undefined;
+        const customSyncFactory = vi.fn().mockImplementation(
+          (deps: {
+            pedidosFetcher: (c: string, page: number) => Promise<unknown>;
+          }) => {
+            capturedPedidosFetcher = deps.pedidosFetcher;
+            return vi.fn().mockResolvedValue({ status: "COMPLETED" });
+          },
+        );
+
+        const prisma = {
+          tagPlusConnection: {
+            findUnique: vi.fn().mockResolvedValue(activeConnection),
+          },
+        } as unknown as PrismaClient;
+        const tokenStore = createTagPlusOAuthTokenStore();
+        tokenStore.set({ accessToken: "synthetic-preflight-token" });
+
+        // Runner without clientFactory option, exercising default createTagPlusClient
+        const runner = createProductionSalesSyncRunner({
+          prisma,
+          tokenStore,
+          syncFactory: customSyncFactory as unknown as typeof createSalesFullSync,
+          config: {
+            baseUrl: "https://api.example.invalid",
+            databaseUrl: "postgresql://application.invalid/tagpulse",
+            scopes: validScopes,
+            fetch: delayedFetch,
+          },
+        });
+
+        await runner.run(connectionId);
+        expect(capturedPedidosFetcher).toBeDefined();
+
+        // Initiate request via fetcher built with default client
+        const fetchPromise = capturedPedidosFetcher!(connectionId, 1);
+
+        // Advance 10s: default client timeout of 10s has passed, but this client must still be pending
+        vi.advanceTimersByTime(10_000);
+        expect(capturedSignal?.aborted).toBe(false);
+
+        // Advance another 20s to reach 30s: now it aborts
+        vi.advanceTimersByTime(20_000);
+        expect(capturedSignal?.aborted).toBe(true);
+
+        await expect(fetchPromise).rejects.toThrow("TagPlus request timed out");
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 });
