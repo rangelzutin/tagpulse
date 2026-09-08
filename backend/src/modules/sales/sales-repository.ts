@@ -23,6 +23,11 @@ export interface SalesRepository {
     docType: SaleAnchorType,
     observedSourceIds: Set<string>,
   ): Promise<number>;
+
+  removeConfirmedInboundNfeSales(
+    connectionId: string,
+    confirmedInboundSourceIds: Set<string>,
+  ): Promise<number>;
 }
 
 export function createSalesRepository(prisma: PrismaClient): SalesRepository {
@@ -343,7 +348,45 @@ export function createSalesRepository(prisma: PrismaClient): SalesRepository {
           sourcePresent: false,
         },
       });
+
       return result.count;
+    },
+
+    async removeConfirmedInboundNfeSales(connectionId, confirmedInboundSourceIds) {
+      if (confirmedInboundSourceIds.size === 0) {
+        return 0;
+      }
+
+      const inboundIds = Array.from(confirmedInboundSourceIds);
+
+      const spuriousSales = await prisma.sale.findMany({
+        where: {
+          connectionId,
+          anchorType: SaleAnchorType.NFE,
+          anchorSourceId: { in: inboundIds },
+          sourceDocs: {
+            none: {
+              OR: [
+                { docType: { not: SaleAnchorType.NFE } },
+                { sourceId: { notIn: inboundIds } },
+              ],
+            },
+          },
+        },
+        select: { id: true },
+      });
+
+      if (spuriousSales.length === 0) {
+        return 0;
+      }
+
+      const deleteResult = await prisma.sale.deleteMany({
+        where: {
+          id: { in: spuriousSales.map((s) => s.id) },
+        },
+      });
+
+      return deleteResult.count;
     },
   };
 }

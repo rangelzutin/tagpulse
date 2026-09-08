@@ -330,4 +330,209 @@ describe("production sales sync launcher", () => {
       }
     });
   });
+
+  describe("diagnostic NFe inspection (read-only)", () => {
+    it("rejects missing or non-numeric sourceId with SALES_SYNC_SOURCE_ID_REQUIRED", async () => {
+      const h = createHarness();
+
+      await expect(h.runner.inspectNfe(connectionId, "")).rejects.toMatchObject({
+        category: "SALES_SYNC_SOURCE_ID_REQUIRED",
+      });
+      await expect(h.runner.inspectNfe(connectionId, "   ")).rejects.toMatchObject({
+        category: "SALES_SYNC_SOURCE_ID_REQUIRED",
+      });
+      await expect(h.runner.inspectNfe(connectionId, "abc")).rejects.toMatchObject({
+        category: "SALES_SYNC_SOURCE_ID_REQUIRED",
+      });
+      await expect(h.runner.inspectNfe(connectionId, "12a3")).rejects.toMatchObject({
+        category: "SALES_SYNC_SOURCE_ID_REQUIRED",
+      });
+      expect(h.fetch).not.toHaveBeenCalled();
+    });
+
+    it("enforces preflight and token checks before making any upstream request", async () => {
+      const hMissingToken = createHarness({ withToken: false });
+      await expect(
+        hMissingToken.runner.inspectNfe(connectionId, "2218"),
+      ).rejects.toMatchObject({
+        category: "TAGPLUS_OAUTH_TOKEN_NOT_AVAILABLE",
+      });
+      expect(hMissingToken.fetch).not.toHaveBeenCalled();
+
+      const hUnauthorized = createHarness();
+      await expect(
+        hUnauthorized.runner.inspectNfe(
+          "11111111-2222-3333-4444-555555555555",
+          "2218",
+        ),
+      ).rejects.toMatchObject({
+        category: "SALES_SYNC_CONNECTION_NOT_FOUND",
+      });
+      expect(hUnauthorized.fetch).not.toHaveBeenCalled();
+    });
+
+    it("requests exact NFe detail endpoint with 30s timeout and detects duplicate item ids", async () => {
+      const h = createHarness();
+      h.fetch.mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            id: 2218,
+            numero: 5432,
+            tipo: "S",
+            cliente: {
+              nome: "Cliente Confidencial",
+              cpf: "123.456.789-00",
+              email: "secreto@example.com",
+            },
+            itens: [
+              {
+                id: 101,
+                produto_servico: { id: 2001 },
+                qtd: 2,
+                valor_unitario: 50,
+                valor_subtotal: 100,
+              },
+              {
+                id: 102,
+                produto_servico: { id: 2002 },
+                qtd: 1,
+                valor_unitario: 75,
+                valor_desconto: 5,
+                valor_subtotal: 70,
+              },
+              {
+                id: 101,
+                produto_servico: { id: 2003 },
+                qtd: 3,
+                valor_unitario: 40,
+                valor_subtotal: 120,
+              },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+
+      const result = await h.runner.inspectNfe(connectionId, "2218");
+
+      expect(h.mockClientFactory).toHaveBeenCalledWith(
+        expect.objectContaining({
+          timeoutMs: 30_000,
+          baseUrl: "https://api.example.invalid",
+          apiVersion: "2.0",
+          accessToken: "synthetic-preflight-token",
+        }),
+      );
+
+      expect(h.fetch).toHaveBeenCalledTimes(1);
+      const requestedUrl = String(h.fetch.mock.calls[0][0]);
+      expect(requestedUrl).toBe("https://api.example.invalid/nfes/2218?fields=*");
+
+      expect(result).toEqual({
+        status: "OK",
+        nfeSourceId: "2218",
+        numero: 5432,
+        tipo: "S",
+        itemCount: 3,
+        duplicateSourceItemIds: [
+          {
+            sourceItemId: "101",
+            indexes: [0, 2],
+            count: 2,
+          },
+        ],
+        items: [
+          {
+            index: 0,
+            sourceItemId: "101",
+            sourceProductId: "2001",
+            quantity: "2",
+            unitPrice: "50",
+            discountAmount: null,
+            subtotal: "100",
+          },
+          {
+            index: 1,
+            sourceItemId: "102",
+            sourceProductId: "2002",
+            quantity: "1",
+            unitPrice: "75",
+            discountAmount: "5",
+            subtotal: "70",
+          },
+          {
+            index: 2,
+            sourceItemId: "101",
+            sourceProductId: "2003",
+            quantity: "3",
+            unitPrice: "40",
+            discountAmount: null,
+            subtotal: "120",
+          },
+        ],
+      });
+
+      // Verification of privacy: no customer PII, token, or raw response leaked
+      const serialized = JSON.stringify(result);
+      expect(serialized).not.toContain("Cliente Confidencial");
+      expect(serialized).not.toContain("123.456.789-00");
+      expect(serialized).not.toContain("secreto@example.com");
+      expect(serialized).not.toContain("synthetic-preflight-token");
+    });
+
+    it("performs zero database mutations (pure read-only)", async () => {
+      const h = createHarness();
+      h.fetch.mockResolvedValue(
+        new Response(JSON.stringify({ id: 2218, itens: [] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+      await h.runner.inspectNfe(connectionId, "2218");
+
+      // Verify prisma was only queried for read-only connection check
+      expect(h.prisma.tagPlusConnection.findUnique).toHaveBeenCalledTimes(1);
+      // No sync runner or write operations invoked
+      expect(h.mockSyncFactory).not.toHaveBeenCalled();
+      expect(h.mockSyncFn).not.toHaveBeenCalled();
+    });
+
+    it("reports tipo: 'E' for inbound NFe", async () => {
+      const h = createHarness();
+      h.fetch.mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            id: 2218,
+            numero: 2152,
+            tipo: "E",
+            itens: [],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+
+      const result = await h.runner.inspectNfe(connectionId, "2218");
+      expect(result.tipo).toBe("E");
+      expect(result.nfeSourceId).toBe("2218");
+      expect(result.numero).toBe(2152);
+    });
+
+    it("handles TagPlus 404 with controlled error", async () => {
+      const h = createHarness();
+      h.fetch.mockResolvedValue(
+        new Response(JSON.stringify({ message: "Not found" }), {
+          status: 404,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+      await expect(
+        h.runner.inspectNfe(connectionId, "99999"),
+      ).rejects.toMatchObject({
+        category: "SALES_SYNC_ERROR",
+        message: expect.stringContaining("HTTP 404"),
+      });
+    });
+  });
 });

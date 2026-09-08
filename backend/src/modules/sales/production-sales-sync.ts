@@ -1,6 +1,9 @@
 import type { PrismaClient } from "@prisma/client";
 import type { TagPlusOAuthTokenStore } from "../../integrations/tagplus/oauth-token-store.js";
-import { createTagPlusClient } from "../../integrations/tagplus/tagplus-client.js";
+import {
+  createTagPlusClient,
+  TagPlusHttpError,
+} from "../../integrations/tagplus/tagplus-client.js";
 import {
   createTagPlusNfesPageFetcher,
   createTagPlusPedidosPageFetcher,
@@ -30,6 +33,7 @@ export type ProductionSalesSyncErrorCategory =
   | "TAGPLUS_SCOPES_MISSING_REQUIRED_SALES_SCOPES"
   | "SALES_SYNC_UNSAFE_DATABASE"
   | "SALES_SYNC_CONNECTION_ID_REQUIRED"
+  | "SALES_SYNC_SOURCE_ID_REQUIRED"
   | "SALES_SYNC_ERROR";
 
 export class ProductionSalesSyncError extends Error {
@@ -61,6 +65,32 @@ export interface SalesSyncPreflightResult {
 
 export interface ProductionSalesSyncRunResult extends SalesFullSyncResult {
   connectionId: string;
+}
+
+export interface NfeDiagnosticItem {
+  index: number;
+  sourceItemId: string;
+  sourceProductId: string;
+  quantity: string;
+  unitPrice: string;
+  discountAmount: string | null;
+  subtotal: string;
+}
+
+export interface NfeDuplicateItemId {
+  sourceItemId: string;
+  indexes: number[];
+  count: number;
+}
+
+export interface NfeDiagnosticResult {
+  status: "OK";
+  nfeSourceId: string;
+  numero: number | string | null;
+  tipo: string | null;
+  itemCount: number;
+  duplicateSourceItemIds: NfeDuplicateItemId[];
+  items: NfeDiagnosticItem[];
 }
 
 export function createProductionSalesSyncRunner(input: {
@@ -161,6 +191,149 @@ export function createProductionSalesSyncRunner(input: {
       } finally {
         isRunning = false;
       }
+    },
+    async inspectNfe(
+      targetConnectionId: string,
+      sourceId: string,
+    ): Promise<NfeDiagnosticResult> {
+      if (
+        !sourceId ||
+        typeof sourceId !== "string" ||
+        !sourceId.trim() ||
+        !/^\d+$/.test(sourceId.trim())
+      ) {
+        throw new ProductionSalesSyncError(
+          "SALES_SYNC_SOURCE_ID_REQUIRED",
+          "Explicit numeric sourceId is required for NFe inspection",
+        );
+      }
+      const cleanSourceId = sourceId.trim();
+
+      const ready = await preflight(targetConnectionId);
+      const tokens = input.tokenStore.get();
+      if (!tokens?.accessToken) {
+        throw new ProductionSalesSyncError("TAGPLUS_OAUTH_TOKEN_NOT_AVAILABLE");
+      }
+
+      const client = clientFactory({
+        baseUrl: input.config.baseUrl,
+        apiVersion: ready.apiVersion,
+        accessToken: tokens.accessToken,
+        timeoutMs: SALES_TAGPLUS_REQUEST_TIMEOUT_MS,
+        ...(input.config.fetch ? { fetch: input.config.fetch } : {}),
+      });
+
+      let rawData: unknown;
+      try {
+        const response = await client.get<unknown>(
+          `/nfes/${cleanSourceId}?fields=*`,
+        );
+        rawData = response.data;
+      } catch (error: unknown) {
+        if (error instanceof TagPlusHttpError && error.status === 404) {
+          throw new ProductionSalesSyncError(
+            "SALES_SYNC_ERROR",
+            `NFe ${cleanSourceId} not found on TagPlus (HTTP 404)`,
+          );
+        }
+        try {
+          const fallback = await client.get<unknown>(`/nfes/${cleanSourceId}`);
+          rawData = fallback.data;
+        } catch {
+          throw error;
+        }
+      }
+
+      const recordCandidate =
+        Array.isArray(rawData) && rawData.length === 1 ? rawData[0] : rawData;
+
+      if (
+        !recordCandidate ||
+        typeof recordCandidate !== "object" ||
+        Array.isArray(recordCandidate)
+      ) {
+        throw new ProductionSalesSyncError(
+          "SALES_SYNC_ERROR",
+          `Invalid response payload for NFe ${cleanSourceId}`,
+        );
+      }
+
+      const record = recordCandidate as Record<string, unknown>;
+      const rawItems = Array.isArray(record.itens) ? record.itens : [];
+
+      const items: NfeDiagnosticItem[] = [];
+      for (let i = 0; i < rawItems.length; i++) {
+        const raw = rawItems[i];
+        if (!raw || typeof raw !== "object") {
+          items.push({
+            index: i,
+            sourceItemId: "INVALID_ITEM",
+            sourceProductId: "UNKNOWN",
+            quantity: "0",
+            unitPrice: "0",
+            discountAmount: null,
+            subtotal: "0",
+          });
+          continue;
+        }
+        const item = raw as Record<string, unknown>;
+        const sourceItemId = item.id != null ? String(item.id) : "MISSING_ID";
+        const prodObj = item.produto_servico;
+        let sourceProductId = "UNKNOWN";
+        if (
+          prodObj &&
+          typeof prodObj === "object" &&
+          (prodObj as Record<string, unknown>).id != null
+        ) {
+          sourceProductId = String((prodObj as Record<string, unknown>).id);
+        } else if (item.produto_servico_id != null) {
+          sourceProductId = String(item.produto_servico_id);
+        }
+
+        items.push({
+          index: i,
+          sourceItemId,
+          sourceProductId,
+          quantity: item.qtd != null ? String(item.qtd) : "0",
+          unitPrice:
+            item.valor_unitario != null ? String(item.valor_unitario) : "0",
+          discountAmount:
+            item.valor_desconto != null ? String(item.valor_desconto) : null,
+          subtotal:
+            item.valor_subtotal != null ? String(item.valor_subtotal) : "0",
+        });
+      }
+
+      const occurrenceMap = new Map<string, number[]>();
+      for (const item of items) {
+        const existing = occurrenceMap.get(item.sourceItemId) ?? [];
+        existing.push(item.index);
+        occurrenceMap.set(item.sourceItemId, existing);
+      }
+
+      const duplicateSourceItemIds: NfeDuplicateItemId[] = [];
+      for (const [sId, indexes] of occurrenceMap.entries()) {
+        if (indexes.length > 1) {
+          duplicateSourceItemIds.push({
+            sourceItemId: sId,
+            indexes,
+            count: indexes.length,
+          });
+        }
+      }
+      duplicateSourceItemIds.sort(
+        (a, b) => (a.indexes[0] ?? 0) - (b.indexes[0] ?? 0),
+      );
+
+      return {
+        status: "OK",
+        nfeSourceId: record.id != null ? String(record.id) : cleanSourceId,
+        numero: record.numero != null ? Number(record.numero) : null,
+        tipo: record.tipo != null ? String(record.tipo) : null,
+        itemCount: items.length,
+        duplicateSourceItemIds,
+        items,
+      };
     },
   };
 }

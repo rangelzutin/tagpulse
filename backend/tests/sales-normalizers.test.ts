@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isConfirmedInboundTagPlusNfe,
   normalizeTagPlusNfe,
   normalizeTagPlusPedido,
   normalizeTagPlusVendaSimples,
@@ -150,9 +151,10 @@ describe("sales normalizers", () => {
   });
 
   describe("normalizeTagPlusNfe", () => {
-    it("normalizes an NFe with valor_nota, data_emissao, and linked Pedido", () => {
+    it("normalizes an NFe with valor_nota, data_emissao, and linked Pedido when tipo is 'S'", () => {
       const raw = {
         id: 54321,
+        tipo: "S",
         numero: 2713,
         cliente: { id: 507 },
         pedido_os_vinculada: { id: 1282, numero: 1239 },
@@ -172,26 +174,116 @@ describe("sales normalizers", () => {
       };
 
       const normalized = normalizeTagPlusNfe(raw);
-      expect(normalized.anchorType).toBe("NFE");
-      expect(normalized.sourceId).toBe("54321");
-      expect(normalized.parentPedidoSourceId).toBe("1282");
-      expect(normalized.netAmount).toBe("7120.97");
-      expect(normalized.sourceEmissaoAt?.toISOString()).toBe(
+      expect(normalized).not.toBeNull();
+      expect(normalized!.anchorType).toBe("NFE");
+      expect(normalized!.sourceId).toBe("54321");
+      expect(normalized!.parentPedidoSourceId).toBe("1282");
+      expect(normalized!.netAmount).toBe("7120.97");
+      expect(normalized!.sourceEmissaoAt?.toISOString()).toBe(
         "2025-10-31T23:45:00.000Z",
       );
-      expect(normalized.items[0].sourceItemId).toBe("61001");
-      expect(normalized.items[0].sourceProductId).toBe("2152");
+      expect(normalized!.items[0].sourceItemId).toBe("61001");
+      expect(normalized!.items[0].sourceProductId).toBe("2152");
     });
 
-    it("throws when item has no product", () => {
+    it("returns null for inbound NFe (tipo: 'E') and does not normalize into a Sale", () => {
+      const rawEntry = {
+        id: 2218,
+        tipo: "E",
+        numero: 2152,
+        valor_nota: 44915.39,
+        itens: [
+          {
+            id: 37702,
+            produto_servico: { id: 1724 },
+            qtd: 50000,
+            valor_unitario: 0.52947,
+            valor_subtotal: 26473.5,
+          },
+        ],
+      };
+
+      expect(normalizeTagPlusNfe(rawEntry)).toBeNull();
+    });
+
+    it("returns null when tipo is missing or unrecognized (fail-closed)", () => {
+      expect(
+        normalizeTagPlusNfe({ id: 100, valor_nota: 50, itens: [] }),
+      ).toBeNull();
+      expect(
+        normalizeTagPlusNfe({ id: 100, tipo: null, valor_nota: 50, itens: [] }),
+      ).toBeNull();
+      expect(
+        normalizeTagPlusNfe({ id: 100, tipo: "X", valor_nota: 50, itens: [] }),
+      ).toBeNull();
+    });
+
+    it("returns null for tipo: 'E' even if it has duplicate items without throwing normalization error", () => {
+      const rawWithDuplicates = {
+        id: 2218,
+        tipo: "E",
+        numero: 2152,
+        valor_nota: 44915.39,
+        itens: [
+          {
+            id: 37702,
+            produto_servico: { id: 1724 },
+            qtd: 50000,
+            valor_unitario: 0.52947,
+            valor_subtotal: 26473.5,
+          },
+          {
+            id: 37702,
+            produto_servico: { id: 1724 },
+            qtd: 50000,
+            valor_unitario: 0.52947,
+            valor_subtotal: 26473.5,
+          },
+        ],
+      };
+
+      // Fails closed early and safely returns null
+      expect(normalizeTagPlusNfe(rawWithDuplicates)).toBeNull();
+    });
+
+    it("throws when item has no product on outbound NFe (tipo: 'S')", () => {
       const raw = {
         id: 999,
+        tipo: "S",
         valor_nota: 100,
         itens: [{ id: 1 }],
       };
       expect(() => normalizeTagPlusNfe(raw)).toThrow(
         SalesNormalizationError,
       );
+    });
+  });
+
+  describe("isConfirmedInboundTagPlusNfe", () => {
+    it("returns sourceId string when tipo is 'E' and id is present", () => {
+      expect(isConfirmedInboundTagPlusNfe({ id: 2218, tipo: "E" })).toBe("2218");
+      expect(isConfirmedInboundTagPlusNfe({ id: "999", tipo: "E" })).toBe("999");
+    });
+
+    it("returns null when tipo is 'S'", () => {
+      expect(isConfirmedInboundTagPlusNfe({ id: 2218, tipo: "S" })).toBeNull();
+    });
+
+    it("returns null when tipo is missing, null, or unknown (unknown != E)", () => {
+      expect(isConfirmedInboundTagPlusNfe({ id: 2218 })).toBeNull();
+      expect(isConfirmedInboundTagPlusNfe({ id: 2218, tipo: null })).toBeNull();
+      expect(isConfirmedInboundTagPlusNfe({ id: 2218, tipo: "X" })).toBeNull();
+    });
+
+    it("returns null when id is missing or null", () => {
+      expect(isConfirmedInboundTagPlusNfe({ tipo: "E" })).toBeNull();
+      expect(isConfirmedInboundTagPlusNfe({ id: null, tipo: "E" })).toBeNull();
+    });
+
+    it("returns null for non-object payloads", () => {
+      expect(isConfirmedInboundTagPlusNfe(null)).toBeNull();
+      expect(isConfirmedInboundTagPlusNfe(undefined)).toBeNull();
+      expect(isConfirmedInboundTagPlusNfe("invalid")).toBeNull();
     });
   });
 });

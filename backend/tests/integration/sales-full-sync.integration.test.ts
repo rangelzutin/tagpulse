@@ -224,6 +224,7 @@ describe.sequential("sales full sync and convergence on isolated PostgreSQL", ()
   it("3. Direct NFe without Pedido creates one NFE Sale", async () => {
     const rawNfe = {
       id: 54300,
+      tipo: "S",
       numero: 2700,
       cliente: { id: 507 },
       valor_nota: 350.0,
@@ -331,6 +332,7 @@ describe.sequential("sales full sync and convergence on isolated PostgreSQL", ()
 
     const rawNfe = {
       id: 2816,
+      tipo: "S",
       pedido_os_vinculada: { id: 1282 },
       valor_nota: 500.0,
       itens: [
@@ -417,6 +419,7 @@ describe.sequential("sales full sync and convergence on isolated PostgreSQL", ()
 
     const rawNfe = {
       id: 2816,
+      tipo: "S",
       numero: 2713,
       cliente: { id: 507 },
       pedido_os_vinculada: { id: 1282, numero: 1239 },
@@ -578,6 +581,7 @@ describe.sequential("sales full sync and convergence on isolated PostgreSQL", ()
   it("8. Existing direct NFe later reprocessed after Pedido exists consolidates and deletes old child Sale", async () => {
     const rawNfe = {
       id: 2816,
+      tipo: "S",
       pedido_os_vinculada: { id: 1282 },
       valor_nota: 7121.25,
       itens: [
@@ -1121,5 +1125,857 @@ describe.sequential("sales full sync and convergence on isolated PostgreSQL", ()
     });
     expect(saleA.sourceDocs).toHaveLength(1);
     expect(saleA.sourceDocs[0].sourceId).toBe("1282");
+  });
+
+  it("21. Inbound NFE (tipo: 'E') is ignored and does not create Sale, SaleItem or SaleSourceDocument", async () => {
+    const rawNfeE = {
+      id: 9001,
+      tipo: "E",
+      numero: 100,
+      valor_nota: 250.0,
+      itens: [
+        {
+          id: 1,
+          produto_servico: { id: 10 },
+          qtd: 1,
+          valor_unitario: 250.0,
+          valor_subtotal: 250.0,
+        },
+      ],
+    };
+
+    const sync = createMockSync({
+      nfesFetcher: async ({ page }) => (page === 1 ? [rawNfeE] : []),
+    });
+
+    const result = await sync(connectionA);
+    expect(result.nfes.recordsFetched).toBe(1);
+
+    const sales = await prisma.sale.findMany({
+      where: { connectionId: connectionA },
+    });
+    expect(sales).toHaveLength(0);
+
+    const docs = await prisma.saleSourceDocument.findMany({
+      where: { connectionId: connectionA },
+    });
+    expect(docs).toHaveLength(0);
+  });
+
+  it("22. NFE without tipo or with invalid tipo fails closed and does not enter Sale domain", async () => {
+    const rawNoTipo = {
+      id: 9002,
+      valor_nota: 100.0,
+      itens: [
+        {
+          id: 2,
+          produto_servico: { id: 20 },
+          qtd: 1,
+          valor_unitario: 100.0,
+          valor_subtotal: 100.0,
+        },
+      ],
+    };
+
+    const rawNullTipo = {
+      id: 9003,
+      tipo: null,
+      valor_nota: 100.0,
+      itens: [
+        {
+          id: 3,
+          produto_servico: { id: 30 },
+          qtd: 1,
+          valor_unitario: 100.0,
+          valor_subtotal: 100.0,
+        },
+      ],
+    };
+
+    const sync = createMockSync({
+      nfesFetcher: async ({ page }) =>
+        page === 1 ? [rawNoTipo, rawNullTipo] : [],
+    });
+
+    const result = await sync(connectionA);
+    expect(result.nfes.recordsFetched).toBe(2);
+
+    const sales = await prisma.sale.findMany({
+      where: { connectionId: connectionA },
+    });
+    expect(sales).toHaveLength(0);
+  });
+
+  it("23. Mixed page with S and E: recordsFetched counts all, only S enters Sale domain", async () => {
+    const rawS = {
+      id: 1001,
+      tipo: "S",
+      valor_nota: 150.0,
+      itens: [
+        {
+          id: 11,
+          produto_servico: { id: 101 },
+          qtd: 1,
+          valor_unitario: 150.0,
+          valor_subtotal: 150.0,
+        },
+      ],
+    };
+
+    const rawE1 = {
+      id: 1002,
+      tipo: "E",
+      valor_nota: 200.0,
+      itens: [
+        {
+          id: 12,
+          produto_servico: { id: 102 },
+          qtd: 1,
+          valor_unitario: 200.0,
+          valor_subtotal: 200.0,
+        },
+      ],
+    };
+
+    const rawE2 = {
+      id: 1003,
+      tipo: "E",
+      valor_nota: 300.0,
+      itens: [
+        {
+          id: 13,
+          produto_servico: { id: 103 },
+          qtd: 1,
+          valor_unitario: 300.0,
+          valor_subtotal: 300.0,
+        },
+      ],
+    };
+
+    const sync = createMockSync({
+      nfesFetcher: async ({ page }) =>
+        page === 1 ? [rawS, rawE1, rawE2] : [],
+    });
+
+    const result = await sync(connectionA);
+    expect(result.nfes.recordsFetched).toBe(3);
+
+    const sales = await prisma.sale.findMany({
+      where: { connectionId: connectionA },
+      include: { sourceDocs: true },
+    });
+    expect(sales).toHaveLength(1);
+    expect(sales[0].anchorSourceId).toBe("1001");
+    expect(sales[0].sourceDocs).toHaveLength(1);
+    expect(sales[0].sourceDocs[0].sourceId).toBe("1001");
+  });
+
+  it("24. Page containing only E does not terminate sync; continues to subsequent pages until []", async () => {
+    const rawPage1E = {
+      id: 2001,
+      tipo: "E",
+      valor_nota: 50.0,
+      itens: [],
+    };
+
+    const rawPage2S = {
+      id: 2002,
+      tipo: "S",
+      valor_nota: 75.0,
+      itens: [
+        {
+          id: 21,
+          produto_servico: { id: 201 },
+          qtd: 1,
+          valor_unitario: 75.0,
+          valor_subtotal: 75.0,
+        },
+      ],
+    };
+
+    const sync = createMockSync({
+      nfesFetcher: async ({ page }) => {
+        if (page === 1) return [rawPage1E];
+        if (page === 2) return [rawPage2S];
+        return [];
+      },
+    });
+
+    const result = await sync(connectionA);
+    expect(result.nfes.pagesFetched).toBe(3);
+    expect(result.nfes.recordsFetched).toBe(2);
+
+    const sales = await prisma.sale.findMany({
+      where: { connectionId: connectionA },
+    });
+    expect(sales).toHaveLength(1);
+    expect(sales[0].anchorSourceId).toBe("2002");
+  });
+
+  it("25. Reconciles and safely removes previously persisted orphan direct entry NFE Sale without affecting Pedido Sale; preserves Customer and Product", async () => {
+    // 1. Pre-seed a direct NFE Sale (simulating contaminated state from run before fix)
+    await repository.persistChildSale(
+      connectionA,
+      {
+        anchorType: SaleAnchorType.NFE,
+        sourceId: "3001",
+        parentPedidoSourceId: null,
+        netAmount: "500",
+        customerSourceId: "507",
+        sourceCreatedAt: null,
+        sourceConfirmedAt: null,
+        sourceEmissaoAt: null,
+        items: [
+          {
+            sourceItemId: "ITEM-3001",
+            lineNumber: 1,
+            sourceProductId: "2152",
+            quantity: "1",
+            unitPrice: "500",
+            discountAmount: null,
+            subtotal: "500",
+          },
+        ],
+      },
+      new Date(),
+    );
+
+    // 2. Pre-seed a legitimate Pedido Sale that has an NFE doc attached
+    await repository.persistPedido(
+      connectionA,
+      {
+        anchorType: SaleAnchorType.PEDIDO,
+        sourceId: "PEDIDO-5001",
+        parentPedidoSourceId: null,
+        netAmount: "1000",
+        customerSourceId: null,
+        sourceCreatedAt: null,
+        sourceConfirmedAt: null,
+        sourceEmissaoAt: null,
+        items: [],
+      },
+      new Date(),
+    );
+
+    await repository.persistChildSale(
+      connectionA,
+      {
+        anchorType: SaleAnchorType.NFE,
+        sourceId: "3002",
+        parentPedidoSourceId: "PEDIDO-5001",
+        netAmount: "1000",
+        customerSourceId: null,
+        sourceCreatedAt: null,
+        sourceConfirmedAt: null,
+        sourceEmissaoAt: null,
+        items: [],
+      },
+      new Date(),
+    );
+
+    // Verify initial pre-seeded state
+    const preSales = await prisma.sale.findMany({
+      where: { connectionId: connectionA },
+    });
+    expect(preSales).toHaveLength(2); // 1 direct NFE 3001 + 1 Pedido 5001
+
+    // 3. Now run full sync where both 3001 and 3002 appear as tipo: "E" (inbound), plus Pedido 5001
+    const sync = createMockSync({
+      pedidosFetcher: async ({ page }) =>
+        page === 1 ? [{ id: "PEDIDO-5001", valor_total: 1000 }] : [],
+      nfesFetcher: async ({ page }) =>
+        page === 1
+          ? [
+              { id: "3001", tipo: "E", valor_nota: 500 },
+              { id: "3002", tipo: "E", valor_nota: 1000 },
+            ]
+          : [],
+    });
+
+    const result = await sync(connectionA);
+    expect(result.status).toBe("COMPLETED");
+
+    // 4. Verification of final state:
+    // Spurious direct Sale 3001 MUST be completely deleted!
+    const directSale = await prisma.sale.findUnique({
+      where: {
+        connectionId_anchorType_anchorSourceId: {
+          connectionId: connectionA,
+          anchorType: SaleAnchorType.NFE,
+          anchorSourceId: "3001",
+        },
+      },
+    });
+    expect(directSale).toBeNull();
+
+    // Spurious SaleItem for 3001 must be cascaded away
+    const orphanItems = await prisma.saleItem.findMany({
+      where: { sourceItemId: "ITEM-3001" },
+    });
+    expect(orphanItems).toHaveLength(0);
+
+    // Spurious SaleSourceDocument for 3001 must be cascaded away
+    const directDoc = await prisma.saleSourceDocument.findUnique({
+      where: {
+        connectionId_docType_sourceId: {
+          connectionId: connectionA,
+          docType: SaleAnchorType.NFE,
+          sourceId: "3001",
+        },
+      },
+    });
+    expect(directDoc).toBeNull();
+
+    // Customer and Product referenced by the deleted Sale MUST be preserved!
+    const preservedCustomer = await prisma.customer.findUnique({
+      where: {
+        connectionId_sourceId: {
+          connectionId: connectionA,
+          sourceId: "507",
+        },
+      },
+    });
+    expect(preservedCustomer).not.toBeNull();
+
+    const preservedProduct = await prisma.product.findUnique({
+      where: {
+        connectionId_sourceId: {
+          connectionId: connectionA,
+          sourceId: "2152",
+        },
+      },
+    });
+    expect(preservedProduct).not.toBeNull();
+
+    // Legitimate Pedido Sale 5001 MUST NOT be deleted!
+    const pedidoSale = await prisma.sale.findUnique({
+      where: {
+        connectionId_anchorType_anchorSourceId: {
+          connectionId: connectionA,
+          anchorType: SaleAnchorType.PEDIDO,
+          anchorSourceId: "PEDIDO-5001",
+        },
+      },
+      include: { sourceDocs: true },
+    });
+    expect(pedidoSale).not.toBeNull();
+    expect(pedidoSale!.anchorType).toBe(SaleAnchorType.PEDIDO);
+
+    // Attached NFE 3002 source doc is marked sourcePresent = false without deleting the Pedido Sale
+    const nfeDoc3002 = await prisma.saleSourceDocument.findUnique({
+      where: {
+        connectionId_docType_sourceId: {
+          connectionId: connectionA,
+          docType: SaleAnchorType.NFE,
+          sourceId: "3002",
+        },
+      },
+    });
+    expect(nfeDoc3002?.sourcePresent).toBe(false);
+  });
+
+  it("26. Conceptual case 2218: NFE E with duplicate item IDs does not crash or trigger unique constraint, and cleans up contaminated pre-existing Sale", async () => {
+    // Pre-seed a contaminated Sale 2218
+    await repository.persistChildSale(
+      connectionA,
+      {
+        anchorType: SaleAnchorType.NFE,
+        sourceId: "2218",
+        parentPedidoSourceId: null,
+        netAmount: "44915.39",
+        customerSourceId: null,
+        sourceCreatedAt: null,
+        sourceConfirmedAt: null,
+        sourceEmissaoAt: null,
+        items: [
+          {
+            sourceItemId: "37702",
+            lineNumber: 1,
+            sourceProductId: "2152",
+            quantity: "50000",
+            unitPrice: "0.52947",
+            discountAmount: null,
+            subtotal: "26473.5",
+          },
+        ],
+      },
+      new Date(),
+    );
+
+    const rawNfe2218 = {
+      id: 2218,
+      numero: 2152,
+      tipo: "E",
+      valor_nota: 44915.39,
+      itens: [
+        {
+          id: 37702,
+          produto_servico: { id: 1724 },
+          qtd: 50000,
+          valor_unitario: 0.52947,
+          valor_subtotal: 26473.5,
+        },
+        {
+          id: 37702,
+          produto_servico: { id: 1724 },
+          qtd: 50000,
+          valor_unitario: 0.52947,
+          valor_subtotal: 26473.5,
+        },
+      ],
+    };
+
+    const sync = createMockSync({
+      nfesFetcher: async ({ page }) => (page === 1 ? [rawNfe2218] : []),
+    });
+
+    const result = await sync(connectionA);
+    expect(result.status).toBe("COMPLETED");
+    expect(result.nfes.recordsFetched).toBe(1);
+
+    // The contaminated Sale 2218 should now be cleanly removed by confirmed inbound recovery
+    const sales = await prisma.sale.findMany({
+      where: { connectionId: connectionA },
+    });
+    expect(sales).toHaveLength(0);
+  });
+
+  it("27. Partial failure before exhaustion does NOT clean up previously existing sales", async () => {
+    // Pre-seed a direct NFE Sale
+    await repository.persistChildSale(
+      connectionA,
+      {
+        anchorType: SaleAnchorType.NFE,
+        sourceId: "4001",
+        parentPedidoSourceId: null,
+        netAmount: "100",
+        customerSourceId: null,
+        sourceCreatedAt: null,
+        sourceConfirmedAt: null,
+        sourceEmissaoAt: null,
+        items: [],
+      },
+      new Date(),
+    );
+
+    // Sync that fails during NFE fetch
+    const sync = createMockSync({
+      nfesFetcher: async () => {
+        throw new Error("Network timeout simulation");
+      },
+    });
+
+    await expect(sync(connectionA)).rejects.toThrow("Network timeout simulation");
+
+    // Pre-existing Sale 4001 must still exist
+    const sale = await prisma.sale.findUnique({
+      where: {
+        connectionId_anchorType_anchorSourceId: {
+          connectionId: connectionA,
+          anchorType: SaleAnchorType.NFE,
+          anchorSourceId: "4001",
+        },
+      },
+    });
+    expect(sale).not.toBeNull();
+  });
+
+  it("28. NFE S previously persisted but ABSENT in current scan: Sale and items remain; sourcePresent becomes false", async () => {
+    // Pre-seed an outbound NFE Sale
+    await repository.persistChildSale(
+      connectionA,
+      {
+        anchorType: SaleAnchorType.NFE,
+        sourceId: "OUTBOUND-ABSENT",
+        parentPedidoSourceId: null,
+        netAmount: "350",
+        customerSourceId: null,
+        sourceCreatedAt: null,
+        sourceConfirmedAt: null,
+        sourceEmissaoAt: null,
+        items: [
+          {
+            sourceItemId: "ITEM-ABSENT",
+            lineNumber: 1,
+            sourceProductId: "2152",
+            quantity: "1",
+            unitPrice: "350",
+            discountAmount: null,
+            subtotal: "350",
+          },
+        ],
+      },
+      new Date(),
+    );
+
+    // Scan returns another outbound NFE, but NOT "OUTBOUND-ABSENT"
+    const sync = createMockSync({
+      nfesFetcher: async ({ page }) =>
+        page === 1
+          ? [
+              {
+                id: "OTHER-S",
+                tipo: "S",
+                valor_nota: 100,
+                itens: [
+                  {
+                    id: 99,
+                    produto_servico: { id: 2152 },
+                    qtd: 1,
+                    valor_unitario: 100,
+                    valor_subtotal: 100,
+                  },
+                ],
+              },
+            ]
+          : [],
+    });
+
+    const result = await sync(connectionA);
+    expect(result.status).toBe("COMPLETED");
+
+    // Sale MUST NOT be hard-deleted!
+    const absentSale = await prisma.sale.findUnique({
+      where: {
+        connectionId_anchorType_anchorSourceId: {
+          connectionId: connectionA,
+          anchorType: SaleAnchorType.NFE,
+          anchorSourceId: "OUTBOUND-ABSENT",
+        },
+      },
+      include: { items: true, sourceDocs: true },
+    });
+    expect(absentSale).not.toBeNull();
+    expect(absentSale!.items).toHaveLength(1);
+    expect(absentSale!.items[0].sourceItemId).toBe("ITEM-ABSENT");
+    expect(absentSale!.sourceDocs[0].sourcePresent).toBe(false);
+  });
+
+  it("29. NFE with unknown/missing tipo previously persisted: NOT hard-deleted because unknown != E", async () => {
+    // Pre-seed a direct NFE Sale
+    await repository.persistChildSale(
+      connectionA,
+      {
+        anchorType: SaleAnchorType.NFE,
+        sourceId: "UNKNOWN-DOC",
+        parentPedidoSourceId: null,
+        netAmount: "200",
+        customerSourceId: null,
+        sourceCreatedAt: null,
+        sourceConfirmedAt: null,
+        sourceEmissaoAt: null,
+        items: [],
+      },
+      new Date(),
+    );
+
+    // Current scan returns this NFE with unknown / missing tipo
+    const sync = createMockSync({
+      nfesFetcher: async ({ page }) =>
+        page === 1
+          ? [
+              { id: "UNKNOWN-DOC", tipo: null, valor_nota: 200 },
+              { id: "OTHER-UNKNOWN", tipo: "X", valor_nota: 100 },
+            ]
+          : [],
+    });
+
+    const result = await sync(connectionA);
+    expect(result.status).toBe("COMPLETED");
+
+    // UNKNOWN-DOC MUST NOT be deleted because it is NOT confirmed E!
+    const sale = await prisma.sale.findUnique({
+      where: {
+        connectionId_anchorType_anchorSourceId: {
+          connectionId: connectionA,
+          anchorType: SaleAnchorType.NFE,
+          anchorSourceId: "UNKNOWN-DOC",
+        },
+      },
+      include: { sourceDocs: true },
+    });
+    expect(sale).not.toBeNull();
+    // Reconciled absent normally
+    expect(sale!.sourceDocs[0].sourcePresent).toBe(false);
+  });
+
+  it("30. Observed outbound empty + endpoint containing only entries: only confirmed E are deleted; other historical sales remain", async () => {
+    // Pre-seed a historical outbound NFE Sale and a contaminated entry NFE Sale
+    await repository.persistChildSale(
+      connectionA,
+      {
+        anchorType: SaleAnchorType.NFE,
+        sourceId: "HISTORICAL-S",
+        parentPedidoSourceId: null,
+        netAmount: "500",
+        customerSourceId: null,
+        sourceCreatedAt: null,
+        sourceConfirmedAt: null,
+        sourceEmissaoAt: null,
+        items: [],
+      },
+      new Date(),
+    );
+
+    await repository.persistChildSale(
+      connectionA,
+      {
+        anchorType: SaleAnchorType.NFE,
+        sourceId: "HISTORICAL-E",
+        parentPedidoSourceId: null,
+        netAmount: "300",
+        customerSourceId: null,
+        sourceCreatedAt: null,
+        sourceConfirmedAt: null,
+        sourceEmissaoAt: null,
+        items: [],
+      },
+      new Date(),
+    );
+
+    // Current scan returns only HISTORICAL-E with tipo: "E" (no outbound sales observed)
+    const sync = createMockSync({
+      nfesFetcher: async ({ page }) =>
+        page === 1 ? [{ id: "HISTORICAL-E", tipo: "E", valor_nota: 300 }] : [],
+    });
+
+    const result = await sync(connectionA);
+    expect(result.status).toBe("COMPLETED");
+
+    // HISTORICAL-E was confirmed as E -> MUST be deleted
+    const deletedSale = await prisma.sale.findUnique({
+      where: {
+        connectionId_anchorType_anchorSourceId: {
+          connectionId: connectionA,
+          anchorType: SaleAnchorType.NFE,
+          anchorSourceId: "HISTORICAL-E",
+        },
+      },
+    });
+    expect(deletedSale).toBeNull();
+
+    // HISTORICAL-S was NOT confirmed as E -> MUST NOT be deleted (remains with sourcePresent: false)
+    const preservedSale = await prisma.sale.findUnique({
+      where: {
+        connectionId_anchorType_anchorSourceId: {
+          connectionId: connectionA,
+          anchorType: SaleAnchorType.NFE,
+          anchorSourceId: "HISTORICAL-S",
+        },
+      },
+      include: { sourceDocs: true },
+    });
+    expect(preservedSale).not.toBeNull();
+    expect(preservedSale!.sourceDocs[0].sourcePresent).toBe(false);
+  });
+
+  it("31. Completely empty endpoint: ZERO hard-delete of Sale; sourcePresent reconciled normally", async () => {
+    // Pre-seed a direct NFE Sale
+    await repository.persistChildSale(
+      connectionA,
+      {
+        anchorType: SaleAnchorType.NFE,
+        sourceId: "OLD-NFE",
+        parentPedidoSourceId: null,
+        netAmount: "150",
+        customerSourceId: null,
+        sourceCreatedAt: null,
+        sourceConfirmedAt: null,
+        sourceEmissaoAt: null,
+        items: [],
+      },
+      new Date(),
+    );
+
+    // Empty endpoint
+    const sync = createMockSync({
+      nfesFetcher: async () => [],
+    });
+
+    const result = await sync(connectionA);
+    expect(result.status).toBe("COMPLETED");
+
+    // ZERO hard-delete: OLD-NFE remains intact with sourcePresent = false
+    const sale = await prisma.sale.findUnique({
+      where: {
+        connectionId_anchorType_anchorSourceId: {
+          connectionId: connectionA,
+          anchorType: SaleAnchorType.NFE,
+          anchorSourceId: "OLD-NFE",
+        },
+      },
+      include: { sourceDocs: true },
+    });
+    expect(sale).not.toBeNull();
+    expect(sale!.sourceDocs[0].sourcePresent).toBe(false);
+  });
+
+  it("32. NFE E linked to Sale anchored by VENDA_SIMPLES: legitimate Sale remains intact", async () => {
+    // Pre-seed a legitimate Venda Simples Sale
+    await repository.persistChildSale(
+      connectionA,
+      {
+        anchorType: SaleAnchorType.VENDA_SIMPLES,
+        sourceId: "VENDA-7001",
+        parentPedidoSourceId: null,
+        netAmount: "800",
+        customerSourceId: null,
+        sourceCreatedAt: null,
+        sourceConfirmedAt: null,
+        sourceEmissaoAt: null,
+        items: [],
+      },
+      new Date(),
+    );
+
+    // Attach an NFE doc to this Venda Simples Sale
+    await prisma.saleSourceDocument.create({
+      data: {
+        connectionId: connectionA,
+        saleId: (
+          await prisma.sale.findFirstOrThrow({
+            where: {
+              connectionId: connectionA,
+              anchorType: SaleAnchorType.VENDA_SIMPLES,
+              anchorSourceId: "VENDA-7001",
+            },
+          })
+        ).id,
+        docType: SaleAnchorType.NFE,
+        sourceId: "NFE-INBOUND-ATTACHED",
+        sourcePresent: true,
+        lastSeenAt: new Date(),
+      },
+    });
+
+    // Run sync where NFE-INBOUND-ATTACHED is confirmed as tipo: "E"
+    const sync = createMockSync({
+      vendasSimplesFetcher: async ({ page }) =>
+        page === 1 ? [{ id: "VENDA-7001", valor_total: 800 }] : [],
+      nfesFetcher: async ({ page }) =>
+        page === 1
+          ? [{ id: "NFE-INBOUND-ATTACHED", tipo: "E", valor_nota: 800 }]
+          : [],
+    });
+
+    const result = await sync(connectionA);
+    expect(result.status).toBe("COMPLETED");
+
+    // The VENDA_SIMPLES Sale MUST NOT be deleted!
+    const vendaSale = await prisma.sale.findUnique({
+      where: {
+        connectionId_anchorType_anchorSourceId: {
+          connectionId: connectionA,
+          anchorType: SaleAnchorType.VENDA_SIMPLES,
+          anchorSourceId: "VENDA-7001",
+        },
+      },
+    });
+    expect(vendaSale).not.toBeNull();
+  });
+
+  it("33. Sale with anchorType NFE that has an attached PEDIDO/VENDA_SIMPLES source document: NOT deleted", async () => {
+    // Pre-seed a Sale with anchorType NFE
+    await repository.persistChildSale(
+      connectionA,
+      {
+        anchorType: SaleAnchorType.NFE,
+        sourceId: "CONVERGED-NFE-ANCHOR",
+        parentPedidoSourceId: null,
+        netAmount: "600",
+        customerSourceId: null,
+        sourceCreatedAt: null,
+        sourceConfirmedAt: null,
+        sourceEmissaoAt: null,
+        items: [],
+      },
+      new Date(),
+    );
+
+    const saleRecord = await prisma.sale.findFirstOrThrow({
+      where: {
+        connectionId: connectionA,
+        anchorType: SaleAnchorType.NFE,
+        anchorSourceId: "CONVERGED-NFE-ANCHOR",
+      },
+    });
+
+    // Attach a PEDIDO document to this Sale
+    await prisma.saleSourceDocument.create({
+      data: {
+        connectionId: connectionA,
+        saleId: saleRecord.id,
+        docType: SaleAnchorType.PEDIDO,
+        sourceId: "ATTACHED-PEDIDO-DOC",
+        sourcePresent: true,
+        lastSeenAt: new Date(),
+      },
+    });
+
+    // Run sync where CONVERGED-NFE-ANCHOR appears as tipo: "E"
+    const sync = createMockSync({
+      nfesFetcher: async ({ page }) =>
+        page === 1
+          ? [{ id: "CONVERGED-NFE-ANCHOR", tipo: "E", valor_nota: 600 }]
+          : [],
+    });
+
+    const result = await sync(connectionA);
+    expect(result.status).toBe("COMPLETED");
+
+    // Sale MUST NOT be deleted because it has a source document of another docType (PEDIDO)
+    const preservedSale = await prisma.sale.findUnique({
+      where: { id: saleRecord.id },
+    });
+    expect(preservedSale).not.toBeNull();
+  });
+
+  it("34. Second execution after cleanup is completely idempotent", async () => {
+    // Run sync with one outbound NFE and one inbound NFE
+    const sync = createMockSync({
+      nfesFetcher: async ({ page }) =>
+        page === 1
+          ? [
+              {
+                id: "OUTBOUND-10",
+                tipo: "S",
+                valor_nota: 100,
+                itens: [
+                  {
+                    id: 1,
+                    produto_servico: { id: 2152 },
+                    qtd: 1,
+                    valor_unitario: 100,
+                    valor_subtotal: 100,
+                  },
+                ],
+              },
+              { id: "INBOUND-20", tipo: "E", valor_nota: 200 },
+            ]
+          : [],
+    });
+
+    // First execution
+    const result1 = await sync(connectionA);
+    expect(result1.status).toBe("COMPLETED");
+
+    const salesRun1 = await prisma.sale.findMany({
+      where: { connectionId: connectionA },
+      include: { items: true, sourceDocs: true },
+    });
+    expect(salesRun1).toHaveLength(1);
+    expect(salesRun1[0].anchorSourceId).toBe("OUTBOUND-10");
+
+    // Second execution (same input)
+    const result2 = await sync(connectionA);
+    expect(result2.status).toBe("COMPLETED");
+
+    const salesRun2 = await prisma.sale.findMany({
+      where: { connectionId: connectionA },
+      include: { items: true, sourceDocs: true },
+    });
+    expect(salesRun2).toHaveLength(1);
+    expect(salesRun2[0].id).toBe(salesRun1[0].id);
+    expect(salesRun2[0].anchorSourceId).toBe("OUTBOUND-10");
   });
 });

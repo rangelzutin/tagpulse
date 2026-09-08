@@ -197,11 +197,27 @@ export function normalizeTagPlusVendaSimples(raw: unknown): NormalizedSale {
   };
 }
 
-export function normalizeTagPlusNfe(raw: unknown): NormalizedSale {
+export function isConfirmedInboundTagPlusNfe(raw: unknown): string | null {
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+  const record = raw as Record<string, unknown>;
+  if (record.tipo === "E" && record.id !== undefined && record.id !== null) {
+    return String(record.id);
+  }
+  return null;
+}
+
+export function normalizeTagPlusNfe(raw: unknown): NormalizedSale | null {
   if (!raw || typeof raw !== "object") {
     throw new SalesNormalizationError("Invalid NFe payload: expected object");
   }
   const record = raw as Record<string, unknown>;
+
+  // Commercial sales filter: only outbound invoices (tipo === "S") belong to the sales domain
+  if (record.tipo !== "S") {
+    return null;
+  }
 
   if (record.id === undefined || record.id === null) {
     throw new SalesNormalizationError("NFe is missing 'id'", "id");

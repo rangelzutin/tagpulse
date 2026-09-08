@@ -1,5 +1,6 @@
 import { SaleAnchorType } from "@prisma/client";
 import {
+  isConfirmedInboundTagPlusNfe,
   normalizeTagPlusNfe,
   normalizeTagPlusPedido,
   normalizeTagPlusVendaSimples,
@@ -43,8 +44,9 @@ export function createSalesFullSync(dependencies: SalesFullSyncDependencies) {
     connectionId: string,
     resource: "pedidos" | "vendas_simples" | "nfes",
     fetcher: SalesPageFetcher,
-    processRecord: (item: unknown, observedAt: Date) => Promise<string>,
+    processRecord: (item: unknown, observedAt: Date) => Promise<string | null>,
     docType: SaleAnchorType,
+    afterExhaustion?: (observedSourceIds: Set<string>) => Promise<void>,
   ): Promise<ResourceSyncResult> {
     let page = 1;
     let pagesFetched = 0;
@@ -70,19 +72,26 @@ export function createSalesFullSync(dependencies: SalesFullSyncDependencies) {
       for (const item of rawPage) {
         recordsFetched += 1;
         const sourceId = await processRecord(item, observedAt);
-        seenSourceIds.add(sourceId);
+        if (sourceId) {
+          seenSourceIds.add(sourceId);
+        }
       }
 
       page += 1;
     }
 
-    // Endpoint exhaustion reached: reconcile missing documents of this docType
+    // 1. Endpoint exhaustion reached: reconcile missing documents of this docType
     const reconciledAbsent =
       await dependencies.salesRepository.reconcileAbsentSourceDocs(
         connectionId,
         docType,
         seenSourceIds,
       );
+
+    // 2. Safe post-exhaustion hook (e.g. recovering confirmed inbound NFE contamination)
+    if (afterExhaustion) {
+      await afterExhaustion(seenSourceIds);
+    }
 
     return {
       resource,
@@ -133,12 +142,23 @@ export function createSalesFullSync(dependencies: SalesFullSyncDependencies) {
     );
 
     // 3. NFES (mandatory third)
+    const confirmedInboundSourceIds = new Set<string>();
+
     const nfesResult = await syncResource(
       connectionId,
       "nfes",
       dependencies.nfesFetcher,
       async (item, observedAt) => {
+        const inboundSourceId = isConfirmedInboundTagPlusNfe(item);
+        if (inboundSourceId) {
+          confirmedInboundSourceIds.add(inboundSourceId);
+          return null;
+        }
+
         const normalized = normalizeTagPlusNfe(item);
+        if (!normalized) {
+          return null;
+        }
         await dependencies.salesRepository.persistChildSale(
           connectionId,
           normalized,
@@ -147,6 +167,14 @@ export function createSalesFullSync(dependencies: SalesFullSyncDependencies) {
         return normalized.sourceId;
       },
       SaleAnchorType.NFE,
+      async () => {
+        if (confirmedInboundSourceIds.size > 0) {
+          await dependencies.salesRepository.removeConfirmedInboundNfeSales(
+            connectionId,
+            confirmedInboundSourceIds,
+          );
+        }
+      },
     );
 
     const completedAt = now();

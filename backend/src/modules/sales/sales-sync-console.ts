@@ -1,4 +1,5 @@
 import {
+  type NfeDiagnosticResult,
   ProductionSalesSyncError,
   type createProductionSalesSyncRunner,
   type ProductionSalesSyncRunResult,
@@ -14,12 +15,13 @@ export function registerSalesSyncConsole(runner: Runner): void {
   process.stdin.on("data", (raw: string) => {
     const parts = raw.trim().split(/\s+/);
     const command = parts[0];
-    const rawConnectionId = parts[1];
-    const extra = parts.slice(2).join(" ");
-
-    if (extra) return;
 
     if (command === "preflight:sales" || command === "sync:sales") {
+      const rawConnectionId = parts[1];
+      const extra = parts.slice(2).join(" ");
+
+      if (extra) return;
+
       if (!rawConnectionId || !isUuid(rawConnectionId)) {
         reportError(
           new ProductionSalesSyncError(
@@ -35,11 +37,51 @@ export function registerSalesSyncConsole(runner: Runner): void {
       } else {
         void runner.run(rawConnectionId).then(report).catch(reportError);
       }
+      return;
+    }
+
+    if (command === "inspect:nfe") {
+      const rawConnectionId = parts[1];
+      const rawSourceId = parts[2];
+      const extra = parts.slice(3).join(" ");
+
+      if (extra) return;
+
+      if (!rawConnectionId || !isUuid(rawConnectionId)) {
+        reportError(
+          new ProductionSalesSyncError(
+            "SALES_SYNC_CONNECTION_ID_REQUIRED",
+            "Explicit connectionId is required. Usage: inspect:nfe <connectionId> <sourceId>",
+          ),
+        );
+        return;
+      }
+
+      if (!rawSourceId || !/^\d+$/.test(rawSourceId.trim())) {
+        reportError(
+          new ProductionSalesSyncError(
+            "SALES_SYNC_SOURCE_ID_REQUIRED",
+            "Explicit numeric sourceId is required. Usage: inspect:nfe <connectionId> <sourceId>",
+          ),
+        );
+        return;
+      }
+
+      void runner
+        .inspectNfe(rawConnectionId, rawSourceId.trim())
+        .then(report)
+        .catch(reportError);
+      return;
     }
   });
 }
 
-function report(result: { status: string } | ProductionSalesSyncRunResult): void {
+function report(
+  result:
+    | { status: string }
+    | ProductionSalesSyncRunResult
+    | NfeDiagnosticResult,
+): void {
   if ("pedidos" in result) {
     const runResult = result as ProductionSalesSyncRunResult;
     const output = {
@@ -107,6 +149,7 @@ function isSafeSalesSyncCategory(value: unknown): value is string {
     "TAGPLUS_SCOPES_MISSING_REQUIRED_SALES_SCOPES",
     "SALES_SYNC_UNSAFE_DATABASE",
     "SALES_SYNC_CONNECTION_ID_REQUIRED",
+    "SALES_SYNC_SOURCE_ID_REQUIRED",
     "SALES_SYNC_ERROR",
   ].includes(String(value));
 }

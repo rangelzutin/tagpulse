@@ -195,6 +195,7 @@ describe.sequential("sales sync idempotent recovery on isolated PostgreSQL", () 
 
     const rawNfe1 = {
       id: 8001,
+      tipo: "S",
       valor_nota: "250.00",
       cliente: { id: 100 },
       data_criacao: "2026-08-01 10:40:00",
