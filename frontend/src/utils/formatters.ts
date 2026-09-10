@@ -78,3 +78,48 @@ export function formatFullMonthName(monthKey: string): string {
   }
   return monthKey;
 }
+
+export function formatPercent(value: number, decimals = 1): string {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return "0,0%";
+  }
+  return (
+    new Intl.NumberFormat("pt-BR", {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    }).format(value) + "%"
+  );
+}
+
+export function formatCompactCurrency(value: number): string {
+  if (typeof value !== "number" || Number.isNaN(value) || value === 0) {
+    return "R$ 0";
+  }
+  if (Math.abs(value) >= 1_000_000) {
+    const formatted = (value / 1_000_000).toLocaleString("pt-BR", {
+      maximumFractionDigits: 1,
+    });
+    return `R$ ${formatted}M`;
+  }
+  if (Math.abs(value) >= 1_000) {
+    const formatted = (value / 1_000).toLocaleString("pt-BR", {
+      maximumFractionDigits: 0,
+    });
+    return `R$ ${formatted}k`;
+  }
+  return formatCurrency(value);
+}
+
+export function parseIsoDate(isoDate: string): Date {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+export function formatDisplayDate(isoDate: string): string {
+  if (!isoDate) return "";
+  const parts = isoDate.split("-");
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  return isoDate;
+}
