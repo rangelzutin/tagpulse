@@ -311,18 +311,25 @@ model SaleItem {
 }
 
 model SaleSourceDocument {
-  id            String         @id @default(uuid()) @db.Uuid
-  saleId        String         @map("sale_id") @db.Uuid
-  connectionId  String         @map("connection_id") @db.Uuid
-  docType       SaleAnchorType @map("doc_type")
-  sourceId      String         @map("source_id")
-  sourcePresent Boolean        @map("source_present")
-  lastSeenAt    DateTime       @map("last_seen_at")
-  createdAt     DateTime       @default(now()) @map("created_at")
-  updatedAt     DateTime       @updatedAt @map("updated_at")
-  sale          Sale           @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  id                String         @id @default(uuid()) @db.Uuid
+  saleId            String         @map("sale_id") @db.Uuid
+  connectionId      String         @map("connection_id") @db.Uuid
+  docType           SaleAnchorType @map("doc_type")
+  sourceId          String         @map("source_id")
+  netAmount         Decimal?       @map("net_amount") @db.Decimal(12, 4)
+  status            String?
+  sourceCreatedAt   DateTime?      @map("source_created_at")
+  sourceConfirmedAt DateTime?      @map("source_confirmed_at")
+  sourceEmissaoAt   DateTime?      @map("source_emissao_at")
+  realizedDate      DateTime?      @map("realized_date")
+  sourcePresent     Boolean        @map("source_present")
+  lastSeenAt        DateTime       @map("last_seen_at")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+  sale              Sale           @relation(fields: [saleId], references: [id], onDelete: Cascade)
 
   @@unique([connectionId, docType, sourceId])
   @@index([saleId])
+  @@index([connectionId, realizedDate])
   @@map("sale_source_documents")
 }

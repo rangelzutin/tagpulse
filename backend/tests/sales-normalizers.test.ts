@@ -1,5 +1,7 @@
+import { SaleAnchorType } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 import {
+  computeRealizedDate,
   isConfirmedInboundTagPlusNfe,
   normalizeTagPlusNfe,
   normalizeTagPlusPedido,
@@ -284,6 +286,207 @@ describe("sales normalizers", () => {
       expect(isConfirmedInboundTagPlusNfe(null)).toBeNull();
       expect(isConfirmedInboundTagPlusNfe(undefined)).toBeNull();
       expect(isConfirmedInboundTagPlusNfe("invalid")).toBeNull();
+    });
+  });
+
+  describe("status normalization and computeRealizedDate", () => {
+    const dConf = new Date("2026-02-05T12:00:00.000Z");
+    const dEmissao = new Date("2026-01-20T10:00:00.000Z");
+
+    describe("status normalization in payloads", () => {
+      it("preserves status in Pedido", () => {
+        const pedA = normalizeTagPlusPedido({ id: 1, valor_total: 100, status: "A" });
+        expect(pedA.status).toBe("A");
+        const pedB = normalizeTagPlusPedido({ id: 2, valor_total: 100, status: "B" });
+        expect(pedB.status).toBe("B");
+        const pedC = normalizeTagPlusPedido({ id: 3, valor_total: 100, status: "C" });
+        expect(pedC.status).toBe("C");
+        const pedNone = normalizeTagPlusPedido({ id: 4, valor_total: 100 });
+        expect(pedNone.status).toBeNull();
+      });
+
+      it("preserves status in Venda Simples", () => {
+        const vsA = normalizeTagPlusVendaSimples({ id: 1, valor_total: 100, status: "A" });
+        expect(vsA.status).toBe("A");
+        const vsN = normalizeTagPlusVendaSimples({ id: 2, valor_total: 100, status: "N" });
+        expect(vsN.status).toBe("N");
+        const vsS = normalizeTagPlusVendaSimples({ id: 3, valor_total: 100, status: "S" });
+        expect(vsS.status).toBe("S");
+      });
+
+      it("preserves status in NFe", () => {
+        const nfeA = normalizeTagPlusNfe({ id: 1, tipo: "S", valor_nota: 100, status: "A" });
+        expect(nfeA?.status).toBe("A");
+        const nfeS = normalizeTagPlusNfe({ id: 2, tipo: "S", valor_nota: 100, status: "S" });
+        expect(nfeS?.status).toBe("S");
+        const nfeN = normalizeTagPlusNfe({ id: 3, tipo: "S", valor_nota: 100, status: "N" });
+        expect(nfeN?.status).toBe("N");
+        const nfe2 = normalizeTagPlusNfe({ id: 4, tipo: "S", valor_nota: 100, status: "2" });
+        expect(nfe2?.status).toBe("2");
+        const nfe4 = normalizeTagPlusNfe({ id: 5, tipo: "S", valor_nota: 100, status: "4" });
+        expect(nfe4?.status).toBe("4");
+      });
+    });
+
+    describe("computeRealizedDate: PEDIDO", () => {
+      it("PEDIDO always returns realizedDate = null regardless of status or dates", () => {
+        expect(
+          computeRealizedDate({
+            anchorType: SaleAnchorType.PEDIDO,
+            status: "A",
+            sourceConfirmedAt: dConf,
+            sourceEmissaoAt: dEmissao,
+          }),
+        ).toBeNull();
+
+        expect(
+          computeRealizedDate({
+            anchorType: SaleAnchorType.PEDIDO,
+            status: "B",
+            sourceConfirmedAt: dConf,
+            sourceEmissaoAt: null,
+          }),
+        ).toBeNull();
+      });
+    });
+
+    describe("computeRealizedDate: VENDA_SIMPLES", () => {
+      it("A + sourceConfirmedAt => returns sourceConfirmedAt", () => {
+        expect(
+          computeRealizedDate({
+            anchorType: SaleAnchorType.VENDA_SIMPLES,
+            status: "A",
+            sourceConfirmedAt: dConf,
+            sourceEmissaoAt: null,
+          }),
+        ).toEqual(dConf);
+      });
+
+      it("A without sourceConfirmedAt => returns null (no fallback to creation date)", () => {
+        expect(
+          computeRealizedDate({
+            anchorType: SaleAnchorType.VENDA_SIMPLES,
+            status: "A",
+            sourceConfirmedAt: null,
+            sourceEmissaoAt: null,
+          }),
+        ).toBeNull();
+      });
+
+      it("criação em janeiro + confirmação em fevereiro => receita somente em fevereiro", () => {
+        const dCreatedJan = new Date("2026-01-15T10:00:00.000Z");
+        const dConfFeb = new Date("2026-02-05T14:30:00.000Z");
+        const realized = computeRealizedDate({
+          anchorType: SaleAnchorType.VENDA_SIMPLES,
+          status: "A",
+          sourceConfirmedAt: dConfFeb,
+          sourceEmissaoAt: null,
+        });
+        expect(realized).toEqual(dConfFeb);
+        expect(realized).not.toEqual(dCreatedJan);
+        expect(realized?.toISOString()).toContain("2026-02-05");
+      });
+
+      it("N (em digitação) => returns null even if confirmedAt is present", () => {
+        expect(
+          computeRealizedDate({
+            anchorType: SaleAnchorType.VENDA_SIMPLES,
+            status: "N",
+            sourceConfirmedAt: dConf,
+            sourceEmissaoAt: null,
+          }),
+        ).toBeNull();
+      });
+
+      it("S (cancelada) => returns null", () => {
+        expect(
+          computeRealizedDate({
+            anchorType: SaleAnchorType.VENDA_SIMPLES,
+            status: "S",
+            sourceConfirmedAt: dConf,
+            sourceEmissaoAt: null,
+          }),
+        ).toBeNull();
+      });
+
+      it("null status => returns null", () => {
+        expect(
+          computeRealizedDate({
+            anchorType: SaleAnchorType.VENDA_SIMPLES,
+            status: null,
+            sourceConfirmedAt: dConf,
+            sourceEmissaoAt: null,
+          }),
+        ).toBeNull();
+      });
+    });
+
+    describe("computeRealizedDate: NFE", () => {
+      it("A + sourceEmissaoAt => returns sourceEmissaoAt", () => {
+        expect(
+          computeRealizedDate({
+            anchorType: SaleAnchorType.NFE,
+            status: "A",
+            sourceConfirmedAt: dConf,
+            sourceEmissaoAt: dEmissao,
+          }),
+        ).toEqual(dEmissao);
+      });
+
+      it("A without sourceEmissaoAt => returns null (conservative: no fallback to confirmedAt)", () => {
+        expect(
+          computeRealizedDate({
+            anchorType: SaleAnchorType.NFE,
+            status: "A",
+            sourceConfirmedAt: dConf,
+            sourceEmissaoAt: null,
+          }),
+        ).toBeNull();
+      });
+
+      it("S (cancelada) => returns null", () => {
+        expect(
+          computeRealizedDate({
+            anchorType: SaleAnchorType.NFE,
+            status: "S",
+            sourceConfirmedAt: dConf,
+            sourceEmissaoAt: dEmissao,
+          }),
+        ).toBeNull();
+      });
+
+      it("N (em digitação) => returns null", () => {
+        expect(
+          computeRealizedDate({
+            anchorType: SaleAnchorType.NFE,
+            status: "N",
+            sourceConfirmedAt: dConf,
+            sourceEmissaoAt: dEmissao,
+          }),
+        ).toBeNull();
+      });
+
+      it("2 (denegada) => returns null", () => {
+        expect(
+          computeRealizedDate({
+            anchorType: SaleAnchorType.NFE,
+            status: "2",
+            sourceConfirmedAt: dConf,
+            sourceEmissaoAt: dEmissao,
+          }),
+        ).toBeNull();
+      });
+
+      it("4 (inutilizada) => returns null", () => {
+        expect(
+          computeRealizedDate({
+            anchorType: SaleAnchorType.NFE,
+            status: "4",
+            sourceConfirmedAt: dConf,
+            sourceEmissaoAt: dEmissao,
+          }),
+        ).toBeNull();
+      });
     });
   });
 });

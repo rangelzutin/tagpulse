@@ -9,40 +9,43 @@ export interface BiRepository {
 export function createBiRepository(prisma: PrismaClient): BiRepository {
   return {
     async findRealizedSales(from: Date, toExclusive: Date): Promise<BiSaleRecord[]> {
-      const records = await prisma.sale.findMany({
+      const records = await prisma.saleSourceDocument.findMany({
         where: {
-          commercialDate: {
+          sourcePresent: true,
+          docType: {
+            in: [SaleAnchorType.NFE, SaleAnchorType.VENDA_SIMPLES],
+          },
+          realizedDate: {
             gte: from,
             lt: toExclusive,
           },
-          sourceDocs: {
-            some: {
-              sourcePresent: true,
-              docType: {
-                in: [SaleAnchorType.NFE, SaleAnchorType.VENDA_SIMPLES],
-              },
-            },
+          netAmount: {
+            not: null,
           },
         },
         select: {
           id: true,
           netAmount: true,
-          customerId: true,
-          commercialDate: true,
+          realizedDate: true,
+          sale: {
+            select: {
+              customerId: true,
+            },
+          },
         },
         orderBy: {
-          commercialDate: "asc",
+          realizedDate: "asc",
         },
       });
 
       const validRecords: BiSaleRecord[] = [];
       for (const record of records) {
-        if (record.commercialDate instanceof Date) {
+        if (record.realizedDate instanceof Date && record.netAmount !== null) {
           validRecords.push({
             id: record.id,
             netAmount: record.netAmount,
-            customerId: record.customerId,
-            commercialDate: record.commercialDate,
+            customerId: record.sale.customerId,
+            commercialDate: record.realizedDate,
           });
         }
       }

@@ -23,10 +23,29 @@ export interface NormalizedSale {
   parentPedidoSourceId: string | null;
   netAmount: string;
   customerSourceId: string | null;
+  status: string | null;
   sourceCreatedAt: Date | null;
   sourceConfirmedAt: Date | null;
   sourceEmissaoAt: Date | null;
   items: NormalizedSaleItem[];
+}
+
+export function computeRealizedDate(sale: {
+  anchorType: SaleAnchorType;
+  status: string | null;
+  sourceConfirmedAt: Date | null;
+  sourceEmissaoAt: Date | null;
+}): Date | null {
+  if (sale.anchorType === SaleAnchorType.PEDIDO) {
+    return null;
+  }
+  if (sale.anchorType === SaleAnchorType.VENDA_SIMPLES) {
+    return sale.status === "A" && sale.sourceConfirmedAt ? sale.sourceConfirmedAt : null;
+  }
+  if (sale.anchorType === SaleAnchorType.NFE) {
+    return sale.status === "A" && sale.sourceEmissaoAt ? sale.sourceEmissaoAt : null;
+  }
+  return null;
 }
 
 export function parseTagPlusDate(value: unknown): Date | null {
@@ -143,6 +162,14 @@ function extractParentPedidoId(record: Record<string, unknown>): string | null {
   return null;
 }
 
+function extractStatus(record: Record<string, unknown>): string | null {
+  if (record.status !== undefined && record.status !== null) {
+    const s = String(record.status).trim();
+    return s.length > 0 ? s : null;
+  }
+  return null;
+}
+
 export function normalizeTagPlusPedido(raw: unknown): NormalizedSale {
   if (!raw || typeof raw !== "object") {
     throw new SalesNormalizationError("Invalid Pedido payload: expected object");
@@ -163,6 +190,7 @@ export function normalizeTagPlusPedido(raw: unknown): NormalizedSale {
     parentPedidoSourceId: null,
     netAmount: String(record.valor_total),
     customerSourceId: extractCustomerId(record),
+    status: extractStatus(record),
     sourceCreatedAt: parseTagPlusDate(record.data_criacao),
     sourceConfirmedAt: parseTagPlusDate(record.data_confirmacao),
     sourceEmissaoAt: null,
@@ -190,6 +218,7 @@ export function normalizeTagPlusVendaSimples(raw: unknown): NormalizedSale {
     parentPedidoSourceId: extractParentPedidoId(record),
     netAmount: String(record.valor_total),
     customerSourceId: extractCustomerId(record),
+    status: extractStatus(record),
     sourceCreatedAt: parseTagPlusDate(record.data_criacao),
     sourceConfirmedAt: parseTagPlusDate(record.data_confirmacao),
     sourceEmissaoAt: null,
@@ -233,6 +262,7 @@ export function normalizeTagPlusNfe(raw: unknown): NormalizedSale | null {
     parentPedidoSourceId: extractParentPedidoId(record),
     netAmount: String(record.valor_nota),
     customerSourceId: extractCustomerId(record),
+    status: extractStatus(record),
     sourceCreatedAt: parseTagPlusDate(record.data_criacao),
     sourceConfirmedAt: parseTagPlusDate(record.data_confirmacao),
     sourceEmissaoAt: parseTagPlusDate(record.data_emissao),

@@ -8,40 +8,62 @@ import {
   type BiSaleRecord,
 } from "../src/modules/bi/index.js";
 
-interface RawTestSale {
+interface RawTestDocument {
   id: string;
-  netAmount: string | number | Prisma.Decimal;
-  customerId: string | null;
-  commercialDate: Date | null;
-  sourceDocs: Array<{
+  docType?: SaleAnchorType;
+  sourcePresent?: boolean;
+  netAmount?: string | number | Prisma.Decimal | null;
+  realizedDate?: Date | null;
+  customerId?: string | null;
+  // Backwards compatibility for existing tests using previous shape:
+  commercialDate?: Date | null;
+  sourceDocs?: Array<{
     docType: SaleAnchorType;
     sourcePresent: boolean;
   }>;
 }
 
-function createFakeBiRepository(salesData: RawTestSale[]): BiRepository {
+function createFakeBiRepository(docs: RawTestDocument[]): BiRepository {
   return {
     async findRealizedSales(from: Date, toExclusive: Date): Promise<BiSaleRecord[]> {
-      const matching = salesData.filter((sale) => {
-        if (!sale.commercialDate) return false;
-        if (sale.commercialDate < from || sale.commercialDate >= toExclusive) {
+      const matching = docs.filter((doc) => {
+        const isPresent =
+          doc.sourcePresent ??
+          (doc.sourceDocs ? doc.sourceDocs.some((d) => d.sourcePresent) : true);
+        if (!isPresent) return false;
+
+        const effectiveDocType =
+          doc.docType ??
+          (doc.sourceDocs ? doc.sourceDocs.find((d) => d.sourcePresent)?.docType : undefined);
+        if (
+          effectiveDocType !== SaleAnchorType.NFE &&
+          effectiveDocType !== SaleAnchorType.VENDA_SIMPLES
+        ) {
           return false;
         }
-        const hasRealizedDoc = sale.sourceDocs.some(
-          (doc) =>
-            doc.sourcePresent &&
-            (doc.docType === SaleAnchorType.NFE ||
-              doc.docType === SaleAnchorType.VENDA_SIMPLES),
-        );
-        return hasRealizedDoc;
+
+        const effectiveRealizedDate =
+          doc.realizedDate !== undefined ? doc.realizedDate : doc.commercialDate;
+        if (!effectiveRealizedDate) return false;
+
+        if (doc.netAmount === null || doc.netAmount === undefined) return false;
+
+        if (effectiveRealizedDate < from || effectiveRealizedDate >= toExclusive) {
+          return false;
+        }
+        return true;
       });
 
-      return matching.map((s) => ({
-        id: s.id,
-        netAmount: new Prisma.Decimal(s.netAmount),
-        customerId: s.customerId,
-        commercialDate: s.commercialDate!,
-      }));
+      return matching.map((d) => {
+        const effectiveRealizedDate =
+          d.realizedDate !== undefined ? d.realizedDate : d.commercialDate;
+        return {
+          id: d.id,
+          netAmount: new Prisma.Decimal(d.netAmount!),
+          customerId: d.customerId ?? null,
+          commercialDate: effectiveRealizedDate!,
+        };
+      });
     },
   };
 }
@@ -467,24 +489,20 @@ describe("GET /bi/sales/overview", () => {
   });
 
   describe("createBiRepository Prisma query implementation", () => {
-    it("queries Prisma with proper where clause and guarantees commercialDate is Date", async () => {
+    it("queries Prisma saleSourceDocument with proper where clause and maps fields", async () => {
       const findManyMock = vi.fn().mockResolvedValue([
         {
-          id: "s1",
+          id: "doc-1",
           netAmount: new Prisma.Decimal("100.00"),
-          customerId: "c1",
-          commercialDate: new Date("2026-01-15T00:00:00.000Z"),
-        },
-        {
-          id: "s-corrupt",
-          netAmount: new Prisma.Decimal("50.00"),
-          customerId: "c2",
-          commercialDate: null, // should be filtered out
+          realizedDate: new Date("2026-01-15T00:00:00.000Z"),
+          sale: {
+            customerId: "cust-1",
+          },
         },
       ]);
 
       const mockPrisma = {
-        sale: {
+        saleSourceDocument: {
           findMany: findManyMock,
         },
       } as unknown as PrismaClient;
@@ -497,33 +515,244 @@ describe("GET /bi/sales/overview", () => {
 
       expect(findManyMock).toHaveBeenCalledWith({
         where: {
-          commercialDate: {
+          sourcePresent: true,
+          docType: {
+            in: [SaleAnchorType.NFE, SaleAnchorType.VENDA_SIMPLES],
+          },
+          realizedDate: {
             gte: from,
             lt: toExclusive,
           },
-          sourceDocs: {
-            some: {
-              sourcePresent: true,
-              docType: {
-                in: [SaleAnchorType.NFE, SaleAnchorType.VENDA_SIMPLES],
-              },
-            },
+          netAmount: {
+            not: null,
           },
         },
         select: {
           id: true,
           netAmount: true,
-          customerId: true,
-          commercialDate: true,
+          realizedDate: true,
+          sale: {
+            select: {
+              customerId: true,
+            },
+          },
         },
         orderBy: {
-          commercialDate: "asc",
+          realizedDate: "asc",
         },
       });
 
       expect(results).toHaveLength(1);
       expect(results[0].commercialDate).toBeInstanceOf(Date);
-      expect(results[0].id).toBe("s1");
+      expect(results[0].id).toBe("doc-1");
+      expect(results[0].customerId).toBe("cust-1");
+      expect(results[0].netAmount.toString()).toBe("100");
+    });
+  });
+
+  describe("Mandatory realization test cases", () => {
+    it("1. Pedido sozinho nunca gera receita (realizedDate null)", async () => {
+      const fakeRepo = createFakeBiRepository([
+        {
+          id: "doc-pedido-1",
+          docType: SaleAnchorType.PEDIDO,
+          sourcePresent: true,
+          netAmount: "6786.60",
+          realizedDate: null,
+          customerId: "cust-1",
+        },
+      ]);
+
+      const app = await createApp(fakeRepo);
+      const res = await app.inject({
+        method: "GET",
+        url: "/bi/sales/overview?from=2026-01-01&to=2026-01-31",
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.summary.sales).toBe(0);
+      expect(body.summary.revenue).toBe(0);
+      expect(body.monthly).toEqual([]);
+    });
+
+    it("4. Caso equivalente NBSKATESHOP: Pedido total 6786.60 split across months", async () => {
+      const nbskateShopDocs: RawTestDocument[] = [
+        // Parent Pedido (never realized directly)
+        {
+          id: "doc-pedido-1318",
+          docType: SaleAnchorType.PEDIDO,
+          sourcePresent: true,
+          netAmount: "6786.60",
+          realizedDate: null,
+          customerId: "cust-nbskate",
+        },
+        // NFe realized in January
+        {
+          id: "doc-nfe-2858",
+          docType: SaleAnchorType.NFE,
+          sourcePresent: true,
+          netAmount: "2790.00",
+          realizedDate: new Date("2026-01-20T14:30:00.000Z"),
+          customerId: "cust-nbskate",
+        },
+        // Venda Simples confirmed in February
+        {
+          id: "doc-vs-7091",
+          docType: SaleAnchorType.VENDA_SIMPLES,
+          sourcePresent: true,
+          netAmount: "3996.60",
+          realizedDate: new Date("2026-02-05T10:15:00.000Z"),
+          customerId: "cust-nbskate",
+        },
+      ];
+
+      const fakeRepo = createFakeBiRepository(nbskateShopDocs);
+      const app = await createApp(fakeRepo);
+
+      // January query: sales = 1, revenue = 2790.00
+      const janRes = await app.inject({
+        method: "GET",
+        url: "/bi/sales/overview?from=2026-01-01&to=2026-01-31",
+      });
+      expect(janRes.statusCode).toBe(200);
+      const janBody = janRes.json();
+      expect(janBody.summary.sales).toBe(1);
+      expect(janBody.summary.revenue).toBe(2790.0);
+      expect(janBody.monthly).toHaveLength(1);
+      expect(janBody.monthly[0].month).toBe("2026-01");
+      expect(janBody.monthly[0].sales).toBe(1);
+      expect(janBody.monthly[0].revenue).toBe(2790.0);
+
+      // February query: sales = 1, revenue = 3996.60
+      const febRes = await app.inject({
+        method: "GET",
+        url: "/bi/sales/overview?from=2026-02-01&to=2026-02-28",
+      });
+      expect(febRes.statusCode).toBe(200);
+      const febBody = febRes.json();
+      expect(febBody.summary.sales).toBe(1);
+      expect(febBody.summary.revenue).toBe(3996.6);
+      expect(febBody.monthly).toHaveLength(1);
+      expect(febBody.monthly[0].month).toBe("2026-02");
+      expect(febBody.monthly[0].sales).toBe(1);
+      expect(febBody.monthly[0].revenue).toBe(3996.6);
+
+      // Jan + Feb query: sales = 2, revenue = 6786.60, Pedido never counted
+      const bothRes = await app.inject({
+        method: "GET",
+        url: "/bi/sales/overview?from=2026-01-01&to=2026-02-28",
+      });
+      expect(bothRes.statusCode).toBe(200);
+      const bothBody = bothRes.json();
+      expect(bothBody.summary.sales).toBe(2);
+      expect(bothBody.summary.revenue).toBe(6786.6);
+      expect(bothBody.summary.customers).toBe(1);
+      expect(bothBody.monthly).toHaveLength(2);
+    });
+
+    it("5. Caso equivalente Pedido 1282: Venda Simples + NFe ambas no mesmo mês", async () => {
+      const pedido1282Docs: RawTestDocument[] = [
+        // Parent Pedido (never realized, netAmount = 14242.50)
+        {
+          id: "doc-pedido-1282",
+          docType: SaleAnchorType.PEDIDO,
+          sourcePresent: true,
+          netAmount: "14242.50",
+          realizedDate: null,
+          customerId: "cust-empresa-confidencial",
+        },
+        // Venda Simples realized in October
+        {
+          id: "doc-vs-7022",
+          docType: SaleAnchorType.VENDA_SIMPLES,
+          sourcePresent: true,
+          netAmount: "7120.97",
+          realizedDate: new Date("2025-10-31T23:41:41.000Z"),
+          customerId: "cust-empresa-confidencial",
+        },
+        // NFe realized in October (real API/DB value: 7121.25, emissao at 2025-10-31T00:00:00.000Z)
+        {
+          id: "doc-nfe-2816",
+          docType: SaleAnchorType.NFE,
+          sourcePresent: true,
+          netAmount: "7121.25",
+          realizedDate: new Date("2025-10-31T00:00:00.000Z"),
+          customerId: "cust-empresa-confidencial",
+        },
+      ];
+
+      const fakeRepo = createFakeBiRepository(pedido1282Docs);
+      const app = await createApp(fakeRepo);
+
+      const res = await app.inject({
+        method: "GET",
+        url: "/bi/sales/overview?from=2025-10-01&to=2025-10-31",
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      // Expected: 2 vendas realizadas, revenue = 14242.22 (7120.97 + 7121.25)
+      // Pedido is NOT summed, and the 0.28 difference (14242.50 - 14242.22) is preserved, not artificially compensated
+      expect(body.summary.sales).toBe(2);
+      expect(body.summary.revenue).toBe(14242.22);
+      expect(body.summary.customers).toBe(1);
+    });
+
+    it("6. Mesmo customer em dois documentos: sales = 2, customers = 1", async () => {
+      const fakeRepo = createFakeBiRepository([
+        {
+          id: "doc-vs-1",
+          docType: SaleAnchorType.VENDA_SIMPLES,
+          sourcePresent: true,
+          netAmount: "500.00",
+          realizedDate: new Date("2026-03-10T10:00:00.000Z"),
+          customerId: "cust-repeat",
+        },
+        {
+          id: "doc-nfe-2",
+          docType: SaleAnchorType.NFE,
+          sourcePresent: true,
+          netAmount: "500.00",
+          realizedDate: new Date("2026-03-20T15:00:00.000Z"),
+          customerId: "cust-repeat",
+        },
+      ]);
+
+      const app = await createApp(fakeRepo);
+      const res = await app.inject({
+        method: "GET",
+        url: "/bi/sales/overview?from=2026-03-01&to=2026-03-31",
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.summary.sales).toBe(2);
+      expect(body.summary.customers).toBe(1);
+      expect(body.summary.revenue).toBe(1000.0);
+    });
+
+    it("7. sourcePresent=false não entra no overview", async () => {
+      const fakeRepo = createFakeBiRepository([
+        {
+          id: "doc-absent",
+          docType: SaleAnchorType.VENDA_SIMPLES,
+          sourcePresent: false,
+          netAmount: "500.00",
+          realizedDate: new Date("2026-03-10T10:00:00.000Z"),
+          customerId: "cust-1",
+        },
+      ]);
+
+      const app = await createApp(fakeRepo);
+      const res = await app.inject({
+        method: "GET",
+        url: "/bi/sales/overview?from=2026-03-01&to=2026-03-31",
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.summary.sales).toBe(0);
+      expect(body.summary.revenue).toBe(0);
     });
   });
 });

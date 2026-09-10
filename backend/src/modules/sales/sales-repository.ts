@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { Prisma, SaleAnchorType } from "@prisma/client";
 import type { NormalizedSale } from "../../integrations/tagplus/sales/sales-normalizers.js";
+import { computeRealizedDate } from "../../integrations/tagplus/sales/sales-normalizers.js";
 import { computeCommercialDate } from "./commercial-date.js";
 
 export const SALES_TRANSACTION_TIMEOUT_MS = 30000;
@@ -136,11 +137,23 @@ export function createSalesRepository(prisma: PrismaClient): SalesRepository {
             connectionId,
             docType: SaleAnchorType.PEDIDO,
             sourceId: pedido.sourceId,
+            netAmount: new Prisma.Decimal(pedido.netAmount),
+            status: pedido.status,
+            sourceCreatedAt: pedido.sourceCreatedAt,
+            sourceConfirmedAt: pedido.sourceConfirmedAt,
+            sourceEmissaoAt: pedido.sourceEmissaoAt,
+            realizedDate: null,
             sourcePresent: true,
             lastSeenAt: observedAt,
           },
           update: {
             saleId: sale.id,
+            netAmount: new Prisma.Decimal(pedido.netAmount),
+            status: pedido.status,
+            sourceCreatedAt: pedido.sourceCreatedAt,
+            sourceConfirmedAt: pedido.sourceConfirmedAt,
+            sourceEmissaoAt: pedido.sourceEmissaoAt,
+            realizedDate: null,
             sourcePresent: true,
             lastSeenAt: observedAt,
           },
@@ -150,6 +163,13 @@ export function createSalesRepository(prisma: PrismaClient): SalesRepository {
 
     async persistChildSale(connectionId, childSale, observedAt) {
       await prisma.$transaction(async (tx) => {
+        const childRealizedDate = computeRealizedDate({
+          anchorType: childSale.anchorType,
+          status: childSale.status,
+          sourceConfirmedAt: childSale.sourceConfirmedAt,
+          sourceEmissaoAt: childSale.sourceEmissaoAt,
+        });
+
         let parentSale: { id: string } | null = null;
         if (childSale.parentPedidoSourceId) {
           parentSale = await tx.sale.findUnique({
@@ -184,6 +204,12 @@ export function createSalesRepository(prisma: PrismaClient): SalesRepository {
                 connectionId,
                 docType: childSale.anchorType,
                 sourceId: childSale.sourceId,
+                netAmount: new Prisma.Decimal(childSale.netAmount),
+                status: childSale.status,
+                sourceCreatedAt: childSale.sourceCreatedAt,
+                sourceConfirmedAt: childSale.sourceConfirmedAt,
+                sourceEmissaoAt: childSale.sourceEmissaoAt,
+                realizedDate: childRealizedDate,
                 sourcePresent: true,
                 lastSeenAt: observedAt,
               },
@@ -193,6 +219,12 @@ export function createSalesRepository(prisma: PrismaClient): SalesRepository {
             await tx.saleSourceDocument.update({
               where: { id: existingDoc.id },
               data: {
+                netAmount: new Prisma.Decimal(childSale.netAmount),
+                status: childSale.status,
+                sourceCreatedAt: childSale.sourceCreatedAt,
+                sourceConfirmedAt: childSale.sourceConfirmedAt,
+                sourceEmissaoAt: childSale.sourceEmissaoAt,
+                realizedDate: childRealizedDate,
                 sourcePresent: true,
                 lastSeenAt: observedAt,
               },
@@ -204,6 +236,12 @@ export function createSalesRepository(prisma: PrismaClient): SalesRepository {
               where: { id: existingDoc.id },
               data: {
                 saleId: parentSale.id,
+                netAmount: new Prisma.Decimal(childSale.netAmount),
+                status: childSale.status,
+                sourceCreatedAt: childSale.sourceCreatedAt,
+                sourceConfirmedAt: childSale.sourceConfirmedAt,
+                sourceEmissaoAt: childSale.sourceEmissaoAt,
+                realizedDate: childRealizedDate,
                 sourcePresent: true,
                 lastSeenAt: observedAt,
               },
@@ -323,11 +361,23 @@ export function createSalesRepository(prisma: PrismaClient): SalesRepository {
               connectionId,
               docType: childSale.anchorType,
               sourceId: childSale.sourceId,
+              netAmount: new Prisma.Decimal(childSale.netAmount),
+              status: childSale.status,
+              sourceCreatedAt: childSale.sourceCreatedAt,
+              sourceConfirmedAt: childSale.sourceConfirmedAt,
+              sourceEmissaoAt: childSale.sourceEmissaoAt,
+              realizedDate: childRealizedDate,
               sourcePresent: true,
               lastSeenAt: observedAt,
             },
             update: {
               saleId: directSale.id,
+              netAmount: new Prisma.Decimal(childSale.netAmount),
+              status: childSale.status,
+              sourceCreatedAt: childSale.sourceCreatedAt,
+              sourceConfirmedAt: childSale.sourceConfirmedAt,
+              sourceEmissaoAt: childSale.sourceEmissaoAt,
+              realizedDate: childRealizedDate,
               sourcePresent: true,
               lastSeenAt: observedAt,
             },
