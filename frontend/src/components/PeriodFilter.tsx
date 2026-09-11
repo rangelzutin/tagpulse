@@ -6,14 +6,21 @@ import {
   formatDisplayDate,
   parseIsoDate,
   getLocalDateString,
+  maskDateInput,
+  parseDisplayDate,
+  validateManualPeriodInput,
 } from "../utils/formatters";
 import "react-day-picker/style.css";
+
+export type PeriodMode = "range" | "allUpTo";
 
 interface PeriodFilterProps {
   initialFrom: string;
   initialTo: string;
+  periodMode: PeriodMode;
+  minDate?: string | null;
   isLoading?: boolean;
-  onApply: (from: string, to: string) => void;
+  onApply: (from: string, to: string, mode: PeriodMode) => void;
 }
 
 function getTargetViewMonth(toDateStr: string, numMonths: number): Date {
@@ -27,6 +34,8 @@ function getTargetViewMonth(toDateStr: string, numMonths: number): Date {
 export function PeriodFilter({
   initialFrom,
   initialTo,
+  periodMode,
+  minDate,
   isLoading,
   onApply,
 }: PeriodFilterProps) {
@@ -56,7 +65,32 @@ export function PeriodFilter({
     getTargetViewMonth(initialTo, numberOfMonths),
   );
 
-  // Sync range and visible month with initial props, and reset partial selection when popover closes
+  // Manual input drafts
+  const [draftFrom, setDraftFrom] = useState(() =>
+    formatDisplayDate(initialFrom),
+  );
+  const [draftTo, setDraftTo] = useState(() => formatDisplayDate(initialTo));
+  const [inputError, setInputError] = useState<string | null>(null);
+
+  // Active mode inside popover during interaction
+  const [activeMode, setActiveMode] = useState<PeriodMode>(periodMode);
+
+  // Track last applied values to avoid duplicate onApply on Enter + blur
+  const lastAppliedRef = useRef<{ from: string; to: string; mode: PeriodMode }>({
+    from: initialFrom,
+    to: initialTo,
+    mode: periodMode,
+  });
+
+  useEffect(() => {
+    lastAppliedRef.current = {
+      from: initialFrom,
+      to: initialTo,
+      mode: periodMode,
+    };
+  }, [initialFrom, initialTo, periodMode]);
+
+  // Sync state when popover opens or props change
   useEffect(() => {
     if (!isOpen) {
       setRange({
@@ -64,8 +98,12 @@ export function PeriodFilter({
         to: parseIsoDate(initialTo),
       });
       setMonth(getTargetViewMonth(initialTo, numberOfMonths));
+      setDraftFrom(formatDisplayDate(initialFrom));
+      setDraftTo(formatDisplayDate(initialTo));
+      setInputError(null);
+      setActiveMode(periodMode);
     }
-  }, [isOpen, initialFrom, initialTo, numberOfMonths]);
+  }, [isOpen, initialFrom, initialTo, numberOfMonths, periodMode]);
 
   // Close popover when clicking outside or pressing Escape
   useEffect(() => {
@@ -94,10 +132,113 @@ export function PeriodFilter({
     };
   }, [isOpen]);
 
-  // Handle explicit 2-click day selection
-  // 1st click: define start (do not fetch, do not close)
-  // 2nd click: define end (automatically fetch both endpoints and close popover)
+  // Apply manual input on Enter or blur
+  const tryApplyManual = () => {
+    const res = validateManualPeriodInput(
+      draftFrom,
+      draftTo,
+      activeMode,
+      minDate,
+    );
+
+    if (res.error) {
+      setInputError(res.error);
+      return;
+    }
+
+    if (!res.canApply || !res.fromIso || !res.toIso) {
+      return;
+    }
+
+    const isSameAsApplied =
+      res.fromIso === lastAppliedRef.current.from &&
+      res.toIso === lastAppliedRef.current.to &&
+      activeMode === lastAppliedRef.current.mode;
+
+    if (isSameAsApplied) {
+      setIsOpen(false);
+      return;
+    }
+
+    lastAppliedRef.current = {
+      from: res.fromIso,
+      to: res.toIso,
+      mode: activeMode,
+    };
+
+    setInputError(null);
+    setRange({
+      from: parseIsoDate(res.fromIso),
+      to: parseIsoDate(res.toIso),
+    });
+    setMonth(getTargetViewMonth(res.toIso, numberOfMonths));
+    setIsOpen(false);
+    onApply(res.fromIso, res.toIso, activeMode);
+  };
+
+  const handleFromChange = (raw: string) => {
+    const masked = maskDateInput(raw);
+    setDraftFrom(masked);
+    setInputError(null);
+    setActiveMode("range");
+
+    if (masked.length === 10) {
+      const pFrom = parseDisplayDate(masked);
+      if (pFrom.isValid && pFrom.date) {
+        setRange((prev) => ({
+          from: pFrom.date!,
+          to: prev?.to,
+        }));
+      }
+    }
+  };
+
+  const handleToChange = (raw: string) => {
+    const masked = maskDateInput(raw);
+    setDraftTo(masked);
+    setInputError(null);
+
+    if (masked.length === 10) {
+      const pTo = parseDisplayDate(masked);
+      if (pTo.isValid && pTo.date) {
+        setRange((prev) => ({
+          from: activeMode === "allUpTo" && minDate ? parseIsoDate(minDate) : prev?.from,
+          to: pTo.date!,
+        }));
+        setMonth(getTargetViewMonth(pTo.isoDate!, numberOfMonths));
+      }
+    }
+  };
+
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      tryApplyManual();
+    }
+  };
+
   const handleDayClick = (clickedDay: Date) => {
+    setInputError(null);
+
+    if (activeMode === "allUpTo" && minDate) {
+      // In "Tudo até" mode, clicking a day chooses the end date
+      const toStr = getLocalDateString(clickedDay);
+      if (minDate > toStr) {
+        setInputError(
+          "A data final deve ser posterior ou igual ao início da base.",
+        );
+        return;
+      }
+      setDraftTo(formatDisplayDate(toStr));
+      setRange({ from: parseIsoDate(minDate), to: clickedDay });
+      lastAppliedRef.current = { from: minDate, to: toStr, mode: "allUpTo" };
+      onApply(minDate, toStr, "allUpTo");
+      setIsOpen(false);
+      return;
+    }
+
+    // Range mode
+    setActiveMode("range");
     if (range?.from && !range?.to) {
       // 2nd click: complete interval
       const fromDate = clickedDay < range.from ? clickedDay : range.from;
@@ -107,11 +248,17 @@ export function PeriodFilter({
 
       const fromStr = getLocalDateString(fromDate);
       const toStr = getLocalDateString(toDate);
-      onApply(fromStr, toStr);
+
+      setDraftFrom(formatDisplayDate(fromStr));
+      setDraftTo(formatDisplayDate(toStr));
+
+      lastAppliedRef.current = { from: fromStr, to: toStr, mode: "range" };
+      onApply(fromStr, toStr, "range");
       setIsOpen(false);
     } else {
-      // 1st click (or new selection after a complete interval)
+      // 1st click
       setRange({ from: clickedDay, to: undefined });
+      setDraftFrom(formatDisplayDate(getLocalDateString(clickedDay)));
     }
   };
 
@@ -136,39 +283,73 @@ export function PeriodFilter({
     // 4. YTD: de 01/01 até a data final do contexto
     const startOfYear = new Date(toYear, 0, 1);
 
-    return [
+    const list: Array<{
+      label: string;
+      from: string;
+      to: string;
+      mode: PeriodMode;
+    }> = [
       {
         label: "Este mês",
         from: getLocalDateString(startOfCurrentMonth),
         to: getLocalDateString(thisMonthTo),
+        mode: "range",
       },
       {
         label: "Últimos 30 dias",
         from: getLocalDateString(last30From),
         to: getLocalDateString(contextToDate),
+        mode: "range",
       },
       {
         label: "Últimos 90 dias",
         from: getLocalDateString(last90From),
         to: getLocalDateString(contextToDate),
+        mode: "range",
       },
       {
         label: "YTD",
         from: getLocalDateString(startOfYear),
         to: getLocalDateString(contextToDate),
+        mode: "range",
       },
     ];
-  }, [initialTo]);
 
-  const handleApplyPreset = (from: string, to: string) => {
+    if (minDate) {
+      list.push({
+        label: "Tudo até",
+        from: minDate,
+        to: getLocalDateString(contextToDate),
+        mode: "allUpTo",
+      });
+    }
+
+    return list;
+  }, [initialTo, minDate]);
+
+  const handleApplyPreset = (
+    from: string,
+    to: string,
+    mode: PeriodMode,
+  ) => {
+    setInputError(null);
+    setActiveMode(mode);
     setRange({
       from: parseIsoDate(from),
       to: parseIsoDate(to),
     });
+    setDraftFrom(formatDisplayDate(from));
+    setDraftTo(formatDisplayDate(to));
     setMonth(getTargetViewMonth(to, numberOfMonths));
     setIsOpen(false);
-    onApply(from, to);
+    lastAppliedRef.current = { from, to, mode };
+    onApply(from, to, mode);
   };
+
+  const triggerLabel =
+    periodMode === "allUpTo"
+      ? `Tudo até ${formatDisplayDate(initialTo)}`
+      : `${formatDisplayDate(initialFrom)} — ${formatDisplayDate(initialTo)}`;
 
   return (
     <div className="tp-period-picker-container" ref={containerRef}>
@@ -182,9 +363,7 @@ export function PeriodFilter({
         disabled={isLoading}
       >
         <Calendar size={15} className="tp-period-trigger-icon" />
-        <span className="tp-period-trigger-text">
-          {formatDisplayDate(initialFrom)} — {formatDisplayDate(initialTo)}
-        </span>
+        <span className="tp-period-trigger-text">{triggerLabel}</span>
         <ChevronDown
           size={14}
           className={`tp-period-chevron ${isOpen ? "is-rotated" : ""}`}
@@ -201,13 +380,16 @@ export function PeriodFilter({
             <span className="tp-presets-title">ATALHOS</span>
             <div className="tp-presets-list">
               {presets.map((p) => {
-                const isActive = initialFrom === p.from && initialTo === p.to;
+                const isActive =
+                  periodMode === p.mode &&
+                  initialFrom === p.from &&
+                  initialTo === p.to;
                 return (
                   <button
                     key={p.label}
                     type="button"
                     className={`tp-preset-btn ${isActive ? "is-active" : ""}`}
-                    onClick={() => handleApplyPreset(p.from, p.to)}
+                    onClick={() => handleApplyPreset(p.from, p.to, p.mode)}
                   >
                     {p.label}
                   </button>
@@ -217,6 +399,55 @@ export function PeriodFilter({
           </div>
 
           <div className="tp-period-calendar-wrap">
+            <div className="tp-period-inputs-bar">
+              <div className="tp-period-input-group">
+                <label htmlFor="tp-input-from" className="tp-period-input-label">
+                  {activeMode === "allUpTo"
+                    ? "Desde o início da base"
+                    : "De"}
+                </label>
+                <input
+                  id="tp-input-from"
+                  type="text"
+                  className="tp-period-input"
+                  placeholder="DD/MM/AAAA"
+                  value={
+                    activeMode === "allUpTo" && minDate
+                      ? formatDisplayDate(minDate)
+                      : draftFrom
+                  }
+                  disabled={activeMode === "allUpTo"}
+                  onChange={(e) => handleFromChange(e.target.value)}
+                  onKeyDown={handleInputKeyDown}
+                  onBlur={tryApplyManual}
+                />
+              </div>
+
+              <div className="tp-period-input-separator">—</div>
+
+              <div className="tp-period-input-group">
+                <label htmlFor="tp-input-to" className="tp-period-input-label">
+                  Até
+                </label>
+                <input
+                  id="tp-input-to"
+                  type="text"
+                  className="tp-period-input"
+                  placeholder="DD/MM/AAAA"
+                  value={draftTo}
+                  onChange={(e) => handleToChange(e.target.value)}
+                  onKeyDown={handleInputKeyDown}
+                  onBlur={tryApplyManual}
+                />
+              </div>
+            </div>
+
+            {inputError && (
+              <div className="tp-period-input-error" role="alert">
+                {inputError}
+              </div>
+            )}
+
             <DayPicker
               mode="range"
               locale={ptBR}

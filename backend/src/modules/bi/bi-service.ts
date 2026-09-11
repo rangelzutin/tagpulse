@@ -5,6 +5,7 @@ import {
 import { parseOverviewDateRange } from "./bi-date-utils.js";
 import type { BiRepository } from "./bi-repository.js";
 import type {
+  BiDataRangeResult,
   CustomerOverviewResult,
   SalesOverviewResult,
 } from "./bi-types.js";
@@ -17,7 +18,12 @@ export type BiCustomerOverviewResult =
   | { success: true; data: CustomerOverviewResult }
   | { success: false; error: string };
 
+export type BiDataRangeServiceResult =
+  | { success: true; data: BiDataRangeResult }
+  | { success: false; error: string };
+
 export interface BiService {
+  getDataRange(): Promise<BiDataRangeServiceResult>;
   getSalesOverview(from: unknown, to: unknown): Promise<BiSalesOverviewResult>;
   getCustomerOverview(
     from: unknown,
@@ -27,6 +33,20 @@ export interface BiService {
 
 export function createBiService(repository: BiRepository): BiService {
   return {
+    async getDataRange(): Promise<BiDataRangeServiceResult> {
+      if (!repository.findDataRange) {
+        return {
+          success: true,
+          data: {
+            firstRealizedDate: null,
+            lastRealizedDate: null,
+          },
+        };
+      }
+      const data = await repository.findDataRange();
+      return { success: true, data };
+    },
+
     async getSalesOverview(
       from: unknown,
       to: unknown,
@@ -44,10 +64,15 @@ export function createBiService(repository: BiRepository): BiService {
         toExclusiveDate,
       );
 
-      const data = calculateSalesOverview(sales, {
-        from: fromStr,
-        to: toStr,
-      });
+      const data = calculateSalesOverview(
+        sales,
+        {
+          from: fromStr,
+          to: toStr,
+        },
+        fromDate,
+        toExclusiveDate,
+      );
 
       return { success: true, data };
     },

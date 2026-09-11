@@ -8,6 +8,19 @@ export function registerBiRoutes(
 ): void {
   const service = createBiService(repository);
 
+  app.get("/bi/data-range", async (_request, reply) => {
+    const result = await service.getDataRange();
+
+    if (!result.success) {
+      return reply.code(400).send({
+        status: "error",
+        message: result.error,
+      });
+    }
+
+    return reply.code(200).send(result.data);
+  });
+
   app.get("/bi/sales/overview", async (request, reply) => {
     const query = (request.query ?? {}) as Record<string, unknown>;
     const result = await service.getSalesOverview(query.from, query.to);

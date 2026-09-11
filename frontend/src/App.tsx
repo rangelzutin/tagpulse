@@ -2,12 +2,14 @@ import { useState, useEffect, useCallback } from "react";
 import {
   fetchSalesOverview,
   fetchCustomerOverview,
+  fetchDataRange,
   type SalesOverviewResult,
   type CustomerOverviewResult,
+  type BiDataRangeResult,
 } from "./api/bi";
 import { AppShell } from "./components/AppShell";
 import { Header } from "./components/Header";
-import { PeriodFilter } from "./components/PeriodFilter";
+import { PeriodFilter, type PeriodMode } from "./components/PeriodFilter";
 import { KpiGrid } from "./components/KpiGrid";
 import { MonthlyChart } from "./components/MonthlyChart";
 import { CustomerKpiGrid } from "./components/CustomerKpiGrid";
@@ -16,6 +18,9 @@ import { RecencyDistributionCard } from "./components/RecencyDistributionCard";
 import { AlertCircle, RefreshCw, Users } from "lucide-react";
 
 export function App() {
+  const [periodMode, setPeriodMode] = useState<PeriodMode>("range");
+  const [dataRange, setDataRange] = useState<BiDataRangeResult | null>(null);
+
   const [currentPeriod, setCurrentPeriod] = useState({
     from: "2026-01-01",
     to: "2026-09-08",
@@ -103,11 +108,27 @@ export function App() {
 
   // Initial load
   useEffect(() => {
+    fetchDataRange()
+      .then((res) => {
+        setDataRange(res);
+      })
+      .catch((err) => {
+        console.error("Falha ao consultar limites da base de dados:", err);
+      });
+
     loadAllData(currentPeriod.from, currentPeriod.to);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleApplyFilter = (from: string, to: string) => {
+  const handleApplyFilter = (from: string, to: string, mode: PeriodMode) => {
+    if (
+      from === currentPeriod.from &&
+      to === currentPeriod.to &&
+      mode === periodMode
+    ) {
+      return;
+    }
+    setPeriodMode(mode);
     setCurrentPeriod({ from, to });
     setIsUpdating(true);
     Promise.allSettled([
@@ -136,6 +157,8 @@ export function App() {
           <PeriodFilter
             initialFrom={currentPeriod.from}
             initialTo={currentPeriod.to}
+            periodMode={periodMode}
+            minDate={dataRange?.firstRealizedDate}
             isLoading={isAnyLoading}
             onApply={handleApplyFilter}
           />
@@ -210,7 +233,9 @@ export function App() {
                 </div>
               ) : (
                 <MonthlyChart
+                  trend={salesData.trend}
                   monthly={salesData.monthly}
+                  from={currentPeriod.from}
                   toDate={currentPeriod.to}
                 />
               )}
@@ -295,7 +320,11 @@ export function App() {
             <div
               className={`tp-customer-content ${isUpdating ? "is-refreshing" : ""}`}
             >
-              <CustomerKpiGrid metrics={customerData.customers} />
+              <CustomerKpiGrid
+                metrics={customerData.customers}
+                lifetime={customerData.lifetime}
+                periodMode={periodMode}
+              />
 
               <div className="tp-split-grid">
                 <div className="tp-split-col-ranking">

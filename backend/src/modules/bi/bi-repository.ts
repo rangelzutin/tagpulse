@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { SaleAnchorType } from "@prisma/client";
 import type {
+  BiDataRangeResult,
   BiPeriodCustomerDoc,
   BiSaleRealizationRecord,
   BiSaleRecord,
@@ -8,6 +9,7 @@ import type {
 
 export interface BiRepository {
   findRealizedSales(from: Date, toExclusive: Date): Promise<BiSaleRecord[]>;
+  findDataRange?(): Promise<BiDataRangeResult>;
   findPeriodCustomerDocuments?(
     from: Date,
     toExclusive: Date,
@@ -19,6 +21,42 @@ export interface BiRepository {
 
 export function createBiRepository(prisma: PrismaClient): BiRepository {
   return {
+    async findDataRange(): Promise<BiDataRangeResult> {
+      const agg = await prisma.saleSourceDocument.aggregate({
+        where: {
+          sourcePresent: true,
+          docType: {
+            in: [SaleAnchorType.NFE, SaleAnchorType.VENDA_SIMPLES],
+          },
+          realizedDate: {
+            not: null,
+          },
+          netAmount: {
+            not: null,
+          },
+        },
+        _min: {
+          realizedDate: true,
+        },
+        _max: {
+          realizedDate: true,
+        },
+      });
+
+      const formatDate = (d: Date | null): string | null => {
+        if (!d || !(d instanceof Date) || isNaN(d.getTime())) return null;
+        const y = d.getUTCFullYear();
+        const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+        const day = String(d.getUTCDate()).padStart(2, "0");
+        return `${y}-${m}-${day}`;
+      };
+
+      return {
+        firstRealizedDate: formatDate(agg._min.realizedDate),
+        lastRealizedDate: formatDate(agg._max.realizedDate),
+      };
+    },
+
     async findRealizedSales(from: Date, toExclusive: Date): Promise<BiSaleRecord[]> {
       const records = await prisma.saleSourceDocument.findMany({
         where: {

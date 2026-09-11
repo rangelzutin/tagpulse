@@ -21,10 +21,34 @@ export interface SalesOverviewMonthly {
   customers: number;
 }
 
+export type SalesTrendGranularity = "daily" | "weekly" | "monthly";
+
+export interface SalesTrendPoint {
+  key: string;
+  label: string;
+  periodStart: string;
+  periodEnd: string;
+  revenue: number;
+  sales: number;
+  averageTicket: number;
+  customers: number;
+}
+
+export interface SalesTrend {
+  granularity: SalesTrendGranularity;
+  points: SalesTrendPoint[];
+}
+
 export interface SalesOverviewResult {
   period: SalesOverviewPeriod;
   summary: SalesOverviewSummary;
   monthly: SalesOverviewMonthly[];
+  trend: SalesTrend;
+}
+
+export interface BiDataRangeResult {
+  firstRealizedDate: string | null;
+  lastRealizedDate: string | null;
 }
 
 export interface BiSaleRecord {
@@ -47,6 +71,13 @@ export interface CustomerOverviewMetrics {
   recurrenceRate: number;
 }
 
+export interface CustomerLifetimeMetrics {
+  customers: number;
+  singlePurchaseCustomers: number;
+  repeatCustomers: number;
+  repeatRate: number;
+}
+
 export interface CustomerRankingItem {
   customerId: string;
   code: string | null;
@@ -59,7 +90,14 @@ export interface CustomerRankingItem {
 }
 
 export interface CustomerRecencySegment {
-  key: "0-30" | "31-60" | "61-90" | "91-180" | "181+";
+  key:
+    | "0-30"
+    | "31-60"
+    | "61-90"
+    | "91-180"
+    | "181-365"
+    | "366-730"
+    | "731+";
   label: string;
   customerCount: number;
   percentage: number;
@@ -68,6 +106,7 @@ export interface CustomerRecencySegment {
 export interface CustomerOverviewResult {
   period: CustomerOverviewPeriod;
   customers: CustomerOverviewMetrics;
+  lifetime: CustomerLifetimeMetrics;
   ranking: CustomerRankingItem[];
   recency: CustomerRecencySegment[];
 }

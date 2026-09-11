@@ -407,17 +407,16 @@ describe("GET /bi/customers/overview", () => {
     expect(ranking[0].averageTicket).toBe(300.0);
   });
 
-  it("9. faixas de recência nos limites 30, 60, 90 e 180 dias com normalização de calendário", async () => {
+  it("9. faixas de recência nos 7 limites (30, 60, 90, 180, 365, 730, 731+) com normalização de calendário", async () => {
     // asOfDate = 2026-01-31
-    // Limit cases:
-    // c1: 2026-01-01 => diff = 30 days => falls in '0-30'
-    // c2: 2025-12-31 => diff = 31 days => falls in '31-60'
-    // c3: 2025-12-02 => diff = 60 days => falls in '31-60'
-    // c4: 2025-12-01 => diff = 61 days => falls in '61-90'
-    // c5: 2025-11-02 => diff = 90 days => falls in '61-90'
-    // c6: 2025-11-01 => diff = 91 days => falls in '91-180'
-    // c7: 2025-08-04 => diff = 180 days => falls in '91-180'
-    // c8: 2025-08-03 => diff = 181 days => falls in '181+'
+    // Reference day: Date.UTC(2026, 0, 31)
+    // c1: diff = 30 days => '0-30' (2026-01-01)
+    // c2: diff = 60 days => '31-60' (2025-12-02)
+    // c3: diff = 90 days => '61-90' (2025-11-02)
+    // c4: diff = 180 days => '91-180' (2025-08-04)
+    // c5: diff = 365 days => '181-365' (2025-01-31)
+    // c6: diff = 730 days => '366-730' (2024-02-01) - 2024 is leap year (366 days) + 2025 (365 days) - 1 day
+    // c7: diff = 731 days => '731+' (2024-01-31)
     const repo = createFakeCustomerBiRepository([
       {
         id: "d1",
@@ -431,49 +430,42 @@ describe("GET /bi/customers/overview", () => {
         saleId: "s2",
         customerId: "c2",
         netAmount: "10.00",
-        realizedDate: new Date("2025-12-31T01:00:00.000Z"),
+        realizedDate: new Date("2025-12-02T12:00:00.000Z"),
       },
       {
         id: "d3",
         saleId: "s3",
         customerId: "c3",
         netAmount: "10.00",
-        realizedDate: new Date("2025-12-02T12:00:00.000Z"),
+        realizedDate: new Date("2025-11-02T18:00:00.000Z"),
       },
       {
         id: "d4",
         saleId: "s4",
         customerId: "c4",
         netAmount: "10.00",
-        realizedDate: new Date("2025-12-01T08:00:00.000Z"),
+        realizedDate: new Date("2025-08-04T12:00:00.000Z"),
       },
       {
         id: "d5",
         saleId: "s5",
         customerId: "c5",
         netAmount: "10.00",
-        realizedDate: new Date("2025-11-02T18:00:00.000Z"),
+        realizedDate: new Date("2025-01-31T12:00:00.000Z"),
       },
       {
         id: "d6",
         saleId: "s6",
         customerId: "c6",
         netAmount: "10.00",
-        realizedDate: new Date("2025-11-01T15:00:00.000Z"),
+        realizedDate: new Date("2024-02-01T12:00:00.000Z"),
       },
       {
         id: "d7",
         saleId: "s7",
         customerId: "c7",
         netAmount: "10.00",
-        realizedDate: new Date("2025-08-04T12:00:00.000Z"),
-      },
-      {
-        id: "d8",
-        saleId: "s8",
-        customerId: "c8",
-        netAmount: "10.00",
-        realizedDate: new Date("2025-08-03T12:00:00.000Z"),
+        realizedDate: new Date("2024-01-31T12:00:00.000Z"),
       },
     ]);
 
@@ -490,19 +482,87 @@ describe("GET /bi/customers/overview", () => {
       recency.find((r: CustomerRecencySegment) => r.key === key)!;
 
     expect(findBracket("0-30").customerCount).toBe(1);
-    expect(findBracket("31-60").customerCount).toBe(2);
-    expect(findBracket("61-90").customerCount).toBe(2);
-    expect(findBracket("91-180").customerCount).toBe(2);
-    expect(findBracket("181+").customerCount).toBe(1);
+    expect(findBracket("0-30").label).toBe("Até 30 dias");
 
-    // Total = 8 customers.
-    // 1 / 8 = 12.5%
-    // 2 / 8 = 25.0%
-    expect(findBracket("0-30").percentage).toBe(12.5);
-    expect(findBracket("31-60").percentage).toBe(25.0);
-    expect(findBracket("61-90").percentage).toBe(25.0);
-    expect(findBracket("91-180").percentage).toBe(25.0);
-    expect(findBracket("181+").percentage).toBe(12.5);
+    expect(findBracket("31-60").customerCount).toBe(1);
+    expect(findBracket("31-60").label).toBe("31–60 dias");
+
+    expect(findBracket("61-90").customerCount).toBe(1);
+    expect(findBracket("61-90").label).toBe("61–90 dias");
+
+    expect(findBracket("91-180").customerCount).toBe(1);
+    expect(findBracket("91-180").label).toBe("3–6 meses");
+
+    expect(findBracket("181-365").customerCount).toBe(1);
+    expect(findBracket("181-365").label).toBe("6–12 meses");
+
+    expect(findBracket("366-730").customerCount).toBe(1);
+    expect(findBracket("366-730").label).toBe("1–2 anos");
+
+    expect(findBracket("731+").customerCount).toBe(1);
+    expect(findBracket("731+").label).toBe("Mais de 2 anos");
+
+    // Total = 7 customers. 1/7 = 14.29%
+    for (const b of recency) {
+      expect(b.percentage).toBe(14.29);
+    }
+  });
+
+  it("9b. testes rigorosos de fronteira nas faixas de recência (30/31, 60/61, 90/91, 180/181, 365/366, 730/731)", async () => {
+    // asOfDate = 2026-01-31
+    // Reference day: Date.UTC(2026, 0, 31)
+    // 30 days: 2026-01-01 -> 0-30
+    // 31 days: 2025-12-31 -> 31-60
+    // 60 days: 2025-12-02 -> 31-60
+    // 61 days: 2025-12-01 -> 61-90
+    // 90 days: 2025-11-02 -> 61-90
+    // 91 days: 2025-11-01 -> 91-180
+    // 180 days: 2025-08-04 -> 91-180
+    // 181 days: 2025-08-03 -> 181-365
+    // 365 days: 2025-01-31 -> 181-365
+    // 366 days: 2025-01-30 -> 366-730
+    // 730 days: 2024-02-01 -> 366-730 (2024 leap year: 366 days + 2025: 365 days = 731 - 1 = 730)
+    // 731 days: 2024-01-31 -> 731+
+    const boundaryDocs = [
+      { id: "b30", customerId: "c30", netAmount: 10, realizedDate: new Date("2026-01-01T12:00:00Z") },
+      { id: "b31", customerId: "c31", netAmount: 10, realizedDate: new Date("2025-12-31T12:00:00Z") },
+      { id: "b60", customerId: "c60", netAmount: 10, realizedDate: new Date("2025-12-02T12:00:00Z") },
+      { id: "b61", customerId: "c61", netAmount: 10, realizedDate: new Date("2025-12-01T12:00:00Z") },
+      { id: "b90", customerId: "c90", netAmount: 10, realizedDate: new Date("2025-11-02T12:00:00Z") },
+      { id: "b91", customerId: "c91", netAmount: 10, realizedDate: new Date("2025-11-01T12:00:00Z") },
+      { id: "b180", customerId: "c180", netAmount: 10, realizedDate: new Date("2025-08-04T12:00:00Z") },
+      { id: "b181", customerId: "c181", netAmount: 10, realizedDate: new Date("2025-08-03T12:00:00Z") },
+      { id: "b365", customerId: "c365", netAmount: 10, realizedDate: new Date("2025-01-31T12:00:00Z") },
+      { id: "b366", customerId: "c366", netAmount: 10, realizedDate: new Date("2025-01-30T12:00:00Z") },
+      { id: "b730", customerId: "c730", netAmount: 10, realizedDate: new Date("2024-02-01T12:00:00Z") },
+      { id: "b731", customerId: "c731", netAmount: 10, realizedDate: new Date("2024-01-31T12:00:00Z") },
+    ];
+
+    const repo = createFakeCustomerBiRepository(boundaryDocs);
+    const app = await createApp(repo);
+    const res = await app.inject({
+      method: "GET",
+      url: "/bi/customers/overview?from=2026-01-01&to=2026-01-31",
+    });
+
+    expect(res.statusCode).toBe(200);
+    const recency = res.json().recency as CustomerRecencySegment[];
+    const findBracket = (key: string) => recency.find((r) => r.key === key)!;
+
+    // 0-30 contains only c30
+    expect(findBracket("0-30").customerCount).toBe(1);
+    // 31-60 contains c31 and c60
+    expect(findBracket("31-60").customerCount).toBe(2);
+    // 61-90 contains c61 and c90
+    expect(findBracket("61-90").customerCount).toBe(2);
+    // 91-180 contains c91 and c180
+    expect(findBracket("91-180").customerCount).toBe(2);
+    // 181-365 contains c181 and c365
+    expect(findBracket("181-365").customerCount).toBe(2);
+    // 366-730 contains c366 and c730
+    expect(findBracket("366-730").customerCount).toBe(2);
+    // 731+ contains c731
+    expect(findBracket("731+").customerCount).toBe(1);
   });
 
   it("10. recência histórica usa 'to'/asOfDate e não a data atual", async () => {
@@ -705,6 +765,134 @@ describe("GET /bi/customers/overview", () => {
     )!;
     expect(seg0_30.customerCount).toBe(0);
     expect(seg31_60.customerCount).toBe(1);
+  });
+
+  it("14. métricas lifetime: uma compra lifetime => singlePurchaseCustomers=1, repeatCustomers=0, repeatRate=0", async () => {
+    const repo = createFakeCustomerBiRepository([
+      {
+        id: "d-single",
+        saleId: "s-single",
+        customerId: "cust-single",
+        netAmount: "100.00",
+        realizedDate: new Date("2026-01-10T10:00:00.000Z"),
+      },
+    ]);
+
+    const app = await createApp(repo);
+    const res = await app.inject({
+      method: "GET",
+      url: "/bi/customers/overview?from=2026-01-01&to=2026-01-31",
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.lifetime).toEqual({
+      customers: 1,
+      singlePurchaseCustomers: 1,
+      repeatCustomers: 0,
+      repeatRate: 0,
+    });
+  });
+
+  it("15. métricas lifetime: duas compras lifetime em Sales distintas => repeatCustomers=1, repeatRate=100%", async () => {
+    const repo = createFakeCustomerBiRepository([
+      {
+        id: "d-s1",
+        saleId: "s-1",
+        customerId: "cust-repeat",
+        netAmount: "100.00",
+        realizedDate: new Date("2025-06-10T10:00:00.000Z"),
+      },
+      {
+        id: "d-s2",
+        saleId: "s-2",
+        customerId: "cust-repeat",
+        netAmount: "200.00",
+        realizedDate: new Date("2026-01-15T10:00:00.000Z"),
+      },
+    ]);
+
+    const app = await createApp(repo);
+    const res = await app.inject({
+      method: "GET",
+      url: "/bi/customers/overview?from=2026-01-01&to=2026-01-31",
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.lifetime).toEqual({
+      customers: 1,
+      singlePurchaseCustomers: 0,
+      repeatCustomers: 1,
+      repeatRate: 100,
+    });
+  });
+
+  it("16. métricas lifetime: múltiplos documentos da mesma Sale NÃO geram falsa recompra", async () => {
+    const repo = createFakeCustomerBiRepository([
+      {
+        id: "d-doc1",
+        saleId: "sale-same",
+        customerId: "cust-multidoc",
+        netAmount: "100.00",
+        realizedDate: new Date("2026-01-10T10:00:00.000Z"),
+      },
+      {
+        id: "d-doc2",
+        saleId: "sale-same",
+        customerId: "cust-multidoc",
+        netAmount: "150.00",
+        realizedDate: new Date("2026-01-15T10:00:00.000Z"),
+      },
+    ]);
+
+    const app = await createApp(repo);
+    const res = await app.inject({
+      method: "GET",
+      url: "/bi/customers/overview?from=2026-01-01&to=2026-01-31",
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.lifetime).toEqual({
+      customers: 1,
+      singlePurchaseCustomers: 1,
+      repeatCustomers: 0,
+      repeatRate: 0,
+    });
+  });
+
+  it("17. métricas lifetime: cálculo proporcional do repeatRate (ex: 2 recorrentes em 5 clientes = 40%)", async () => {
+    const repo = createFakeCustomerBiRepository([
+      // c1: 2 sales
+      { id: "d1-1", saleId: "s1-1", customerId: "c1", netAmount: "10.00", realizedDate: new Date("2025-01-01T00:00:00Z") },
+      { id: "d1-2", saleId: "s1-2", customerId: "c1", netAmount: "10.00", realizedDate: new Date("2026-01-01T00:00:00Z") },
+      // c2: 3 sales
+      { id: "d2-1", saleId: "s2-1", customerId: "c2", netAmount: "10.00", realizedDate: new Date("2025-02-01T00:00:00Z") },
+      { id: "d2-2", saleId: "s2-2", customerId: "c2", netAmount: "10.00", realizedDate: new Date("2025-03-01T00:00:00Z") },
+      { id: "d2-3", saleId: "s2-3", customerId: "c2", netAmount: "10.00", realizedDate: new Date("2026-01-02T00:00:00Z") },
+      // c3: 1 sale
+      { id: "d3-1", saleId: "s3-1", customerId: "c3", netAmount: "10.00", realizedDate: new Date("2026-01-05T00:00:00Z") },
+      // c4: 1 sale
+      { id: "d4-1", saleId: "s4-1", customerId: "c4", netAmount: "10.00", realizedDate: new Date("2025-11-01T00:00:00Z") },
+      // c5: 1 sale
+      { id: "d5-1", saleId: "s5-1", customerId: "c5", netAmount: "10.00", realizedDate: new Date("2025-12-01T00:00:00Z") },
+    ]);
+
+    const app = await createApp(repo);
+    const res = await app.inject({
+      method: "GET",
+      url: "/bi/customers/overview?from=2026-01-01&to=2026-01-31",
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.lifetime).toEqual({
+      customers: 5,
+      singlePurchaseCustomers: 3,
+      repeatCustomers: 2,
+      repeatRate: 40.0,
+    });
   });
 
   describe("validação de parâmetros de entrada", () => {

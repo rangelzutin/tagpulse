@@ -3,9 +3,11 @@ import { Prisma, SaleAnchorType } from "@prisma/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildApp } from "../src/app.js";
 import {
+  calculateSalesTrend,
   createBiRepository,
   type BiRepository,
   type BiSaleRecord,
+  type SalesTrendPoint,
 } from "../src/modules/bi/index.js";
 
 interface RawTestDocument {
@@ -753,6 +755,385 @@ describe("GET /bi/sales/overview", () => {
       const body = res.json();
       expect(body.summary.sales).toBe(0);
       expect(body.summary.revenue).toBe(0);
+    });
+  });
+
+  describe("trend temporal contínuo e granularidade automática", () => {
+    it("1. 1 dia => daily, gera exatamente 1 ponto e calcula revenue/sales", async () => {
+      const fakeRepo = createFakeBiRepository([
+        {
+          id: "d1",
+          docType: SaleAnchorType.NFE,
+          sourcePresent: true,
+          netAmount: "300.50",
+          realizedDate: new Date("2026-08-15T10:00:00.000Z"),
+          customerId: "c1",
+        },
+      ]);
+
+      const app = await createApp(fakeRepo);
+      const res = await app.inject({
+        method: "GET",
+        url: "/bi/sales/overview?from=2026-08-15&to=2026-08-15",
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.trend.granularity).toBe("daily");
+      expect(body.trend.points).toHaveLength(1);
+      expect(body.trend.points[0]).toEqual({
+        key: "2026-08-15",
+        label: "15/08",
+        periodStart: "2026-08-15",
+        periodEnd: "2026-08-15",
+        revenue: 300.5,
+        sales: 1,
+        averageTicket: 300.5,
+        customers: 1,
+      });
+      expect(body.trend.points[0].revenue).toBe(body.summary.revenue);
+      expect(body.trend.points[0].sales).toBe(body.summary.sales);
+    });
+
+    it("2. 45 dias => daily, exatamente 45 pontos (fronteira diária)", async () => {
+      // 2026-01-01 a 2026-02-14: 31 dias em jan + 14 dias em fev = 45 dias inclusivos
+      const fakeRepo = createFakeBiRepository([]);
+      const app = await createApp(fakeRepo);
+      const res = await app.inject({
+        method: "GET",
+        url: "/bi/sales/overview?from=2026-01-01&to=2026-02-14",
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.trend.granularity).toBe("daily");
+      expect(body.trend.points).toHaveLength(45);
+      expect(body.trend.points[0].periodStart).toBe("2026-01-01");
+      expect(body.trend.points[44].periodStart).toBe("2026-02-14");
+    });
+
+    it("3. 46 dias => weekly (fronteira semanal)", async () => {
+      // 2026-01-01 a 2026-02-15: 31 + 15 = 46 dias inclusivos
+      const fakeRepo = createFakeBiRepository([]);
+      const app = await createApp(fakeRepo);
+      const res = await app.inject({
+        method: "GET",
+        url: "/bi/sales/overview?from=2026-01-01&to=2026-02-15",
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.trend.granularity).toBe("weekly");
+    });
+
+    it("4. 180 dias => weekly (fronteira semanal alta)", async () => {
+      // 2026-01-01 a 2026-06-29: 31 + 28 + 31 + 30 + 31 + 29 = 180 dias
+      const fakeRepo = createFakeBiRepository([]);
+      const app = await createApp(fakeRepo);
+      const res = await app.inject({
+        method: "GET",
+        url: "/bi/sales/overview?from=2026-01-01&to=2026-06-29",
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.trend.granularity).toBe("weekly");
+    });
+
+    it("5. 181 dias => monthly (fronteira mensal)", async () => {
+      // 2026-01-01 a 2026-06-30: 181 dias
+      const fakeRepo = createFakeBiRepository([]);
+      const app = await createApp(fakeRepo);
+      const res = await app.inject({
+        method: "GET",
+        url: "/bi/sales/overview?from=2026-01-01&to=2026-06-30",
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.trend.granularity).toBe("monthly");
+      expect(body.trend.points).toHaveLength(6);
+    });
+
+    it("6. continuidade diária: período com dias sem venda mantém todos os dias gerados zerados", async () => {
+      // 5 dias: 01/08 a 05/08. Vendas apenas no dia 01 e 05.
+      const fakeRepo = createFakeBiRepository([
+        {
+          id: "d-aug-1",
+          docType: SaleAnchorType.NFE,
+          sourcePresent: true,
+          netAmount: "100.00",
+          realizedDate: new Date("2026-08-01T10:00:00.000Z"),
+          customerId: "c1",
+        },
+        {
+          id: "d-aug-5",
+          docType: SaleAnchorType.VENDA_SIMPLES,
+          sourcePresent: true,
+          netAmount: "250.00",
+          realizedDate: new Date("2026-08-05T15:00:00.000Z"),
+          customerId: "c2",
+        },
+      ]);
+
+      const app = await createApp(fakeRepo);
+      const res = await app.inject({
+        method: "GET",
+        url: "/bi/sales/overview?from=2026-08-01&to=2026-08-05",
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.trend.granularity).toBe("daily");
+      expect(body.trend.points).toHaveLength(5);
+
+      // Dia 1: tem venda
+      expect(body.trend.points[0].key).toBe("2026-08-01");
+      expect(body.trend.points[0].sales).toBe(1);
+      expect(body.trend.points[0].revenue).toBe(100.0);
+
+      // Dias 2, 3, 4: sem venda => bucket zerado
+      for (let i = 1; i <= 3; i++) {
+        expect(body.trend.points[i].sales).toBe(0);
+        expect(body.trend.points[i].revenue).toBe(0);
+        expect(body.trend.points[i].averageTicket).toBe(0);
+        expect(body.trend.points[i].customers).toBe(0);
+      }
+
+      // Dia 5: tem venda
+      expect(body.trend.points[4].key).toBe("2026-08-05");
+      expect(body.trend.points[4].sales).toBe(1);
+      expect(body.trend.points[4].revenue).toBe(250.0);
+
+      // Invariantes
+      const totalRev = body.trend.points.reduce((acc: number, p: SalesTrendPoint) => acc + p.revenue, 0);
+      const totalSales = body.trend.points.reduce((acc: number, p: SalesTrendPoint) => acc + p.sales, 0);
+      expect(Number(totalRev.toFixed(2))).toBe(body.summary.revenue);
+      expect(totalSales).toBe(body.summary.sales);
+    });
+
+    it("7. continuidade semanal: semanas de seg a dom, semanas parciais nas bordas e semana sem venda zerada", async () => {
+      // Período de quarta 2026-07-15 a quinta 2026-08-06 (23 dias => weekly se chamarmos com período de 50 dias)
+      // Usando período de 50 dias: 2026-06-01 (seg) a 2026-07-20 (seg) => 50 dias => weekly
+      // Vendas na semana 1 (01/06) e na semana 3 (15/06). Semana 2 (08/06 a 14/06) vazia.
+      const fakeRepo = createFakeBiRepository([
+        {
+          id: "w-sale-1",
+          docType: SaleAnchorType.NFE,
+          sourcePresent: true,
+          netAmount: "1200.00",
+          realizedDate: new Date("2026-06-03T10:00:00.000Z"),
+          customerId: "c1",
+        },
+        {
+          id: "w-sale-3",
+          docType: SaleAnchorType.NFE,
+          sourcePresent: true,
+          netAmount: "800.00",
+          realizedDate: new Date("2026-06-18T10:00:00.000Z"),
+          customerId: "c2",
+        },
+      ]);
+
+      const app = await createApp(fakeRepo);
+      const res = await app.inject({
+        method: "GET",
+        url: "/bi/sales/overview?from=2026-06-01&to=2026-07-20",
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.trend.granularity).toBe("weekly");
+
+      // A semana 2 (segunda 2026-06-08 a domingo 2026-06-14) deve existir com zeros
+      const week2 = body.trend.points.find((p: SalesTrendPoint) => p.periodStart === "2026-06-08");
+      expect(week2).toBeDefined();
+      expect(week2.periodEnd).toBe("2026-06-14");
+      expect(week2.revenue).toBe(0);
+      expect(week2.sales).toBe(0);
+      expect(week2.customers).toBe(0);
+
+      // A última semana (2026-07-20 a 2026-07-26) é parcial, terminando no dia 2026-07-20
+      const lastWeek = body.trend.points[body.trend.points.length - 1];
+      expect(lastWeek.periodStart).toBe("2026-07-20");
+      expect(lastWeek.periodEnd).toBe("2026-07-20");
+
+      // Invariantes
+      const totalRev = body.trend.points.reduce((acc: number, p: SalesTrendPoint) => acc + p.revenue, 0);
+      const totalSales = body.trend.points.reduce((acc: number, p: SalesTrendPoint) => acc + p.sales, 0);
+      expect(Number(totalRev.toFixed(2))).toBe(body.summary.revenue);
+      expect(totalSales).toBe(body.summary.sales);
+    });
+
+    it("8. continuidade mensal: meses sem venda aparecem como bucket zero e monthly legado permanece idêntico", async () => {
+      // 2026-01-01 a 2026-12-31 (365 dias => monthly).
+      // Vendas apenas em janeiro (2026-01) e março (2026-03). Fevereiro (2026-02) sem venda.
+      const fakeRepo = createFakeBiRepository([
+        {
+          id: "m1",
+          docType: SaleAnchorType.NFE,
+          sourcePresent: true,
+          netAmount: "500.00",
+          realizedDate: new Date("2026-01-10T10:00:00.000Z"),
+          customerId: "c1",
+        },
+        {
+          id: "m3",
+          docType: SaleAnchorType.NFE,
+          sourcePresent: true,
+          netAmount: "700.00",
+          realizedDate: new Date("2026-03-15T10:00:00.000Z"),
+          customerId: "c2",
+        },
+      ]);
+
+      const app = await createApp(fakeRepo);
+      const res = await app.inject({
+        method: "GET",
+        url: "/bi/sales/overview?from=2026-01-01&to=2026-12-31",
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.trend.granularity).toBe("monthly");
+
+      // Trend contínuo: exatamente 12 meses (janeiro a dezembro)
+      expect(body.trend.points).toHaveLength(12);
+
+      // Fevereiro no trend existe e está zerado
+      const febTrend = body.trend.points.find((p: SalesTrendPoint) => p.key === "2026-02");
+      expect(febTrend).toBeDefined();
+      expect(febTrend.revenue).toBe(0);
+      expect(febTrend.sales).toBe(0);
+
+      // Monthly legado: apenas os 2 meses com venda!
+      expect(body.monthly).toHaveLength(2);
+      expect(body.monthly[0].month).toBe("2026-01");
+      expect(body.monthly[1].month).toBe("2026-03");
+
+      // Invariantes
+      const totalRev = body.trend.points.reduce((acc: number, p: SalesTrendPoint) => acc + p.revenue, 0);
+      const totalSales = body.trend.points.reduce((acc: number, p: SalesTrendPoint) => acc + p.sales, 0);
+      expect(Number(totalRev.toFixed(2))).toBe(body.summary.revenue);
+      expect(totalSales).toBe(body.summary.sales);
+    });
+
+    it("9. semana cruzando virada de ano (2025-12-29 a 2026-01-11): buckets de seg a dom, chaves não colidem, labels corretos e valores preservados", async () => {
+      // 2025-12-29 (segunda) a 2026-01-11 (domingo): exatamente 2 semanas inteiras cruzando a virada de ano.
+      // Venda 1: quarta-feira 31/12/2025 (R$ 1500)
+      // Venda 2: sexta-feira 02/01/2026 (R$ 500) -> mesma semana da venda 1!
+      // Venda 3: terça-feira 06/01/2026 (R$ 2000) -> semana seguinte
+      const sales: BiSaleRecord[] = [
+        {
+          id: "s1",
+          anchorSourceId: 1,
+          commercialDate: new Date("2025-12-31T12:00:00.000Z"),
+          netAmount: new Prisma.Decimal("1500.00"),
+          customerId: "c1",
+        },
+        {
+          id: "s2",
+          anchorSourceId: 2,
+          commercialDate: new Date("2026-01-02T10:00:00.000Z"),
+          netAmount: new Prisma.Decimal("500.00"),
+          customerId: "c2",
+        },
+        {
+          id: "s3",
+          anchorSourceId: 3,
+          commercialDate: new Date("2026-01-06T15:00:00.000Z"),
+          netAmount: new Prisma.Decimal("2000.00"),
+          customerId: "c3",
+        },
+      ];
+
+      const fromDate = new Date("2025-12-29T00:00:00.000Z");
+      const toExclusiveDate = new Date("2026-01-12T00:00:00.000Z"); // até 2026-01-11 inclusivo
+
+      const trend = calculateSalesTrend(sales, fromDate, toExclusiveDate, "weekly");
+
+      expect(trend.granularity).toBe("weekly");
+      expect(trend.points).toHaveLength(2);
+
+      // Semana 1: 2025-12-29 a 2026-01-04 (segunda a domingo cruzando o ano)
+      const w1 = trend.points[0];
+      expect(w1.key).toBe("2025-12-29");
+      expect(w1.label).toBe("29/12 - 04/01");
+      expect(w1.periodStart).toBe("2025-12-29");
+      expect(w1.periodEnd).toBe("2026-01-04");
+      expect(w1.sales).toBe(2);
+      expect(w1.revenue).toBe(2000.0); // 1500 + 500
+      expect(w1.averageTicket).toBe(1000.0);
+      expect(w1.customers).toBe(2);
+
+      // Semana 2: 2026-01-05 a 2026-01-11 (segunda a domingo no novo ano)
+      const w2 = trend.points[1];
+      expect(w2.key).toBe("2026-01-05");
+      expect(w2.label).toBe("05/01 - 11/01");
+      expect(w2.periodStart).toBe("2026-01-05");
+      expect(w2.periodEnd).toBe("2026-01-11");
+      expect(w2.sales).toBe(1);
+      expect(w2.revenue).toBe(2000.0);
+      expect(w2.averageTicket).toBe(2000.0);
+      expect(w2.customers).toBe(1);
+
+      // Chaves distintas e não colidentes
+      expect(w1.key).not.toBe(w2.key);
+
+      // Invariantes
+      const totalRev = trend.points.reduce((acc, p) => acc + p.revenue, 0);
+      const totalSales = trend.points.reduce((acc, p) => acc + p.sales, 0);
+      expect(totalRev).toBe(4000.0);
+      expect(totalSales).toBe(3);
+    });
+
+    it("10. endpoint com período de 50 dias cruzando o ano (2025-12-01 a 2026-01-19) ativa weekly e preserva buckets", async () => {
+      // 50 dias => automaticamente weekly
+      const fakeRepo = createFakeBiRepository([
+        {
+          id: "dec-sale",
+          docType: SaleAnchorType.NFE,
+          sourcePresent: true,
+          netAmount: "1500.00",
+          realizedDate: new Date("2025-12-31T12:00:00.000Z"),
+          customerId: "c1",
+        },
+        {
+          id: "jan-sale",
+          docType: SaleAnchorType.NFE,
+          sourcePresent: true,
+          netAmount: "2500.00",
+          realizedDate: new Date("2026-01-02T10:00:00.000Z"),
+          customerId: "c2",
+        },
+      ]);
+
+      const app = await createApp(fakeRepo);
+      const res = await app.inject({
+        method: "GET",
+        url: "/bi/sales/overview?from=2025-12-01&to=2026-01-19",
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.trend.granularity).toBe("weekly");
+
+      // A semana da virada (2025-12-29 a 2026-01-04) agrega as duas vendas (31/12 e 02/01)
+      const crossoverWeek = body.trend.points.find(
+        (p: SalesTrendPoint) => p.periodStart === "2025-12-29",
+      );
+      expect(crossoverWeek).toBeDefined();
+      expect(crossoverWeek.periodEnd).toBe("2026-01-04");
+      expect(crossoverWeek.label).toBe("29/12 - 04/01");
+      expect(crossoverWeek.sales).toBe(2);
+      expect(crossoverWeek.revenue).toBe(4000.0);
+      expect(crossoverWeek.customers).toBe(2);
+
+      // Invariantes com summary
+      const totalRev = body.trend.points.reduce((acc: number, p: SalesTrendPoint) => acc + p.revenue, 0);
+      const totalSales = body.trend.points.reduce((acc: number, p: SalesTrendPoint) => acc + p.sales, 0);
+      expect(Number(totalRev.toFixed(2))).toBe(body.summary.revenue);
+      expect(totalSales).toBe(body.summary.sales);
     });
   });
 });

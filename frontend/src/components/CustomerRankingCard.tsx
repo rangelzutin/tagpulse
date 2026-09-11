@@ -2,6 +2,7 @@ import { Award, User } from "lucide-react";
 import type { CustomerRankingItem } from "../api/bi";
 import {
   formatCurrency,
+  formatCustomerName,
   formatNumber,
   formatPercent,
 } from "../utils/formatters";
@@ -78,8 +79,11 @@ export function CustomerRankingCard({ ranking }: CustomerRankingCardProps) {
                   </td>
                   <td className="tp-td-client">
                     <div className="tp-client-info">
-                      <span className="tp-client-name" title={item.displayName}>
-                        {item.displayName}
+                      <span
+                        className="tp-client-name"
+                        title={formatCustomerName(item.displayName)}
+                      >
+                        {formatCustomerName(item.displayName)}
                       </span>
                       {item.code && (
                         <span className="tp-client-code">Cód. {item.code}</span>
