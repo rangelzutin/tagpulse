@@ -48,4 +48,54 @@ export function registerBiRoutes(
 
     return reply.code(200).send(result.data);
   });
+
+  app.get("/bi/customers/segment", async (request, reply) => {
+    const query = (request.query ?? {}) as Record<string, unknown>;
+    const result = await service.getCustomerSegment(query);
+
+    if (!result.success) {
+      return reply.code(400).send({
+        status: "error",
+        message: result.error,
+      });
+    }
+
+    return reply.code(200).send(result.data);
+  });
+
+  app.get("/bi/customers/:customerId/overview", async (request, reply) => {
+    const params = (request.params ?? {}) as { customerId?: string };
+    const query = (request.query ?? {}) as Record<string, unknown>;
+    const result = await service.getCustomerDetailOverview(
+      params.customerId,
+      query.from,
+      query.to,
+    );
+
+    if (!result.success) {
+      const code = result.notFound ? 404 : 400;
+      return reply.code(code).send({
+        status: "error",
+        message: result.error,
+      });
+    }
+
+    return reply.code(200).send(result.data);
+  });
+
+  app.get("/bi/customers/:customerId/sales", async (request, reply) => {
+    const params = (request.params ?? {}) as { customerId?: string };
+    const query = (request.query ?? {}) as Record<string, unknown>;
+    const result = await service.getCustomerSales(params.customerId, query);
+
+    if (!result.success) {
+      const code = result.notFound ? 404 : 400;
+      return reply.code(code).send({
+        status: "error",
+        message: result.error,
+      });
+    }
+
+    return reply.code(200).send(result.data);
+  });
 }

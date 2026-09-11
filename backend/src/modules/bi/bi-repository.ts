@@ -1,6 +1,8 @@
 import type { PrismaClient } from "@prisma/client";
 import { SaleAnchorType } from "@prisma/client";
 import type {
+  BiCustomerMetadata,
+  BiCustomerSaleRawRecord,
   BiDataRangeResult,
   BiPeriodCustomerDoc,
   BiSaleRealizationRecord,
@@ -17,6 +19,15 @@ export interface BiRepository {
   findSalesRealizationRecordsUntil?(
     toExclusive: Date,
   ): Promise<BiSaleRealizationRecord[]>;
+  findCustomersMetadata?(
+    customerIds?: string[],
+  ): Promise<BiCustomerMetadata[]>;
+  findCustomerDetail?(
+    customerId: string,
+  ): Promise<BiCustomerMetadata | null>;
+  findCustomerSales?(
+    customerId: string,
+  ): Promise<BiCustomerSaleRawRecord[]>;
 }
 
 export function createBiRepository(prisma: PrismaClient): BiRepository {
@@ -201,6 +212,7 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
         select: {
           saleId: true,
           realizedDate: true,
+          netAmount: true,
           sale: {
             select: {
               customerId: true,
@@ -219,11 +231,102 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
             saleId: record.saleId,
             customerId: record.sale.customerId,
             realizedDate: record.realizedDate,
+            netAmount: record.netAmount ?? undefined,
           });
         }
       }
 
       return validRecords;
+    },
+
+    async findCustomersMetadata(customerIds?: string[]): Promise<BiCustomerMetadata[]> {
+      const records = await prisma.customer.findMany({
+        ...(customerIds && customerIds.length > 0 ? { where: { id: { in: customerIds } } } : {}),
+        include: {
+          addresses: {
+            orderBy: [{ primary: "desc" }, { position: "asc" }],
+            take: 1,
+            select: {
+              cityName: true,
+              stateAbbreviation: true,
+            },
+          },
+        },
+      });
+
+      return records.map((c) => ({
+        id: c.id,
+        sourceId: c.sourceId,
+        code: c.code,
+        legalName: c.legalName,
+        tradeName: c.tradeName,
+        cpf: c.cpf,
+        cnpj: c.cnpj,
+        city: c.addresses[0]?.cityName ?? null,
+        state: c.addresses[0]?.stateAbbreviation ?? null,
+      }));
+    },
+
+    async findCustomerDetail(customerId: string): Promise<BiCustomerMetadata | null> {
+      const c = await prisma.customer.findUnique({
+        where: { id: customerId },
+        include: {
+          addresses: {
+            orderBy: [{ primary: "desc" }, { position: "asc" }],
+            take: 1,
+            select: {
+              cityName: true,
+              stateAbbreviation: true,
+            },
+          },
+        },
+      });
+
+      if (!c) return null;
+
+      return {
+        id: c.id,
+        sourceId: c.sourceId,
+        code: c.code,
+        legalName: c.legalName,
+        tradeName: c.tradeName,
+        cpf: c.cpf,
+        cnpj: c.cnpj,
+        city: c.addresses[0]?.cityName ?? null,
+        state: c.addresses[0]?.stateAbbreviation ?? null,
+      };
+    },
+
+    async findCustomerSales(customerId: string): Promise<BiCustomerSaleRawRecord[]> {
+      const sales = await prisma.sale.findMany({
+        where: {
+          customerId,
+        },
+        include: {
+          sourceDocs: {
+            orderBy: [{ realizedDate: "desc" }, { createdAt: "desc" }],
+          },
+        },
+        orderBy: [{ commercialDate: "desc" }, { createdAt: "desc" }],
+      });
+
+      return sales.map((s) => ({
+        id: s.id,
+        anchorType: s.anchorType,
+        anchorSourceId: s.anchorSourceId,
+        commercialDate: s.commercialDate,
+        sourceDocs: s.sourceDocs.map((d) => ({
+          id: d.id,
+          docType: d.docType,
+          sourceId: d.sourceId,
+          status: d.status,
+          netAmount: d.netAmount,
+          realizedDate: d.realizedDate,
+          sourceConfirmedAt: d.sourceConfirmedAt,
+          sourceEmissaoAt: d.sourceEmissaoAt,
+          sourcePresent: d.sourcePresent,
+        })),
+      }));
     },
   };
 }

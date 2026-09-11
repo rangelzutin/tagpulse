@@ -3,7 +3,6 @@ import type {
   BiPeriodCustomerDoc,
   BiSaleRealizationRecord,
   BiSaleRecord,
-  CustomerLifetimeMetrics,
   CustomerOverviewPeriod,
   CustomerOverviewResult,
   CustomerRankingItem,
@@ -16,6 +15,10 @@ import type {
   SalesTrendGranularity,
   SalesTrendPoint,
 } from "./bi-types.js";
+import {
+  buildCustomerBehavioralMap,
+  classifyCustomerOverviewMetrics,
+} from "./bi-customer-segmentation.js";
 
 function formatUtcIso(d: Date): string {
   const y = d.getUTCFullYear();
@@ -414,64 +417,17 @@ export function calculateCustomerOverview(
   fromDate: Date,
   toExclusiveDate: Date,
 ): CustomerOverviewResult {
-  // 1. Behavioral Sales: saleRealizedDate = MIN(realizedDate) per saleId
-  const saleMap = new Map<
-    string,
-    { customerId: string; minRealizedDate: Date }
-  >();
-  for (const rec of salesRealizationRecords) {
-    if (!rec.customerId) continue;
-    const existing = saleMap.get(rec.saleId);
-    if (!existing) {
-      saleMap.set(rec.saleId, {
-        customerId: rec.customerId,
-        minRealizedDate: rec.realizedDate,
-      });
-    } else {
-      if (rec.realizedDate < existing.minRealizedDate) {
-        existing.minRealizedDate = rec.realizedDate;
-      }
-    }
-  }
+  // 1 & 2. Behavioral Sales & Classification using shared helper
+  const behavioralMap = buildCustomerBehavioralMap(
+    salesRealizationRecords,
+    fromDate,
+    toExclusiveDate,
+    period.asOfDate,
+  );
+  const { overview: customers, lifetime } =
+    classifyCustomerOverviewMetrics(behavioralMap);
 
-  // 2. Group behavioral sales by customer
-  const customerSalesMap = new Map<string, Date[]>();
-  for (const { customerId, minRealizedDate } of saleMap.values()) {
-    let list = customerSalesMap.get(customerId);
-    if (!list) {
-      list = [];
-      customerSalesMap.set(customerId, list);
-    }
-    list.push(minRealizedDate);
-  }
-
-  // 3. Buying, New, Returning customers & Recurrence Rate
-  let buyingCustomers = 0;
-  let newCustomers = 0;
-  let returningCustomers = 0;
-
-  for (const dates of customerSalesMap.values()) {
-    const hasPeriodSale = dates.some(
-      (d) => d >= fromDate && d < toExclusiveDate,
-    );
-    if (!hasPeriodSale) continue;
-
-    buyingCustomers++;
-
-    const hasPriorSale = dates.some((d) => d < fromDate);
-    if (hasPriorSale) {
-      returningCustomers++;
-    } else {
-      newCustomers++;
-    }
-  }
-
-  const recurrenceRate =
-    buyingCustomers === 0
-      ? 0
-      : Number(((returningCustomers / buyingCustomers) * 100).toFixed(2));
-
-  // 4. Financial Ranking (Top 10)
+  // 3. Financial Ranking (Top 10)
   interface CustomerRankingAgg {
     customerId: string;
     code: string | null;
@@ -564,34 +520,7 @@ export function calculateCustomerOverview(
     });
   }
 
-  // 5. Lifetime Customer Metrics (Based on all behavioral sales up to asOfDate)
-  let lifetimeCustomers = 0;
-  let singlePurchaseCustomers = 0;
-  let repeatCustomers = 0;
-
-  for (const dates of customerSalesMap.values()) {
-    if (!dates || dates.length === 0) continue;
-    lifetimeCustomers++;
-    if (dates.length === 1) {
-      singlePurchaseCustomers++;
-    } else {
-      repeatCustomers++;
-    }
-  }
-
-  const repeatRate =
-    lifetimeCustomers === 0
-      ? 0
-      : Number(((repeatCustomers / lifetimeCustomers) * 100).toFixed(2));
-
-  const lifetime: CustomerLifetimeMetrics = {
-    customers: lifetimeCustomers,
-    singlePurchaseCustomers,
-    repeatCustomers,
-    repeatRate,
-  };
-
-  // 6. Recency / Inactivity (Calendar days)
+  // 4. Recency / Inactivity (Calendar days)
   const [yearStr = "1970", monthStr = "1", dayStr = "1"] =
     period.asOfDate.split("-");
   const asOfYear = Number(yearStr);
@@ -607,21 +536,13 @@ export function calculateCustomerOverview(
   let c366_730 = 0;
   let c731_plus = 0;
 
-  for (const dates of customerSalesMap.values()) {
-    if (!dates || dates.length === 0) continue;
-
-    let maxDate = dates[0]!;
-    for (let i = 1; i < dates.length; i++) {
-      const d = dates[i];
-      if (d && d > maxDate) {
-        maxDate = d;
-      }
-    }
+  for (const summary of behavioralMap.values()) {
+    if (!summary.lastPurchaseDate) continue;
 
     const saleUtcDay = Date.UTC(
-      maxDate.getUTCFullYear(),
-      maxDate.getUTCMonth(),
-      maxDate.getUTCDate(),
+      summary.lastPurchaseDate.getUTCFullYear(),
+      summary.lastPurchaseDate.getUTCMonth(),
+      summary.lastPurchaseDate.getUTCDate(),
     );
 
     const diffMs = asOfUtcDay - saleUtcDay;
@@ -698,12 +619,7 @@ export function calculateCustomerOverview(
 
   return {
     period,
-    customers: {
-      buyingCustomers,
-      newCustomers,
-      returningCustomers,
-      recurrenceRate,
-    },
+    customers,
     lifetime,
     ranking,
     recency,

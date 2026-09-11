@@ -15,6 +15,9 @@ import { MonthlyChart } from "./components/MonthlyChart";
 import { CustomerKpiGrid } from "./components/CustomerKpiGrid";
 import { CustomerRankingCard } from "./components/CustomerRankingCard";
 import { RecencyDistributionCard } from "./components/RecencyDistributionCard";
+import { CustomerSegmentDrawer } from "./components/CustomerSegmentDrawer";
+import type { CustomerSegmentType } from "./api/bi";
+import type { RateContextData } from "./components/CustomerSegmentView";
 import { AlertCircle, RefreshCw, Users } from "lucide-react";
 
 export function App() {
@@ -36,6 +39,18 @@ export function App() {
     useState<CustomerOverviewResult | null>(null);
   const [isCustomerLoading, setIsCustomerLoading] = useState(true);
   const [customerError, setCustomerError] = useState<string | null>(null);
+
+  // Drawer State
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [drawerMode, setDrawerMode] = useState<"segment" | "detail">("segment");
+  const [selectedSegment, setSelectedSegment] =
+    useState<CustomerSegmentType | null>(null);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(
+    null,
+  );
+  const [drawerRateContext, setDrawerRateContext] =
+    useState<RateContextData | null>(null);
+  const [canGoBackToSegment, setCanGoBackToSegment] = useState(false);
 
   // Global updating state for header
   const [isUpdating, setIsUpdating] = useState(false);
@@ -145,6 +160,29 @@ export function App() {
 
   const handleRetryCustomers = () => {
     loadCustomerOverview(currentPeriod.from, currentPeriod.to, false);
+  };
+
+  const handleOpenSegmentDrawer = (
+    segment: CustomerSegmentType,
+    rateContext?: RateContextData | null,
+  ) => {
+    setSelectedSegment(segment);
+    setDrawerRateContext(rateContext ?? null);
+    setSelectedCustomerId(null);
+    setDrawerMode("segment");
+    setCanGoBackToSegment(false);
+    setIsDrawerOpen(true);
+  };
+
+  const handleOpenCustomerDetail = (customerId: string) => {
+    setSelectedCustomerId(customerId);
+    setDrawerMode("detail");
+    setCanGoBackToSegment(false);
+    setIsDrawerOpen(true);
+  };
+
+  const handleCloseDrawer = () => {
+    setIsDrawerOpen(false);
   };
 
   const isAnyLoading = isSalesLoading || isCustomerLoading || isUpdating;
@@ -324,11 +362,15 @@ export function App() {
                 metrics={customerData.customers}
                 lifetime={customerData.lifetime}
                 periodMode={periodMode}
+                onSelectSegment={handleOpenSegmentDrawer}
               />
 
               <div className="tp-split-grid">
                 <div className="tp-split-col-ranking">
-                  <CustomerRankingCard ranking={customerData.ranking} />
+                  <CustomerRankingCard
+                    ranking={customerData.ranking}
+                    onSelectCustomer={handleOpenCustomerDetail}
+                  />
                 </div>
                 <div className="tp-split-col-recency">
                   <RecencyDistributionCard recency={customerData.recency} />
@@ -338,6 +380,20 @@ export function App() {
           )}
         </section>
       </main>
+
+      {/* Unified Customer Segment & Detail Drawer */}
+      <CustomerSegmentDrawer
+        isOpen={isDrawerOpen}
+        initialMode={drawerMode}
+        segment={selectedSegment}
+        customerId={selectedCustomerId}
+        from={currentPeriod.from}
+        to={currentPeriod.to}
+        periodMode={periodMode}
+        rateContext={drawerRateContext}
+        canGoBackToSegment={canGoBackToSegment}
+        onClose={handleCloseDrawer}
+      />
     </AppShell>
   );
 }

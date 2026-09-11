@@ -215,3 +215,264 @@ export async function fetchCustomerOverview(
     throw new Error("Formato de resposta inesperado do servidor.");
   }
 }
+
+export type CustomerSegmentType =
+  | "buyers"
+  | "new"
+  | "returning"
+  | "historical"
+  | "single"
+  | "repeat";
+
+export type CustomerSegmentSort =
+  | "revenue_desc"
+  | "purchases_desc"
+  | "last_purchase_desc"
+  | "name_asc";
+
+export interface CustomerSegmentItem {
+  customerId: string;
+  code: string | null;
+  legalName: string | null;
+  tradeName: string | null;
+  displayName: string;
+  cpfCnpj: string | null;
+  purchasesInPeriod: number;
+  revenueInPeriod: number;
+  averageTicketInPeriod: number;
+  firstPurchaseDate: string | null;
+  lastPurchaseDate: string | null;
+  lifetimePurchaseCount: number;
+  lifetimeRevenue: number;
+  daysSinceLastPurchase: number | null;
+}
+
+export interface CustomerSegmentResult {
+  segment: CustomerSegmentType;
+  period: {
+    from: string;
+    to: string;
+  };
+  pagination: {
+    page: number;
+    pageSize: number;
+    totalRecords: number;
+    totalPages: number;
+  };
+  summary: {
+    segmentCustomerCount: number;
+    segmentTotalRevenueInPeriod: number;
+  };
+  customers: CustomerSegmentItem[];
+}
+
+export interface FetchCustomerSegmentParams {
+  from: string;
+  to: string;
+  segment: CustomerSegmentType;
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  sort?: CustomerSegmentSort;
+}
+
+export async function fetchCustomerSegment(
+  params: FetchCustomerSegmentParams,
+): Promise<CustomerSegmentResult> {
+  const rawBaseUrl = import.meta.env.VITE_API_URL || "";
+  const baseUrl = rawBaseUrl.endsWith("/")
+    ? rawBaseUrl.slice(0, -1)
+    : rawBaseUrl;
+
+  const searchParams = new URLSearchParams({
+    from: params.from,
+    to: params.to,
+    segment: params.segment,
+    page: String(params.page ?? 1),
+    pageSize: String(params.pageSize ?? 20),
+  });
+
+  if (params.search && params.search.trim()) {
+    searchParams.set("search", params.search.trim());
+  }
+  if (params.sort) {
+    searchParams.set("sort", params.sort);
+  }
+
+  const url = `${baseUrl}/bi/customers/segment?${searchParams.toString()}`;
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+      },
+    });
+  } catch {
+    throw new Error(
+      "Não foi possível conectar ao servidor para carregar o segmento.",
+    );
+  }
+
+  if (!response.ok) {
+    throw new Error("Erro ao carregar a lista de clientes do segmento.");
+  }
+
+  return (await response.json()) as CustomerSegmentResult;
+}
+
+export interface CustomerDetailOverviewResult {
+  identity: {
+    customerId: string;
+    sourceId: string;
+    code: string | null;
+    legalName: string | null;
+    tradeName: string | null;
+    displayName: string;
+    cpfCnpj: string | null;
+    city: string | null;
+    state: string | null;
+  };
+  classification: {
+    isNewInPeriod: boolean;
+    isReturningInPeriod: boolean;
+    hasPeriodActivity: boolean;
+  };
+  period: {
+    from: string;
+    to: string;
+    revenue: number;
+    purchaseCount: number;
+    averageTicket: number;
+    revenueSharePercent: number;
+  };
+  lifetime: {
+    asOfDate: string;
+    firstPurchaseDate: string | null;
+    lastPurchaseDate: string | null;
+    purchaseCount: number;
+    revenue: number;
+    averageTicket: number;
+    daysSinceLastPurchase: number | null;
+  };
+}
+
+export async function fetchCustomerDetailOverview(
+  customerId: string,
+  from: string,
+  to: string,
+): Promise<CustomerDetailOverviewResult> {
+  const rawBaseUrl = import.meta.env.VITE_API_URL || "";
+  const baseUrl = rawBaseUrl.endsWith("/")
+    ? rawBaseUrl.slice(0, -1)
+    : rawBaseUrl;
+
+  const url = `${baseUrl}/bi/customers/${encodeURIComponent(customerId)}/overview?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+      },
+    });
+  } catch {
+    throw new Error(
+      "Não foi possível conectar ao servidor para carregar o detalhe do cliente.",
+    );
+  }
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error("Cliente não encontrado.");
+    }
+    throw new Error("Erro ao consultar os dados cadastrais do cliente.");
+  }
+
+  return (await response.json()) as CustomerDetailOverviewResult;
+}
+
+export type CustomerSalesScope = "period" | "history";
+
+export interface CustomerSaleDocument {
+  id: string;
+  docType: string;
+  sourceId: string;
+  status: string | null;
+  netAmount: number | null;
+  realizedDate: string | null;
+  sourceConfirmedAt: string | null;
+  sourceEmissaoAt: string | null;
+  isRealizedDoc: boolean;
+}
+
+export interface CustomerSaleItem {
+  saleId: string;
+  anchorType: string;
+  anchorSourceId: string;
+  hasPedido: boolean;
+  pedidoSourceId: string | null;
+  commercialDate: string | null;
+  saleRealizedDate: string;
+  totalRealizedAmount: number;
+  realizedDocCount: number;
+  documents: CustomerSaleDocument[];
+}
+
+export interface CustomerSalesResult {
+  customerId: string;
+  pagination: {
+    page: number;
+    pageSize: number;
+    totalRecords: number;
+    totalPages: number;
+  };
+  sales: CustomerSaleItem[];
+}
+
+export interface FetchCustomerSalesParams {
+  from: string;
+  to: string;
+  scope?: CustomerSalesScope;
+  page?: number;
+  pageSize?: number;
+}
+
+export async function fetchCustomerSales(
+  customerId: string,
+  params: FetchCustomerSalesParams,
+): Promise<CustomerSalesResult> {
+  const rawBaseUrl = import.meta.env.VITE_API_URL || "";
+  const baseUrl = rawBaseUrl.endsWith("/")
+    ? rawBaseUrl.slice(0, -1)
+    : rawBaseUrl;
+
+  const searchParams = new URLSearchParams({
+    from: params.from,
+    to: params.to,
+    scope: params.scope ?? "history",
+    page: String(params.page ?? 1),
+    pageSize: String(params.pageSize ?? 20),
+  });
+
+  const url = `${baseUrl}/bi/customers/${encodeURIComponent(customerId)}/sales?${searchParams.toString()}`;
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+      },
+    });
+  } catch {
+    throw new Error(
+      "Não foi possível conectar ao servidor para carregar as negociações.",
+    );
+  }
+
+  if (!response.ok) {
+    throw new Error("Erro ao carregar o histórico de negociações do cliente.");
+  }
+
+  return (await response.json()) as CustomerSalesResult;
+}

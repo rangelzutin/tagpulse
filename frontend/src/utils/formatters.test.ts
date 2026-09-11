@@ -14,7 +14,10 @@ import {
   maskDateInput,
   validateManualPeriodInput,
   formatCustomerName,
+  formatCpfCnpj,
+  formatDateBr,
 } from "./formatters";
+
 
 describe("formatters utils", () => {
   it("parseIsoDate parses YYYY-MM-DD into a local Date without timezone offset", () => {
@@ -243,6 +246,44 @@ describe("formatters utils", () => {
       expect(formatCustomerName(null)).toBe("");
       expect(formatCustomerName(undefined)).toBe("");
       expect(formatCustomerName("  SKATE   CRIME  ")).toBe("Skate Crime");
+    });
+  });
+
+  describe("formatCpfCnpj", () => {
+    it("formats 11-digit CPF correctly", () => {
+      expect(formatCpfCnpj("12345678901")).toBe("123.456.789-01");
+    });
+
+    it("formats 14-digit CNPJ correctly", () => {
+      expect(formatCpfCnpj("12345678000195")).toBe("12.345.678/0001-95");
+    });
+
+    it("handles null, undefined or empty with em-dash", () => {
+      expect(formatCpfCnpj(null)).toBe("—");
+      expect(formatCpfCnpj(undefined)).toBe("—");
+      expect(formatCpfCnpj("")).toBe("—");
+      expect(formatCpfCnpj("   ")).toBe("—");
+    });
+
+    it("returns raw trimmed string if not 11 or 14 digits", () => {
+      expect(formatCpfCnpj("12345")).toBe("12345");
+    });
+  });
+
+  describe("formatDateBr", () => {
+    it("formats YYYY-MM-DD to DD/MM/YYYY", () => {
+      expect(formatDateBr("2026-09-08")).toBe("08/09/2026");
+      expect(formatDateBr("2026-01-01T15:30:00.000Z")).toBe("01/01/2026");
+    });
+
+    it("handles null, undefined or empty with em-dash", () => {
+      expect(formatDateBr(null)).toBe("—");
+      expect(formatDateBr(undefined)).toBe("—");
+      expect(formatDateBr("")).toBe("—");
+    });
+
+    it("returns original value if not 3 dash-separated parts", () => {
+      expect(formatDateBr("invalid")).toBe("invalid");
     });
   });
 });

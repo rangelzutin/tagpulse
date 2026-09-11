@@ -130,4 +130,161 @@ export interface BiSaleRealizationRecord {
   saleId: string;
   customerId: string;
   realizedDate: Date;
+  netAmount?: Prisma.Decimal | undefined;
+}
+
+export type CustomerSegmentType =
+  | "buyers"
+  | "new"
+  | "returning"
+  | "historical"
+  | "single"
+  | "repeat";
+
+export type CustomerSegmentSort =
+  | "revenue_desc"
+  | "purchases_desc"
+  | "last_purchase_desc"
+  | "name_asc";
+
+export interface CustomerSegmentItem {
+  customerId: string;
+  code: string | null;
+  legalName: string | null;
+  tradeName: string | null;
+  displayName: string;
+  cpfCnpj: string | null;
+  purchasesInPeriod: number;
+  revenueInPeriod: number;
+  averageTicketInPeriod: number;
+  firstPurchaseDate: string | null;
+  lastPurchaseDate: string | null;
+  lifetimePurchaseCount: number;
+  lifetimeRevenue: number;
+  daysSinceLastPurchase: number | null;
+}
+
+export interface CustomerSegmentResult {
+  segment: CustomerSegmentType;
+  period: {
+    from: string;
+    to: string;
+  };
+  pagination: {
+    page: number;
+    pageSize: number;
+    totalRecords: number;
+    totalPages: number;
+  };
+  summary: {
+    segmentCustomerCount: number;
+    segmentTotalRevenueInPeriod: number;
+  };
+  customers: CustomerSegmentItem[];
+}
+
+export interface CustomerDetailOverviewResult {
+  identity: {
+    customerId: string;
+    sourceId: string;
+    code: string | null;
+    legalName: string | null;
+    tradeName: string | null;
+    displayName: string;
+    cpfCnpj: string | null;
+    city: string | null;
+    state: string | null;
+  };
+  classification: {
+    isNewInPeriod: boolean;
+    isReturningInPeriod: boolean;
+    hasPeriodActivity: boolean;
+  };
+  period: {
+    from: string;
+    to: string;
+    revenue: number;
+    purchaseCount: number;
+    averageTicket: number;
+    revenueSharePercent: number;
+  };
+  lifetime: {
+    asOfDate: string;
+    firstPurchaseDate: string | null;
+    lastPurchaseDate: string | null;
+    purchaseCount: number;
+    revenue: number;
+    averageTicket: number;
+    daysSinceLastPurchase: number | null;
+  };
+}
+
+export type CustomerSalesScope = "period" | "history";
+
+export interface CustomerSaleDocument {
+  id: string;
+  docType: string;
+  sourceId: string;
+  status: string | null;
+  netAmount: number | null;
+  realizedDate: string | null;
+  sourceConfirmedAt: string | null;
+  sourceEmissaoAt: string | null;
+  isRealizedDoc: boolean;
+}
+
+export interface CustomerSaleItem {
+  saleId: string;
+  anchorType: string;
+  anchorSourceId: string;
+  hasPedido: boolean;
+  pedidoSourceId: string | null;
+  commercialDate: string | null;
+  saleRealizedDate: string;
+  totalRealizedAmount: number;
+  realizedDocCount: number;
+  documents: CustomerSaleDocument[];
+}
+
+export interface CustomerSalesResult {
+  customerId: string;
+  pagination: {
+    page: number;
+    pageSize: number;
+    totalRecords: number;
+    totalPages: number;
+  };
+  sales: CustomerSaleItem[];
+}
+
+export interface BiCustomerMetadata {
+  id: string;
+  sourceId: string;
+  code: string | null;
+  legalName: string | null;
+  tradeName: string | null;
+  cpf: string | null;
+  cnpj: string | null;
+  city: string | null;
+  state: string | null;
+}
+
+export interface BiCustomerSaleRawDoc {
+  id: string;
+  docType: string;
+  sourceId: string;
+  status: string | null;
+  netAmount: Prisma.Decimal | null;
+  realizedDate: Date | null;
+  sourceConfirmedAt: Date | null;
+  sourceEmissaoAt: Date | null;
+  sourcePresent: boolean;
+}
+
+export interface BiCustomerSaleRawRecord {
+  id: string;
+  anchorType: string;
+  anchorSourceId: string;
+  commercialDate: Date | null;
+  sourceDocs: BiCustomerSaleRawDoc[];
 }

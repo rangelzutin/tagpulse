@@ -9,9 +9,13 @@ import {
 
 interface CustomerRankingCardProps {
   ranking: CustomerRankingItem[];
+  onSelectCustomer?: (customerId: string) => void;
 }
 
-export function CustomerRankingCard({ ranking }: CustomerRankingCardProps) {
+export function CustomerRankingCard({
+  ranking,
+  onSelectCustomer,
+}: CustomerRankingCardProps) {
   if (!ranking || ranking.length === 0) {
     return (
       <section className="tp-card tp-ranking-card" aria-label="Top 10 Clientes">
@@ -64,10 +68,35 @@ export function CustomerRankingCard({ ranking }: CustomerRankingCardProps) {
               const rank = index + 1;
               const isTop3 = rank <= 3;
 
+              const isClickable = Boolean(onSelectCustomer && item.customerId);
+              const formattedName = formatCustomerName(item.displayName);
+
               return (
                 <tr
                   key={item.customerId || `${item.displayName}-${index}`}
-                  className={`tp-table-row ${isTop3 ? "is-top-rank" : ""}`}
+                  className={`tp-table-row ${isTop3 ? "is-top-rank" : ""} ${isClickable ? "tp-table-row-clickable" : ""}`}
+                  tabIndex={isClickable ? 0 : undefined}
+                  role={isClickable ? "button" : undefined}
+                  aria-label={
+                    isClickable
+                      ? `Ver detalhes de ${formattedName}`
+                      : undefined
+                  }
+                  onClick={() => {
+                    if (isClickable && item.customerId) {
+                      onSelectCustomer?.(item.customerId);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (
+                      isClickable &&
+                      item.customerId &&
+                      (e.key === "Enter" || e.key === " ")
+                    ) {
+                      e.preventDefault();
+                      onSelectCustomer?.(item.customerId);
+                    }
+                  }}
                 >
                   <td className="tp-td-rank">
                     <span className={`tp-rank-tag tp-rank-${rank}`}>
@@ -81,9 +110,9 @@ export function CustomerRankingCard({ ranking }: CustomerRankingCardProps) {
                     <div className="tp-client-info">
                       <span
                         className="tp-client-name"
-                        title={formatCustomerName(item.displayName)}
+                        title={formattedName}
                       >
-                        {formatCustomerName(item.displayName)}
+                        {formattedName}
                       </span>
                       {item.code && (
                         <span className="tp-client-code">Cód. {item.code}</span>
