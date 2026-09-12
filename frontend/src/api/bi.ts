@@ -217,6 +217,16 @@ export async function fetchCustomerOverview(
   }
 }
 
+export type CustomerRecencyBucket =
+  | "0-30"
+  | "31-60"
+  | "61-90"
+  | "91-180"
+  | "181-365"
+  | "366-730"
+  | "731-1095"
+  | "1096+";
+
 export type CustomerSegmentType =
   | "buyers"
   | "new"
@@ -225,7 +235,8 @@ export type CustomerSegmentType =
   | "single"
   | "repeat"
   | "risk"
-  | "inactive";
+  | "inactive"
+  | "recency";
 
 export type CustomerSegmentSort =
   | "revenue_desc"
@@ -252,6 +263,7 @@ export interface CustomerSegmentItem {
 
 export interface CustomerSegmentResult {
   segment: CustomerSegmentType;
+  recencyBucket?: CustomerRecencyBucket | null;
   period: {
     from: string;
     to: string;
@@ -273,6 +285,7 @@ export interface FetchCustomerSegmentParams {
   from: string;
   to: string;
   segment: CustomerSegmentType;
+  recencyBucket?: CustomerRecencyBucket | null;
   page?: number;
   pageSize?: number;
   search?: string;
@@ -295,6 +308,9 @@ export async function fetchCustomerSegment(
     pageSize: String(params.pageSize ?? 20),
   });
 
+  if (params.recencyBucket) {
+    searchParams.set("recencyBucket", params.recencyBucket);
+  }
   if (params.search && params.search.trim()) {
     searchParams.set("search", params.search.trim());
   }

@@ -4,6 +4,7 @@ import type {
   BiSaleRealizationRecord,
   CustomerOverviewMetrics,
   CustomerLifetimeMetrics,
+  CustomerRecencyBucket,
   CustomerSegmentItem,
   CustomerSegmentResult,
   CustomerSegmentSort,
@@ -222,6 +223,7 @@ export function classifyCustomerOverviewMetrics(
 export function isCustomerInSegment(
   summary: CustomerSalesSummary,
   segment: CustomerSegmentType,
+  recencyBucket?: CustomerRecencyBucket | string,
 ): boolean {
   switch (segment) {
     case "buyers":
@@ -247,6 +249,30 @@ export function isCustomerInSegment(
         summary.daysSinceLastPurchase !== null &&
         summary.daysSinceLastPurchase > 365
       );
+    case "recency": {
+      if (summary.daysSinceLastPurchase === null) return false;
+      const d = summary.daysSinceLastPurchase;
+      switch (recencyBucket) {
+        case "0-30":
+          return d <= 30;
+        case "31-60":
+          return d >= 31 && d <= 60;
+        case "61-90":
+          return d >= 61 && d <= 90;
+        case "91-180":
+          return d >= 91 && d <= 180;
+        case "181-365":
+          return d >= 181 && d <= 365;
+        case "366-730":
+          return d >= 366 && d <= 730;
+        case "731-1095":
+          return d >= 731 && d <= 1095;
+        case "1096+":
+          return d > 1095;
+        default:
+          return false;
+      }
+    }
     default:
       return false;
   }
@@ -271,6 +297,7 @@ function normalizeSearch(text: string): string {
 
 export function filterAndPaginateSegment(params: {
   segment: CustomerSegmentType;
+  recencyBucket?: CustomerRecencyBucket | undefined;
   fromStr: string;
   toStr: string;
   customerBehavioralMap: Map<string, CustomerSalesSummary>;
@@ -286,6 +313,7 @@ export function filterAndPaginateSegment(params: {
 }): CustomerSegmentResult {
   const {
     segment,
+    recencyBucket,
     fromStr,
     toStr,
     customerBehavioralMap,
@@ -301,7 +329,7 @@ export function filterAndPaginateSegment(params: {
   const allSegmentItems: CustomerSegmentItem[] = [];
 
   for (const [customerId, summary] of customerBehavioralMap.entries()) {
-    if (!isCustomerInSegment(summary, segment)) continue;
+    if (!isCustomerInSegment(summary, segment, recencyBucket)) continue;
 
     const rev = customerRevenues.get(customerId);
     const meta = metadataMap.get(customerId);
@@ -415,6 +443,7 @@ export function filterAndPaginateSegment(params: {
 
   return {
     segment,
+    recencyBucket: (recencyBucket as CustomerRecencyBucket) ?? null,
     period: {
       from: fromStr,
       to: toStr,

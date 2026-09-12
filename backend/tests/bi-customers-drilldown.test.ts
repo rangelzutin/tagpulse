@@ -451,6 +451,89 @@ describe("Customer Drilldown Backend Endpoints", () => {
       ]);
     });
 
+    it("A3. Segmento recency com as 8 faixas: validação de fronteiras (30/31, 60/61, 90/91, 180/181, 365/366, 730/731, 1095/1096) e reconciliação exata 1:1 com overview", async () => {
+      // asOfDate = 2026-01-31
+      const boundaryDocs: RawTestDoc[] = [
+        { id: "b30", saleId: "s30", customerId: "c30", netAmount: 10, realizedDate: new Date("2026-01-01T12:00:00Z"), customer: { tradeName: "C30" } },
+        { id: "b31", saleId: "s31", customerId: "c31", netAmount: 10, realizedDate: new Date("2025-12-31T12:00:00Z"), customer: { tradeName: "C31" } },
+        { id: "b60", saleId: "s60", customerId: "c60", netAmount: 10, realizedDate: new Date("2025-12-02T12:00:00Z"), customer: { tradeName: "C60" } },
+        { id: "b61", saleId: "s61", customerId: "c61", netAmount: 10, realizedDate: new Date("2025-12-01T12:00:00Z"), customer: { tradeName: "C61" } },
+        { id: "b90", saleId: "s90", customerId: "c90", netAmount: 10, realizedDate: new Date("2025-11-02T12:00:00Z"), customer: { tradeName: "C90" } },
+        { id: "b91", saleId: "s91", customerId: "c91", netAmount: 10, realizedDate: new Date("2025-11-01T12:00:00Z"), customer: { tradeName: "C91" } },
+        { id: "b180", saleId: "s180", customerId: "c180", netAmount: 10, realizedDate: new Date("2025-08-04T12:00:00Z"), customer: { tradeName: "C180" } },
+        { id: "b181", saleId: "s181", customerId: "c181", netAmount: 10, realizedDate: new Date("2025-08-03T12:00:00Z"), customer: { tradeName: "C181" } },
+        { id: "b365", saleId: "s365", customerId: "c365", netAmount: 10, realizedDate: new Date("2025-01-31T12:00:00Z"), customer: { tradeName: "C365" } },
+        { id: "b366", saleId: "s366", customerId: "c366", netAmount: 10, realizedDate: new Date("2025-01-30T12:00:00Z"), customer: { tradeName: "C366" } },
+        { id: "b730", saleId: "s730", customerId: "c730", netAmount: 10, realizedDate: new Date("2024-02-01T12:00:00Z"), customer: { tradeName: "C730" } },
+        { id: "b731", saleId: "s731", customerId: "c731", netAmount: 10, realizedDate: new Date("2024-01-31T12:00:00Z"), customer: { tradeName: "C731" } },
+        { id: "b1095", saleId: "s1095", customerId: "c1095", netAmount: 10, realizedDate: new Date("2023-02-01T12:00:00Z"), customer: { tradeName: "C1095" } },
+        { id: "b1096", saleId: "s1096", customerId: "c1096", netAmount: 10, realizedDate: new Date("2023-01-31T12:00:00Z"), customer: { tradeName: "C1096" } },
+      ];
+
+      const repo = createFakeDrilldownBiRepository(boundaryDocs);
+      const app = await createApp(repo);
+
+      // 1. Rejeita se recencyBucket estiver ausente ou inválido
+      const missingBucketRes = await app.inject({
+        method: "GET",
+        url: "/bi/customers/segment?from=2026-01-01&to=2026-01-31&segment=recency",
+      });
+      expect(missingBucketRes.statusCode).toBe(400);
+      expect(missingBucketRes.json().message).toContain("Faixa de recência inválida");
+
+      const invalidBucketRes = await app.inject({
+        method: "GET",
+        url: "/bi/customers/segment?from=2026-01-01&to=2026-01-31&segment=recency&recencyBucket=invalido",
+      });
+      expect(invalidBucketRes.statusCode).toBe(400);
+      expect(invalidBucketRes.json().message).toContain("Faixa de recência inválida");
+
+      // 2. Fetch overview para obter os totais esperados de cada bucket
+      const overviewRes = await app.inject({
+        method: "GET",
+        url: "/bi/customers/overview?from=2026-01-01&to=2026-01-31",
+      });
+      expect(overviewRes.statusCode).toBe(200);
+      const overview = overviewRes.json();
+      const recencyList = overview.recency as { key: string; customerCount: number }[];
+
+      const buckets: { key: string; expectedCusts: string[] }[] = [
+        { key: "0-30", expectedCusts: ["c30"] },
+        { key: "31-60", expectedCusts: ["c31", "c60"] },
+        { key: "61-90", expectedCusts: ["c61", "c90"] },
+        { key: "91-180", expectedCusts: ["c91", "c180"] },
+        { key: "181-365", expectedCusts: ["c181", "c365"] },
+        { key: "366-730", expectedCusts: ["c366", "c730"] },
+        { key: "731-1095", expectedCusts: ["c731", "c1095"] },
+        { key: "1096+", expectedCusts: ["c1096"] },
+      ];
+
+      let totalDrilldownCustomers = 0;
+
+      for (const { key, expectedCusts } of buckets) {
+        const segRes = await app.inject({
+          method: "GET",
+          url: `/bi/customers/segment?from=2026-01-01&to=2026-01-31&segment=recency&recencyBucket=${encodeURIComponent(key)}`,
+        });
+
+        expect(segRes.statusCode).toBe(200);
+        const body = segRes.json() as CustomerSegmentResult;
+
+        expect(body.segment).toBe("recency");
+        expect(body.recencyBucket).toBe(key);
+
+        const overviewCount = recencyList.find((r) => r.key === key)!.customerCount;
+        expect(body.pagination.totalRecords).toBe(overviewCount);
+        expect(body.summary.segmentCustomerCount).toBe(overviewCount);
+        expect(body.customers.map((c) => c.customerId).sort()).toEqual(expectedCusts.sort());
+
+        totalDrilldownCustomers += body.pagination.totalRecords;
+      }
+
+      // Reconciliação total: a soma das 8 faixas equivale exatamente aos 14 clientes
+      expect(totalDrilldownCustomers).toBe(14);
+    });
+
     it("C. Múltiplos SaleSourceDocuments da mesma Sale NÃO geram compra comportamental adicional", async () => {
       const testDocs: RawTestDoc[] = [
         {

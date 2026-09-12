@@ -17,6 +17,7 @@ import type {
   BiDataRangeResult,
   CustomerDetailOverviewResult,
   CustomerSalesResult,
+  CustomerRecencyBucket,
   CustomerSalesScope,
   CustomerSegmentResult,
   CustomerSegmentSort,
@@ -79,6 +80,18 @@ const VALID_SEGMENTS: Set<CustomerSegmentType> = new Set([
   "repeat",
   "risk",
   "inactive",
+  "recency",
+]);
+
+const VALID_RECENCY_BUCKETS: Set<CustomerRecencyBucket> = new Set([
+  "0-30",
+  "31-60",
+  "61-90",
+  "91-180",
+  "181-365",
+  "366-730",
+  "731-1095",
+  "1096+",
 ]);
 
 const VALID_SORTS: Set<CustomerSegmentSort> = new Set([
@@ -200,10 +213,23 @@ export function createBiService(repository: BiRepository): BiService {
         return {
           success: false,
           error:
-            "Segmento inválido. Valores permitidos: buyers, new, returning, historical, single, repeat, risk, inactive.",
+            "Segmento inválido. Valores permitidos: buyers, new, returning, historical, single, repeat, risk, inactive, recency.",
         };
       }
       const segment = segmentParam as CustomerSegmentType;
+
+      let recencyBucket: CustomerRecencyBucket | undefined;
+      if (segment === "recency") {
+        const bucketParam = typeof query.recencyBucket === "string" ? query.recencyBucket.trim() : "";
+        if (!VALID_RECENCY_BUCKETS.has(bucketParam as CustomerRecencyBucket)) {
+          return {
+            success: false,
+            error:
+              "Faixa de recência inválida. Valores permitidos: 0-30, 31-60, 61-90, 91-180, 181-365, 366-730, 731-1095, 1096+.",
+          };
+        }
+        recencyBucket = bucketParam as CustomerRecencyBucket;
+      }
 
       let page = 1;
       if (query.page !== undefined) {
@@ -318,6 +344,7 @@ export function createBiService(repository: BiRepository): BiService {
 
       const result = filterAndPaginateSegment({
         segment,
+        recencyBucket,
         fromStr,
         toStr,
         customerBehavioralMap: behavioralMap,

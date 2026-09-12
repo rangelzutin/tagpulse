@@ -16,7 +16,7 @@ import { CustomerKpiGrid } from "./components/CustomerKpiGrid";
 import { CustomerRankingCard } from "./components/CustomerRankingCard";
 import { RecencyDistributionCard } from "./components/RecencyDistributionCard";
 import { CustomerSegmentDrawer } from "./components/CustomerSegmentDrawer";
-import type { CustomerSegmentType } from "./api/bi";
+import type { CustomerRecencyBucket, CustomerSegmentType } from "./api/bi";
 import type { RateContextData } from "./components/CustomerSegmentView";
 import { AlertCircle, RefreshCw, Users } from "lucide-react";
 
@@ -45,6 +45,8 @@ export function App() {
   const [drawerMode, setDrawerMode] = useState<"segment" | "detail">("segment");
   const [selectedSegment, setSelectedSegment] =
     useState<CustomerSegmentType | null>(null);
+  const [selectedRecencyBucket, setSelectedRecencyBucket] =
+    useState<CustomerRecencyBucket | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(
     null,
   );
@@ -174,8 +176,10 @@ export function App() {
   const handleOpenSegmentDrawer = (
     segment: CustomerSegmentType,
     rateContext?: RateContextData | null,
+    recencyBucket?: CustomerRecencyBucket | null,
   ) => {
     setSelectedSegment(segment);
+    setSelectedRecencyBucket(recencyBucket ?? null);
     setDrawerRateContext(rateContext ?? null);
     setSelectedCustomerId(null);
     setDrawerMode("segment");
@@ -385,6 +389,9 @@ export function App() {
                   <RecencyDistributionCard
                     recency={customerData.recency}
                     onSelectSegment={handleOpenSegmentDrawer}
+                    onSelectRecencyBucket={(bucket) =>
+                      handleOpenSegmentDrawer("recency", null, bucket)
+                    }
                   />
                 </div>
               </div>
@@ -398,6 +405,7 @@ export function App() {
         isOpen={isDrawerOpen}
         initialMode={drawerMode}
         segment={selectedSegment}
+        recencyBucket={selectedRecencyBucket}
         customerId={selectedCustomerId}
         from={currentPeriod.from}
         to={currentPeriod.to}

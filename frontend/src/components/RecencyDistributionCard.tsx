@@ -1,15 +1,21 @@
 import { Clock } from "lucide-react";
-import type { CustomerRecencySegment, CustomerSegmentType } from "../api/bi";
+import type {
+  CustomerRecencyBucket,
+  CustomerRecencySegment,
+  CustomerSegmentType,
+} from "../api/bi";
 import { formatNumber, formatPercent } from "../utils/formatters";
 
 interface RecencyDistributionCardProps {
   recency: CustomerRecencySegment[];
   onSelectSegment?: (segment: CustomerSegmentType) => void;
+  onSelectRecencyBucket?: (bucket: CustomerRecencyBucket) => void;
 }
 
 export function RecencyDistributionCard({
   recency,
   onSelectSegment,
+  onSelectRecencyBucket,
 }: RecencyDistributionCardProps) {
   if (!recency || recency.length === 0) {
     return (
@@ -81,7 +87,20 @@ export function RecencyDistributionCard({
           const barWidth = Math.min(100, Math.max(0, segment.percentage));
 
           return (
-            <div key={segment.key} className="tp-recency-item">
+            <div
+              key={segment.key}
+              className="tp-recency-item tp-recency-item-interactive"
+              role="button"
+              tabIndex={0}
+              aria-label={`Ver clientes da faixa ${segment.label}: ${formatNumber(segment.customerCount)} clientes (${formatPercent(segment.percentage)})`}
+              onClick={() => onSelectRecencyBucket?.(segment.key)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onSelectRecencyBucket?.(segment.key);
+                }
+              }}
+            >
               <div className="tp-recency-meta">
                 <div className="tp-recency-label-wrap">
                   <span className="tp-recency-bullet" />

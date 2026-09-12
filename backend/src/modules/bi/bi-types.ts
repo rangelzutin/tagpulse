@@ -134,6 +134,16 @@ export interface BiSaleRealizationRecord {
   netAmount?: Prisma.Decimal | undefined;
 }
 
+export type CustomerRecencyBucket =
+  | "0-30"
+  | "31-60"
+  | "61-90"
+  | "91-180"
+  | "181-365"
+  | "366-730"
+  | "731-1095"
+  | "1096+";
+
 export type CustomerSegmentType =
   | "buyers"
   | "new"
@@ -142,7 +152,8 @@ export type CustomerSegmentType =
   | "single"
   | "repeat"
   | "risk"
-  | "inactive";
+  | "inactive"
+  | "recency";
 
 export type CustomerSegmentSort =
   | "revenue_desc"
@@ -169,6 +180,7 @@ export interface CustomerSegmentItem {
 
 export interface CustomerSegmentResult {
   segment: CustomerSegmentType;
+  recencyBucket?: CustomerRecencyBucket | null;
   period: {
     from: string;
     to: string;

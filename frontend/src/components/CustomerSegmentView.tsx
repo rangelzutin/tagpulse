@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import {
   fetchCustomerSegment,
+  type CustomerRecencyBucket,
   type CustomerSegmentItem,
   type CustomerSegmentResult,
   type CustomerSegmentSort,
@@ -35,6 +36,7 @@ export interface RateContextData {
 
 interface CustomerSegmentViewProps {
   segment: CustomerSegmentType;
+  recencyBucket?: CustomerRecencyBucket | null;
   from: string;
   to: string;
   rateContext?: RateContextData | null;
@@ -50,10 +52,34 @@ const SEGMENT_LABELS: Record<CustomerSegmentType, string> = {
   repeat: "Clientes Recorrentes",
   risk: "Clientes em Risco",
   inactive: "Clientes Inativos",
+  recency: "Recência da Base",
+};
+
+const RECENCY_BUCKET_TITLES: Record<CustomerRecencyBucket, string> = {
+  "0-30": "Clientes — Até 30 dias",
+  "31-60": "Clientes — 31–60 dias",
+  "61-90": "Clientes — 61–90 dias",
+  "91-180": "Clientes — 3–6 meses",
+  "181-365": "Clientes — 6–12 meses",
+  "366-730": "Clientes — 1–2 anos",
+  "731-1095": "Clientes — 2–3 anos",
+  "1096+": "Clientes — Mais de 3 anos",
+};
+
+const RECENCY_BUCKET_RULES: Record<CustomerRecencyBucket, string> = {
+  "0-30": "última compra realizada há até 30 dias",
+  "31-60": "última compra realizada entre 31 e 60 dias",
+  "61-90": "última compra realizada entre 61 e 90 dias",
+  "91-180": "última compra realizada entre 3 e 6 meses (91 a 180 dias)",
+  "181-365": "última compra realizada entre 6 e 12 meses (181 a 365 dias)",
+  "366-730": "última compra realizada entre 1 e 2 anos (366 a 730 dias)",
+  "731-1095": "última compra realizada entre 2 e 3 anos (731 a 1095 dias)",
+  "1096+": "última compra realizada há mais de 3 anos (> 1095 dias)",
 };
 
 export function CustomerSegmentView({
   segment,
+  recencyBucket,
   from,
   to,
   rateContext,
@@ -80,10 +106,10 @@ export function CustomerSegmentView({
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  // Reset page when segment or sort changes
+  // Reset page when segment, recencyBucket or sort changes
   useEffect(() => {
     setPage(1);
-  }, [segment, sort]);
+  }, [segment, recencyBucket, sort]);
 
   const loadSegment = async () => {
     setIsLoading(true);
@@ -93,6 +119,7 @@ export function CustomerSegmentView({
         from,
         to,
         segment,
+        recencyBucket: recencyBucket ?? undefined,
         page,
         pageSize: 20,
         search: debouncedSearch || undefined,
@@ -113,12 +140,15 @@ export function CustomerSegmentView({
   useEffect(() => {
     loadSegment();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [segment, from, to, page, debouncedSearch, sort]);
+  }, [from, to, segment, recencyBucket, page, debouncedSearch, sort]);
 
-  const segmentTitle = SEGMENT_LABELS[segment];
+  const segmentTitle =
+    segment === "recency" && recencyBucket
+      ? RECENCY_BUCKET_TITLES[recencyBucket]
+      : SEGMENT_LABELS[segment] || "Segmento";
 
   return (
-    <div className="tp-segment-view">
+    <div className="tp-drawer-view">
       {/* Header */}
       <header className="tp-drawer-view-header">
         <div className="tp-drawer-header-meta">
@@ -133,7 +163,12 @@ export function CustomerSegmentView({
                 {formatNumber(data.summary.segmentCustomerCount)}
               </strong>{" "}
               {data.summary.segmentCustomerCount === 1 ? "cliente" : "clientes"}
-              {segment === "risk" || segment === "inactive" ? (
+              {segment === "recency" && recencyBucket ? (
+                <>
+                  {" • "}
+                  <span>{RECENCY_BUCKET_RULES[recencyBucket]}</span>
+                </>
+              ) : segment === "risk" || segment === "inactive" ? (
                 <>
                   {" • "}
                   <span>
