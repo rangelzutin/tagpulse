@@ -303,7 +303,7 @@ export function App() {
               <span className="tp-section-icon-badge">
                 <Users size={14} />
               </span>
-              <h2 className="tp-section-title">INTELIGÊNCIA DE CLIENTES</h2>
+              <h2 className="tp-section-title">Inteligência de Clientes</h2>
             </div>
             <p className="tp-section-desc">
               Comportamento, taxa de recorrência, concentração de faturamento e
@@ -382,7 +382,10 @@ export function App() {
                   />
                 </div>
                 <div className="tp-split-col-recency">
-                  <RecencyDistributionCard recency={customerData.recency} />
+                  <RecencyDistributionCard
+                    recency={customerData.recency}
+                    onSelectSegment={handleOpenSegmentDrawer}
+                  />
                 </div>
               </div>
             </div>

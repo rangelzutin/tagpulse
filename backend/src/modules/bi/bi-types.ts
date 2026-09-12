@@ -97,7 +97,8 @@ export interface CustomerRecencySegment {
     | "91-180"
     | "181-365"
     | "366-730"
-    | "731+";
+    | "731-1095"
+    | "1096+";
   label: string;
   customerCount: number;
   percentage: number;
@@ -139,7 +140,9 @@ export type CustomerSegmentType =
   | "returning"
   | "historical"
   | "single"
-  | "repeat";
+  | "repeat"
+  | "risk"
+  | "inactive";
 
 export type CustomerSegmentSort =
   | "revenue_desc"

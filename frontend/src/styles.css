@@ -1336,6 +1336,134 @@ body {
   font-size: 0.775rem;
 }
 
+.tp-split-col-recency {
+  display: flex;
+  flex-direction: column;
+}
+
+.tp-recency-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.tp-recency-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+  margin-top: 0.25rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--tp-border-subtle);
+}
+
+.tp-recency-kpi {
+  background-color: var(--tp-bg-surface);
+  border: 1px solid var(--tp-border-subtle);
+  border-radius: var(--tp-radius-sm);
+  padding: 0.55rem 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.tp-kpi-risk {
+  border-left: 3px solid #f59e0b;
+}
+
+.tp-kpi-inactive {
+  border-left: 3px solid #f43f5e;
+}
+
+.tp-recency-kpi-header {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.tp-recency-kpi-indicator {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.tp-indicator-amber {
+  background-color: #f59e0b;
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.4);
+}
+
+.tp-indicator-rose {
+  background-color: #f43f5e;
+  box-shadow: 0 0 6px rgba(244, 63, 94, 0.4);
+}
+
+.tp-recency-kpi-title {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--tp-text-secondary);
+  letter-spacing: 0.01em;
+}
+
+.tp-recency-kpi-body {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+}
+
+.tp-recency-kpi-val {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--tp-text-primary);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.tp-recency-kpi-pct {
+  font-size: 0.725rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.tp-pct-amber {
+  color: #f59e0b;
+}
+
+.tp-pct-rose {
+  color: #f43f5e;
+}
+
+.tp-recency-kpi-rule {
+  font-size: 0.65rem;
+  color: var(--tp-text-muted);
+  line-height: 1.2;
+}
+
+.tp-recency-kpi.tp-kpi-interactive {
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+  user-select: none;
+}
+
+.tp-recency-kpi.tp-kpi-interactive:hover {
+  background-color: var(--tp-bg-card-hover);
+  transform: translateY(-1px);
+}
+
+.tp-recency-kpi.tp-kpi-risk.tp-kpi-interactive:hover {
+  border-color: #f59e0b;
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.15);
+}
+
+.tp-recency-kpi.tp-kpi-inactive.tp-kpi-interactive:hover {
+  border-color: #f43f5e;
+  box-shadow: 0 4px 14px rgba(244, 63, 94, 0.15);
+}
+
+.tp-recency-kpi.tp-kpi-interactive:focus-visible {
+  outline: 2px solid var(--tp-cyan-400);
+  outline-offset: 2px;
+}
+
 /* ==========================================================================
    States (Error, Loading Skeletons, Refreshing)
    ========================================================================== */

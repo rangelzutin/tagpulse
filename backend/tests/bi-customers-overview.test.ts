@@ -467,6 +467,13 @@ describe("GET /bi/customers/overview", () => {
         netAmount: "10.00",
         realizedDate: new Date("2024-01-31T12:00:00.000Z"),
       },
+      {
+        id: "d8",
+        saleId: "s8",
+        customerId: "c8",
+        netAmount: "10.00",
+        realizedDate: new Date("2022-01-31T12:00:00.000Z"),
+      },
     ]);
 
     const app = await createApp(repo);
@@ -499,16 +506,19 @@ describe("GET /bi/customers/overview", () => {
     expect(findBracket("366-730").customerCount).toBe(1);
     expect(findBracket("366-730").label).toBe("1–2 anos");
 
-    expect(findBracket("731+").customerCount).toBe(1);
-    expect(findBracket("731+").label).toBe("Mais de 2 anos");
+    expect(findBracket("731-1095").customerCount).toBe(1);
+    expect(findBracket("731-1095").label).toBe("2–3 anos");
 
-    // Total = 7 customers. 1/7 = 14.29%
+    expect(findBracket("1096+").customerCount).toBe(1);
+    expect(findBracket("1096+").label).toBe("Mais de 3 anos");
+
+    // Total = 8 customers. 1/8 = 12.5%
     for (const b of recency) {
-      expect(b.percentage).toBe(14.29);
+      expect(b.percentage).toBe(12.5);
     }
   });
 
-  it("9b. testes rigorosos de fronteira nas faixas de recência (30/31, 60/61, 90/91, 180/181, 365/366, 730/731)", async () => {
+  it("9b. testes rigorosos de fronteira nas faixas de recência (30/31, 60/61, 90/91, 180/181, 365/366, 730/731, 1095/1096)", async () => {
     // asOfDate = 2026-01-31
     // Reference day: Date.UTC(2026, 0, 31)
     // 30 days: 2026-01-01 -> 0-30
@@ -522,7 +532,9 @@ describe("GET /bi/customers/overview", () => {
     // 365 days: 2025-01-31 -> 181-365
     // 366 days: 2025-01-30 -> 366-730
     // 730 days: 2024-02-01 -> 366-730 (2024 leap year: 366 days + 2025: 365 days = 731 - 1 = 730)
-    // 731 days: 2024-01-31 -> 731+
+    // 731 days: 2024-01-31 -> 731-1095
+    // 1095 days: 2023-02-01 -> 731-1095
+    // 1096 days: 2023-01-31 -> 1096+
     const boundaryDocs = [
       { id: "b30", customerId: "c30", netAmount: 10, realizedDate: new Date("2026-01-01T12:00:00Z") },
       { id: "b31", customerId: "c31", netAmount: 10, realizedDate: new Date("2025-12-31T12:00:00Z") },
@@ -536,6 +548,8 @@ describe("GET /bi/customers/overview", () => {
       { id: "b366", customerId: "c366", netAmount: 10, realizedDate: new Date("2025-01-30T12:00:00Z") },
       { id: "b730", customerId: "c730", netAmount: 10, realizedDate: new Date("2024-02-01T12:00:00Z") },
       { id: "b731", customerId: "c731", netAmount: 10, realizedDate: new Date("2024-01-31T12:00:00Z") },
+      { id: "b1095", customerId: "c1095", netAmount: 10, realizedDate: new Date("2023-02-01T12:00:00Z") },
+      { id: "b1096", customerId: "c1096", netAmount: 10, realizedDate: new Date("2023-01-31T12:00:00Z") },
     ];
 
     const repo = createFakeCustomerBiRepository(boundaryDocs);
@@ -561,8 +575,10 @@ describe("GET /bi/customers/overview", () => {
     expect(findBracket("181-365").customerCount).toBe(2);
     // 366-730 contains c366 and c730
     expect(findBracket("366-730").customerCount).toBe(2);
-    // 731+ contains c731
-    expect(findBracket("731+").customerCount).toBe(1);
+    // 731-1095 contains c731 and c1095
+    expect(findBracket("731-1095").customerCount).toBe(2);
+    // 1096+ contains c1096
+    expect(findBracket("1096+").customerCount).toBe(1);
   });
 
   it("10. recência histórica usa 'to'/asOfDate e não a data atual", async () => {

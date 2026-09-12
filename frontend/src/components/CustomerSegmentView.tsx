@@ -48,6 +48,8 @@ const SEGMENT_LABELS: Record<CustomerSegmentType, string> = {
   historical: "Clientes Históricos",
   single: "Compra Única",
   repeat: "Clientes Recorrentes",
+  risk: "Clientes em Risco",
+  inactive: "Clientes Inativos",
 };
 
 export function CustomerSegmentView({
@@ -131,11 +133,24 @@ export function CustomerSegmentView({
                 {formatNumber(data.summary.segmentCustomerCount)}
               </strong>{" "}
               {data.summary.segmentCustomerCount === 1 ? "cliente" : "clientes"}
-              {" • "}
-              <span>
-                {formatCurrency(data.summary.segmentTotalRevenueInPeriod)} em
-                faturamento no período
-              </span>
+              {segment === "risk" || segment === "inactive" ? (
+                <>
+                  {" • "}
+                  <span>
+                    {segment === "risk"
+                      ? "última compra realizada entre 91 e 365 dias (3 a 12 meses)"
+                      : "última compra realizada há mais de 365 dias (> 1 ano)"}
+                  </span>
+                </>
+              ) : (
+                <>
+                  {" • "}
+                  <span>
+                    {formatCurrency(data.summary.segmentTotalRevenueInPeriod)} em
+                    faturamento no período
+                  </span>
+                </>
+              )}
             </p>
           )}
         </div>

@@ -141,7 +141,10 @@ export function buildCustomerBehavioralMap(
         lastPurchaseDate.getUTCMonth(),
         lastPurchaseDate.getUTCDate(),
       );
-      daysSinceLastPurchase = Math.round((asOfUtcDay - lastUtcDay) / 86400000);
+      daysSinceLastPurchase = Math.max(
+        0,
+        Math.round((asOfUtcDay - lastUtcDay) / 86400000),
+      );
     }
 
     result.set(customerId, {
@@ -233,6 +236,17 @@ export function isCustomerInSegment(
       return summary.lifetimeSalesCount === 1;
     case "repeat":
       return summary.lifetimeSalesCount >= 2;
+    case "risk":
+      return (
+        summary.daysSinceLastPurchase !== null &&
+        summary.daysSinceLastPurchase >= 91 &&
+        summary.daysSinceLastPurchase <= 365
+      );
+    case "inactive":
+      return (
+        summary.daysSinceLastPurchase !== null &&
+        summary.daysSinceLastPurchase > 365
+      );
     default:
       return false;
   }

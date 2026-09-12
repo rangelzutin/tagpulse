@@ -1,13 +1,15 @@
 import { Clock } from "lucide-react";
-import type { CustomerRecencySegment } from "../api/bi";
+import type { CustomerRecencySegment, CustomerSegmentType } from "../api/bi";
 import { formatNumber, formatPercent } from "../utils/formatters";
 
 interface RecencyDistributionCardProps {
   recency: CustomerRecencySegment[];
+  onSelectSegment?: (segment: CustomerSegmentType) => void;
 }
 
 export function RecencyDistributionCard({
   recency,
+  onSelectSegment,
 }: RecencyDistributionCardProps) {
   if (!recency || recency.length === 0) {
     return (
@@ -35,6 +37,27 @@ export function RecencyDistributionCard({
     (acc, seg) => acc + seg.customerCount,
     0,
   );
+
+  // Clientes em risco: última compra entre 91 e 365 dias (3 a 12 meses)
+  const riskCount = recency
+    .filter((s) => s.key === "91-180" || s.key === "181-365")
+    .reduce((acc, s) => acc + s.customerCount, 0);
+  const riskPct =
+    totalRecencyCustomers === 0
+      ? 0
+      : Number(((riskCount / totalRecencyCustomers) * 100).toFixed(1));
+
+  // Clientes inativos: última compra há mais de 365 dias (> 1 ano)
+  const inactiveCount = recency
+    .filter(
+      (s) =>
+        s.key === "366-730" || s.key === "731-1095" || s.key === "1096+",
+    )
+    .reduce((acc, s) => acc + s.customerCount, 0);
+  const inactivePct =
+    totalRecencyCustomers === 0
+      ? 0
+      : Number(((inactiveCount / totalRecencyCustomers) * 100).toFixed(1));
 
   return (
     <section className="tp-card tp-recency-card" aria-label="Recência da Base">
@@ -86,6 +109,62 @@ export function RecencyDistributionCard({
             </div>
           );
         })}
+      </div>
+
+      <div className="tp-recency-summary">
+        <div
+          className="tp-recency-kpi tp-kpi-risk tp-kpi-interactive"
+          role="button"
+          tabIndex={0}
+          aria-label={`Ver lista de Clientes em Risco: ${formatNumber(riskCount)}`}
+          onClick={() => onSelectSegment?.("risk")}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              onSelectSegment?.("risk");
+            }
+          }}
+        >
+          <div className="tp-recency-kpi-header">
+            <span className="tp-recency-kpi-indicator tp-indicator-amber" />
+            <span className="tp-recency-kpi-title">Clientes em Risco</span>
+          </div>
+          <div className="tp-recency-kpi-body">
+            <span className="tp-recency-kpi-val">{formatNumber(riskCount)}</span>
+            <span className="tp-recency-kpi-pct tp-pct-amber">
+              {formatPercent(riskPct)}
+            </span>
+          </div>
+          <span className="tp-recency-kpi-rule">Sem compras entre 3 e 12 meses</span>
+        </div>
+
+        <div
+          className="tp-recency-kpi tp-kpi-inactive tp-kpi-interactive"
+          role="button"
+          tabIndex={0}
+          aria-label={`Ver lista de Clientes Inativos: ${formatNumber(inactiveCount)}`}
+          onClick={() => onSelectSegment?.("inactive")}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              onSelectSegment?.("inactive");
+            }
+          }}
+        >
+          <div className="tp-recency-kpi-header">
+            <span className="tp-recency-kpi-indicator tp-indicator-rose" />
+            <span className="tp-recency-kpi-title">Clientes Inativos</span>
+          </div>
+          <div className="tp-recency-kpi-body">
+            <span className="tp-recency-kpi-val">
+              {formatNumber(inactiveCount)}
+            </span>
+            <span className="tp-recency-kpi-pct tp-pct-rose">
+              {formatPercent(inactivePct)}
+            </span>
+          </div>
+          <span className="tp-recency-kpi-rule">Sem compras há mais de 1 ano</span>
+        </div>
       </div>
 
       <div className="tp-card-footer">

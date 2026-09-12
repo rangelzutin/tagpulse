@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, type ReactNode } from "react";
 import {
   BarChart3,
-  Users,
   Package,
   Boxes,
   PieChart,
@@ -120,23 +119,6 @@ export function AppShell({ children, onSyncSuccess }: AppShellProps) {
                 >
                   <BarChart3 size={17} className="tp-nav-icon" />
                   <span className="tp-nav-text">Performance Comercial</span>
-                </button>
-              </li>
-            </ul>
-          </div>
-
-          {/* Clientes */}
-          <div className="tp-nav-group">
-            <span className="tp-nav-group-title">CLIENTES</span>
-            <ul className="tp-nav-list">
-              <li>
-                <button
-                  type="button"
-                  className="tp-nav-item"
-                  onClick={() => scrollToSection("clientes")}
-                >
-                  <Users size={17} className="tp-nav-icon" />
-                  <span className="tp-nav-text">Inteligência de Clientes</span>
                 </button>
               </li>
             </ul>

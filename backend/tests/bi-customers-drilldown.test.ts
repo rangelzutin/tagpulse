@@ -374,6 +374,83 @@ describe("Customer Drilldown Backend Endpoints", () => {
       }
     });
 
+    it("A2. Segmentos risk e inactive: reconciliação obrigatória com as faixas de recência do overview e fronteiras 90/91 e 365/366", async () => {
+      // asOfDate = 2026-01-31 (to = 2026-01-31)
+      // Reference: Date.UTC(2026, 0, 31)
+      // c-active-90:  2025-11-02 -> 90 days (active, 61-90, not risk, not inactive)
+      // c-risk-91:    2025-11-01 -> 91 days (risk, 91-180)
+      // c-risk-180:   2025-08-04 -> 180 days (risk, 91-180)
+      // c-risk-181:   2025-08-03 -> 181 days (risk, 181-365)
+      // c-risk-365:   2025-01-31 -> 365 days (risk, 181-365)
+      // c-inact-366:  2025-01-30 -> 366 days (inactive, 366-730)
+      // c-inact-730:  2024-02-01 -> 730 days (inactive, 366-730)
+      // c-inact-731:  2024-01-31 -> 731 days (inactive, 731-1095)
+      // c-inact-1096: 2023-01-31 -> 1096 days (inactive, 1096+)
+      const testDocs: RawTestDoc[] = [
+        { id: "d90", saleId: "s90", customerId: "c-active-90", netAmount: 10, realizedDate: new Date("2025-11-02T12:00:00Z"), customer: { tradeName: "Ativo 90d" } },
+        { id: "d91", saleId: "s91", customerId: "c-risk-91", netAmount: 10, realizedDate: new Date("2025-11-01T12:00:00Z"), customer: { tradeName: "Risco 91d" } },
+        { id: "d180", saleId: "s180", customerId: "c-risk-180", netAmount: 10, realizedDate: new Date("2025-08-04T12:00:00Z"), customer: { tradeName: "Risco 180d" } },
+        { id: "d181", saleId: "s181", customerId: "c-risk-181", netAmount: 10, realizedDate: new Date("2025-08-03T12:00:00Z"), customer: { tradeName: "Risco 181d" } },
+        { id: "d365", saleId: "s365", customerId: "c-risk-365", netAmount: 10, realizedDate: new Date("2025-01-31T12:00:00Z"), customer: { tradeName: "Risco 365d" } },
+        { id: "d366", saleId: "s366", customerId: "c-inact-366", netAmount: 10, realizedDate: new Date("2025-01-30T12:00:00Z"), customer: { tradeName: "Inativo 366d" } },
+        { id: "d730", saleId: "s730", customerId: "c-inact-730", netAmount: 10, realizedDate: new Date("2024-02-01T12:00:00Z"), customer: { tradeName: "Inativo 730d" } },
+        { id: "d731", saleId: "s731", customerId: "c-inact-731", netAmount: 10, realizedDate: new Date("2024-01-31T12:00:00Z"), customer: { tradeName: "Inativo 731d" } },
+        { id: "d1096", saleId: "s1096", customerId: "c-inact-1096", netAmount: 10, realizedDate: new Date("2023-01-31T12:00:00Z"), customer: { tradeName: "Inativo 1096d" } },
+      ];
+
+      const repo = createFakeDrilldownBiRepository(testDocs);
+      const app = await createApp(repo);
+
+      // 1. Fetch overview
+      const overviewRes = await app.inject({
+        method: "GET",
+        url: "/bi/customers/overview?from=2026-01-01&to=2026-01-31",
+      });
+      expect(overviewRes.statusCode).toBe(200);
+      const overview = overviewRes.json();
+      const recency = overview.recency as { key: string; customerCount: number }[];
+      const getCount = (k: string) => recency.find((r) => r.key === k)!.customerCount;
+
+      const expectedRiskCount = getCount("91-180") + getCount("181-365"); // 2 + 2 = 4
+      const expectedInactiveCount = getCount("366-730") + getCount("731-1095") + getCount("1096+"); // 2 + 1 + 1 = 4
+      expect(expectedRiskCount).toBe(4);
+      expect(expectedInactiveCount).toBe(4);
+
+      // 2. Fetch segment=risk
+      const riskRes = await app.inject({
+        method: "GET",
+        url: "/bi/customers/segment?from=2026-01-01&to=2026-01-31&segment=risk",
+      });
+      expect(riskRes.statusCode).toBe(200);
+      const riskBody = riskRes.json() as CustomerSegmentResult;
+      expect(riskBody.segment).toBe("risk");
+      expect(riskBody.pagination.totalRecords).toBe(expectedRiskCount);
+      expect(riskBody.summary.segmentCustomerCount).toBe(expectedRiskCount);
+      expect(riskBody.customers.map((c) => c.customerId).sort()).toEqual([
+        "c-risk-180",
+        "c-risk-181",
+        "c-risk-365",
+        "c-risk-91",
+      ]);
+
+      // 3. Fetch segment=inactive
+      const inactRes = await app.inject({
+        method: "GET",
+        url: "/bi/customers/segment?from=2026-01-01&to=2026-01-31&segment=inactive",
+      });
+      expect(inactRes.statusCode).toBe(200);
+      const inactBody = inactRes.json() as CustomerSegmentResult;
+      expect(inactBody.segment).toBe("inactive");
+      expect(inactBody.pagination.totalRecords).toBe(expectedInactiveCount);
+      expect(inactBody.summary.segmentCustomerCount).toBe(expectedInactiveCount);
+      expect(inactBody.customers.map((c) => c.customerId).sort()).toEqual([
+        "c-inact-1096",
+        "c-inact-366",
+        "c-inact-730",
+        "c-inact-731",
+      ]);
+    });
+
     it("C. Múltiplos SaleSourceDocuments da mesma Sale NÃO geram compra comportamental adicional", async () => {
       const testDocs: RawTestDoc[] = [
         {

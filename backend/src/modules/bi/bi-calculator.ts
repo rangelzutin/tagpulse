@@ -534,7 +534,8 @@ export function calculateCustomerOverview(
   let c91_180 = 0;
   let c181_365 = 0;
   let c366_730 = 0;
-  let c731_plus = 0;
+  let c731_1095 = 0;
+  let c1096_plus = 0;
 
   for (const summary of behavioralMap.values()) {
     if (!summary.lastPurchaseDate) continue;
@@ -560,13 +561,22 @@ export function calculateCustomerOverview(
       c181_365++;
     } else if (daysInactive <= 730) {
       c366_730++;
+    } else if (daysInactive <= 1095) {
+      c731_1095++;
     } else {
-      c731_plus++;
+      c1096_plus++;
     }
   }
 
   const totalRecencyCustomers =
-    c0_30 + c31_60 + c61_90 + c91_180 + c181_365 + c366_730 + c731_plus;
+    c0_30 +
+    c31_60 +
+    c61_90 +
+    c91_180 +
+    c181_365 +
+    c366_730 +
+    c731_1095 +
+    c1096_plus;
   const calcPercent = (count: number) =>
     totalRecencyCustomers === 0
       ? 0
@@ -610,10 +620,16 @@ export function calculateCustomerOverview(
       percentage: calcPercent(c366_730),
     },
     {
-      key: "731+",
-      label: "Mais de 2 anos",
-      customerCount: c731_plus,
-      percentage: calcPercent(c731_plus),
+      key: "731-1095",
+      label: "2–3 anos",
+      customerCount: c731_1095,
+      percentage: calcPercent(c731_1095),
+    },
+    {
+      key: "1096+",
+      label: "Mais de 3 anos",
+      customerCount: c1096_plus,
+      percentage: calcPercent(c1096_plus),
     },
   ];
 

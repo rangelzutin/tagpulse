@@ -77,6 +77,8 @@ const VALID_SEGMENTS: Set<CustomerSegmentType> = new Set([
   "historical",
   "single",
   "repeat",
+  "risk",
+  "inactive",
 ]);
 
 const VALID_SORTS: Set<CustomerSegmentSort> = new Set([
@@ -197,7 +199,8 @@ export function createBiService(repository: BiRepository): BiService {
       if (!VALID_SEGMENTS.has(segmentParam as CustomerSegmentType)) {
         return {
           success: false,
-          error: "Segmento inválido. Valores permitidos: buyers, new, returning, historical, single, repeat.",
+          error:
+            "Segmento inválido. Valores permitidos: buyers, new, returning, historical, single, repeat, risk, inactive.",
         };
       }
       const segment = segmentParam as CustomerSegmentType;
