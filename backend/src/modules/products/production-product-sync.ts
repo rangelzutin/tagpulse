@@ -2,7 +2,10 @@ import type { PrismaClient } from "@prisma/client";
 import type { TagPlusOAuthTokenStore } from "../../integrations/tagplus/oauth-token-store.js";
 import { createTagPlusProductPageFetcher } from "../../integrations/tagplus/products/product-page-fetcher.js";
 import { createTagPlusClient } from "../../integrations/tagplus/tagplus-client.js";
-import { createProductFullSync } from "./product-full-sync.js";
+import {
+  createProductFullSync,
+  type ProductSyncOptions,
+} from "./product-full-sync.js";
 import { createProductRepository } from "./product-repository.js";
 import { createProductSyncRepository } from "./product-sync-repository.js";
 
@@ -83,7 +86,7 @@ export function createProductionProductSyncRunner(input: {
 
   return {
     preflight,
-    async run(connectionId: string) {
+    async run(connectionId: string, options?: ProductSyncOptions) {
       const ready = await preflight(connectionId);
       const tokens = input.tokenStore.get();
       if (!tokens?.accessToken) {
@@ -97,11 +100,12 @@ export function createProductionProductSyncRunner(input: {
         accessToken: tokens.accessToken,
         ...(input.config.fetch ? { fetch: input.config.fetch } : {}),
       });
-      return createProductFullSync({
+      const syncFn = createProductFullSync({
         pageFetcher: createTagPlusProductPageFetcher(client),
         productRepository: createProductRepository(input.prisma),
         syncRepository: createProductSyncRepository(input.prisma),
-      })(connectionId);
+      });
+      return options !== undefined ? syncFn(connectionId, options) : syncFn(connectionId);
     },
   };
 }

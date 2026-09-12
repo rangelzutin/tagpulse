@@ -12,6 +12,7 @@ import {
 import {
   createSalesFullSync,
   type SalesFullSyncResult,
+  type SalesSyncOptions,
 } from "./sales-full-sync.js";
 import { createSalesRepository } from "./sales-repository.js";
 
@@ -159,6 +160,7 @@ export function createProductionSalesSyncRunner(input: {
     preflight,
     async run(
       targetConnectionId: string,
+      options?: SalesSyncOptions,
     ): Promise<ProductionSalesSyncRunResult> {
       const ready = await preflight(targetConnectionId);
       const tokens = input.tokenStore.get();
@@ -183,7 +185,10 @@ export function createProductionSalesSyncRunner(input: {
           salesRepository: createSalesRepository(input.prisma),
         });
 
-        const result = await sync(ready.connectionId);
+        const result =
+          options !== undefined
+            ? await sync(ready.connectionId, options)
+            : await sync(ready.connectionId);
         return {
           connectionId: ready.connectionId,
           ...result,

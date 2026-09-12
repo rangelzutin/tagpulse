@@ -1,3 +1,4 @@
+export type TagPlusSyncMode = "FULL" | "INCREMENTAL";
 export type TagPlusSyncStatus = "RUNNING" | "COMPLETED" | "FAILED";
 export type TagPlusSyncStage =
   | "CUSTOMERS"
@@ -16,11 +17,14 @@ export interface TagPlusSyncStatusResponse {
   isRunning: boolean;
   activeRun: {
     runId: string;
+    mode: TagPlusSyncMode;
     status: TagPlusSyncStatus;
     currentStage: TagPlusSyncStage;
     startedAt: string;
     completedAt?: string | null;
     elapsedSeconds: number;
+    windowSince?: string | null;
+    windowUntil?: string | null;
     errorStage?: TagPlusSyncStage | null;
     errorMessage?: string | null;
   } | null;
@@ -30,13 +34,18 @@ export interface TagPlusSyncStatusResponse {
     sales: SyncStepProgress;
   };
   lastCompletedSync: string | null;
+  lastCompletedIncrementalSync?: string | null;
+  lastCompletedFullSync?: string | null;
 }
 
 export interface StartSyncSuccessResponse {
   runId: string;
+  mode: TagPlusSyncMode;
   status: TagPlusSyncStatus;
   currentStage: TagPlusSyncStage;
   startedAt: string;
+  windowSince?: string | null;
+  windowUntil?: string | null;
 }
 
 export interface StartSyncErrorResponse {
@@ -45,6 +54,7 @@ export interface StartSyncErrorResponse {
   authorizeUrl?: string;
   activeRun?: {
     runId: string;
+    mode?: TagPlusSyncMode;
     status: TagPlusSyncStatus;
     currentStage: TagPlusSyncStage;
     startedAt: string;
@@ -82,8 +92,11 @@ export async function fetchTagPlusSyncStatus(): Promise<TagPlusSyncStatusRespons
   return response.json() as Promise<TagPlusSyncStatusResponse>;
 }
 
-export async function startTagPlusSync(): Promise<StartSyncSuccessResponse> {
-  const url = `${getBaseUrl()}/api/sync/tagplus`;
+export async function startTagPlusSync(
+  mode: TagPlusSyncMode = "INCREMENTAL",
+): Promise<StartSyncSuccessResponse> {
+  const endpoint = mode === "FULL" ? "/api/sync/tagplus/full" : "/api/sync/tagplus";
+  const url = `${getBaseUrl()}${endpoint}`;
   const response = await fetch(url, {
     method: "POST",
     headers: { Accept: "application/json" },
@@ -104,4 +117,8 @@ export async function startTagPlusSync(): Promise<StartSyncSuccessResponse> {
   const message = errorPayload?.message ?? `Falha ao iniciar sincronização: HTTP ${response.status}`;
 
   throw new TagPlusSyncApiError(code, message, response.status, errorPayload);
+}
+
+export async function startTagPlusFullSync(): Promise<StartSyncSuccessResponse> {
+  return startTagPlusSync("FULL");
 }

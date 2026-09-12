@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { PrismaClient } from "@prisma/client";
-import { TagPlusSyncStage, TagPlusSyncStatus } from "@prisma/client";
+import { TagPlusSyncMode, TagPlusSyncStage, TagPlusSyncStatus } from "@prisma/client";
 import { createTagPlusSyncRepository } from "../src/modules/sync/tagplus-sync-repository.js";
 
 describe("TagPlusSyncRepository", () => {
@@ -72,10 +72,69 @@ describe("TagPlusSyncRepository", () => {
     expect(result?.id).toBe("run-1");
   });
 
-  it("creates, updates stage, completes and fails runs", async () => {
+  it("findLastCompletedIncremental strictly filters by mandatory connectionId, mode INCREMENTAL and COMPLETED status", async () => {
+    const findFirst = vi.fn().mockResolvedValue({
+      id: "run-inc-1",
+      connectionId: "conn-nineclouds",
+      mode: TagPlusSyncMode.INCREMENTAL,
+      status: TagPlusSyncStatus.COMPLETED,
+      windowSince: new Date("2026-09-12T10:00:00Z"),
+      windowUntil: new Date("2026-09-12T12:00:00Z"),
+      completedAt: new Date("2026-09-12T12:05:00Z"),
+    });
+
+    const prisma = {
+      tagPlusSyncRun: { findFirst },
+    } as unknown as PrismaClient;
+
+    const repository = createTagPlusSyncRepository(prisma);
+    const result = await repository.findLastCompletedIncremental("conn-nineclouds");
+
+    expect(findFirst).toHaveBeenCalledWith({
+      where: {
+        connectionId: "conn-nineclouds",
+        mode: TagPlusSyncMode.INCREMENTAL,
+        status: TagPlusSyncStatus.COMPLETED,
+      },
+      orderBy: { completedAt: "desc" },
+    });
+    expect(result?.id).toBe("run-inc-1");
+    expect(result?.windowUntil).toEqual(new Date("2026-09-12T12:00:00Z"));
+  });
+
+  it("findLastCompletedFull strictly filters by mandatory connectionId, mode FULL and COMPLETED status", async () => {
+    const findFirst = vi.fn().mockResolvedValue({
+      id: "run-full-1",
+      connectionId: "conn-nineclouds",
+      mode: TagPlusSyncMode.FULL,
+      status: TagPlusSyncStatus.COMPLETED,
+      startedAt: new Date("2026-09-12T02:00:00Z"),
+      completedAt: new Date("2026-09-12T03:00:00Z"),
+    });
+
+    const prisma = {
+      tagPlusSyncRun: { findFirst },
+    } as unknown as PrismaClient;
+
+    const repository = createTagPlusSyncRepository(prisma);
+    const result = await repository.findLastCompletedFull("conn-nineclouds");
+
+    expect(findFirst).toHaveBeenCalledWith({
+      where: {
+        connectionId: "conn-nineclouds",
+        mode: TagPlusSyncMode.FULL,
+        status: TagPlusSyncStatus.COMPLETED,
+      },
+      orderBy: { completedAt: "desc" },
+    });
+    expect(result?.id).toBe("run-full-1");
+  });
+
+  it("creates, updates stage, completes and fails runs with mode and window", async () => {
     const create = vi.fn().mockResolvedValue({
       id: "run-new",
       status: TagPlusSyncStatus.RUNNING,
+      mode: TagPlusSyncMode.INCREMENTAL,
       currentStage: TagPlusSyncStage.CUSTOMERS,
     });
     const update = vi.fn().mockResolvedValue({});
@@ -86,13 +145,24 @@ describe("TagPlusSyncRepository", () => {
 
     const repository = createTagPlusSyncRepository(prisma);
 
-    const run = await repository.createRun("conn-123");
+    const since = new Date("2026-09-12T08:00:00Z");
+    const until = new Date("2026-09-12T10:00:00Z");
+
+    const run = await repository.createRun(
+      "conn-123",
+      new Date("2026-09-12T10:00:00Z"),
+      TagPlusSyncMode.INCREMENTAL,
+      { since, until },
+    );
     expect(run.id).toBe("run-new");
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           connectionId: "conn-123",
           status: TagPlusSyncStatus.RUNNING,
+          mode: TagPlusSyncMode.INCREMENTAL,
+          windowSince: since,
+          windowUntil: until,
           currentStage: TagPlusSyncStage.CUSTOMERS,
         }),
       }),

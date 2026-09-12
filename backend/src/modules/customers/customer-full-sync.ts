@@ -69,12 +69,21 @@ export interface CustomerFullSyncResult {
   completedAt: Date;
 }
 
+export interface CustomerSyncOptions {
+  mode?: "FULL" | "INCREMENTAL";
+  window?: {
+    since: string;
+    until: string;
+  };
+}
+
 export function createCustomerFullSync(
   dependencies: CustomerFullSyncDependencies,
 ) {
   const now = dependencies.now ?? (() => new Date());
   return async function syncCustomers(
     connectionId: string,
+    options?: CustomerSyncOptions,
   ): Promise<CustomerFullSyncResult> {
     let running: { id: string } | null;
     try {
@@ -119,6 +128,9 @@ export function createCustomerFullSync(
         const payload = await dependencies.pageFetcher({
           page,
           perPage: PER_PAGE,
+          since: options?.window?.since,
+          until: options?.window?.until,
+          dataFilter: options?.window ? "data_alteracao" : undefined,
         });
         if (!Array.isArray(payload)) {
           throw new CustomerSyncError("CUSTOMER_SYNC_INVALID_PAGE");
@@ -133,10 +145,13 @@ export function createCustomerFullSync(
             terminalEmptyPage: page,
           });
           stage = "RECONCILE";
-          const missing = await dependencies.syncRepository.reconcileMissing(
-            connectionId,
-            run.id,
-          );
+          let missing = 0;
+          if (options?.mode !== "INCREMENTAL") {
+            missing = await dependencies.syncRepository.reconcileMissing(
+              connectionId,
+              run.id,
+            );
+          }
           const completedAt = now();
           await dependencies.syncRepository.completeRun(
             run.id,

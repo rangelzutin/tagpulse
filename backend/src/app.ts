@@ -66,9 +66,19 @@ export async function buildApp(
 
   app.setErrorHandler((error, _request, reply) => {
     app.log.error({ err: error }, "Request failed");
+    const fastifyErr = error as { statusCode?: number; message?: string } | undefined;
+    const statusCode =
+      typeof fastifyErr?.statusCode === "number" &&
+      fastifyErr.statusCode >= 400 &&
+      fastifyErr.statusCode < 500
+        ? fastifyErr.statusCode
+        : 500;
     void reply
-      .code(500)
-      .send({ status: "error", message: "Internal server error" });
+      .code(statusCode)
+      .send({
+        status: "error",
+        message: fastifyErr?.message || "Internal server error",
+      });
   });
 
   return app;

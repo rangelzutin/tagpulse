@@ -349,13 +349,21 @@ enum TagPlusSyncStage {
   FAILED
 }
 
+enum TagPlusSyncMode {
+  FULL
+  INCREMENTAL
+}
+
 model TagPlusSyncRun {
   id            String            @id @default(uuid()) @db.Uuid
   connectionId  String            @map("connection_id") @db.Uuid
   status        TagPlusSyncStatus @default(RUNNING)
   currentStage  TagPlusSyncStage  @default(CUSTOMERS) @map("current_stage")
+  mode          TagPlusSyncMode   @default(INCREMENTAL)
   startedAt     DateTime          @default(now()) @map("started_at")
   completedAt   DateTime?         @map("completed_at")
+  windowSince   DateTime?         @map("window_since")
+  windowUntil   DateTime?         @map("window_until")
   errorStage    TagPlusSyncStage? @map("error_stage")
   errorMessage  String?           @map("error_message")
   errorCategory String?           @map("error_category")
@@ -365,5 +373,6 @@ model TagPlusSyncRun {
   connection    TagPlusConnection @relation(fields: [connectionId], references: [id])
 
   @@index([connectionId, status])
+  @@index([connectionId, mode, status])
   @@map("tagplus_sync_runs")
 }

@@ -36,6 +36,14 @@ export interface SalesFullSyncDependencies {
   perPage?: number;
 }
 
+export interface SalesSyncOptions {
+  mode?: "FULL" | "INCREMENTAL";
+  window?: {
+    since: string;
+    until: string;
+  };
+}
+
 export function createSalesFullSync(dependencies: SalesFullSyncDependencies) {
   const now = dependencies.now ?? (() => new Date());
   const perPage = dependencies.perPage ?? DEFAULT_PER_PAGE;
@@ -46,6 +54,7 @@ export function createSalesFullSync(dependencies: SalesFullSyncDependencies) {
     fetcher: SalesPageFetcher,
     processRecord: (item: unknown, observedAt: Date) => Promise<string | null>,
     docType: SaleAnchorType,
+    options?: SalesSyncOptions,
     afterExhaustion?: (observedSourceIds: Set<string>) => Promise<void>,
   ): Promise<ResourceSyncResult> {
     let page = 1;
@@ -54,7 +63,13 @@ export function createSalesFullSync(dependencies: SalesFullSyncDependencies) {
     const seenSourceIds = new Set<string>();
 
     for (;;) {
-      const rawPage = await fetcher({ page, perPage });
+      const rawPage = await fetcher({
+        page,
+        perPage,
+        since: options?.window?.since,
+        until: options?.window?.until,
+        dataFilter: options?.window ? "data_alteracao" : undefined,
+      });
       if (!Array.isArray(rawPage)) {
         throw new Error(
           `Invalid ${resource} page response: expected array, got ${typeof rawPage}`,
@@ -81,16 +96,19 @@ export function createSalesFullSync(dependencies: SalesFullSyncDependencies) {
     }
 
     // 1. Endpoint exhaustion reached: reconcile missing documents of this docType
-    const reconciledAbsent =
-      await dependencies.salesRepository.reconcileAbsentSourceDocs(
-        connectionId,
-        docType,
-        seenSourceIds,
-      );
+    let reconciledAbsent = 0;
+    if (options?.mode !== "INCREMENTAL") {
+      reconciledAbsent =
+        await dependencies.salesRepository.reconcileAbsentSourceDocs(
+          connectionId,
+          docType,
+          seenSourceIds,
+        );
 
-    // 2. Safe post-exhaustion hook (e.g. recovering confirmed inbound NFE contamination)
-    if (afterExhaustion) {
-      await afterExhaustion(seenSourceIds);
+      // 2. Safe post-exhaustion hook (e.g. recovering confirmed inbound NFE contamination)
+      if (afterExhaustion) {
+        await afterExhaustion(seenSourceIds);
+      }
     }
 
     return {
@@ -104,6 +122,7 @@ export function createSalesFullSync(dependencies: SalesFullSyncDependencies) {
 
   return async function syncSales(
     connectionId: string,
+    options?: SalesSyncOptions,
   ): Promise<SalesFullSyncResult> {
     const startedAt = now();
 
@@ -122,6 +141,7 @@ export function createSalesFullSync(dependencies: SalesFullSyncDependencies) {
         return normalized.sourceId;
       },
       SaleAnchorType.PEDIDO,
+      options,
     );
 
     // 2. VENDAS_SIMPLES (mandatory second)
@@ -139,6 +159,7 @@ export function createSalesFullSync(dependencies: SalesFullSyncDependencies) {
         return normalized.sourceId;
       },
       SaleAnchorType.VENDA_SIMPLES,
+      options,
     );
 
     // 3. NFES (mandatory third)
@@ -167,6 +188,7 @@ export function createSalesFullSync(dependencies: SalesFullSyncDependencies) {
         return normalized.sourceId;
       },
       SaleAnchorType.NFE,
+      options,
       async () => {
         if (confirmedInboundSourceIds.size > 0) {
           await dependencies.salesRepository.removeConfirmedInboundNfeSales(

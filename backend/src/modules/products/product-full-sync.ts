@@ -69,12 +69,21 @@ export interface ProductFullSyncResult {
   completedAt: Date;
 }
 
+export interface ProductSyncOptions {
+  mode?: "FULL" | "INCREMENTAL";
+  window?: {
+    since: string;
+    until: string;
+  };
+}
+
 export function createProductFullSync(
   dependencies: ProductFullSyncDependencies,
 ) {
   const now = dependencies.now ?? (() => new Date());
   return async function syncProducts(
     connectionId: string,
+    options?: ProductSyncOptions,
   ): Promise<ProductFullSyncResult> {
     let running: { id: string } | null;
     try {
@@ -113,7 +122,13 @@ export function createProductFullSync(
       for (; ; page += 1) {
         let rawPage: unknown;
         try {
-          rawPage = await dependencies.pageFetcher({ page, perPage: PER_PAGE });
+          rawPage = await dependencies.pageFetcher({
+            page,
+            perPage: PER_PAGE,
+            since: options?.window?.since,
+            until: options?.window?.until,
+            dataFilter: options?.window ? "data_alteracao" : undefined,
+          });
         } catch {
           throw new ProductSyncError("PRODUCT_SYNC_FETCH_ERROR");
         }
@@ -130,13 +145,15 @@ export function createProductFullSync(
             terminalEmptyPage,
           });
           let missingCount = 0;
-          try {
-            missingCount = await dependencies.syncRepository.reconcileMissing(
-              connectionId,
-              run.id,
-            );
-          } catch {
-            throw new ProductSyncError("PRODUCT_SYNC_RECONCILIATION_ERROR");
+          if (options?.mode !== "INCREMENTAL") {
+            try {
+              missingCount = await dependencies.syncRepository.reconcileMissing(
+                connectionId,
+                run.id,
+              );
+            } catch {
+              throw new ProductSyncError("PRODUCT_SYNC_RECONCILIATION_ERROR");
+            }
           }
           const completedAt = now();
           await dependencies.syncRepository.completeRun(

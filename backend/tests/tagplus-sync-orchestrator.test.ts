@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import type { PrismaClient } from "@prisma/client";
-import { TagPlusSyncStage, TagPlusSyncStatus } from "@prisma/client";
+import { TagPlusSyncMode, TagPlusSyncStage, TagPlusSyncStatus } from "@prisma/client";
 import { createTagPlusOAuthTokenStore } from "../src/integrations/tagplus/oauth-token-store.js";
 import {
   createTagPlusSyncOrchestrator,
+  TagPlusIncrementalBaselineRequiredError,
   TagPlusOAuthRequiredError,
   TagPlusSyncAlreadyRunningError,
   type CustomerRunnerLike,
@@ -17,6 +18,10 @@ const TEST_CONNECTION_ID = "8e1d662c-c9f3-4fee-9618-bb984573fa2a";
 function createHarness(options?: {
   tokenAvailable?: boolean;
   activeRunInDb?: boolean;
+  hasFullBaseline?: boolean;
+  hasIncrementalRun?: boolean;
+  lastCompletedFullDate?: Date;
+  lastCompletedIncrementalWindowUntil?: Date;
   customerFail?: boolean;
   productFail?: boolean;
   salesFail?: boolean;
@@ -89,6 +94,9 @@ function createHarness(options?: {
     id: "run-uuid-1",
     connectionId: TEST_CONNECTION_ID,
     status: TagPlusSyncStatus.RUNNING,
+    mode: TagPlusSyncMode.INCREMENTAL,
+    windowSince: new Date("2026-09-11T20:00:00Z"),
+    windowUntil: new Date("2026-09-11T21:00:00Z"),
     currentStage: TagPlusSyncStage.CUSTOMERS,
     startedAt: new Date("2026-09-11T21:00:00Z"),
     completedAt: null,
@@ -100,11 +108,56 @@ function createHarness(options?: {
     updatedAt: new Date(),
   };
 
+  const hasFull = options?.hasFullBaseline !== false;
+  const mockFullRun = hasFull
+    ? {
+        id: "full-run-1",
+        connectionId: TEST_CONNECTION_ID,
+        mode: TagPlusSyncMode.FULL,
+        status: TagPlusSyncStatus.COMPLETED,
+        startedAt: options?.lastCompletedFullDate ?? new Date("2026-09-11T20:00:00.123Z"),
+        completedAt: new Date("2026-09-11T20:30:00Z"),
+        windowSince: null,
+        windowUntil: null,
+        currentStage: TagPlusSyncStage.COMPLETED,
+        errorStage: null,
+        errorMessage: null,
+        errorCategory: null,
+        summary: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }
+    : null;
+
+  const mockIncrementalRun = options?.hasIncrementalRun
+    ? {
+        id: "inc-run-0",
+        connectionId: TEST_CONNECTION_ID,
+        mode: TagPlusSyncMode.INCREMENTAL,
+        status: TagPlusSyncStatus.COMPLETED,
+        startedAt: new Date("2026-09-12T01:00:00Z"),
+        completedAt: new Date("2026-09-12T01:05:00Z"),
+        windowSince: new Date("2026-09-11T20:00:00Z"),
+        windowUntil:
+          options?.lastCompletedIncrementalWindowUntil ??
+          new Date("2026-09-12T01:00:00Z"),
+        currentStage: TagPlusSyncStage.COMPLETED,
+        errorStage: null,
+        errorMessage: null,
+        errorCategory: null,
+        summary: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }
+    : null;
+
   const syncRepository: TagPlusSyncRepository = {
     recoverStaleRuns: vi.fn().mockResolvedValue({ tagplus: 0, customers: 0, products: 0 }),
     findRunning: vi.fn().mockResolvedValue(options?.activeRunInDb ? mockSyncRun : null),
     findActiveRun: vi.fn().mockResolvedValue(options?.activeRunInDb ? mockSyncRun : null),
     findLastCompleted: vi.fn().mockResolvedValue(null),
+    findLastCompletedIncremental: vi.fn().mockResolvedValue(mockIncrementalRun),
+    findLastCompletedFull: vi.fn().mockResolvedValue(mockFullRun),
     getRunById: vi.fn().mockResolvedValue(mockSyncRun),
     createRun: vi.fn().mockResolvedValue(mockSyncRun),
     updateStage: vi.fn().mockResolvedValue(undefined),
@@ -122,6 +175,8 @@ function createHarness(options?: {
     },
   } as unknown as PrismaClient;
 
+  const fixedNow = new Date("2026-09-12T14:30:45.678Z");
+
   const orchestrator = createTagPlusSyncOrchestrator({
     prisma,
     syncRepository,
@@ -130,6 +185,7 @@ function createHarness(options?: {
     productRunner,
     salesRunner,
     targetConnectionId: TEST_CONNECTION_ID,
+    now: () => fixedNow,
   });
 
   return {
@@ -140,6 +196,7 @@ function createHarness(options?: {
     salesRunner,
     syncRepository,
     tokenStore,
+    fixedNow,
   };
 }
 
@@ -153,6 +210,99 @@ describe("TagPlusSyncOrchestrator", () => {
   it("rejects startSync if another sync is already running in database", async () => {
     const h = createHarness({ activeRunInDb: true });
     await expect(h.orchestrator.startSync()).rejects.toThrow(TagPlusSyncAlreadyRunningError);
+  });
+
+  it("rejects INCREMENTAL startSync with TagPlusIncrementalBaselineRequiredError if no completed Full or Incremental run exists", async () => {
+    const h = createHarness({ hasFullBaseline: false, hasIncrementalRun: false });
+    await expect(h.orchestrator.startSync({ mode: TagPlusSyncMode.INCREMENTAL })).rejects.toThrow(
+      TagPlusIncrementalBaselineRequiredError,
+    );
+    expect(h.syncRepository.createRun).not.toHaveBeenCalled();
+  });
+
+  it("calculates windowSince from last Completed Full run startedAt (truncated to seconds) for first incremental run", async () => {
+    const fullStartedAt = new Date("2026-09-12T02:25:23.057Z");
+    const h = createHarness({
+      hasFullBaseline: true,
+      hasIncrementalRun: false,
+      lastCompletedFullDate: fullStartedAt,
+    });
+
+    await h.orchestrator.startSync({ mode: TagPlusSyncMode.INCREMENTAL });
+
+    // Verify repository was queried explicitly with connectionId
+    expect(h.syncRepository.findLastCompletedIncremental).toHaveBeenCalledWith(TEST_CONNECTION_ID);
+    expect(h.syncRepository.findLastCompletedFull).toHaveBeenCalledWith(TEST_CONNECTION_ID);
+
+    // Expected windowSince is fullStartedAt truncated to seconds (zero ms): 2026-09-12T02:25:23.000Z
+    const expectedSince = new Date("2026-09-12T02:25:23.000Z");
+    const expectedUntil = new Date("2026-09-12T14:30:45.000Z"); // fixedNow truncated
+
+    expect(h.syncRepository.createRun).toHaveBeenCalledWith(
+      TEST_CONNECTION_ID,
+      h.fixedNow,
+      TagPlusSyncMode.INCREMENTAL,
+      { since: expectedSince, until: expectedUntil },
+    );
+
+    // Wait for pipeline execution to verify runner options
+    await vi.waitFor(() => {
+      expect(h.syncRepository.completeRun).toHaveBeenCalled();
+    });
+
+    // Runners must receive America/Sao_Paulo formatted dates and mode INCREMENTAL
+    expect(h.customerRunner.run).toHaveBeenCalledWith(
+      TEST_CONNECTION_ID,
+      expect.objectContaining({
+        mode: TagPlusSyncMode.INCREMENTAL,
+        window: {
+          since: expect.any(String),
+          until: expect.any(String),
+        },
+      }),
+    );
+  });
+
+  it("calculates windowSince from last Completed Incremental run windowUntil for subsequent incremental runs", async () => {
+    const lastIncrementalWindowUntil = new Date("2026-09-12T12:00:00.000Z");
+    const h = createHarness({
+      hasFullBaseline: true,
+      hasIncrementalRun: true,
+      lastCompletedIncrementalWindowUntil: lastIncrementalWindowUntil,
+    });
+
+    await h.orchestrator.startSync({ mode: TagPlusSyncMode.INCREMENTAL });
+
+    const expectedSince = lastIncrementalWindowUntil;
+    const expectedUntil = new Date("2026-09-12T14:30:45.000Z");
+
+    expect(h.syncRepository.createRun).toHaveBeenCalledWith(
+      TEST_CONNECTION_ID,
+      h.fixedNow,
+      TagPlusSyncMode.INCREMENTAL,
+      { since: expectedSince, until: expectedUntil },
+    );
+  });
+
+  it("executes FULL sync without requiring baseline or window parameters", async () => {
+    const h = createHarness({ hasFullBaseline: false, hasIncrementalRun: false });
+    await h.orchestrator.startSync({ mode: TagPlusSyncMode.FULL });
+
+    expect(h.syncRepository.createRun).toHaveBeenCalledWith(
+      TEST_CONNECTION_ID,
+      h.fixedNow,
+      TagPlusSyncMode.FULL,
+      undefined,
+    );
+
+    await vi.waitFor(() => {
+      expect(h.syncRepository.completeRun).toHaveBeenCalled();
+    });
+
+    expect(h.customerRunner.run).toHaveBeenCalledWith(
+      TEST_CONNECTION_ID,
+      { mode: TagPlusSyncMode.FULL },
+    );
   });
 
   it("executes strictly in order: Customers -> Products -> Sales and marks COMPLETED on success", async () => {
@@ -259,7 +409,6 @@ describe("TagPlusSyncOrchestrator", () => {
 
   it("rejects concurrent execution while in-memory pipeline is running", async () => {
     const h = createHarness();
-    // Simulate long customer run
     vi.mocked(h.customerRunner.run).mockImplementation(async () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
       return {
@@ -274,19 +423,23 @@ describe("TagPlusSyncOrchestrator", () => {
 
     await h.orchestrator.startSync();
 
-    // Immediate second call while first is still running
-    await expect(h.orchestrator.startSync()).rejects.toThrow(TagPlusSyncAlreadyRunningError);
+    await expect(h.orchestrator.startSync({ mode: TagPlusSyncMode.FULL })).rejects.toThrow(
+      TagPlusSyncAlreadyRunningError,
+    );
   });
 
-  it("getStatus returns live progress during run and lastCompletedSync", async () => {
+  it("getStatus returns live progress and incremental/full lastCompleted dates", async () => {
     const h = createHarness();
     vi.mocked(h.syncRepository.findLastCompleted).mockResolvedValue({
       id: "run-old",
       connectionId: TEST_CONNECTION_ID,
+      mode: TagPlusSyncMode.FULL,
       status: TagPlusSyncStatus.COMPLETED,
       currentStage: TagPlusSyncStage.COMPLETED,
       startedAt: new Date("2026-09-10T12:00:00Z"),
       completedAt: new Date("2026-09-10T12:05:00Z"),
+      windowSince: null,
+      windowUntil: null,
       errorStage: null,
       errorMessage: null,
       errorCategory: null,
@@ -295,7 +448,6 @@ describe("TagPlusSyncOrchestrator", () => {
       updatedAt: new Date(),
     });
 
-    // Make customer run wait briefly
     let finishCustomerRun: () => void = () => {};
     vi.mocked(h.customerRunner.run).mockImplementation(
       () =>
@@ -329,7 +481,6 @@ describe("TagPlusSyncOrchestrator", () => {
 
   it("prevents race condition when two requests call startSync simultaneously", async () => {
     const h = createHarness();
-    // Simulate some async delay in preflight or resolve
     let resolveFirstPreflight: () => void = () => {};
     vi.mocked(h.customerRunner.preflight).mockImplementationOnce(
       () =>
@@ -338,23 +489,18 @@ describe("TagPlusSyncOrchestrator", () => {
         }),
     );
 
-    // Call startSync twice concurrently
     const promise1 = h.orchestrator.startSync();
-    const promise2 = h.orchestrator.startSync();
+    const promise2 = h.orchestrator.startSync({ mode: TagPlusSyncMode.FULL });
 
-    // The second call MUST reject synchronously with TagPlusSyncAlreadyRunningError
     await expect(promise2).rejects.toThrow(TagPlusSyncAlreadyRunningError);
 
-    // Release the first preflight
     resolveFirstPreflight();
     const result1 = await promise1;
     expect(result1.status).toBe(TagPlusSyncStatus.RUNNING);
-
-    // Confirm that createRun was called exactly ONCE
     expect(h.syncRepository.createRun).toHaveBeenCalledTimes(1);
   });
 
-  it("serializes summary with JSON-safe values including startedAt and completedAt ISO strings", async () => {
+  it("serializes summary with JSON-safe values including mode, windowSince, and windowUntil", async () => {
     const h = createHarness();
     await h.orchestrator.startSync();
 
@@ -367,13 +513,11 @@ describe("TagPlusSyncOrchestrator", () => {
 
     expect(typeof summary.startedAt).toBe("string");
     expect(typeof summary.completedAt).toBe("string");
-    expect(new Date(summary.startedAt as string).toISOString()).toBe(summary.startedAt);
-    expect(new Date(summary.completedAt as string).toISOString()).toBe(summary.completedAt);
+    expect(summary.mode).toBe("INCREMENTAL");
     expect(summary.customers).toBeDefined();
     expect(summary.products).toBeDefined();
     expect(summary.sales).toBeDefined();
 
-    // Ensure completely JSON-safe: re-parsing produces identical structure without undefined or non-JSON types
     const reSerialized = JSON.stringify(summary);
     expect(JSON.parse(reSerialized)).toEqual(summary);
   });

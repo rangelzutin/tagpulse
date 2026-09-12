@@ -1,5 +1,9 @@
 import type { PrismaClient, TagPlusSyncRun } from "@prisma/client";
-import { TagPlusSyncStage, TagPlusSyncStatus } from "@prisma/client";
+import {
+  TagPlusSyncMode,
+  TagPlusSyncStage,
+  TagPlusSyncStatus,
+} from "@prisma/client";
 
 export interface RecoverStaleRunsResult {
   tagplus: number;
@@ -18,8 +22,15 @@ export interface TagPlusSyncRepository {
   findRunning(connectionId?: string): Promise<TagPlusSyncRun | null>;
   findActiveRun(): Promise<TagPlusSyncRun | null>;
   findLastCompleted(connectionId?: string): Promise<TagPlusSyncRun | null>;
+  findLastCompletedIncremental(connectionId: string): Promise<TagPlusSyncRun | null>;
+  findLastCompletedFull(connectionId: string): Promise<TagPlusSyncRun | null>;
   getRunById(runId: string): Promise<TagPlusSyncRun | null>;
-  createRun(connectionId: string, startedAt?: Date): Promise<TagPlusSyncRun>;
+  createRun(
+    connectionId: string,
+    startedAt?: Date,
+    mode?: TagPlusSyncMode,
+    window?: { since?: Date | null; until?: Date | null } | null,
+  ): Promise<TagPlusSyncRun>;
   updateStage(runId: string, stage: TagPlusSyncStage): Promise<void>;
   completeRun(
     runId: string,
@@ -110,6 +121,32 @@ export function createTagPlusSyncRepository(
       });
     },
 
+    async findLastCompletedIncremental(
+      connectionId: string,
+    ): Promise<TagPlusSyncRun | null> {
+      return prisma.tagPlusSyncRun.findFirst({
+        where: {
+          connectionId,
+          status: TagPlusSyncStatus.COMPLETED,
+          mode: TagPlusSyncMode.INCREMENTAL,
+        },
+        orderBy: { completedAt: "desc" },
+      });
+    },
+
+    async findLastCompletedFull(
+      connectionId: string,
+    ): Promise<TagPlusSyncRun | null> {
+      return prisma.tagPlusSyncRun.findFirst({
+        where: {
+          connectionId,
+          status: TagPlusSyncStatus.COMPLETED,
+          mode: TagPlusSyncMode.FULL,
+        },
+        orderBy: { completedAt: "desc" },
+      });
+    },
+
     async getRunById(runId: string): Promise<TagPlusSyncRun | null> {
       return prisma.tagPlusSyncRun.findUnique({
         where: { id: runId },
@@ -119,13 +156,18 @@ export function createTagPlusSyncRepository(
     async createRun(
       connectionId: string,
       startedAt = new Date(),
+      mode: TagPlusSyncMode = TagPlusSyncMode.INCREMENTAL,
+      window?: { since?: Date | null; until?: Date | null } | null,
     ): Promise<TagPlusSyncRun> {
       return prisma.tagPlusSyncRun.create({
         data: {
           connectionId,
           status: TagPlusSyncStatus.RUNNING,
           currentStage: TagPlusSyncStage.CUSTOMERS,
+          mode,
           startedAt,
+          windowSince: window?.since ?? null,
+          windowUntil: window?.until ?? null,
         },
       });
     },

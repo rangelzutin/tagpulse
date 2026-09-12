@@ -1,6 +1,10 @@
 import type { PrismaClient, TagPlusSyncRun } from "@prisma/client";
-import { TagPlusSyncStage, TagPlusSyncStatus } from "@prisma/client";
+import { TagPlusSyncMode, TagPlusSyncStage, TagPlusSyncStatus } from "@prisma/client";
 import type { TagPlusOAuthTokenStore } from "../../integrations/tagplus/oauth-token-store.js";
+import {
+  formatTagPlusDateSaoPaulo,
+  truncateToSeconds,
+} from "../../integrations/tagplus/tagplus-date-formatter.js";
 import { NINECLOUDS_CONNECTION_ID } from "../sales/production-sales-sync.js";
 import type { TagPlusSyncRepository } from "./tagplus-sync-repository.js";
 
@@ -8,6 +12,7 @@ export class TagPlusSyncAlreadyRunningError extends Error {
   constructor(
     public readonly activeRun: {
       runId: string;
+      mode?: TagPlusSyncMode;
       status: TagPlusSyncStatus;
       currentStage: TagPlusSyncStage;
       startedAt: Date;
@@ -25,6 +30,15 @@ export class TagPlusOAuthRequiredError extends Error {
   }
 }
 
+export class TagPlusIncrementalBaselineRequiredError extends Error {
+  constructor(
+    message = "Nenhuma sincronização completa prévia foi encontrada para esta conexão. Execute uma Reconciliação Completa primeiro.",
+  ) {
+    super(message);
+    this.name = "TagPlusIncrementalBaselineRequiredError";
+  }
+}
+
 export interface SyncStepProgress {
   status: "WAITING" | "RUNNING" | "COMPLETED" | "FAILED";
   summary?: Record<string, unknown>;
@@ -35,11 +49,14 @@ export interface TagPlusSyncStatusResponse {
   isRunning: boolean;
   activeRun: {
     runId: string;
+    mode: TagPlusSyncMode;
     status: TagPlusSyncStatus;
     currentStage: TagPlusSyncStage;
     startedAt: Date;
     completedAt?: Date | null;
     elapsedSeconds: number;
+    windowSince?: Date | null;
+    windowUntil?: Date | null;
     errorStage?: TagPlusSyncStage | null;
     errorMessage?: string | null;
   } | null;
@@ -49,11 +66,19 @@ export interface TagPlusSyncStatusResponse {
     sales: SyncStepProgress;
   };
   lastCompletedSync: Date | null;
+  lastCompletedIncrementalSync?: Date | null;
+  lastCompletedFullSync?: Date | null;
 }
 
 export interface CustomerRunnerLike {
   preflight(connectionId: string): Promise<unknown>;
-  run(connectionId: string): Promise<{
+  run(
+    connectionId: string,
+    options?: {
+      mode?: TagPlusSyncMode;
+      window?: { since: string; until: string };
+    },
+  ): Promise<{
     pagesFetched: number;
     recordsFetched: number;
     recordsInserted: number;
@@ -65,7 +90,13 @@ export interface CustomerRunnerLike {
 
 export interface ProductRunnerLike {
   preflight(connectionId: string): Promise<unknown>;
-  run(connectionId: string): Promise<{
+  run(
+    connectionId: string,
+    options?: {
+      mode?: TagPlusSyncMode;
+      window?: { since: string; until: string };
+    },
+  ): Promise<{
     pagesFetched: number;
     recordsFetched: number;
     recordsInserted: number;
@@ -77,7 +108,13 @@ export interface ProductRunnerLike {
 
 export interface SalesRunnerLike {
   preflight(connectionId: string): Promise<unknown>;
-  run(connectionId: string): Promise<{
+  run(
+    connectionId: string,
+    options?: {
+      mode?: TagPlusSyncMode;
+      window?: { since: string; until: string };
+    },
+  ): Promise<{
     pedidos: {
       pagesFetched: number;
       recordsFetched: number;
@@ -112,8 +149,11 @@ export function createTagPlusSyncOrchestrator(
 ) {
   let isRunning = false;
   let activeRunId: string | null = null;
+  let activeMode: TagPlusSyncMode = TagPlusSyncMode.INCREMENTAL;
   let currentStage: TagPlusSyncStage = TagPlusSyncStage.CUSTOMERS;
   let runStartedAt: Date | null = null;
+  let activeWindowSince: Date | null = null;
+  let activeWindowUntil: Date | null = null;
   let inMemoryStages: {
     customers: SyncStepProgress;
     products: SyncStepProgress;
@@ -158,6 +198,7 @@ export function createTagPlusSyncOrchestrator(
     if (isRunning && activeRunId && runStartedAt) {
       throw new TagPlusSyncAlreadyRunningError({
         runId: activeRunId,
+        mode: activeMode,
         status: TagPlusSyncStatus.RUNNING,
         currentStage,
         startedAt: runStartedAt,
@@ -168,6 +209,7 @@ export function createTagPlusSyncOrchestrator(
     if (dbRunning) {
       throw new TagPlusSyncAlreadyRunningError({
         runId: dbRunning.id,
+        mode: dbRunning.mode,
         status: dbRunning.status,
         currentStage: dbRunning.currentStage,
         startedAt: dbRunning.startedAt,
@@ -179,7 +221,14 @@ export function createTagPlusSyncOrchestrator(
     await dependencies.salesRunner.preflight(connectionId);
   }
 
-  async function executePipeline(connectionId: string, run: TagPlusSyncRun): Promise<void> {
+  async function executePipeline(
+    connectionId: string,
+    run: TagPlusSyncRun,
+    runnerOptions: {
+      mode: TagPlusSyncMode;
+      window?: { since: string; until: string };
+    },
+  ): Promise<void> {
     const stageSummaries: Record<string, unknown> = {};
 
     try {
@@ -188,7 +237,7 @@ export function createTagPlusSyncOrchestrator(
       inMemoryStages.customers = { status: "RUNNING" };
       await dependencies.syncRepository.updateStage(run.id, TagPlusSyncStage.CUSTOMERS);
 
-      const customerResult = await dependencies.customerRunner.run(connectionId);
+      const customerResult = await dependencies.customerRunner.run(connectionId, runnerOptions);
       stageSummaries.customers = {
         pagesFetched: customerResult.pagesFetched,
         recordsFetched: customerResult.recordsFetched,
@@ -207,7 +256,7 @@ export function createTagPlusSyncOrchestrator(
       inMemoryStages.products = { status: "RUNNING" };
       await dependencies.syncRepository.updateStage(run.id, TagPlusSyncStage.PRODUCTS);
 
-      const productResult = await dependencies.productRunner.run(connectionId);
+      const productResult = await dependencies.productRunner.run(connectionId, runnerOptions);
       stageSummaries.products = {
         pagesFetched: productResult.pagesFetched,
         recordsFetched: productResult.recordsFetched,
@@ -226,7 +275,7 @@ export function createTagPlusSyncOrchestrator(
       inMemoryStages.sales = { status: "RUNNING" };
       await dependencies.syncRepository.updateStage(run.id, TagPlusSyncStage.SALES);
 
-      const salesResult = await dependencies.salesRunner.run(connectionId);
+      const salesResult = await dependencies.salesRunner.run(connectionId, runnerOptions);
       stageSummaries.sales = {
         pedidos: salesResult.pedidos,
         vendasSimples: salesResult.vendasSimples,
@@ -241,6 +290,9 @@ export function createTagPlusSyncOrchestrator(
       const completedAt = now();
       currentStage = TagPlusSyncStage.COMPLETED;
       const finalSummary: Record<string, unknown> = toJsonSafe({
+        mode: run.mode,
+        windowSince: run.windowSince?.toISOString() ?? null,
+        windowUntil: run.windowUntil?.toISOString() ?? null,
         startedAt: run.startedAt.toISOString(),
         completedAt: completedAt.toISOString(),
         ...stageSummaries,
@@ -269,6 +321,8 @@ export function createTagPlusSyncOrchestrator(
     } finally {
       isRunning = false;
       activeRunId = null;
+      activeWindowSince = null;
+      activeWindowUntil = null;
       runStartedAt = null;
     }
   }
@@ -280,23 +334,32 @@ export function createTagPlusSyncOrchestrator(
       return { connectionId, status: "READY" };
     },
 
-    async startSync(): Promise<{
+    async startSync(options?: {
+      mode?: TagPlusSyncMode;
+    }): Promise<{
       runId: string;
+      mode: TagPlusSyncMode;
       status: TagPlusSyncStatus;
       currentStage: TagPlusSyncStage;
       startedAt: Date;
+      windowSince?: Date | null;
+      windowUntil?: Date | null;
     }> {
+      const mode = options?.mode ?? TagPlusSyncMode.INCREMENTAL;
+
       // 1. Aquisição SÍNCRONA da trava em memória ANTES de qualquer await
       // Bloqueia qualquer concorrência antes de haver yield no event loop
       if (isRunning) {
         throw new TagPlusSyncAlreadyRunningError({
           runId: activeRunId ?? "in-flight",
+          mode: activeMode,
           status: TagPlusSyncStatus.RUNNING,
           currentStage,
           startedAt: runStartedAt ?? now(),
         });
       }
       isRunning = true;
+      activeMode = mode;
       const startedAt = now();
       runStartedAt = startedAt;
       currentStage = TagPlusSyncStage.CUSTOMERS;
@@ -308,23 +371,80 @@ export function createTagPlusSyncOrchestrator(
       } catch (preflightErr) {
         isRunning = false;
         runStartedAt = null;
+        activeMode = TagPlusSyncMode.INCREMENTAL;
         throw preflightErr;
+      }
+
+      let windowSince: Date | null = null;
+      let windowUntil: Date | null = null;
+      let runnerOptions: {
+        mode: TagPlusSyncMode;
+        window?: { since: string; until: string };
+      };
+
+      try {
+        if (mode === TagPlusSyncMode.INCREMENTAL) {
+          const lastIncremental =
+            await dependencies.syncRepository.findLastCompletedIncremental(connectionId);
+
+          if (lastIncremental && lastIncremental.windowUntil) {
+            windowSince = lastIncremental.windowUntil;
+          } else {
+            const lastFull =
+              await dependencies.syncRepository.findLastCompletedFull(connectionId);
+            if (!lastFull) {
+              throw new TagPlusIncrementalBaselineRequiredError();
+            }
+            windowSince = truncateToSeconds(lastFull.startedAt);
+          }
+
+          windowUntil = truncateToSeconds(startedAt);
+
+          runnerOptions = {
+            mode: TagPlusSyncMode.INCREMENTAL,
+            window: {
+              since: formatTagPlusDateSaoPaulo(windowSince),
+              until: formatTagPlusDateSaoPaulo(windowUntil),
+            },
+          };
+        } else {
+          runnerOptions = {
+            mode: TagPlusSyncMode.FULL,
+          };
+        }
+      } catch (watermarkErr) {
+        isRunning = false;
+        runStartedAt = null;
+        activeMode = TagPlusSyncMode.INCREMENTAL;
+        throw watermarkErr;
       }
 
       let run: TagPlusSyncRun;
       try {
-        run = await dependencies.syncRepository.createRun(connectionId, startedAt);
+        run = await dependencies.syncRepository.createRun(
+          connectionId,
+          startedAt,
+          mode,
+          mode === TagPlusSyncMode.INCREMENTAL
+            ? { since: windowSince, until: windowUntil }
+            : undefined,
+        );
         activeRunId = run.id;
+        activeWindowSince = windowSince;
+        activeWindowUntil = windowUntil;
         inMemoryStages = resetStages();
       } catch (err) {
         isRunning = false;
         runStartedAt = null;
+        activeMode = TagPlusSyncMode.INCREMENTAL;
+        activeWindowSince = null;
+        activeWindowUntil = null;
         throw err;
       }
 
       // Executa pipeline em background (desacoplado da resposta HTTP)
       // com captura explícita para NUNCA gerar unhandled rejection no Node.js
-      executePipeline(connectionId, run).catch((unhandledErr) => {
+      executePipeline(connectionId, run, runnerOptions).catch((unhandledErr) => {
         console.error(
           "[TagPlusSyncOrchestrator] Erro não tratado na pipeline de sync:",
           unhandledErr,
@@ -333,14 +453,25 @@ export function createTagPlusSyncOrchestrator(
 
       return {
         runId: run.id,
+        mode: run.mode,
         status: TagPlusSyncStatus.RUNNING,
         currentStage: TagPlusSyncStage.CUSTOMERS,
         startedAt,
+        windowSince: run.windowSince,
+        windowUntil: run.windowUntil,
       };
     },
 
     async getStatus(): Promise<TagPlusSyncStatusResponse> {
-      const lastCompleted = await dependencies.syncRepository.findLastCompleted();
+      const targetId =
+        dependencies.targetConnectionId ?? NINECLOUDS_CONNECTION_ID;
+
+      const [lastCompleted, lastCompletedIncremental, lastCompletedFull] =
+        await Promise.all([
+          dependencies.syncRepository.findLastCompleted(),
+          dependencies.syncRepository.findLastCompletedIncremental(targetId),
+          dependencies.syncRepository.findLastCompletedFull(targetId),
+        ]);
 
       if (isRunning && activeRunId && runStartedAt) {
         const elapsedSeconds = Math.max(
@@ -351,13 +482,18 @@ export function createTagPlusSyncOrchestrator(
           isRunning: true,
           activeRun: {
             runId: activeRunId,
+            mode: activeMode,
             status: TagPlusSyncStatus.RUNNING,
             currentStage,
             startedAt: runStartedAt,
             elapsedSeconds,
+            windowSince: activeWindowSince,
+            windowUntil: activeWindowUntil,
           },
           stages: { ...inMemoryStages },
           lastCompletedSync: lastCompleted?.completedAt ?? null,
+          lastCompletedIncrementalSync: lastCompletedIncremental?.completedAt ?? null,
+          lastCompletedFullSync: lastCompletedFull?.completedAt ?? null,
         };
       }
 
@@ -392,17 +528,22 @@ export function createTagPlusSyncOrchestrator(
         activeRun: latestRun
           ? {
               runId: latestRun.id,
+              mode: latestRun.mode,
               status: latestRun.status,
               currentStage: latestRun.currentStage,
               startedAt: latestRun.startedAt,
               completedAt: latestRun.completedAt,
               elapsedSeconds: elapsed,
+              windowSince: latestRun.windowSince,
+              windowUntil: latestRun.windowUntil,
               errorStage: latestRun.errorStage,
               errorMessage: latestRun.errorMessage,
             }
           : null,
         stages: stagesResult,
         lastCompletedSync: lastCompleted?.completedAt ?? null,
+        lastCompletedIncrementalSync: lastCompletedIncremental?.completedAt ?? null,
+        lastCompletedFullSync: lastCompletedFull?.completedAt ?? null,
       };
     },
   };

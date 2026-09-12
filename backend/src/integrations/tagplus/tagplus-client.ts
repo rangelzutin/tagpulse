@@ -44,8 +44,15 @@ export class TagPlusNetworkError extends Error {
   }
 }
 
+export interface TagPlusRequestOptions {
+  headers?: Record<string, string>;
+}
+
 export interface TagPlusClient {
-  get<T = unknown>(path: string): Promise<TagPlusResponse<T>>;
+  get<T = unknown>(
+    path: string,
+    options?: TagPlusRequestOptions,
+  ): Promise<TagPlusResponse<T>>;
 }
 
 export function createTagPlusClient(
@@ -56,7 +63,10 @@ export function createTagPlusClient(
   const baseUrl = new URL(options.baseUrl);
 
   return {
-    async get<T = unknown>(path: string): Promise<TagPlusResponse<T>> {
+    async get<T = unknown>(
+      path: string,
+      requestOptions?: TagPlusRequestOptions,
+    ): Promise<TagPlusResponse<T>> {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), timeoutMs);
       const url = new URL(path.replace(/^\/+/, ""), ensureTrailingSlash(baseUrl));
@@ -68,6 +78,7 @@ export function createTagPlusClient(
             Accept: "application/json",
             Authorization: `Bearer ${options.accessToken}`,
             "X-Api-Version": options.apiVersion,
+            ...(requestOptions?.headers ?? {}),
           },
           signal: controller.signal,
         });

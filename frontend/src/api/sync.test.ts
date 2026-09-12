@@ -194,5 +194,28 @@ describe("frontend sync API client", () => {
       "Nunca sincronizado pela aplicação",
     );
   });
-});
 
+  it("startTagPlusFullSync calls POST /api/sync/tagplus/full", async () => {
+    const mockFullSuccess = {
+      runId: "run-full-999",
+      mode: "FULL" as const,
+      status: "RUNNING" as const,
+      currentStage: "CUSTOMERS" as const,
+      startedAt: "2026-09-12T15:00:00.000Z",
+    };
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      status: 202,
+      json: async () => mockFullSuccess,
+    } as Response);
+
+    const result = await startTagPlusSync("FULL");
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.stringContaining("/api/sync/tagplus/full"),
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(result.mode).toBe("FULL");
+  });
+});

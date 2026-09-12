@@ -2,7 +2,10 @@ import type { PrismaClient } from "@prisma/client";
 import type { TagPlusOAuthTokenStore } from "../../integrations/tagplus/oauth-token-store.js";
 import { createTagPlusCustomerPageFetcher } from "../../integrations/tagplus/customers/customer-page-fetcher.js";
 import { createTagPlusClient } from "../../integrations/tagplus/tagplus-client.js";
-import { createCustomerFullSync } from "./customer-full-sync.js";
+import {
+  createCustomerFullSync,
+  type CustomerSyncOptions,
+} from "./customer-full-sync.js";
 import { createCustomerRepository } from "./customer-repository.js";
 import { createCustomerSyncRepository } from "./customer-sync-repository.js";
 
@@ -85,7 +88,7 @@ export function createProductionCustomerSyncRunner(input: {
 
   return {
     preflight,
-    async run(connectionId: string) {
+    async run(connectionId: string, options?: CustomerSyncOptions) {
       const ready = await preflight(connectionId);
       const tokens = input.tokenStore.get();
       if (!tokens?.accessToken)
@@ -98,11 +101,12 @@ export function createProductionCustomerSyncRunner(input: {
         accessToken: tokens.accessToken,
         ...(input.config.fetch ? { fetch: input.config.fetch } : {}),
       });
-      return createCustomerFullSync({
+      const syncFn = createCustomerFullSync({
         pageFetcher: createTagPlusCustomerPageFetcher(client),
         customerRepository: createCustomerRepository(input.prisma),
         syncRepository: createCustomerSyncRepository(input.prisma),
-      })(connectionId);
+      });
+      return options !== undefined ? syncFn(connectionId, options) : syncFn(connectionId);
     },
   };
 }

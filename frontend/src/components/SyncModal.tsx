@@ -9,12 +9,14 @@ import {
   Package,
   ShoppingCart,
   Lock,
+  Database,
 } from "lucide-react";
 import {
   fetchTagPlusSyncStatus,
   getBaseUrl,
   startTagPlusSync,
   TagPlusSyncApiError,
+  type TagPlusSyncMode,
   type TagPlusSyncStatusResponse,
 } from "../api/sync.js";
 
@@ -29,6 +31,7 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
   const [isStarting, setIsStarting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [oauthRequired, setOauthRequired] = useState(false);
+  const [baselineRequired, setBaselineRequired] = useState(false);
   const [authorizeUrl, setAuthorizeUrl] = useState<string | null>(null);
 
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -74,14 +77,15 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
     };
   }, [isOpen, refreshStatus, onSyncSuccess]);
 
-  const handleStartSync = async () => {
+  const handleStartSync = async (mode: TagPlusSyncMode = "INCREMENTAL") => {
     setIsStarting(true);
     setErrorMessage(null);
     setOauthRequired(false);
+    setBaselineRequired(false);
     setAuthorizeUrl(null);
 
     try {
-      await startTagPlusSync();
+      await startTagPlusSync(mode);
       await refreshStatus();
     } catch (err: unknown) {
       if (err instanceof TagPlusSyncApiError) {
@@ -92,6 +96,8 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
             ? rawAuthorizeUrl
             : `${getBaseUrl()}${rawAuthorizeUrl.startsWith("/") ? "" : "/"}${rawAuthorizeUrl}`;
           setAuthorizeUrl(finalUrl);
+        } else if (err.code === "TAGPLUS_INCREMENTAL_BASELINE_REQUIRED") {
+          setBaselineRequired(true);
         } else if (err.code === "TAGPLUS_SYNC_ALREADY_RUNNING") {
           // Já está rodando: basta atualizar o status
           await refreshStatus();
@@ -113,6 +119,7 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
   const isRunning = statusData?.isRunning || isStarting;
   const isCompleted = !isRunning && statusData?.activeRun?.status === "COMPLETED";
   const isFailed = !isRunning && statusData?.activeRun?.status === "FAILED";
+  const activeMode = statusData?.activeRun?.mode ?? "INCREMENTAL";
 
   const stages = statusData?.stages ?? {
     customers: { status: "WAITING" },
@@ -138,11 +145,26 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
               <RefreshCw className={isRunning ? "tp-spin" : ""} size={20} />
             </div>
             <div>
-              <h2 id="sync-modal-title" className="tp-modal-title">
-                Sincronização TagPlus
-              </h2>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <h2 id="sync-modal-title" className="tp-modal-title">
+                  Sincronização TagPlus
+                </h2>
+                <span
+                  style={{
+                    fontSize: "11px",
+                    fontWeight: 600,
+                    padding: "2px 8px",
+                    borderRadius: "12px",
+                    background: activeMode === "FULL" ? "rgba(234, 179, 8, 0.15)" : "rgba(59, 130, 246, 0.15)",
+                    color: activeMode === "FULL" ? "#eab308" : "#3b82f6",
+                    border: activeMode === "FULL" ? "1px solid rgba(234, 179, 8, 0.3)" : "1px solid rgba(59, 130, 246, 0.3)",
+                  }}
+                >
+                  {activeMode === "FULL" ? "Reconciliação Completa" : "Incremental"}
+                </span>
+              </div>
               <p className="tp-modal-subtitle">
-                Atualização da base operacional Nineclouds diretamente da API TagPlus.
+                Atualização da base Nineclouds consultando alterações na API TagPlus.
               </p>
             </div>
           </div>
@@ -156,6 +178,29 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
             <X size={20} />
           </button>
         </div>
+
+        {/* Banner Baseline Requerida */}
+        {baselineRequired && (
+          <div className="tp-sync-banner is-error">
+            <AlertCircle size={18} className="tp-sync-banner-icon" />
+            <div className="tp-sync-banner-text">
+              <strong>Reconciliação Completa Necessária</strong>
+              <p>
+                Nenhuma sincronização completa prévia foi encontrada para a conexão Nineclouds.
+                Execute uma Reconciliação Completa para criar o baseline inicial.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="tp-button tp-button-primary tp-button-sm"
+              onClick={() => handleStartSync("FULL")}
+              disabled={isRunning}
+            >
+              <Database size={14} />
+              <span>Executar Reconciliação Completa</span>
+            </button>
+          </div>
+        )}
 
         {/* Banner OAuth */}
         {oauthRequired && (
@@ -180,7 +225,7 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
         )}
 
         {/* Banner de Erro Geral */}
-        {(errorMessage || isFailed) && !oauthRequired && (
+        {(errorMessage || isFailed) && !oauthRequired && !baselineRequired && (
           <div className="tp-sync-banner is-error">
             <AlertCircle size={18} className="tp-sync-banner-icon" />
             <div className="tp-sync-banner-text">
@@ -199,10 +244,11 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
           <div className="tp-sync-banner is-success">
             <CheckCircle2 size={18} className="tp-sync-banner-icon" />
             <div className="tp-sync-banner-text">
-              <strong>Sincronização Concluída</strong>
+              <strong>
+                {activeMode === "FULL" ? "Reconciliação Completa Concluída" : "Sincronização Incremental Concluída"}
+              </strong>
               <p>
-                A base local do TagPulse foi totalmente atualizada em{" "}
-                {formatDuration(elapsed)}.
+                A base local do TagPulse foi atualizada em {formatDuration(elapsed)}.
               </p>
             </div>
           </div>
@@ -346,15 +392,27 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
 
           <div className="tp-sync-footer-actions">
             {!isRunning && !isCompleted && (
-              <button
-                type="button"
-                className="tp-button tp-button-primary"
-                onClick={handleStartSync}
-                disabled={isStarting}
-              >
-                <RefreshCw size={15} />
-                <span>{isFailed ? "Tentar Novamente" : "Iniciar Sincronização"}</span>
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="tp-button tp-button-secondary"
+                  onClick={() => handleStartSync("FULL")}
+                  disabled={isStarting}
+                  title="Executa varredura completa de reconciliação na API TagPlus"
+                >
+                  <Database size={15} />
+                  <span>Reconciliação Completa</span>
+                </button>
+                <button
+                  type="button"
+                  className="tp-button tp-button-primary"
+                  onClick={() => handleStartSync("INCREMENTAL")}
+                  disabled={isStarting}
+                >
+                  <RefreshCw size={15} />
+                  <span>{isFailed ? "Tentar Novamente" : "Sincronizar Dados"}</span>
+                </button>
+              </>
             )}
 
             {isCompleted && (
