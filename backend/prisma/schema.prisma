@@ -44,6 +44,7 @@ model TagPlusConnection {
   productSyncRuns ProductSyncRun[]
   products        Product[]
   sales           Sale[]
+  tagPlusSyncRuns TagPlusSyncRun[]
 
   @@unique([companyId, name])
   @@index([companyId])
@@ -332,4 +333,37 @@ model SaleSourceDocument {
   @@index([saleId])
   @@index([connectionId, realizedDate])
   @@map("sale_source_documents")
+}
+
+enum TagPlusSyncStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum TagPlusSyncStage {
+  CUSTOMERS
+  PRODUCTS
+  SALES
+  COMPLETED
+  FAILED
+}
+
+model TagPlusSyncRun {
+  id            String            @id @default(uuid()) @db.Uuid
+  connectionId  String            @map("connection_id") @db.Uuid
+  status        TagPlusSyncStatus @default(RUNNING)
+  currentStage  TagPlusSyncStage  @default(CUSTOMERS) @map("current_stage")
+  startedAt     DateTime          @default(now()) @map("started_at")
+  completedAt   DateTime?         @map("completed_at")
+  errorStage    TagPlusSyncStage? @map("error_stage")
+  errorMessage  String?           @map("error_message")
+  errorCategory String?           @map("error_category")
+  summary       Json?
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+  connection    TagPlusConnection @relation(fields: [connectionId], references: [id])
+
+  @@index([connectionId, status])
+  @@map("tagplus_sync_runs")
 }

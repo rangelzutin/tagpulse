@@ -9,6 +9,10 @@ import {
   registerBiRoutes,
   type BiRepository,
 } from "./modules/bi/index.js";
+import {
+  registerTagPlusSyncRoutes,
+  type TagPlusSyncOrchestrator,
+} from "./modules/sync/index.js";
 
 export interface BuildAppOptions {
   databaseHealth: DatabaseHealthChecker;
@@ -16,6 +20,7 @@ export interface BuildAppOptions {
   logger?: boolean;
   tagPlusOAuth?: RegisterTagPlusOAuthOptions;
   biRepository?: BiRepository;
+  tagPlusSyncOrchestrator?: TagPlusSyncOrchestrator;
 }
 
 export async function buildApp(
@@ -43,6 +48,10 @@ export async function buildApp(
 
   if (options.biRepository) {
     registerBiRoutes(app, options.biRepository);
+  }
+
+  if (options.tagPlusSyncOrchestrator) {
+    registerTagPlusSyncRoutes(app, options.tagPlusSyncOrchestrator);
   }
 
   app.get("/health/database", async (_request, reply) => {

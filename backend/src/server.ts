@@ -10,13 +10,80 @@ import { registerProductSyncConsole } from "./modules/products/product-sync-cons
 import { createProductionProductSyncRunner } from "./modules/products/production-product-sync.js";
 import { registerSalesSyncConsole } from "./modules/sales/sales-sync-console.js";
 import { createProductionSalesSyncRunner } from "./modules/sales/production-sales-sync.js";
+import {
+  createTagPlusSyncOrchestrator,
+  createTagPlusSyncRepository,
+} from "./modules/sync/index.js";
 
 const env = loadEnv();
 const tokenStore = createTagPlusOAuthTokenStore();
+
+// Instanciação dos runners de produção
+const customerRunner = createProductionCustomerSyncRunner({
+  prisma,
+  tokenStore,
+  config: {
+    baseUrl: env.TAGPLUS_BASE_URL,
+    databaseUrl: env.DATABASE_URL,
+    ...(env.TEST_DATABASE_URL
+      ? { testDatabaseUrl: env.TEST_DATABASE_URL }
+      : {}),
+  },
+});
+
+const productRunner = createProductionProductSyncRunner({
+  prisma,
+  tokenStore,
+  config: {
+    baseUrl: env.TAGPLUS_BASE_URL,
+    databaseUrl: env.DATABASE_URL,
+    ...(env.TEST_DATABASE_URL
+      ? { testDatabaseUrl: env.TEST_DATABASE_URL }
+      : {}),
+  },
+});
+
+const salesRunner = createProductionSalesSyncRunner({
+  prisma,
+  tokenStore,
+  config: {
+    baseUrl: env.TAGPLUS_BASE_URL,
+    databaseUrl: env.DATABASE_URL,
+    scopes: env.TAGPLUS_SCOPES,
+    ...(env.TEST_DATABASE_URL
+      ? { testDatabaseUrl: env.TEST_DATABASE_URL }
+      : {}),
+  },
+});
+
+// Repositório e Recuperação de Runs Órfãs (V1 Single Instance Premise)
+const syncRepository = createTagPlusSyncRepository(prisma);
+const staleRecovered = await syncRepository.recoverStaleRuns();
+if (
+  staleRecovered.tagplus > 0 ||
+  staleRecovered.customers > 0 ||
+  staleRecovered.products > 0
+) {
+  console.info(
+    `[Startup Recovery] Runs órfãs anteriores recuperadas: ${staleRecovered.tagplus} TagPlus, ${staleRecovered.customers} Customers, ${staleRecovered.products} Products`,
+  );
+}
+
+// Orquestrador TagPlus
+const tagPlusSyncOrchestrator = createTagPlusSyncOrchestrator({
+  prisma,
+  syncRepository,
+  tokenStore,
+  customerRunner,
+  productRunner,
+  salesRunner,
+});
+
 const app = await buildApp({
   databaseHealth: createDatabaseHealthChecker(prisma),
   frontendUrl: env.FRONTEND_URL,
   biRepository: createBiRepository(prisma),
+  tagPlusSyncOrchestrator,
   tagPlusOAuth: {
     config: {
       authUrl: env.TAGPLUS_AUTH_URL,
@@ -31,49 +98,15 @@ const app = await buildApp({
 });
 
 if (process.argv.includes("--customer-sync-console")) {
-  const runner = createProductionCustomerSyncRunner({
-    prisma,
-    tokenStore,
-    config: {
-      baseUrl: env.TAGPLUS_BASE_URL,
-      databaseUrl: env.DATABASE_URL,
-      ...(env.TEST_DATABASE_URL
-        ? { testDatabaseUrl: env.TEST_DATABASE_URL }
-        : {}),
-    },
-  });
-  registerCustomerSyncConsole(runner);
+  registerCustomerSyncConsole(customerRunner);
 }
 
 if (process.argv.includes("--product-sync-console")) {
-  const runner = createProductionProductSyncRunner({
-    prisma,
-    tokenStore,
-    config: {
-      baseUrl: env.TAGPLUS_BASE_URL,
-      databaseUrl: env.DATABASE_URL,
-      ...(env.TEST_DATABASE_URL
-        ? { testDatabaseUrl: env.TEST_DATABASE_URL }
-        : {}),
-    },
-  });
-  registerProductSyncConsole(runner);
+  registerProductSyncConsole(productRunner);
 }
 
 if (process.argv.includes("--sales-sync-console")) {
-  const runner = createProductionSalesSyncRunner({
-    prisma,
-    tokenStore,
-    config: {
-      baseUrl: env.TAGPLUS_BASE_URL,
-      databaseUrl: env.DATABASE_URL,
-      scopes: env.TAGPLUS_SCOPES,
-      ...(env.TEST_DATABASE_URL
-        ? { testDatabaseUrl: env.TEST_DATABASE_URL }
-        : {}),
-    },
-  });
-  registerSalesSyncConsole(runner);
+  registerSalesSyncConsole(salesRunner);
 }
 
 let shuttingDown = false;
