@@ -121,6 +121,15 @@ export function App() {
     [loadSalesOverview, loadCustomerOverview, salesData, customerData],
   );
 
+  const handleSyncSuccess = useCallback(() => {
+    fetchDataRange()
+      .then((res) => {
+        setDataRange(res);
+      })
+      .catch(() => {});
+    loadAllData(currentPeriod.from, currentPeriod.to);
+  }, [loadAllData, currentPeriod.from, currentPeriod.to]);
+
   // Initial load
   useEffect(() => {
     fetchDataRange()
@@ -188,7 +197,7 @@ export function App() {
   const isAnyLoading = isSalesLoading || isCustomerLoading || isUpdating;
 
   return (
-    <AppShell>
+    <AppShell onSyncSuccess={handleSyncSuccess}>
       <main className="tp-dashboard-main">
         {/* Header with integrated Period Filter */}
         <Header isUpdating={isUpdating}>
