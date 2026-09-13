@@ -7,3 +7,5 @@ coverage/
 *.log
 *.tsbuildinfo
 .vite/
+*.token.json
+.tagplus-token.json

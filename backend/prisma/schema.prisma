@@ -253,6 +253,7 @@ model Product {
   connection             TagPlusConnection @relation(fields: [connectionId], references: [id])
   lastSeenSyncRun        ProductSyncRun?   @relation("ProductsLastSeenInRun", fields: [lastSeenSyncRunId], references: [id], onDelete: SetNull)
   saleItems              SaleItem[]
+  saleSourceDocumentItems SaleSourceDocumentItem[]
 
   @@unique([connectionId, sourceId])
   @@index([connectionId, code])
@@ -325,14 +326,38 @@ model SaleSourceDocument {
   realizedDate      DateTime?      @map("realized_date")
   sourcePresent     Boolean        @map("source_present")
   lastSeenAt        DateTime       @map("last_seen_at")
-  createdAt         DateTime       @default(now()) @map("created_at")
-  updatedAt         DateTime       @updatedAt @map("updated_at")
-  sale              Sale           @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  createdAt         DateTime                 @default(now()) @map("created_at")
+  updatedAt         DateTime                 @updatedAt @map("updated_at")
+  sale              Sale                     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  items             SaleSourceDocumentItem[]
 
   @@unique([connectionId, docType, sourceId])
   @@index([saleId])
   @@index([connectionId, realizedDate])
   @@map("sale_source_documents")
+}
+
+model SaleSourceDocumentItem {
+  id                   String             @id @default(uuid()) @db.Uuid
+  saleSourceDocumentId String             @map("sale_source_document_id") @db.Uuid
+  sourceItemId         String             @map("source_item_id")
+  lineNumber           Int?               @map("line_number")
+  productId            String?            @map("product_id") @db.Uuid
+  sourceProductId      String             @map("source_product_id")
+  quantity             Decimal            @db.Decimal(12, 4)
+  unitPrice            Decimal            @map("unit_price") @db.Decimal(12, 4)
+  discountAmount       Decimal?           @map("discount_amount") @db.Decimal(12, 4)
+  subtotal             Decimal            @db.Decimal(12, 4)
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+  saleSourceDocument   SaleSourceDocument @relation(fields: [saleSourceDocumentId], references: [id], onDelete: Cascade)
+  product              Product?           @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@unique([saleSourceDocumentId, sourceItemId])
+  @@index([saleSourceDocumentId])
+  @@index([productId])
+  @@index([sourceProductId])
+  @@map("sale_source_document_items")
 }
 
 enum TagPlusSyncStatus {

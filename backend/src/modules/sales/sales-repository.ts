@@ -1,6 +1,9 @@
 import type { PrismaClient } from "@prisma/client";
 import { Prisma, SaleAnchorType } from "@prisma/client";
-import type { NormalizedSale } from "../../integrations/tagplus/sales/sales-normalizers.js";
+import type {
+  NormalizedSale,
+  NormalizedSaleItem,
+} from "../../integrations/tagplus/sales/sales-normalizers.js";
 import { computeRealizedDate } from "../../integrations/tagplus/sales/sales-normalizers.js";
 import { computeCommercialDate } from "./commercial-date.js";
 
@@ -196,9 +199,10 @@ export function createSalesRepository(prisma: PrismaClient): SalesRepository {
             },
           });
 
+          let docId: string;
           if (!existingDoc) {
             // Case A: Create directly under parentSale
-            await tx.saleSourceDocument.create({
+            const created = await tx.saleSourceDocument.create({
               data: {
                 saleId: parentSale.id,
                 connectionId,
@@ -214,6 +218,7 @@ export function createSalesRepository(prisma: PrismaClient): SalesRepository {
                 lastSeenAt: observedAt,
               },
             });
+            docId = created.id;
           } else if (existingDoc.saleId === parentSale.id) {
             // Case B: Idempotent update
             await tx.saleSourceDocument.update({
@@ -229,6 +234,7 @@ export function createSalesRepository(prisma: PrismaClient): SalesRepository {
                 lastSeenAt: observedAt,
               },
             });
+            docId = existingDoc.id;
           } else {
             // Case C: Move from oldSale S1 to parentSale S2
             const oldSaleId = existingDoc.saleId;
@@ -246,6 +252,7 @@ export function createSalesRepository(prisma: PrismaClient): SalesRepository {
                 lastSeenAt: observedAt,
               },
             });
+            docId = existingDoc.id;
 
             // If oldSale S1 no longer owns any source documents, delete it
             const remainingDocs = await tx.saleSourceDocument.count({
@@ -257,6 +264,8 @@ export function createSalesRepository(prisma: PrismaClient): SalesRepository {
               });
             }
           }
+
+          await syncDocumentItems(tx, connectionId, docId, childSale.items);
         } else {
           // Direct Venda Simples or Direct NFe
           let customerId: string | null = null;
@@ -348,7 +357,7 @@ export function createSalesRepository(prisma: PrismaClient): SalesRepository {
             });
           }
 
-          await tx.saleSourceDocument.upsert({
+          const directDoc = await tx.saleSourceDocument.upsert({
             where: {
               connectionId_docType_sourceId: {
                 connectionId,
@@ -382,6 +391,8 @@ export function createSalesRepository(prisma: PrismaClient): SalesRepository {
               lastSeenAt: observedAt,
             },
           });
+
+          await syncDocumentItems(tx, connectionId, directDoc.id, childSale.items);
         }
       }, { timeout: SALES_TRANSACTION_TIMEOUT_MS });
     },
@@ -440,3 +451,57 @@ export function createSalesRepository(prisma: PrismaClient): SalesRepository {
     },
   };
 }
+
+async function syncDocumentItems(
+  tx: Prisma.TransactionClient,
+  connectionId: string,
+  saleSourceDocumentId: string,
+  items: NormalizedSaleItem[],
+): Promise<void> {
+  // Proteção contra payload incompleto / resumido:
+  // Se items for vazio ou indefinido, NÃO apagamos itens já persistidos deste documento.
+  if (!items || items.length === 0) {
+    return;
+  }
+
+  const itemsToCreate = [];
+  for (const item of items) {
+    let productId: string | null = null;
+    if (item.sourceProductId) {
+      const product = await tx.product.findUnique({
+        where: {
+          connectionId_sourceId: {
+            connectionId,
+            sourceId: item.sourceProductId,
+          },
+        },
+        select: { id: true },
+      });
+      productId = product?.id ?? null;
+    }
+
+    itemsToCreate.push({
+      saleSourceDocumentId,
+      sourceItemId: item.sourceItemId,
+      lineNumber: item.lineNumber,
+      productId,
+      sourceProductId: item.sourceProductId,
+      quantity: new Prisma.Decimal(item.quantity),
+      unitPrice: new Prisma.Decimal(item.unitPrice),
+      discountAmount: item.discountAmount
+        ? new Prisma.Decimal(item.discountAmount)
+        : null,
+      subtotal: new Prisma.Decimal(item.subtotal),
+    });
+  }
+
+  // Idempotência segura: substitui os itens deste documento específico
+  await tx.saleSourceDocumentItem.deleteMany({
+    where: { saleSourceDocumentId },
+  });
+
+  await tx.saleSourceDocumentItem.createMany({
+    data: itemsToCreate,
+  });
+}
+

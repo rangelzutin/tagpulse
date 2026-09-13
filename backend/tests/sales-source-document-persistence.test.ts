@@ -28,6 +28,10 @@ function createMockTx() {
       update: vi.fn().mockResolvedValue({ id: "doc-db-1" }),
       count: vi.fn().mockResolvedValue(0),
     },
+    saleSourceDocumentItem: {
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+      createMany: vi.fn().mockResolvedValue({ count: 0 }),
+    },
   };
 }
 
