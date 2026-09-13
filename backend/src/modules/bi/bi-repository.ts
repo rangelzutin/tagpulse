@@ -1,5 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { SaleAnchorType } from "@prisma/client";
+import { generateRealizedProductMovements } from "./bi-product-movements.js";
+import type { CatalogProductInfo } from "./bi-products-calculator.js";
 import type {
   BiCustomerMetadata,
   BiCustomerSaleRawRecord,
@@ -7,6 +9,8 @@ import type {
   BiPeriodCustomerDoc,
   BiSaleRealizationRecord,
   BiSaleRecord,
+  ProductReconciliationAdjustment,
+  RealizedProductMovement,
 } from "./bi-types.js";
 
 export interface BiRepository {
@@ -28,6 +32,21 @@ export interface BiRepository {
   findCustomerSales?(
     customerId: string,
   ): Promise<BiCustomerSaleRawRecord[]>;
+  findRealizedProductMovements?(
+    from: Date,
+    toExclusive: Date,
+  ): Promise<{
+    movements: RealizedProductMovement[];
+    adjustments: ProductReconciliationAdjustment[];
+  }>;
+  findCatalogProductSummary?(): Promise<{
+    activeCount: number;
+    withStockCount: number;
+  }>;
+  findCatalogProductsMetadata?(
+    productIds: string[],
+    sourceProductIds: string[],
+  ): Promise<Map<string, CatalogProductInfo>>;
 }
 
 export function createBiRepository(prisma: PrismaClient): BiRepository {
@@ -327,6 +346,160 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
           sourcePresent: d.sourcePresent,
         })),
       }));
+    },
+
+    async findRealizedProductMovements(
+      from: Date,
+      toExclusive: Date,
+    ): Promise<{
+      movements: RealizedProductMovement[];
+      adjustments: ProductReconciliationAdjustment[];
+    }> {
+      // 1. Localiza documentos realizados no período usando índice de realizedDate
+      const periodDocs = await prisma.saleSourceDocument.findMany({
+        where: {
+          sourcePresent: true,
+          docType: { in: [SaleAnchorType.NFE, SaleAnchorType.VENDA_SIMPLES] },
+          realizedDate: { gte: from, lt: toExclusive },
+          netAmount: { not: null },
+        },
+        select: {
+          id: true,
+          saleId: true,
+        },
+      });
+
+      if (periodDocs.length === 0) {
+        return { movements: [], adjustments: [] };
+      }
+
+      const saleIds = Array.from(new Set(periodDocs.map((d) => d.saleId)));
+
+      // 2. Carrega as negociações correspondentes com seus itens e documentos realizados
+      const sales = await prisma.sale.findMany({
+        where: { id: { in: saleIds } },
+        include: {
+          customer: {
+            select: {
+              id: true,
+              cnpj: true,
+              cpf: true,
+              legalName: true,
+              tradeName: true,
+            },
+          },
+          items: {
+            select: {
+              id: true,
+              sourceItemId: true,
+              productId: true,
+              sourceProductId: true,
+              quantity: true,
+              unitPrice: true,
+              subtotal: true,
+            },
+          },
+          sourceDocs: {
+            where: {
+              sourcePresent: true,
+              docType: {
+                in: [
+                  SaleAnchorType.NFE,
+                  SaleAnchorType.VENDA_SIMPLES,
+                  SaleAnchorType.PEDIDO,
+                ],
+              },
+            },
+            include: {
+              items: {
+                select: {
+                  id: true,
+                  sourceItemId: true,
+                  productId: true,
+                  sourceProductId: true,
+                  quantity: true,
+                  unitPrice: true,
+                  subtotal: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      // 3. Aplica a agregação central canônica de movimentações de produtos
+      return generateRealizedProductMovements(sales, from, toExclusive);
+    },
+
+    async findCatalogProductSummary(): Promise<{
+      activeCount: number;
+      withStockCount: number;
+    }> {
+      const [activeCount, withStockCount] = await Promise.all([
+        prisma.product.count({
+          where: { sourcePresent: true, active: true },
+        }),
+        prisma.product.count({
+          where: {
+            sourcePresent: true,
+            active: true,
+            stockQuantity: { gt: 0 },
+          },
+        }),
+      ]);
+
+      return { activeCount, withStockCount };
+    },
+
+    async findCatalogProductsMetadata(
+      productIds: string[],
+      sourceProductIds: string[],
+    ): Promise<Map<string, CatalogProductInfo>> {
+      const map = new Map<string, CatalogProductInfo>();
+
+      const orConditions: Array<{ id?: { in: string[] }; sourceId?: { in: string[] } }> = [];
+      if (productIds.length > 0) {
+        orConditions.push({ id: { in: productIds } });
+      }
+      if (sourceProductIds.length > 0) {
+        orConditions.push({ sourceId: { in: sourceProductIds } });
+      }
+
+      if (orConditions.length === 0) {
+        return map;
+      }
+
+      const products = await prisma.product.findMany({
+        where: { OR: orConditions },
+        select: {
+          id: true,
+          sourceId: true,
+          code: true,
+          description: true,
+          categoryDescription: true,
+          stockQuantity: true,
+          retailSalePrice: true,
+          effectiveCost: true,
+        },
+      });
+
+      for (const p of products) {
+        const info: CatalogProductInfo = {
+          code: p.code,
+          description: p.description,
+          categoryDescription: p.categoryDescription,
+          stockQuantity:
+            p.stockQuantity !== null ? Number(p.stockQuantity) : null,
+          retailSalePrice:
+            p.retailSalePrice !== null ? Number(p.retailSalePrice) : null,
+          effectiveCost:
+            p.effectiveCost !== null ? Number(p.effectiveCost) : null,
+        };
+        map.set(p.id, info);
+        map.set(`source:${p.sourceId}`, info);
+      }
+
+      return map;
     },
   };
 }

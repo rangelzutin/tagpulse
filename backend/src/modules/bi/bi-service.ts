@@ -3,6 +3,7 @@ import {
   calculateCustomerOverview,
   calculateSalesOverview,
 } from "./bi-calculator.js";
+import { calculateProductsOverview } from "./bi-products-calculator.js";
 import {
   buildCustomerBehavioralMap,
   computeDisplayName,
@@ -26,11 +27,16 @@ import type {
   CustomerSegmentSort,
   CustomerSegmentType,
   CustomerOverviewResult,
+  ProductsOverviewResult,
   SalesOverviewResult,
 } from "./bi-types.js";
 
 export type BiSalesOverviewResult =
   | { success: true; data: SalesOverviewResult }
+  | { success: false; error: string };
+
+export type BiProductsOverviewResult =
+  | { success: true; data: ProductsOverviewResult }
   | { success: false; error: string };
 
 export type BiCustomerOverviewResult =
@@ -56,6 +62,7 @@ export type BiCustomerSalesServiceResult =
 export interface BiService {
   getDataRange(): Promise<BiDataRangeServiceResult>;
   getSalesOverview(from: unknown, to: unknown): Promise<BiSalesOverviewResult>;
+  getProductsOverview(from: unknown, to: unknown): Promise<BiProductsOverviewResult>;
   getCustomerOverview(
     from: unknown,
     to: unknown,
@@ -172,6 +179,73 @@ export function createBiService(repository: BiRepository): BiService {
         fromDate,
         toExclusiveDate,
       );
+
+      return { success: true, data };
+    },
+
+    async getProductsOverview(
+      from: unknown,
+      to: unknown,
+    ): Promise<BiProductsOverviewResult> {
+      const parsedRange = parseOverviewDateRange(from, to);
+      if (!parsedRange.success) {
+        return { success: false, error: parsedRange.error };
+      }
+
+      const { from: fromStr, to: toStr, fromDate, toExclusiveDate } =
+        parsedRange.range;
+
+      if (
+        !repository.findRealizedProductMovements ||
+        !repository.findCatalogProductSummary ||
+        !repository.findCatalogProductsMetadata
+      ) {
+        return {
+          success: false,
+          error: "Repositório não suporta inteligência de produtos.",
+        };
+      }
+
+      const [movementData, sales, catalogSummary] = await Promise.all([
+        repository.findRealizedProductMovements(fromDate, toExclusiveDate),
+        repository.findRealizedSales(fromDate, toExclusiveDate),
+        repository.findCatalogProductSummary(),
+      ]);
+
+      const commercialOverview = calculateSalesOverview(
+        sales,
+        { from: fromStr, to: toStr },
+        fromDate,
+        toExclusiveDate,
+      );
+
+      const productIds = Array.from(
+        new Set(
+          movementData.movements
+            .map((m) => m.productId)
+            .filter((id): id is string => id !== null),
+        ),
+      );
+      const sourceProductIds = Array.from(
+        new Set(movementData.movements.map((m) => m.sourceProductId)),
+      );
+
+      const catalogProductMap = await repository.findCatalogProductsMetadata(
+        productIds,
+        sourceProductIds,
+      );
+
+      const data = calculateProductsOverview({
+        movements: movementData.movements,
+        catalogProductMap,
+        catalogSummary,
+        commercialRevenue: commercialOverview.summary.revenue,
+        adjustments: movementData.adjustments,
+        period: {
+          from: fromStr,
+          to: toStr,
+        },
+      });
 
       return { success: true, data };
     },

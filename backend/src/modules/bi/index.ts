@@ -5,3 +5,6 @@ export * from "./bi-repository.js";
 export * from "./bi-service.js";
 export * from "./bi-routes.js";
 export * from "./bi-customer-segmentation.js";
+export * from "./bi-channel-classifier.js";
+export * from "./bi-product-movements.js";
+export * from "./bi-products-calculator.js";

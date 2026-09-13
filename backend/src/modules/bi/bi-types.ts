@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import type { Prisma, SaleAnchorType } from "@prisma/client";
 
 export interface SalesOverviewPeriod {
   from: string;
@@ -307,4 +307,102 @@ export interface BiCustomerSaleRawRecord {
   anchorSourceId: string;
   commercialDate: Date | null;
   sourceDocs: BiCustomerSaleRawDoc[];
+}
+
+export type RealizedProductMovementOrigin =
+  | "DIRECT_NFE"
+  | "DIRECT_VENDA_SIMPLES"
+  | "PEDIDO_NFE"
+  | "PEDIDO_VENDA_SIMPLES"
+  | "PEDIDO_RESIDUAL_VENDA_SIMPLES"
+  | "PEDIDO_FINANCIAL_COMPLEMENT_VENDA_SIMPLES";
+
+export type CommercialChannel =
+  | "ATACADO"
+  | "VAREJO"
+  | "INDETERMINADO"
+  | "CONFLITO";
+
+export interface RealizedProductMovement {
+  productId: string | null;
+  sourceProductId: string;
+  realizedDate: Date;
+  quantity: number;
+  grossItemAmount: number;
+  allocationBaseAmount: number;
+  allocatedNetRevenue: number;
+  saleId: string;
+  customerId: string | null;
+  channel: CommercialChannel;
+  sourceDocumentId: string;
+  sourceDocumentType: SaleAnchorType;
+  origin: RealizedProductMovementOrigin;
+  auditFlag?: string | null;
+}
+
+export interface ProductsOverviewSummary {
+  realizedRevenue: number;
+  realizedQuantity: number;
+  distinctProductsSold: number;
+  distinctCustomers: number;
+  activeCatalogProducts: number;
+  productsWithStock: number;
+  productsSoldInPeriod: number;
+}
+
+export interface TopProductItem {
+  productId: string | null;
+  code: string | null;
+  description: string | null;
+  category: string;
+  quantity: number;
+  grossItemAmount: number;
+  realizedRevenue: number;
+  distinctSales: number;
+  distinctCustomers: number;
+  currentStockQuantity: number | null;
+  retailSalePrice: number | null;
+  effectiveCost: number | null;
+}
+
+export interface ProductCategoryItem {
+  category: string;
+  quantity: number;
+  realizedRevenue: number;
+  distinctProducts: number;
+  shareOfRevenue: number;
+}
+
+export interface ProductChannelMixItem {
+  channel: CommercialChannel;
+  quantity: number;
+  realizedRevenue: number;
+  distinctProducts: number;
+}
+
+export interface ProductReconciliationAdjustment {
+  type: string;
+  sourceDocumentId: string;
+  sourceId?: string;
+  amount: number;
+  reason: string;
+}
+
+export interface ProductReconciliation {
+  commercialRevenue: number;
+  productsRevenue: number;
+  adjustmentAmount: number;
+  adjustments: ProductReconciliationAdjustment[];
+}
+
+export interface ProductsOverviewResult {
+  period: {
+    from: string;
+    to: string;
+  };
+  summary: ProductsOverviewSummary;
+  topProducts: TopProductItem[];
+  categories: ProductCategoryItem[];
+  channelMix: ProductChannelMixItem[];
+  reconciliation: ProductReconciliation;
 }

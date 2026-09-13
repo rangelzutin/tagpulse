@@ -35,6 +35,20 @@ export function registerBiRoutes(
     return reply.code(200).send(result.data);
   });
 
+  app.get("/bi/products/overview", async (request, reply) => {
+    const query = (request.query ?? {}) as Record<string, unknown>;
+    const result = await service.getProductsOverview(query.from, query.to);
+
+    if (!result.success) {
+      return reply.code(400).send({
+        status: "error",
+        message: result.error,
+      });
+    }
+
+    return reply.code(200).send(result.data);
+  });
+
   app.get("/bi/customers/overview", async (request, reply) => {
     const query = (request.query ?? {}) as Record<string, unknown>;
     const result = await service.getCustomerOverview(
