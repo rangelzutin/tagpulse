@@ -3212,3 +3212,822 @@ body {
   align-items: center;
   gap: 10px;
 }
+
+/* ==========================================================================
+   PRODUTOS BI (V1) - High Density Executive Styles
+   ========================================================================== */
+
+.tp-products-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tp-space-base);
+  width: 100%;
+  clear: both;
+}
+
+.tp-product-kpi-subtext {
+  font-size: 0.725rem;
+  color: var(--tp-text-muted);
+  margin-top: 0.2rem;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+/* Contexto do Catálogo e Estoque (sem semântica de funil) */
+.tp-catalog-context-card {
+  padding: 14px 18px;
+  background-color: var(--tp-bg-card);
+  border: 1px solid var(--tp-border-subtle);
+  border-radius: var(--tp-radius-md);
+  box-shadow: var(--tp-shadow-card);
+}
+
+.tp-catalog-context-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--tp-border-subtle);
+}
+
+.tp-catalog-context-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--tp-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.tp-catalog-context-badge {
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: var(--tp-radius-xs);
+  background: rgba(14, 165, 233, 0.12);
+  border: 1px solid rgba(14, 165, 233, 0.28);
+  color: var(--tp-cyan-300);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tp-catalog-context-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--tp-space-base);
+}
+
+.tp-catalog-context-item {
+  background: var(--tp-bg-surface);
+  border: 1px solid var(--tp-border-subtle);
+  border-radius: var(--tp-radius-sm);
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 2px;
+  transition: border-color 0.15s ease;
+}
+
+.tp-catalog-context-item:hover {
+  border-color: var(--tp-border-medium);
+}
+
+.tp-catalog-item-header {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.tp-catalog-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tp-catalog-item-label {
+  font-size: 0.725rem;
+  font-weight: 600;
+  color: var(--tp-text-secondary);
+}
+
+.tp-catalog-item-value {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--tp-text-primary);
+  font-family: var(--tp-font-mono, monospace);
+  letter-spacing: -0.02em;
+}
+
+.tp-catalog-item-desc {
+  font-size: 0.675rem;
+  color: var(--tp-text-muted);
+}
+
+/* Banner de Reconciliação Histórica (Exclusão explícita 2025) */
+.tp-reconciliation-banner {
+  background: rgba(14, 165, 233, 0.08);
+  border: 1px solid rgba(14, 165, 233, 0.25);
+  border-radius: var(--tp-radius-md);
+  padding: 12px 16px;
+  box-shadow: var(--tp-shadow-card);
+}
+
+.tp-reconciliation-banner-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.tp-reconciliation-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  flex: 1;
+  min-width: 280px;
+}
+
+.tp-reconciliation-icon-wrap {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--tp-radius-xs);
+  background: rgba(14, 165, 233, 0.18);
+  border: 1px solid rgba(14, 165, 233, 0.35);
+  color: var(--tp-cyan-300);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.tp-reconciliation-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.tp-reconciliation-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.tp-reconciliation-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--tp-cyan-300);
+  background: rgba(14, 165, 233, 0.15);
+  border: 1px solid rgba(14, 165, 233, 0.3);
+  padding: 2px 6px;
+  border-radius: var(--tp-radius-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tp-reconciliation-formula {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--tp-text-primary);
+  font-family: var(--tp-font-mono, monospace);
+}
+
+.tp-reconciliation-desc {
+  font-size: 0.725rem;
+  color: var(--tp-text-secondary);
+  margin: 0;
+}
+
+.tp-reconciliation-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.65rem;
+  background: var(--tp-bg-surface-elevated);
+  border: 1px solid var(--tp-border-subtle);
+  border-radius: var(--tp-radius-xs);
+  color: var(--tp-text-secondary);
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.tp-reconciliation-toggle-btn:hover {
+  background: var(--tp-bg-surface);
+  border-color: var(--tp-border-medium);
+  color: var(--tp-text-primary);
+}
+
+.tp-reconciliation-details {
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid rgba(14, 165, 233, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.tp-reconciliation-equation-box {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: var(--tp-bg-surface);
+  border: 1px solid var(--tp-border-subtle);
+  border-radius: var(--tp-radius-sm);
+  padding: 10px 14px;
+  flex-wrap: wrap;
+}
+
+.tp-equation-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tp-equation-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--tp-text-muted);
+}
+
+.tp-equation-val {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--tp-text-primary);
+  font-family: var(--tp-font-mono, monospace);
+}
+
+.tp-equation-op {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--tp-text-secondary);
+}
+
+.tp-equation-adjustment .tp-equation-val {
+  color: #f87171;
+}
+
+.tp-equation-result .tp-equation-val {
+  color: var(--tp-cyan-300);
+}
+
+.tp-reconciliation-item {
+  background: rgba(15, 23, 42, 0.4);
+  border: 1px solid var(--tp-border-subtle);
+  border-radius: var(--tp-radius-xs);
+  padding: 8px 12px;
+}
+
+.tp-reconciliation-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.tp-reconciliation-item-type {
+  font-size: 0.725rem;
+  font-weight: 700;
+  color: var(--tp-text-secondary);
+}
+
+.tp-reconciliation-item-amount {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #f87171;
+  font-family: var(--tp-font-mono, monospace);
+}
+
+.tp-reconciliation-item-reason {
+  font-size: 0.7rem;
+  color: var(--tp-text-muted);
+  margin: 0;
+}
+
+/* Grid Dividido de Produtos (Mais Vendidos + Categorias/Canais) */
+.tp-products-split-grid {
+  display: grid;
+  grid-template-columns: 1.7fr 1fr;
+  gap: var(--tp-space-base);
+  width: 100%;
+  clear: both;
+}
+
+.tp-products-main-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.tp-products-side-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tp-space-base);
+  min-width: 0;
+}
+
+/* Header de Mais Vendidos & Toggles */
+.tp-top-products-header {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.tp-ranking-toggles {
+  display: inline-flex;
+  align-items: center;
+  background-color: var(--tp-bg-card);
+  border: 1px solid var(--tp-border-medium);
+  border-radius: var(--tp-radius-md);
+  padding: 2px;
+  gap: 2px;
+}
+
+.tp-ranking-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.65rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: calc(var(--tp-radius-md) - 2px);
+  color: var(--tp-text-secondary);
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.tp-ranking-toggle-btn:hover {
+  color: var(--tp-text-primary);
+  background-color: var(--tp-bg-surface-elevated);
+}
+
+.tp-ranking-toggle-btn.is-active {
+  background-color: var(--tp-bg-surface-elevated);
+  border-color: var(--tp-cyan-500);
+  color: var(--tp-cyan-300);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* Tabela de Produtos Mais Vendidos */
+.tp-products-table .tp-th-rank {
+  width: 44px;
+  text-align: center;
+}
+
+.tp-products-table .tp-th-product {
+  min-width: 180px;
+  max-width: 260px;
+}
+
+.tp-products-table .tp-th-category {
+  width: 120px;
+}
+
+.tp-products-table .tp-th-share {
+  width: 110px;
+  text-align: right;
+}
+
+.tp-products-table .tp-th-stock {
+  width: 90px;
+  text-align: right;
+}
+
+.tp-product-info-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tp-product-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--tp-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tp-product-sku {
+  font-size: 0.675rem;
+  color: var(--tp-text-muted);
+  font-family: var(--tp-font-mono, monospace);
+}
+
+.tp-category-pill {
+  font-size: 0.675rem;
+  font-weight: 500;
+  color: var(--tp-text-secondary);
+  background: var(--tp-bg-surface);
+  border: 1px solid var(--tp-border-subtle);
+  border-radius: 4px;
+  padding: 2px 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-block;
+  max-width: 120px;
+}
+
+.tp-quantity-cell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.tp-zero-qty-info {
+  color: var(--tp-cyan-400);
+  cursor: help;
+  display: inline-flex;
+  align-items: center;
+  opacity: 0.85;
+}
+
+.tp-zero-qty-info:hover {
+  opacity: 1;
+}
+
+.tp-share-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: flex-end;
+}
+
+.tp-share-text {
+  font-size: 0.725rem;
+  font-weight: 600;
+  color: var(--tp-text-secondary);
+  font-family: var(--tp-font-mono, monospace);
+}
+
+.tp-share-bar-bg {
+  width: 54px;
+  height: 4px;
+  background: var(--tp-bg-surface-elevated);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.tp-share-bar-fill {
+  height: 100%;
+  background: var(--tp-cyan-400);
+  border-radius: 2px;
+}
+
+.tp-stock-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.725rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: var(--tp-font-mono, monospace);
+}
+
+.tp-stock-ok {
+  background: rgba(34, 197, 94, 0.08);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.tp-stock-zero {
+  background: rgba(239, 68, 68, 0.1);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+/* Paginação da tabela */
+.tp-pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 1rem;
+  border-top: 1px solid var(--tp-border-subtle);
+  background: var(--tp-bg-surface);
+  border-radius: 0 0 var(--tp-radius-md) var(--tp-radius-md);
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.tp-pagination-info {
+  font-size: 0.725rem;
+  color: var(--tp-text-muted);
+}
+
+.tp-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tp-pagination-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.725rem;
+  background: var(--tp-bg-surface-elevated);
+  border: 1px solid var(--tp-border-subtle);
+  border-radius: var(--tp-radius-xs);
+  color: var(--tp-text-secondary);
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.tp-pagination-btn:hover:not(:disabled) {
+  background: var(--tp-bg-card-hover);
+  color: var(--tp-text-primary);
+  border-color: var(--tp-border-medium);
+}
+
+.tp-pagination-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.tp-pagination-page {
+  font-size: 0.725rem;
+  color: var(--tp-text-secondary);
+  font-weight: 600;
+  font-family: var(--tp-font-mono, monospace);
+}
+
+/* Mix por Categoria */
+.tp-category-ranking-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.25rem 0;
+}
+
+.tp-category-item-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--tp-border-subtle);
+}
+
+.tp-category-item-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.tp-category-meta-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.tp-category-name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.tp-category-icon {
+  color: var(--tp-text-muted);
+  flex-shrink: 0;
+}
+
+.tp-category-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--tp-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tp-category-figures {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.tp-category-revenue {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--tp-text-primary);
+  font-family: var(--tp-font-mono, monospace);
+}
+
+.tp-category-share {
+  font-size: 0.725rem;
+  font-weight: 600;
+  color: var(--tp-cyan-400);
+  font-family: var(--tp-font-mono, monospace);
+  min-width: 42px;
+  text-align: right;
+}
+
+.tp-category-bar-track {
+  height: 5px;
+  width: 100%;
+  background: var(--tp-bg-surface);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.tp-category-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--tp-cyan-500), var(--tp-cyan-300));
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.tp-category-sub-stats {
+  font-size: 0.675rem;
+  color: var(--tp-text-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* Mix por Canal */
+.tp-channel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.25rem 0;
+}
+
+.tp-channel-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--tp-border-subtle);
+}
+
+.tp-channel-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.tp-channel-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.tp-channel-title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.tp-channel-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.675rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: var(--tp-radius-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.tp-channel-badge-atacado {
+  background: rgba(14, 165, 233, 0.12);
+  border: 1px solid rgba(14, 165, 233, 0.3);
+  color: var(--tp-cyan-300);
+}
+
+.tp-channel-badge-varejo {
+  background: var(--tp-wine-bg);
+  border: 1px solid var(--tp-wine-border);
+  color: var(--tp-magenta-400);
+}
+
+.tp-channel-badge-indeterminado {
+  background: rgba(100, 116, 139, 0.12);
+  border: 1px solid rgba(100, 116, 139, 0.25);
+  color: var(--tp-text-muted);
+}
+
+.tp-channel-badge-conflito {
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: #fbbf24;
+}
+
+.tp-channel-desc {
+  font-size: 0.675rem;
+  color: var(--tp-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tp-channel-values {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.tp-channel-rev {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--tp-text-primary);
+  font-family: var(--tp-font-mono, monospace);
+}
+
+.tp-channel-share {
+  font-size: 0.725rem;
+  font-weight: 600;
+  color: var(--tp-cyan-400);
+  font-family: var(--tp-font-mono, monospace);
+  min-width: 42px;
+  text-align: right;
+}
+
+.tp-channel-bar-track {
+  height: 5px;
+  width: 100%;
+  background: var(--tp-bg-surface);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.tp-channel-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.tp-channel-fill-atacado {
+  background: linear-gradient(90deg, #0284c7, #38bdf8);
+}
+
+.tp-channel-fill-varejo {
+  background: linear-gradient(90deg, #e11d48, #fb7185);
+}
+
+.tp-channel-fill-indeterminado {
+  background: linear-gradient(90deg, #475569, #94a3b8);
+}
+
+.tp-channel-fill-conflito {
+  background: linear-gradient(90deg, #d97706, #fbbf24);
+}
+
+.tp-channel-sub-info {
+  font-size: 0.675rem;
+  color: var(--tp-text-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* Responsividade do BI de Produtos */
+@media (max-width: 1100px) {
+  .tp-products-split-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .tp-catalog-context-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tp-reconciliation-formula {
+    font-size: 0.75rem;
+  }
+
+  .tp-top-products-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

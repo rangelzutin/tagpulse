@@ -513,3 +513,120 @@ export async function fetchCustomerSales(
 
   return (await response.json()) as CustomerSalesResult;
 }
+
+// ============================================================================
+// PRODUTOS BI (V1)
+// ============================================================================
+
+export interface ProductsOverviewSummary {
+  realizedRevenue: number;
+  realizedQuantity: number;
+  distinctProductsSold: number;
+  distinctCustomers: number;
+  activeCatalogProducts: number;
+  productsWithStock: number;
+  productsSoldInPeriod: number;
+}
+
+export interface TopProductItem {
+  productId: string | null;
+  code: string | null;
+  description: string | null;
+  category: string;
+  quantity: number;
+  grossItemAmount: number;
+  realizedRevenue: number;
+  distinctSales: number;
+  distinctCustomers: number;
+  currentStockQuantity: number | null;
+  retailSalePrice: number | null;
+  effectiveCost: number | null;
+}
+
+export interface ProductCategoryItem {
+  category: string;
+  quantity: number;
+  realizedRevenue: number;
+  distinctProducts: number;
+  shareOfRevenue: number;
+}
+
+export type CommercialChannel =
+  | "ATACADO"
+  | "VAREJO"
+  | "INDETERMINADO"
+  | "CONFLITO";
+
+export interface ProductChannelMixItem {
+  channel: CommercialChannel;
+  quantity: number;
+  realizedRevenue: number;
+  distinctProducts: number;
+}
+
+export interface ProductAdjustmentItem {
+  type: string;
+  sourceDocumentId: string;
+  sourceId?: string;
+  amount: number;
+  reason: string;
+}
+
+export interface ProductReconciliation {
+  commercialRevenue: number;
+  productsRevenue: number;
+  adjustmentAmount: number;
+  adjustments: ProductAdjustmentItem[];
+}
+
+export interface ProductsOverviewResult {
+  period: {
+    from: string;
+    to: string;
+  };
+  summary: ProductsOverviewSummary;
+  topProducts: TopProductItem[];
+  categories: ProductCategoryItem[];
+  channelMix: ProductChannelMixItem[];
+  reconciliation: ProductReconciliation;
+}
+
+export async function fetchProductsOverview(
+  from: string,
+  to: string,
+): Promise<ProductsOverviewResult> {
+  const rawBaseUrl = import.meta.env.VITE_API_URL || "";
+  const baseUrl = rawBaseUrl.endsWith("/")
+    ? rawBaseUrl.slice(0, -1)
+    : rawBaseUrl;
+
+  const url = `${baseUrl}/bi/products/overview?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+      },
+    });
+  } catch {
+    throw new Error(
+      "Não foi possível conectar ao servidor para carregar o BI de Produtos.",
+    );
+  }
+
+  if (!response.ok) {
+    let errorMsg = "Erro ao carregar o BI de Produtos.";
+    try {
+      const errJson = await response.json();
+      if (errJson.message) {
+        errorMsg = errJson.message;
+      }
+    } catch {
+      // ignora falha de parse
+    }
+    throw new Error(errorMsg);
+  }
+
+  return (await response.json()) as ProductsOverviewResult;
+}

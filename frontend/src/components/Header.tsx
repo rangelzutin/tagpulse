@@ -2,16 +2,23 @@ import { type ReactNode } from "react";
 import { RefreshCw } from "lucide-react";
 
 interface HeaderProps {
+  title?: string;
+  subtitle?: string;
   isUpdating?: boolean;
   children?: ReactNode;
 }
 
-export function Header({ isUpdating, children }: HeaderProps) {
+export function Header({
+  title = "Performance Comercial",
+  subtitle = "Análise operacional e comercial da Nineclouds com base nas vendas realizadas e no comportamento da base de clientes.",
+  isUpdating,
+  children,
+}: HeaderProps) {
   return (
     <header className="tp-header">
       <div className="tp-header-left">
         <div className="tp-header-title-row">
-          <h1 className="tp-page-title">Performance Comercial</h1>
+          <h1 className="tp-page-title">{title}</h1>
           {isUpdating && (
             <div className="tp-header-status" aria-live="polite">
               <RefreshCw size={12} className="tp-spin" />
@@ -19,10 +26,7 @@ export function Header({ isUpdating, children }: HeaderProps) {
             </div>
           )}
         </div>
-        <p className="tp-page-subtitle">
-          Análise operacional e comercial da Nineclouds com base nas vendas
-          realizadas e no comportamento da base de clientes.
-        </p>
+        <p className="tp-page-subtitle">{subtitle}</p>
       </div>
 
       {children && <div className="tp-header-right">{children}</div>}

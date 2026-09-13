@@ -13,10 +13,17 @@ import { fetchTagPlusSyncStatus } from "../api/sync";
 
 interface AppShellProps {
   children: ReactNode;
+  activeNav?: "commercial" | "products";
+  onSelectNav?: (nav: "commercial" | "products") => void;
   onSyncSuccess?: () => void;
 }
 
-export function AppShell({ children, onSyncSuccess }: AppShellProps) {
+export function AppShell({
+  children,
+  activeNav = "commercial",
+  onSelectNav,
+  onSyncSuccess,
+}: AppShellProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [lastCompletedSync, setLastCompletedSync] = useState<string | null>(null);
@@ -114,11 +121,29 @@ export function AppShell({ children, onSyncSuccess }: AppShellProps) {
               <li>
                 <button
                   type="button"
-                  className="tp-nav-item is-active"
-                  onClick={() => scrollToSection("topo")}
+                  className={`tp-nav-item ${activeNav === "commercial" ? "is-active" : ""}`}
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    onSelectNav?.("commercial");
+                    scrollToSection("topo");
+                  }}
                 >
                   <BarChart3 size={17} className="tp-nav-icon" />
                   <span className="tp-nav-text">Performance Comercial</span>
+                </button>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  className={`tp-nav-item ${activeNav === "products" ? "is-active" : ""}`}
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    onSelectNav?.("products");
+                    scrollToSection("topo");
+                  }}
+                >
+                  <Package size={17} className="tp-nav-icon" />
+                  <span className="tp-nav-text">Produtos</span>
                 </button>
               </li>
             </ul>
@@ -128,13 +153,6 @@ export function AppShell({ children, onSyncSuccess }: AppShellProps) {
           <div className="tp-nav-group">
             <span className="tp-nav-group-title">FUTURO</span>
             <ul className="tp-nav-list">
-              <li>
-                <div className="tp-nav-item is-disabled">
-                  <Package size={17} className="tp-nav-icon" />
-                  <span className="tp-nav-text">Produtos</span>
-                  <span className="tp-badge-soon">Em breve</span>
-                </div>
-              </li>
               <li>
                 <div className="tp-nav-item is-disabled">
                   <Boxes size={17} className="tp-nav-icon" />
