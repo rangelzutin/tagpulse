@@ -24,6 +24,8 @@ interface RawTestDoc {
     code?: string | null;
     legalName?: string | null;
     tradeName?: string | null;
+    cpf?: string | null;
+    cnpj?: string | null;
   };
 }
 
@@ -44,9 +46,34 @@ function createFakeCustomerBiRepository(docs: RawTestDoc[]): BiRepository {
     return true;
   };
 
+  const customerMap = new Map<string, BiCustomerMetadata>();
+  for (const d of docs) {
+    if (d.customerId && !customerMap.has(d.customerId)) {
+      customerMap.set(d.customerId, {
+        id: d.customerId,
+        sourceId: d.customer?.sourceId ?? d.customerId,
+        code: d.customer?.code ?? null,
+        legalName: d.customer?.legalName ?? null,
+        tradeName: d.customer?.tradeName ?? null,
+        cpf: d.customer?.cpf ?? null,
+        cnpj: d.customer?.cnpj ?? null,
+        city: null,
+        state: null,
+      });
+    }
+  }
+
   return {
     async findRealizedSales() {
       return [];
+    },
+
+    async findCustomersMetadata(customerIds?: string[]) {
+      if (customerIds && customerIds.length > 0) {
+        const idSet = new Set(customerIds);
+        return Array.from(customerMap.values()).filter((c) => idSet.has(c.id));
+      }
+      return Array.from(customerMap.values());
     },
 
     async findPeriodCustomerDocuments(
@@ -1004,6 +1031,268 @@ describe("GET /bi/customers/overview", () => {
       expect(histDocs).toHaveLength(1);
       expect(histDocs[0].saleId).toBe("sale-1");
       expect(histDocs[0].customerId).toBe("cust-1");
+    });
+  });
+
+  describe("Filtro por Tipo de Cliente (documentType: all | cnpj | cpf | no_document)", () => {
+    it("rejeita documentType inválido com HTTP 400", async () => {
+      const repository = createFakeCustomerBiRepository([]);
+      const app = await createApp(repository);
+
+      const res = await app.inject({
+        method: "GET",
+        url: "/bi/customers/overview?from=2026-01-01&to=2026-01-31&documentType=invalid_type",
+      });
+
+      expect(res.statusCode).toBe(400);
+      const json = res.json();
+      expect(json.message).toContain("Tipo de documento inválido");
+    });
+
+    it("filtra compradores, novos, recorrentes e receita respeitando vazio vs preenchido e reconcilia Todos = CNPJ + CPF + no_document", async () => {
+      // Setup:
+      // c_cnpj: CNPJ válido (100.00 no período)
+      // c_cpf: CPF válido (50.00 no período)
+      // c_no_null: sem doc (null / null) (30.00 no período)
+      // c_no_empty: sem doc ("" / "") (20.00 no período)
+      // c_cpf_with_empty_cnpj: CPF preenchido, CNPJ "" => deve ser classificado como CPF (40.00 no período)
+      // c_cnpj_with_empty_cpf: CNPJ preenchido, CPF "" => deve ser classificado como CNPJ (60.00 no período)
+      const docs: RawTestDoc[] = [
+        {
+          id: "doc-cnpj",
+          customerId: "c_cnpj",
+          netAmount: "100.00",
+          realizedDate: new Date("2026-01-10T00:00:00.000Z"),
+          customer: {
+            id: "c_cnpj",
+            tradeName: "Empresa PJ",
+            cnpj: "12.345.678/0001-90",
+            cpf: null,
+          },
+        },
+        {
+          id: "doc-cnpj-2",
+          customerId: "c_cnpj_with_empty_cpf",
+          netAmount: "60.00",
+          realizedDate: new Date("2026-01-12T00:00:00.000Z"),
+          customer: {
+            id: "c_cnpj_with_empty_cpf",
+            tradeName: "Empresa PJ 2",
+            cnpj: "98.765.432/0001-10",
+            cpf: "",
+          },
+        },
+        {
+          id: "doc-cpf",
+          customerId: "c_cpf",
+          netAmount: "50.00",
+          realizedDate: new Date("2026-01-15T00:00:00.000Z"),
+          customer: {
+            id: "c_cpf",
+            tradeName: "Pessoa PF",
+            cpf: "123.456.789-00",
+            cnpj: null,
+          },
+        },
+        {
+          id: "doc-cpf-2",
+          customerId: "c_cpf_with_empty_cnpj",
+          netAmount: "40.00",
+          realizedDate: new Date("2026-01-18T00:00:00.000Z"),
+          customer: {
+            id: "c_cpf_with_empty_cnpj",
+            tradeName: "Pessoa PF 2",
+            cpf: "987.654.321-99",
+            cnpj: "",
+          },
+        },
+        {
+          id: "doc-no-null",
+          customerId: "c_no_null",
+          netAmount: "30.00",
+          realizedDate: new Date("2026-01-20T00:00:00.000Z"),
+          customer: {
+            id: "c_no_null",
+            tradeName: "Cliente Sem Doc Null",
+            cpf: null,
+            cnpj: null,
+          },
+        },
+        {
+          id: "doc-no-empty",
+          customerId: "c_no_empty",
+          netAmount: "20.00",
+          realizedDate: new Date("2026-01-22T00:00:00.000Z"),
+          customer: {
+            id: "c_no_empty",
+            tradeName: "Cliente Sem Doc Empty",
+            cpf: "   ",
+            cnpj: "",
+          },
+        },
+      ];
+
+      const repository = createFakeCustomerBiRepository(docs);
+      const app = await createApp(repository);
+
+      // 1. Todos (default)
+      const resAll = await app.inject({
+        method: "GET",
+        url: "/bi/customers/overview?from=2026-01-01&to=2026-01-31",
+      });
+      expect(resAll.statusCode).toBe(200);
+      const all = resAll.json();
+      expect(all.documentType).toBe("all");
+      expect(all.customers.buyingCustomers).toBe(6);
+      const allRevenue = all.ranking.reduce((sum: number, r: { revenue: number }) => sum + r.revenue, 0);
+      expect(allRevenue).toBe(300);
+
+      // 2. CNPJ (deve incluir c_cnpj e c_cnpj_with_empty_cpf => 2 clientes, 160.00)
+      const resCnpj = await app.inject({
+        method: "GET",
+        url: "/bi/customers/overview?from=2026-01-01&to=2026-01-31&documentType=cnpj",
+      });
+      expect(resCnpj.statusCode).toBe(200);
+      const cnpj = resCnpj.json();
+      expect(cnpj.documentType).toBe("cnpj");
+      expect(cnpj.customers.buyingCustomers).toBe(2);
+      const cnpjRevenue = cnpj.ranking.reduce((sum: number, r: { revenue: number }) => sum + r.revenue, 0);
+      expect(cnpjRevenue).toBe(160);
+      expect(cnpj.ranking).toHaveLength(2);
+      expect(cnpj.ranking[0].customerId).toBe("c_cnpj");
+      expect(cnpj.ranking[1].customerId).toBe("c_cnpj_with_empty_cpf");
+
+      // 3. CPF (deve incluir c_cpf e c_cpf_with_empty_cnpj => 2 clientes, 90.00)
+      const resCpf = await app.inject({
+        method: "GET",
+        url: "/bi/customers/overview?from=2026-01-01&to=2026-01-31&documentType=cpf",
+      });
+      expect(resCpf.statusCode).toBe(200);
+      const cpf = resCpf.json();
+      expect(cpf.documentType).toBe("cpf");
+      expect(cpf.customers.buyingCustomers).toBe(2);
+      const cpfRevenue = cpf.ranking.reduce((sum: number, r: { revenue: number }) => sum + r.revenue, 0);
+      expect(cpfRevenue).toBe(90);
+      expect(cpf.ranking).toHaveLength(2);
+      expect(cpf.ranking[0].customerId).toBe("c_cpf");
+      expect(cpf.ranking[1].customerId).toBe("c_cpf_with_empty_cnpj");
+
+      // 4. Sem CPF/CNPJ (c_no_null e c_no_empty => 2 clientes, 50.00)
+      const resNoDoc = await app.inject({
+        method: "GET",
+        url: "/bi/customers/overview?from=2026-01-01&to=2026-01-31&documentType=no_document",
+      });
+      expect(resNoDoc.statusCode).toBe(200);
+      const noDoc = resNoDoc.json();
+      expect(noDoc.documentType).toBe("no_document");
+      expect(noDoc.customers.buyingCustomers).toBe(2);
+      const noDocRevenue = noDoc.ranking.reduce((sum: number, r: { revenue: number }) => sum + r.revenue, 0);
+      expect(noDocRevenue).toBe(50);
+      expect(noDoc.ranking).toHaveLength(2);
+      expect(noDoc.ranking[0].customerId).toBe("c_no_null");
+      expect(noDoc.ranking[1].customerId).toBe("c_no_empty");
+
+      // Reconciliação matemática: Todos = CNPJ + CPF + Sem documento
+      expect(cnpj.customers.buyingCustomers + cpf.customers.buyingCustomers + noDoc.customers.buyingCustomers).toBe(all.customers.buyingCustomers);
+      expect(Number((cnpjRevenue + cpfRevenue + noDocRevenue).toFixed(2))).toBe(allRevenue);
+    });
+
+    it("população histórica: cliente CNPJ sem compras no período mas com compra histórica > 365 dias entra em Inativos CNPJ e Recência CNPJ", async () => {
+      const docs: RawTestDoc[] = [
+        // Compra no período para c_cpf
+        {
+          id: "doc-p1",
+          customerId: "c_cpf",
+          netAmount: "100.00",
+          realizedDate: new Date("2026-01-15T00:00:00.000Z"),
+          customer: {
+            id: "c_cpf",
+            tradeName: "Pessoa Ativa",
+            cpf: "111.222.333-44",
+            cnpj: null,
+          },
+        },
+        // Compra histórica > 365 dias para c_cnpj (sem compras no período de jan/2026!)
+        // 2024-01-01 até 2026-01-31 é mais de 700 dias (cairá na faixa 1-2 anos)
+        {
+          id: "doc-h1",
+          customerId: "c_cnpj_hist",
+          netAmount: "500.00",
+          realizedDate: new Date("2025-01-01T00:00:00.000Z"),
+          customer: {
+            id: "c_cnpj_hist",
+            tradeName: "Empresa Histórica Inativa",
+            cnpj: "11.222.333/0001-44",
+            cpf: null,
+          },
+        },
+      ];
+
+      const repository = createFakeCustomerBiRepository(docs);
+      const app = await createApp(repository);
+
+      // Ao filtrar por CNPJ no período 2026-01-01 a 2026-01-31:
+      // Compradores no período deve ser 0!
+      // Mas a recência / inativos deve conter o cliente c_cnpj_hist!
+      const res = await app.inject({
+        method: "GET",
+        url: "/bi/customers/overview?from=2026-01-01&to=2026-01-31&documentType=cnpj",
+      });
+
+      expect(res.statusCode).toBe(200);
+      const data = res.json();
+      expect(data.customers.buyingCustomers).toBe(0); // Nenhum comprador CNPJ no período
+      expect(data.ranking).toHaveLength(0);
+
+      // Recência da Base: deve conter exatamente 1 cliente (c_cnpj_hist na faixa 1-2 anos)
+      const bucket1_2 = data.recency.find((r: CustomerRecencySegment) => r.key === "366-730");
+      expect(bucket1_2).toBeDefined();
+      expect(bucket1_2.customerCount).toBe(1);
+
+      // Clientes inativos (faixas > 365 dias): deve somar 1 cliente
+      const totalRecency = data.recency.reduce((sum: number, r: CustomerRecencySegment) => sum + r.customerCount, 0);
+      expect(totalRecency).toBe(1);
+    });
+
+    it("venda sem cliente (customerId = null) NÃO entra em no_document", async () => {
+      const docs: RawTestDoc[] = [
+        // Venda sem cliente vinculado (customerId null)
+        {
+          id: "doc-no-cust",
+          customerId: null,
+          netAmount: "250.00",
+          realizedDate: new Date("2026-01-15T00:00:00.000Z"),
+        },
+        // Venda com cliente sem documento
+        {
+          id: "doc-with-cust",
+          customerId: "cust-no-doc",
+          netAmount: "80.00",
+          realizedDate: new Date("2026-01-16T00:00:00.000Z"),
+          customer: {
+            id: "cust-no-doc",
+            tradeName: "Cliente Sem Documento",
+            cpf: "",
+            cnpj: null,
+          },
+        },
+      ];
+
+      const repository = createFakeCustomerBiRepository(docs);
+      const app = await createApp(repository);
+
+      const res = await app.inject({
+        method: "GET",
+        url: "/bi/customers/overview?from=2026-01-01&to=2026-01-31&documentType=no_document",
+      });
+
+      expect(res.statusCode).toBe(200);
+      const data = res.json();
+      expect(data.customers.buyingCustomers).toBe(1);
+      const totalRevenue = data.ranking.reduce((sum: number, r: { revenue: number }) => sum + r.revenue, 0);
+      expect(totalRevenue).toBe(80); // Apenas cust-no-doc (80.00), doc-no-cust (250.00) é excluído!
+      expect(data.ranking).toHaveLength(1);
+      expect(data.ranking[0].customerId).toBe("cust-no-doc");
     });
   });
 });

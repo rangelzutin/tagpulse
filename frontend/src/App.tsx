@@ -6,6 +6,7 @@ import {
   type SalesOverviewResult,
   type CustomerOverviewResult,
   type BiDataRangeResult,
+  type CustomerDocumentType,
 } from "./api/bi";
 import { AppShell } from "./components/AppShell";
 import { Header } from "./components/Header";
@@ -16,6 +17,7 @@ import { CustomerKpiGrid } from "./components/CustomerKpiGrid";
 import { CustomerRankingCard } from "./components/CustomerRankingCard";
 import { RecencyDistributionCard } from "./components/RecencyDistributionCard";
 import { CustomerSegmentDrawer } from "./components/CustomerSegmentDrawer";
+import { CustomerDocumentTypeSelector } from "./components/CustomerDocumentTypeSelector";
 import type { CustomerRecencyBucket, CustomerSegmentType } from "./api/bi";
 import type { RateContextData } from "./components/CustomerSegmentView";
 import { AlertCircle, RefreshCw, Users } from "lucide-react";
@@ -39,6 +41,8 @@ export function App() {
     useState<CustomerOverviewResult | null>(null);
   const [isCustomerLoading, setIsCustomerLoading] = useState(true);
   const [customerError, setCustomerError] = useState<string | null>(null);
+  const [customerDocumentType, setCustomerDocumentType] =
+    useState<CustomerDocumentType>("all");
 
   // Drawer State
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -83,14 +87,19 @@ export function App() {
 
   // Fetch Customer Overview independently
   const loadCustomerOverview = useCallback(
-    async (from: string, to: string, isBackground = false) => {
+    async (
+      from: string,
+      to: string,
+      isBackground = false,
+      docType: CustomerDocumentType = customerDocumentType,
+    ) => {
       setCustomerError(null);
       if (!isBackground) {
         setIsCustomerLoading(true);
       }
 
       try {
-        const result = await fetchCustomerOverview(from, to);
+        const result = await fetchCustomerOverview(from, to, docType);
         setCustomerData(result);
       } catch (err) {
         const message =
@@ -102,12 +111,16 @@ export function App() {
         setIsCustomerLoading(false);
       }
     },
-    [],
+    [customerDocumentType],
   );
 
   // Orchestrate both endpoints concurrently using Promise.allSettled
   const loadAllData = useCallback(
-    async (from: string, to: string) => {
+    async (
+      from: string,
+      to: string,
+      docType: CustomerDocumentType = customerDocumentType,
+    ) => {
       const hasAnyData = Boolean(salesData || customerData);
       if (hasAnyData) {
         setIsUpdating(true);
@@ -115,13 +128,36 @@ export function App() {
 
       await Promise.allSettled([
         loadSalesOverview(from, to, hasAnyData),
-        loadCustomerOverview(from, to, hasAnyData),
+        loadCustomerOverview(from, to, hasAnyData, docType),
       ]);
 
       setIsUpdating(false);
     },
-    [loadSalesOverview, loadCustomerOverview, salesData, customerData],
+    [
+      loadSalesOverview,
+      loadCustomerOverview,
+      salesData,
+      customerData,
+      customerDocumentType,
+    ],
   );
+
+  const handleCustomerDocumentTypeChange = (
+    newDocType: CustomerDocumentType,
+  ) => {
+    if (newDocType === customerDocumentType) return;
+    // Rule 4: Close drawer if open when switching customer document filter
+    if (isDrawerOpen) {
+      setIsDrawerOpen(false);
+    }
+    setCustomerDocumentType(newDocType);
+    loadCustomerOverview(
+      currentPeriod.from,
+      currentPeriod.to,
+      Boolean(customerData),
+      newDocType,
+    );
+  };
 
   const handleSyncSuccess = useCallback(() => {
     fetchDataRange()
@@ -159,7 +195,12 @@ export function App() {
     setIsUpdating(true);
     Promise.allSettled([
       loadSalesOverview(from, to, Boolean(salesData)),
-      loadCustomerOverview(from, to, Boolean(customerData)),
+      loadCustomerOverview(
+        from,
+        to,
+        Boolean(customerData),
+        customerDocumentType,
+      ),
     ]).finally(() => {
       setIsUpdating(false);
     });
@@ -170,7 +211,12 @@ export function App() {
   };
 
   const handleRetryCustomers = () => {
-    loadCustomerOverview(currentPeriod.from, currentPeriod.to, false);
+    loadCustomerOverview(
+      currentPeriod.from,
+      currentPeriod.to,
+      false,
+      customerDocumentType,
+    );
   };
 
   const handleOpenSegmentDrawer = (
@@ -302,17 +348,26 @@ export function App() {
           id="clientes"
           aria-label="Inteligência de Clientes"
         >
-          <div className="tp-section-header">
-            <div className="tp-section-title-wrap">
-              <span className="tp-section-icon-badge">
-                <Users size={14} />
-              </span>
-              <h2 className="tp-section-title">Inteligência de Clientes</h2>
+          <div className="tp-section-header tp-customer-section-header">
+            <div className="tp-section-header-main">
+              <div className="tp-section-title-wrap">
+                <span className="tp-section-icon-badge">
+                  <Users size={14} />
+                </span>
+                <h2 className="tp-section-title">Inteligência de Clientes</h2>
+              </div>
+              <p className="tp-section-desc">
+                Comportamento, taxa de recorrência, concentração de faturamento e
+                tempo de recência da base.
+              </p>
             </div>
-            <p className="tp-section-desc">
-              Comportamento, taxa de recorrência, concentração de faturamento e
-              tempo de recência da base.
-            </p>
+            <div className="tp-section-header-controls">
+              <CustomerDocumentTypeSelector
+                value={customerDocumentType}
+                onChange={handleCustomerDocumentTypeChange}
+                disabled={isCustomerLoading && !customerData}
+              />
+            </div>
           </div>
 
           {/* Customer Error Card (Partial Degradation) */}
@@ -406,6 +461,7 @@ export function App() {
         initialMode={drawerMode}
         segment={selectedSegment}
         recencyBucket={selectedRecencyBucket}
+        documentType={customerDocumentType}
         customerId={selectedCustomerId}
         from={currentPeriod.from}
         to={currentPeriod.to}

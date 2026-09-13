@@ -2,6 +2,8 @@ import { Prisma } from "@prisma/client";
 import type {
   BiCustomerMetadata,
   BiSaleRealizationRecord,
+  ConcreteCustomerDocumentType,
+  CustomerDocumentType,
   CustomerOverviewMetrics,
   CustomerLifetimeMetrics,
   CustomerRecencyBucket,
@@ -10,6 +12,30 @@ import type {
   CustomerSegmentSort,
   CustomerSegmentType,
 } from "./bi-types.js";
+
+export const VALID_CUSTOMER_DOCUMENT_TYPES = new Set<CustomerDocumentType>([
+  "all",
+  "cnpj",
+  "cpf",
+  "no_document",
+]);
+
+export function classifyCustomerDocumentType(
+  customer: { cpf?: string | null; cnpj?: string | null } | null | undefined,
+): ConcreteCustomerDocumentType {
+  if (customer?.cnpj && customer.cnpj.trim().length > 0) return "cnpj";
+  if (customer?.cpf && customer.cpf.trim().length > 0) return "cpf";
+  return "no_document";
+}
+
+export function matchesCustomerDocumentType(
+  customer: { cpf?: string | null; cnpj?: string | null } | null | undefined,
+  documentType: CustomerDocumentType = "all",
+): boolean {
+  if (documentType === "all") return true;
+  if (!customer) return false;
+  return classifyCustomerDocumentType(customer) === documentType;
+}
 
 /**
  * Exact approved financial realization check:
@@ -306,6 +332,7 @@ export function filterAndPaginateSegment(params: {
     { periodRevenue: Prisma.Decimal; lifetimeRevenue: Prisma.Decimal }
   >;
   metadataMap: Map<string, BiCustomerMetadata>;
+  documentType?: CustomerDocumentType | undefined;
   page: number;
   pageSize: number;
   search?: string | undefined;
@@ -314,6 +341,7 @@ export function filterAndPaginateSegment(params: {
   const {
     segment,
     recencyBucket,
+    documentType = "all",
     fromStr,
     toStr,
     customerBehavioralMap,
@@ -331,8 +359,10 @@ export function filterAndPaginateSegment(params: {
   for (const [customerId, summary] of customerBehavioralMap.entries()) {
     if (!isCustomerInSegment(summary, segment, recencyBucket)) continue;
 
-    const rev = customerRevenues.get(customerId);
     const meta = metadataMap.get(customerId);
+    if (!matchesCustomerDocumentType(meta, documentType)) continue;
+
+    const rev = customerRevenues.get(customerId);
 
     const displayName = computeDisplayName(meta, customerId);
     const cpfCnpj = formatCpfCnpj(meta?.cpf, meta?.cnpj);
@@ -444,6 +474,7 @@ export function filterAndPaginateSegment(params: {
   return {
     segment,
     recencyBucket: (recencyBucket as CustomerRecencyBucket) ?? null,
+    documentType,
     period: {
       from: fromStr,
       to: toStr,

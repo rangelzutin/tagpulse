@@ -37,7 +37,11 @@ export function registerBiRoutes(
 
   app.get("/bi/customers/overview", async (request, reply) => {
     const query = (request.query ?? {}) as Record<string, unknown>;
-    const result = await service.getCustomerOverview(query.from, query.to);
+    const result = await service.getCustomerOverview(
+      query.from,
+      query.to,
+      query.documentType,
+    );
 
     if (!result.success) {
       return reply.code(400).send({

@@ -9,6 +9,8 @@ import {
   filterAndPaginateSegment,
   formatCpfCnpj,
   isEligibleRealizedDoc,
+  matchesCustomerDocumentType,
+  VALID_CUSTOMER_DOCUMENT_TYPES,
 } from "./bi-customer-segmentation.js";
 import { parseOverviewDateRange } from "./bi-date-utils.js";
 import type { BiRepository } from "./bi-repository.js";
@@ -16,6 +18,7 @@ import type {
   BiCustomerMetadata,
   BiDataRangeResult,
   CustomerDetailOverviewResult,
+  CustomerDocumentType,
   CustomerSalesResult,
   CustomerRecencyBucket,
   CustomerSalesScope,
@@ -56,6 +59,7 @@ export interface BiService {
   getCustomerOverview(
     from: unknown,
     to: unknown,
+    documentType?: unknown,
   ): Promise<BiCustomerOverviewResult>;
   getCustomerSegment(
     query: Record<string, unknown>,
@@ -69,6 +73,23 @@ export interface BiService {
     customerId: unknown,
     query: Record<string, unknown>,
   ): Promise<BiCustomerSalesServiceResult>;
+}
+
+function parseCustomerDocumentType(
+  param: unknown,
+): { success: true; documentType: CustomerDocumentType } | { success: false; error: string } {
+  if (param === undefined || param === null || param === "") {
+    return { success: true, documentType: "all" };
+  }
+  const str = String(param).trim().toLowerCase();
+  if (!VALID_CUSTOMER_DOCUMENT_TYPES.has(str as CustomerDocumentType)) {
+    return {
+      success: false,
+      error:
+        "Tipo de documento inválido. Valores permitidos: all, cnpj, cpf, no_document.",
+    };
+  }
+  return { success: true, documentType: str as CustomerDocumentType };
 }
 
 const VALID_SEGMENTS: Set<CustomerSegmentType> = new Set([
@@ -158,11 +179,18 @@ export function createBiService(repository: BiRepository): BiService {
     async getCustomerOverview(
       from: unknown,
       to: unknown,
+      documentTypeParam?: unknown,
     ): Promise<BiCustomerOverviewResult> {
       const parsedRange = parseOverviewDateRange(from, to);
       if (!parsedRange.success) {
         return { success: false, error: parsedRange.error };
       }
+
+      const parsedDocType = parseCustomerDocumentType(documentTypeParam);
+      if (!parsedDocType.success) {
+        return { success: false, error: parsedDocType.error };
+      }
+      const documentType = parsedDocType.documentType;
 
       const { from: fromStr, to: toStr, fromDate, toExclusiveDate } =
         parsedRange.range;
@@ -182,9 +210,60 @@ export function createBiService(repository: BiRepository): BiService {
         repository.findSalesRealizationRecordsUntil(toExclusiveDate),
       ]);
 
+      let filteredPeriodDocs = periodDocs;
+      let filteredSalesRecords = salesRealizationRecords;
+
+      if (documentType !== "all") {
+        const unionCustomerIds = Array.from(
+          new Set([
+            ...periodDocs.map((d) => d.customerId).filter(Boolean),
+            ...salesRealizationRecords.map((r) => r.customerId).filter(Boolean),
+          ]),
+        );
+
+        const metadataList = repository.findCustomersMetadata
+          ? await repository.findCustomersMetadata(unionCustomerIds)
+          : [];
+
+        const metadataMap = new Map<string, BiCustomerMetadata>();
+        for (const m of metadataList) {
+          metadataMap.set(m.id, m);
+        }
+        for (const d of periodDocs) {
+          if (d.customerId && !metadataMap.has(d.customerId)) {
+            metadataMap.set(d.customerId, {
+              id: d.customerId,
+              sourceId: d.customer.sourceId,
+              code: d.customer.code,
+              legalName: d.customer.legalName,
+              tradeName: d.customer.tradeName,
+              cpf: null,
+              cnpj: null,
+              city: null,
+              state: null,
+            });
+          }
+        }
+
+        const eligibleCustomerIds = new Set<string>();
+        for (const customerId of unionCustomerIds) {
+          const meta = metadataMap.get(customerId);
+          if (matchesCustomerDocumentType(meta, documentType)) {
+            eligibleCustomerIds.add(customerId);
+          }
+        }
+
+        filteredPeriodDocs = periodDocs.filter(
+          (doc) => doc.customerId && eligibleCustomerIds.has(doc.customerId),
+        );
+        filteredSalesRecords = salesRealizationRecords.filter(
+          (rec) => rec.customerId && eligibleCustomerIds.has(rec.customerId),
+        );
+      }
+
       const data = calculateCustomerOverview(
-        periodDocs,
-        salesRealizationRecords,
+        filteredPeriodDocs,
+        filteredSalesRecords,
         {
           from: fromStr,
           to: toStr,
@@ -193,6 +272,8 @@ export function createBiService(repository: BiRepository): BiService {
         fromDate,
         toExclusiveDate,
       );
+
+      data.documentType = documentType;
 
       return { success: true, data };
     },
@@ -204,6 +285,12 @@ export function createBiService(repository: BiRepository): BiService {
       if (!parsedRange.success) {
         return { success: false, error: parsedRange.error };
       }
+
+      const parsedDocType = parseCustomerDocumentType(query.documentType);
+      if (!parsedDocType.success) {
+        return { success: false, error: parsedDocType.error };
+      }
+      const documentType = parsedDocType.documentType;
 
       const { from: fromStr, to: toStr, fromDate, toExclusiveDate } =
         parsedRange.range;
@@ -292,15 +379,42 @@ export function createBiService(repository: BiRepository): BiService {
         }
       }
 
+      let filteredPeriodDocs = periodDocs;
+      let filteredSalesRecords = salesRealizationRecords;
+
+      if (documentType !== "all") {
+        const unionCustomerIds = Array.from(
+          new Set([
+            ...periodDocs.map((d) => d.customerId).filter(Boolean),
+            ...salesRealizationRecords.map((r) => r.customerId).filter(Boolean),
+          ]),
+        );
+
+        const eligibleCustomerIds = new Set<string>();
+        for (const customerId of unionCustomerIds) {
+          const meta = metadataMap.get(customerId);
+          if (matchesCustomerDocumentType(meta, documentType)) {
+            eligibleCustomerIds.add(customerId);
+          }
+        }
+
+        filteredPeriodDocs = periodDocs.filter(
+          (doc) => doc.customerId && eligibleCustomerIds.has(doc.customerId),
+        );
+        filteredSalesRecords = salesRealizationRecords.filter(
+          (rec) => rec.customerId && eligibleCustomerIds.has(rec.customerId),
+        );
+      }
+
       // Map revenues per customer:
-      // periodRevenue from periodDocs
-      // lifetimeRevenue from salesRealizationRecords (or periodDocs)
+      // periodRevenue from filteredPeriodDocs
+      // lifetimeRevenue from filteredSalesRecords (or filteredPeriodDocs)
       const customerRevenues = new Map<
         string,
         { periodRevenue: Prisma.Decimal; lifetimeRevenue: Prisma.Decimal }
       >();
 
-      for (const doc of periodDocs) {
+      for (const doc of filteredPeriodDocs) {
         if (!doc.customerId) continue;
         let entry = customerRevenues.get(doc.customerId);
         if (!entry) {
@@ -313,7 +427,7 @@ export function createBiService(repository: BiRepository): BiService {
         entry.periodRevenue = entry.periodRevenue.plus(doc.netAmount);
       }
 
-      for (const rec of salesRealizationRecords) {
+      for (const rec of filteredSalesRecords) {
         if (!rec.customerId) continue;
         let entry = customerRevenues.get(rec.customerId);
         if (!entry) {
@@ -336,7 +450,7 @@ export function createBiService(repository: BiRepository): BiService {
       }
 
       const behavioralMap = buildCustomerBehavioralMap(
-        salesRealizationRecords,
+        filteredSalesRecords,
         fromDate,
         toExclusiveDate,
         toStr,
@@ -345,6 +459,7 @@ export function createBiService(repository: BiRepository): BiService {
       const result = filterAndPaginateSegment({
         segment,
         recencyBucket,
+        documentType,
         fromStr,
         toStr,
         customerBehavioralMap: behavioralMap,

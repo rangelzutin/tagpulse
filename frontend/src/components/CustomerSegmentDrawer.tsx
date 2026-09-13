@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft, X } from "lucide-react";
-import type { CustomerRecencyBucket, CustomerSegmentType } from "../api/bi";
+import type {
+  CustomerDocumentType,
+  CustomerRecencyBucket,
+  CustomerSegmentType,
+} from "../api/bi";
 import {
   CustomerSegmentView,
   type RateContextData,
@@ -12,6 +16,7 @@ export interface CustomerSegmentDrawerProps {
   initialMode: "segment" | "detail";
   segment: CustomerSegmentType | null;
   recencyBucket?: CustomerRecencyBucket | null;
+  documentType?: CustomerDocumentType;
   customerId: string | null;
   from: string;
   to: string;
@@ -26,6 +31,7 @@ export function CustomerSegmentDrawer({
   initialMode,
   segment,
   recencyBucket,
+  documentType,
   customerId,
   from,
   to,
@@ -130,6 +136,7 @@ export function CustomerSegmentDrawer({
             <CustomerSegmentView
               segment={segment}
               recencyBucket={recencyBucket}
+              documentType={documentType}
               from={from}
               to={to}
               rateContext={rateContext}

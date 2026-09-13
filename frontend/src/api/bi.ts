@@ -166,24 +166,37 @@ export interface CustomerRecencySegment {
   percentage: number;
 }
 
+export type ConcreteCustomerDocumentType = "cnpj" | "cpf" | "no_document";
+export type CustomerDocumentType = "all" | ConcreteCustomerDocumentType;
+
 export interface CustomerOverviewResult {
   period: CustomerOverviewPeriod;
   customers: CustomerOverviewMetrics;
   lifetime: CustomerLifetimeMetrics;
   ranking: CustomerRankingItem[];
   recency: CustomerRecencySegment[];
+  documentType?: CustomerDocumentType;
 }
 
 export async function fetchCustomerOverview(
   from: string,
   to: string,
+  documentType: CustomerDocumentType = "all",
 ): Promise<CustomerOverviewResult> {
   const rawBaseUrl = import.meta.env.VITE_API_URL || "";
   const baseUrl = rawBaseUrl.endsWith("/")
     ? rawBaseUrl.slice(0, -1)
     : rawBaseUrl;
 
-  const url = `${baseUrl}/bi/customers/overview?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+  const searchParams = new URLSearchParams({
+    from,
+    to,
+  });
+  if (documentType && documentType !== "all") {
+    searchParams.set("documentType", documentType);
+  }
+
+  const url = `${baseUrl}/bi/customers/overview?${searchParams.toString()}`;
 
   let response: Response;
   try {
@@ -264,6 +277,7 @@ export interface CustomerSegmentItem {
 export interface CustomerSegmentResult {
   segment: CustomerSegmentType;
   recencyBucket?: CustomerRecencyBucket | null;
+  documentType?: CustomerDocumentType;
   period: {
     from: string;
     to: string;
@@ -286,6 +300,7 @@ export interface FetchCustomerSegmentParams {
   to: string;
   segment: CustomerSegmentType;
   recencyBucket?: CustomerRecencyBucket | null;
+  documentType?: CustomerDocumentType;
   page?: number;
   pageSize?: number;
   search?: string;
@@ -310,6 +325,9 @@ export async function fetchCustomerSegment(
 
   if (params.recencyBucket) {
     searchParams.set("recencyBucket", params.recencyBucket);
+  }
+  if (params.documentType && params.documentType !== "all") {
+    searchParams.set("documentType", params.documentType);
   }
   if (params.search && params.search.trim()) {
     searchParams.set("search", params.search.trim());

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import {
   fetchCustomerSegment,
+  type CustomerDocumentType,
   type CustomerRecencyBucket,
   type CustomerSegmentItem,
   type CustomerSegmentResult,
@@ -37,6 +38,7 @@ export interface RateContextData {
 interface CustomerSegmentViewProps {
   segment: CustomerSegmentType;
   recencyBucket?: CustomerRecencyBucket | null;
+  documentType?: CustomerDocumentType;
   from: string;
   to: string;
   rateContext?: RateContextData | null;
@@ -80,6 +82,7 @@ const RECENCY_BUCKET_RULES: Record<CustomerRecencyBucket, string> = {
 export function CustomerSegmentView({
   segment,
   recencyBucket,
+  documentType = "all",
   from,
   to,
   rateContext,
@@ -106,10 +109,10 @@ export function CustomerSegmentView({
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  // Reset page when segment, recencyBucket or sort changes
+  // Reset page when segment, recencyBucket, documentType or sort changes
   useEffect(() => {
     setPage(1);
-  }, [segment, recencyBucket, sort]);
+  }, [segment, recencyBucket, documentType, sort]);
 
   const loadSegment = async () => {
     setIsLoading(true);
@@ -120,6 +123,7 @@ export function CustomerSegmentView({
         to,
         segment,
         recencyBucket: recencyBucket ?? undefined,
+        documentType: documentType !== "all" ? documentType : undefined,
         page,
         pageSize: 20,
         search: debouncedSearch || undefined,
@@ -140,21 +144,37 @@ export function CustomerSegmentView({
   useEffect(() => {
     loadSegment();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [from, to, segment, recencyBucket, page, debouncedSearch, sort]);
+  }, [from, to, segment, recencyBucket, documentType, page, debouncedSearch, sort]);
 
   const segmentTitle =
     segment === "recency" && recencyBucket
       ? RECENCY_BUCKET_TITLES[recencyBucket]
       : SEGMENT_LABELS[segment] || "Segmento";
 
+  const docTypeBadgeLabel =
+    documentType === "cnpj"
+      ? "CNPJ"
+      : documentType === "cpf"
+        ? "CPF"
+        : documentType === "no_document"
+          ? "Sem CPF/CNPJ"
+          : null;
+
   return (
     <div className="tp-drawer-view">
       {/* Header */}
       <header className="tp-drawer-view-header">
         <div className="tp-drawer-header-meta">
-          <div className="tp-drawer-segment-badge">
-            <Users size={12} />
-            <span>Segmento Analítico</span>
+          <div className="tp-drawer-badges-row">
+            <div className="tp-drawer-segment-badge">
+              <Users size={12} />
+              <span>Segmento Analítico</span>
+            </div>
+            {docTypeBadgeLabel && (
+              <div className="tp-drawer-doc-badge">
+                <span>{docTypeBadgeLabel}</span>
+              </div>
+            )}
           </div>
           <h2 className="tp-drawer-view-title">{segmentTitle}</h2>
           {data && (

@@ -104,12 +104,16 @@ export interface CustomerRecencySegment {
   percentage: number;
 }
 
+export type ConcreteCustomerDocumentType = "cnpj" | "cpf" | "no_document";
+export type CustomerDocumentType = "all" | ConcreteCustomerDocumentType;
+
 export interface CustomerOverviewResult {
   period: CustomerOverviewPeriod;
   customers: CustomerOverviewMetrics;
   lifetime: CustomerLifetimeMetrics;
   ranking: CustomerRankingItem[];
   recency: CustomerRecencySegment[];
+  documentType?: CustomerDocumentType;
 }
 
 export interface BiPeriodCustomerDoc {
@@ -181,6 +185,7 @@ export interface CustomerSegmentItem {
 export interface CustomerSegmentResult {
   segment: CustomerSegmentType;
   recencyBucket?: CustomerRecencyBucket | null;
+  documentType?: CustomerDocumentType;
   period: {
     from: string;
     to: string;

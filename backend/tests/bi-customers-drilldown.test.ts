@@ -1108,5 +1108,146 @@ describe("Customer Drilldown Backend Endpoints", () => {
       expect(fullBody.sales).toHaveLength(1);
       expect(fullBody.sales[0]!.totalRealizedAmount).toBe(3000); // 1000 + 2000
     });
+
+    it("valida documentType e filtra listagem do drawer reconciliando com os tipos de documento", async () => {
+      const docs: RawTestDoc[] = [
+        {
+          id: "doc-cnpj",
+          customerId: "cust-pj",
+          netAmount: "1500.00",
+          realizedDate: new Date("2026-01-10T00:00:00.000Z"),
+          customer: {
+            id: "cust-pj",
+            tradeName: "Empresa Alfa",
+            cnpj: "12.345.678/0001-00",
+            cpf: null,
+          },
+        },
+        {
+          id: "doc-cpf",
+          customerId: "cust-pf",
+          netAmount: "300.00",
+          realizedDate: new Date("2026-01-15T00:00:00.000Z"),
+          customer: {
+            id: "cust-pf",
+            tradeName: "Joao Silva",
+            cpf: "111.222.333-44",
+            cnpj: null,
+          },
+        },
+        {
+          id: "doc-nodoc",
+          customerId: "cust-nodoc",
+          netAmount: "100.00",
+          realizedDate: new Date("2026-01-20T00:00:00.000Z"),
+          customer: {
+            id: "cust-nodoc",
+            tradeName: "Cliente Anonimo",
+            cpf: "",
+            cnpj: null,
+          },
+        },
+        // Cliente CNPJ em risco (compra realizada há ~120 dias, ex: 2025-10-02 em relação a 2026-01-31)
+        {
+          id: "doc-risk-pj",
+          customerId: "cust-pj-risk",
+          netAmount: "800.00",
+          realizedDate: new Date("2025-10-02T00:00:00.000Z"),
+          customer: {
+            id: "cust-pj-risk",
+            tradeName: "Empresa Em Risco",
+            cnpj: "22.333.444/0001-55",
+            cpf: null,
+          },
+        },
+        // Cliente CPF inativo (compra realizada há ~400 dias, ex: 2024-12-25 em relação a 2026-01-31)
+        {
+          id: "doc-inact-pf",
+          customerId: "cust-pf-inact",
+          netAmount: "400.00",
+          realizedDate: new Date("2024-12-25T00:00:00.000Z"),
+          customer: {
+            id: "cust-pf-inact",
+            tradeName: "Pessoa Inativa",
+            cpf: "555.666.777-88",
+            cnpj: null,
+          },
+        },
+      ];
+
+      const repository = createFakeDrilldownBiRepository(docs);
+      const app = await createApp(repository);
+
+      // 1. Rejeita documentType inválido com 400
+      const resBad = await app.inject({
+        method: "GET",
+        url: "/bi/customers/segment?from=2026-01-01&to=2026-01-31&segment=buyers&documentType=bad_type",
+      });
+      expect(resBad.statusCode).toBe(400);
+      expect(resBad.json().message).toContain("Tipo de documento inválido");
+
+      // 2. Segment = buyers com documentType = cnpj
+      const resBuyersCnpj = await app.inject({
+        method: "GET",
+        url: "/bi/customers/segment?from=2026-01-01&to=2026-01-31&segment=buyers&documentType=cnpj",
+      });
+      expect(resBuyersCnpj.statusCode).toBe(200);
+      const buyersCnpj = resBuyersCnpj.json() as CustomerSegmentResult;
+      expect(buyersCnpj.documentType).toBe("cnpj");
+      expect(buyersCnpj.pagination.totalRecords).toBe(1);
+      expect(buyersCnpj.customers[0].customerId).toBe("cust-pj");
+
+      // 3. Segment = buyers com documentType = cpf
+      const resBuyersCpf = await app.inject({
+        method: "GET",
+        url: "/bi/customers/segment?from=2026-01-01&to=2026-01-31&segment=buyers&documentType=cpf",
+      });
+      expect(resBuyersCpf.statusCode).toBe(200);
+      const buyersCpf = resBuyersCpf.json() as CustomerSegmentResult;
+      expect(buyersCpf.documentType).toBe("cpf");
+      expect(buyersCpf.pagination.totalRecords).toBe(1);
+      expect(buyersCpf.customers[0].customerId).toBe("cust-pf");
+
+      // 4. Segment = buyers com documentType = no_document
+      const resBuyersNoDoc = await app.inject({
+        method: "GET",
+        url: "/bi/customers/segment?from=2026-01-01&to=2026-01-31&segment=buyers&documentType=no_document",
+      });
+      expect(resBuyersNoDoc.statusCode).toBe(200);
+      const buyersNoDoc = resBuyersNoDoc.json() as CustomerSegmentResult;
+      expect(buyersNoDoc.documentType).toBe("no_document");
+      expect(buyersNoDoc.pagination.totalRecords).toBe(1);
+      expect(buyersNoDoc.customers[0].customerId).toBe("cust-nodoc");
+
+      // 5. Segment = risk com documentType = cnpj (deve conter cust-pj-risk)
+      const resRiskCnpj = await app.inject({
+        method: "GET",
+        url: "/bi/customers/segment?from=2026-01-01&to=2026-01-31&segment=risk&documentType=cnpj",
+      });
+      expect(resRiskCnpj.statusCode).toBe(200);
+      const riskCnpj = resRiskCnpj.json() as CustomerSegmentResult;
+      expect(riskCnpj.pagination.totalRecords).toBe(1);
+      expect(riskCnpj.customers[0].customerId).toBe("cust-pj-risk");
+
+      // 6. Segment = inactive com documentType = cpf (deve conter cust-pf-inact)
+      const resInactCpf = await app.inject({
+        method: "GET",
+        url: "/bi/customers/segment?from=2026-01-01&to=2026-01-31&segment=inactive&documentType=cpf",
+      });
+      expect(resInactCpf.statusCode).toBe(200);
+      const inactCpf = resInactCpf.json() as CustomerSegmentResult;
+      expect(inactCpf.pagination.totalRecords).toBe(1);
+      expect(inactCpf.customers[0].customerId).toBe("cust-pf-inact");
+
+      // 7. Segment = recency (0-30 dias) com documentType = cnpj (deve conter cust-pj)
+      const resRecencyCnpj = await app.inject({
+        method: "GET",
+        url: "/bi/customers/segment?from=2026-01-01&to=2026-01-31&segment=recency&recencyBucket=0-30&documentType=cnpj",
+      });
+      expect(resRecencyCnpj.statusCode).toBe(200);
+      const recencyCnpj = resRecencyCnpj.json() as CustomerSegmentResult;
+      expect(recencyCnpj.pagination.totalRecords).toBe(1);
+      expect(recencyCnpj.customers[0].customerId).toBe("cust-pj");
+    });
   });
 });
