@@ -669,6 +669,64 @@ describe("Products BI V1 — Canonical Movement & Rules", () => {
     const sum = Array.from(dist.values()).reduce((acc, v) => acc + v, 0);
     expect(Math.round(sum * 100) / 100).toBe(100);
   });
+
+  it("12. Movimentos puramente financeiros (quantity = 0, revenue > 0) entram no faturamento mas não contam em distinctProductsSold", () => {
+    const movements: RealizedProductMovement[] = [
+      {
+        productId: "prod-phys",
+        sourceProductId: "sp-1",
+        quantity: 5,
+        grossItemAmount: 50,
+        allocationBaseAmount: 50,
+        allocatedNetRevenue: 50,
+        saleId: "sale-1",
+        customerId: "cust-1",
+        channel: "VAREJO",
+        sourceDocumentId: "doc-1",
+        sourceDocumentType: "NFE",
+        origin: "NFE_ITEM",
+      },
+      {
+        productId: "prod-fin-only",
+        sourceProductId: "sp-2",
+        quantity: 0,
+        grossItemAmount: 0,
+        allocationBaseAmount: 30,
+        allocatedNetRevenue: 30,
+        saleId: "sale-2",
+        customerId: "cust-2",
+        channel: "ATACADO",
+        sourceDocumentId: "doc-2",
+        sourceDocumentType: "VENDA_SIMPLES",
+        origin: "PEDIDO_FINANCIAL_COMPLEMENT_VENDA_SIMPLES",
+      },
+    ];
+
+    const result = calculateProductsOverview({
+      movements,
+      catalogProductMap: new Map(),
+      catalogSummary: { activeCount: 10, withStockCount: 5 },
+      commercialRevenue: 80,
+      adjustments: [],
+      period: { from: "2026-01-01", to: "2026-01-31" },
+    });
+
+    // Apenas prod-phys tem quantity > 0
+    expect(result.summary.distinctProductsSold).toBe(1);
+    expect(result.summary.productsSoldInPeriod).toBe(1);
+    expect(result.summary.realizedQuantity).toBe(5);
+    expect(result.summary.realizedRevenue).toBe(80);
+
+    // No ranking financeiro, prod-fin-only está presente com receita R$ 30 e quantidade 0
+    const finOnly = result.topProducts.find((p) => p.productId === "prod-fin-only");
+    expect(finOnly).toBeDefined();
+    expect(finOnly?.quantity).toBe(0);
+    expect(finOnly?.realizedRevenue).toBe(30);
+
+    // Cross-footing
+    const sumRevenue = Number(result.topProducts.reduce((acc, p) => acc + p.realizedRevenue, 0).toFixed(2));
+    expect(sumRevenue).toBe(result.summary.realizedRevenue);
+  });
 });
 
 describe("Products BI V1 — Canal Homologado", () => {
@@ -818,6 +876,31 @@ describe("Products BI V1 — Reconciliação com Banco de Dados de Produção", 
     expect(body.topProducts.length).toBeGreaterThan(0);
     expect(body.categories.length).toBeGreaterThan(0);
     expect(body.channelMix.length).toBeGreaterThan(0);
+
+    // Cross-footing exato
+    const sumProdRevenue = Number(body.topProducts.reduce((acc: number, x: any) => acc + x.realizedRevenue, 0).toFixed(2));
+    const sumCatRevenue = Number(body.categories.reduce((acc: number, x: any) => acc + x.realizedRevenue, 0).toFixed(2));
+    const sumChanRevenue = Number(body.channelMix.reduce((acc: number, x: any) => acc + x.realizedRevenue, 0).toFixed(2));
+
+    const sumProdQty = body.topProducts.reduce((acc: number, x: any) => acc + x.quantity, 0);
+    const sumCatQty = body.categories.reduce((acc: number, x: any) => acc + x.quantity, 0);
+    const sumChanQty = body.channelMix.reduce((acc: number, x: any) => acc + x.quantity, 0);
+
+    expect(sumProdRevenue).toBe(body.summary.realizedRevenue);
+    expect(sumCatRevenue).toBe(body.summary.realizedRevenue);
+    expect(sumChanRevenue).toBe(body.summary.realizedRevenue);
+
+    expect(sumProdQty).toBe(body.summary.realizedQuantity);
+    expect(sumCatQty).toBe(body.summary.realizedQuantity);
+    expect(sumChanQty).toBe(body.summary.realizedQuantity);
+
+    // Reconciliação
+    expect(body.reconciliation.commercialRevenue).toBe(53766.28);
+    expect(body.reconciliation.productsRevenue).toBe(53766.28);
+    expect(body.reconciliation.adjustmentAmount).toBe(0);
+    expect(
+      Math.round((body.reconciliation.commercialRevenue - body.reconciliation.adjustmentAmount) * 100) / 100
+    ).toBe(body.reconciliation.productsRevenue);
 
     await app.close();
   });

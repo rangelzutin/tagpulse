@@ -343,10 +343,18 @@ export interface RealizedProductMovement {
 export interface ProductsOverviewSummary {
   realizedRevenue: number;
   realizedQuantity: number;
+  /**
+   * Quantidade de produtos distintos com realização física no período (soma de quantity > 0).
+   * Movimentos puramente financeiros (quantity = 0 / allocatedNetRevenue > 0) não incrementam este contador.
+   */
   distinctProductsSold: number;
   distinctCustomers: number;
   activeCatalogProducts: number;
   productsWithStock: number;
+  /**
+   * Redundância contratual: semanticamente idêntico a `distinctProductsSold`.
+   * Mantido para compatibilidade de schema. O frontend deve renderizar apenas um card de KPI.
+   */
   productsSoldInPeriod: number;
 }
 

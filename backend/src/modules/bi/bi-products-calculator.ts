@@ -141,7 +141,9 @@ export function calculateProductsOverview(
     }
     catEntry.quantity += m.quantity;
     catEntry.realizedRevenue += m.allocatedNetRevenue;
-    catEntry.distinctProducts.add(productKey);
+    if (m.quantity > 0) {
+      catEntry.distinctProducts.add(productKey);
+    }
 
     // Agregação de canal
     let chanEntry = channelMap.get(m.channel);
@@ -156,20 +158,27 @@ export function calculateProductsOverview(
     }
     chanEntry.quantity += m.quantity;
     chanEntry.realizedRevenue += m.allocatedNetRevenue;
-    chanEntry.distinctProducts.add(productKey);
+    if (m.quantity > 0) {
+      chanEntry.distinctProducts.add(productKey);
+    }
   }
 
   const totalRealizedRevenue = round2(totalRealizedRevenueRaw);
+
+  // Produtos vendidos fisicamente no período (soma de quantity > 0)
+  const distinctProductsSold = Array.from(productMap.values()).filter(
+    (p) => p.quantity > 0,
+  ).length;
 
   // Summary
   const summary: ProductsOverviewSummary = {
     realizedRevenue: totalRealizedRevenue,
     realizedQuantity: totalRealizedQuantity,
-    distinctProductsSold: allDistinctProductKeys.size,
+    distinctProductsSold,
     distinctCustomers: allDistinctCustomerIds.size,
     activeCatalogProducts: catalogSummary.activeCount,
     productsWithStock: catalogSummary.withStockCount,
-    productsSoldInPeriod: allDistinctProductKeys.size,
+    productsSoldInPeriod: distinctProductsSold,
   };
 
   // Top Products
