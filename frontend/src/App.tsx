@@ -24,16 +24,14 @@ import { ProductsView } from "./components/ProductsView";
 import type { CustomerRecencyBucket, CustomerSegmentType } from "./api/bi";
 import type { RateContextData } from "./components/CustomerSegmentView";
 import { AlertCircle, RefreshCw, Users } from "lucide-react";
+import { getDefaultPeriod } from "./utils/formatters";
 
 export function App() {
   const [activeNav, setActiveNav] = useState<"commercial" | "products">("commercial");
   const [periodMode, setPeriodMode] = useState<PeriodMode>("range");
   const [dataRange, setDataRange] = useState<BiDataRangeResult | null>(null);
 
-  const [currentPeriod, setCurrentPeriod] = useState({
-    from: "2026-01-01",
-    to: "2026-09-08",
-  });
+  const [currentPeriod, setCurrentPeriod] = useState(() => getDefaultPeriod());
 
   // Sales State
   const [salesData, setSalesData] = useState<SalesOverviewResult | null>(null);

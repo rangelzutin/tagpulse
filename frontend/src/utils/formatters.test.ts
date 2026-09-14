@@ -16,6 +16,7 @@ import {
   formatCustomerName,
   formatCpfCnpj,
   formatDateBr,
+  getPeriodPresets,
 } from "./formatters";
 
 
@@ -284,6 +285,92 @@ describe("formatters utils", () => {
 
     it("returns original value if not 3 dash-separated parts", () => {
       expect(formatDateBr("invalid")).toBe("invalid");
+    });
+  });
+
+  describe("getPeriodPresets", () => {
+    it("computes presets correctly for 14/09/2026", () => {
+      const simulatedNow = new Date(2026, 8, 14); // 14 de setembro de 2026 local
+      const presets = getPeriodPresets(simulatedNow, "2024-01-01");
+
+      const esteMes = presets.find((p) => p.label === "Este mês");
+      expect(esteMes).toBeDefined();
+      expect(esteMes?.from).toBe("2026-09-01");
+      expect(esteMes?.to).toBe("2026-09-14");
+      expect(esteMes?.mode).toBe("range");
+
+      const mesAnterior = presets.find((p) => p.label === "Mês anterior");
+      expect(mesAnterior).toBeDefined();
+      expect(mesAnterior?.from).toBe("2026-08-01");
+      expect(mesAnterior?.to).toBe("2026-08-31");
+      expect(mesAnterior?.mode).toBe("range");
+
+      const ytd = presets.find((p) => p.label === "YTD");
+      expect(ytd).toBeDefined();
+      expect(ytd?.from).toBe("2026-01-01");
+      expect(ytd?.to).toBe("2026-09-14");
+
+      const ultimos30 = presets.find((p) => p.label === "Últimos 30 dias");
+      expect(ultimos30).toBeDefined();
+      expect(ultimos30?.from).toBe("2026-08-16");
+      expect(ultimos30?.to).toBe("2026-09-14");
+
+      const ultimos90 = presets.find((p) => p.label === "Últimos 90 dias");
+      expect(ultimos90).toBeDefined();
+      expect(ultimos90?.from).toBe("2026-06-17");
+      expect(ultimos90?.to).toBe("2026-09-14");
+
+      const tudoAte = presets.find((p) => p.label === "Tudo até");
+      expect(tudoAte).toBeDefined();
+      expect(tudoAte?.from).toBe("2024-01-01");
+      expect(tudoAte?.to).toBe("2026-09-14");
+      expect(tudoAte?.mode).toBe("allUpTo");
+    });
+
+    it("computes 'Mês anterior' correctly across year transition (10/01/2027)", () => {
+      const simulatedNow = new Date(2027, 0, 10); // 10 de janeiro de 2027
+      const presets = getPeriodPresets(simulatedNow);
+
+      const mesAnterior = presets.find((p) => p.label === "Mês anterior");
+      expect(mesAnterior?.from).toBe("2026-12-01");
+      expect(mesAnterior?.to).toBe("2026-12-31");
+
+      const esteMes = presets.find((p) => p.label === "Este mês");
+      expect(esteMes?.from).toBe("2027-01-01");
+      expect(esteMes?.to).toBe("2027-01-10");
+
+      const ytd = presets.find((p) => p.label === "YTD");
+      expect(ytd?.from).toBe("2027-01-01");
+      expect(ytd?.to).toBe("2027-01-10");
+    });
+
+    it("computes 'Mês anterior' correctly for non-leap February (05/03/2026)", () => {
+      const simulatedNow = new Date(2026, 2, 5); // 05 de março de 2026
+      const presets = getPeriodPresets(simulatedNow);
+
+      const mesAnterior = presets.find((p) => p.label === "Mês anterior");
+      expect(mesAnterior?.from).toBe("2026-02-01");
+      expect(mesAnterior?.to).toBe("2026-02-28");
+    });
+
+    it("computes 'Mês anterior' correctly for leap year February (05/03/2024)", () => {
+      const simulatedNow = new Date(2024, 2, 5); // 05 de março de 2024
+      const presets = getPeriodPresets(simulatedNow);
+
+      const mesAnterior = presets.find((p) => p.label === "Mês anterior");
+      expect(mesAnterior?.from).toBe("2024-02-01");
+      expect(mesAnterior?.to).toBe("2024-02-29");
+    });
+
+    it("ensures local timezone date parsing and formatting consistency without UTC shift", () => {
+      const localDate = new Date(2026, 8, 14, 0, 0, 0);
+      expect(getLocalDateString(localDate)).toBe("2026-09-14");
+
+      const parsed = parseIsoDate("2026-09-14");
+      expect(parsed.getFullYear()).toBe(2026);
+      expect(parsed.getMonth()).toBe(8);
+      expect(parsed.getDate()).toBe(14);
+      expect(getLocalDateString(parsed)).toBe("2026-09-14");
     });
   });
 });

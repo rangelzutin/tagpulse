@@ -9,6 +9,7 @@ import {
   maskDateInput,
   parseDisplayDate,
   validateManualPeriodInput,
+  getPeriodPresets,
 } from "../utils/formatters";
 import "react-day-picker/style.css";
 
@@ -19,6 +20,7 @@ interface PeriodFilterProps {
   initialTo: string;
   periodMode: PeriodMode;
   minDate?: string | null;
+  currentDate?: Date;
   isLoading?: boolean;
   onApply: (from: string, to: string, mode: PeriodMode) => void;
 }
@@ -36,11 +38,19 @@ export function PeriodFilter({
   initialTo,
   periodMode,
   minDate,
+  currentDate,
   isLoading,
   onApply,
 }: PeriodFilterProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const now = currentDate ?? new Date();
+  const todayStr = getLocalDateString(now);
+  const todayDate = useMemo(
+    () => new Date(now.getFullYear(), now.getMonth(), now.getDate()),
+    [now],
+  );
 
   // Track responsive numberOfMonths: 2 on desktop, 1 on mobile
   const [numberOfMonths, setNumberOfMonths] = useState(2);
@@ -139,6 +149,7 @@ export function PeriodFilter({
       draftTo,
       activeMode,
       minDate,
+      todayStr,
     );
 
     if (res.error) {
@@ -220,6 +231,10 @@ export function PeriodFilter({
   const handleDayClick = (clickedDay: Date) => {
     setInputError(null);
 
+    if (clickedDay > todayDate) {
+      return;
+    }
+
     if (activeMode === "allUpTo" && minDate) {
       // In "Tudo até" mode, clicking a day chooses the end date
       const toStr = getLocalDateString(clickedDay);
@@ -262,70 +277,10 @@ export function PeriodFilter({
     }
   };
 
-  // Presets definition based on context
+  // Presets definition calculated dynamically from today
   const presets = useMemo(() => {
-    const contextToDate = parseIsoDate(initialTo);
-    const toYear = contextToDate.getFullYear();
-    const toMonth = contextToDate.getMonth();
-
-    // 1. Este mês
-    const startOfCurrentMonth = new Date(toYear, toMonth, 1);
-    const endOfCurrentMonth = new Date(toYear, toMonth + 1, 0);
-    const thisMonthTo =
-      contextToDate < endOfCurrentMonth ? contextToDate : endOfCurrentMonth;
-
-    // 2. Últimos 30 dias
-    const last30From = new Date(contextToDate.getTime() - 29 * 86400000);
-
-    // 3. Últimos 90 dias
-    const last90From = new Date(contextToDate.getTime() - 89 * 86400000);
-
-    // 4. YTD: de 01/01 até a data final do contexto
-    const startOfYear = new Date(toYear, 0, 1);
-
-    const list: Array<{
-      label: string;
-      from: string;
-      to: string;
-      mode: PeriodMode;
-    }> = [
-      {
-        label: "Este mês",
-        from: getLocalDateString(startOfCurrentMonth),
-        to: getLocalDateString(thisMonthTo),
-        mode: "range",
-      },
-      {
-        label: "Últimos 30 dias",
-        from: getLocalDateString(last30From),
-        to: getLocalDateString(contextToDate),
-        mode: "range",
-      },
-      {
-        label: "Últimos 90 dias",
-        from: getLocalDateString(last90From),
-        to: getLocalDateString(contextToDate),
-        mode: "range",
-      },
-      {
-        label: "YTD",
-        from: getLocalDateString(startOfYear),
-        to: getLocalDateString(contextToDate),
-        mode: "range",
-      },
-    ];
-
-    if (minDate) {
-      list.push({
-        label: "Tudo até",
-        from: minDate,
-        to: getLocalDateString(contextToDate),
-        mode: "allUpTo",
-      });
-    }
-
-    return list;
-  }, [initialTo, minDate]);
+    return getPeriodPresets(currentDate, minDate);
+  }, [currentDate, minDate]);
 
   const handleApplyPreset = (
     from: string,
@@ -453,6 +408,7 @@ export function PeriodFilter({
               locale={ptBR}
               selected={range}
               onDayClick={handleDayClick}
+              disabled={{ after: todayDate }}
               month={month}
               onMonthChange={setMonth}
               numberOfMonths={numberOfMonths}

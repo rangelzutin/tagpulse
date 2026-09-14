@@ -5,13 +5,89 @@ export function getLocalDateString(d: Date = new Date()): string {
   return `${year}-${month}-${day}`;
 }
 
-export function getDefaultPeriod(): { from: string; to: string } {
-  const now = new Date();
+export function getDefaultPeriod(now: Date = new Date()): { from: string; to: string } {
   const year = now.getFullYear();
   return {
     from: `${year}-01-01`,
     to: getLocalDateString(now),
   };
+}
+
+export interface PeriodPreset {
+  label: string;
+  from: string;
+  to: string;
+  mode: "range" | "allUpTo";
+}
+
+export function getPeriodPresets(
+  now: Date = new Date(),
+  minDate?: string | null,
+): PeriodPreset[] {
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const day = now.getDate();
+  const todayStr = getLocalDateString(now);
+
+  // 1. Este mês: primeiro dia do mês corrente até hoje
+  const startOfCurrentMonth = new Date(year, month, 1);
+
+  // 2. Mês anterior: primeiro dia do mês calendário anterior até o último dia do mês anterior
+  const startOfPreviousMonth = new Date(year, month - 1, 1);
+  const endOfPreviousMonth = new Date(year, month, 0);
+
+  // 3. Últimos 30 dias: termina hoje (30 dias corridos inclusive)
+  const last30From = new Date(year, month, day - 29);
+
+  // 4. Últimos 90 dias: termina hoje (90 dias corridos inclusive)
+  const last90From = new Date(year, month, day - 89);
+
+  // 5. YTD: 01/01 do ano corrente até hoje
+  const startOfYear = new Date(year, 0, 1);
+
+  const presets: PeriodPreset[] = [
+    {
+      label: "Este mês",
+      from: getLocalDateString(startOfCurrentMonth),
+      to: todayStr,
+      mode: "range",
+    },
+    {
+      label: "Mês anterior",
+      from: getLocalDateString(startOfPreviousMonth),
+      to: getLocalDateString(endOfPreviousMonth),
+      mode: "range",
+    },
+    {
+      label: "Últimos 30 dias",
+      from: getLocalDateString(last30From),
+      to: todayStr,
+      mode: "range",
+    },
+    {
+      label: "Últimos 90 dias",
+      from: getLocalDateString(last90From),
+      to: todayStr,
+      mode: "range",
+    },
+    {
+      label: "YTD",
+      from: getLocalDateString(startOfYear),
+      to: todayStr,
+      mode: "range",
+    },
+  ];
+
+  if (minDate) {
+    presets.push({
+      label: "Tudo até",
+      from: minDate,
+      to: todayStr,
+      mode: "allUpTo",
+    });
+  }
+
+  return presets;
 }
 
 export function formatCurrency(value: number): string {
@@ -215,6 +291,7 @@ export function validateManualPeriodInput(
   draftTo: string,
   mode: "range" | "allUpTo",
   minDate?: string | null,
+  maxDate?: string | null,
 ): ManualPeriodValidation {
   if (mode === "allUpTo") {
     if (!minDate || !draftTo || draftTo.length < 10) {
@@ -228,6 +305,12 @@ export function validateManualPeriodInput(
       return {
         canApply: false,
         error: "A data final deve ser posterior ou igual ao início da base.",
+      };
+    }
+    if (maxDate && pTo.isoDate! > maxDate) {
+      return {
+        canApply: false,
+        error: "A data final não pode ser posterior à data de hoje.",
       };
     }
     return {
@@ -257,6 +340,13 @@ export function validateManualPeriodInput(
     return {
       canApply: false,
       error: "A data inicial deve ser anterior ou igual à data final.",
+    };
+  }
+
+  if (maxDate && pTo.isoDate! > maxDate) {
+    return {
+      canApply: false,
+      error: "A data final não pode ser posterior à data de hoje.",
     };
   }
 
