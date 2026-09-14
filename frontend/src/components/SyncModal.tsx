@@ -22,6 +22,92 @@ import {
   type TagPlusSyncStatusResponse,
 } from "../api/sync.js";
 
+export const IDLE_STAGES: TagPlusSyncStatusResponse["stages"] = {
+  customers: { status: "WAITING" },
+  products: { status: "WAITING" },
+  sales: { status: "WAITING" },
+};
+
+export interface DerivedSyncModalState {
+  isRunning: boolean;
+  isTracked: boolean;
+  isCompleted: boolean;
+  isSessionFailed: boolean;
+  isHistoricalFailed: boolean;
+  isAuthError: boolean;
+  isPreflightBlocking: boolean;
+  activeMode: TagPlusSyncMode;
+  stages: TagPlusSyncStatusResponse["stages"];
+  primaryButtonLabel: "Sincronizar agora" | "Tentar Novamente";
+  canStartSync: boolean;
+}
+
+export function deriveSyncModalState(params: {
+  statusData: TagPlusSyncStatusResponse | null;
+  currentSessionRunId: string | null;
+  isStarting: boolean;
+  errorMessage: string | null;
+  oauthRequired: boolean;
+  preflightData: TagPlusPreflightResponse | null;
+}): DerivedSyncModalState {
+  const isRunning = Boolean(params.statusData?.isRunning || params.isStarting);
+  const isTracked = Boolean(
+    params.currentSessionRunId &&
+      params.statusData?.activeRun?.runId === params.currentSessionRunId,
+  );
+  const isCompleted =
+    !isRunning && isTracked && params.statusData?.activeRun?.status === "COMPLETED";
+
+  const isAuthError = Boolean(
+    params.statusData?.activeRun?.isAuthError ||
+      params.statusData?.activeRun?.errorCategory === "TAGPLUS_AUTH_EXPIRED",
+  );
+
+  const isSessionFailed =
+    !isRunning &&
+    ((isTracked && params.statusData?.activeRun?.status === "FAILED") ||
+      Boolean(params.errorMessage || params.oauthRequired));
+
+  const isHistoricalFailed =
+    !isRunning &&
+    !params.currentSessionRunId &&
+    params.statusData?.activeRun?.status === "FAILED";
+
+  const isPreflightBlocking =
+    params.preflightData !== null && params.preflightData.status !== "CONNECTED";
+
+  const activeMode =
+    (isTracked || isRunning)
+      ? (params.statusData?.activeRun?.mode ?? "INCREMENTAL")
+      : "INCREMENTAL";
+
+  const stages =
+    (isTracked || isRunning)
+      ? (params.statusData?.stages ?? IDLE_STAGES)
+      : IDLE_STAGES;
+
+  const primaryButtonLabel = isSessionFailed
+    ? "Tentar Novamente"
+    : "Sincronizar agora";
+
+  const canStartSync =
+    !params.isStarting && !isPreflightBlocking && !isRunning;
+
+  return {
+    isRunning,
+    isTracked,
+    isCompleted,
+    isSessionFailed,
+    isHistoricalFailed,
+    isAuthError,
+    isPreflightBlocking,
+    activeMode,
+    stages,
+    primaryButtonLabel,
+    canStartSync,
+  };
+}
+
 interface SyncModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -30,6 +116,10 @@ interface SyncModalProps {
 
 export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
   const [statusData, setStatusData] = useState<TagPlusSyncStatusResponse | null>(null);
+  const [currentSessionRunId, setCurrentSessionRunId] = useState<string | null>(null);
+  const currentSessionRunIdRef = useRef<string | null>(null);
+  currentSessionRunIdRef.current = currentSessionRunId;
+
   const [isStarting, setIsStarting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [oauthRequired, setOauthRequired] = useState(false);
@@ -44,8 +134,27 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
   const preflightSeqRef = useRef(0);
   const isPreflightInProgressRef = useRef(false);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasNotifiedSuccessRef = useRef(false);
 
-  const isRunning = Boolean(statusData?.isRunning || isStarting);
+  const {
+    isRunning,
+    isCompleted,
+    isSessionFailed,
+    isHistoricalFailed,
+    isAuthError,
+    isPreflightBlocking,
+    activeMode,
+    stages,
+    primaryButtonLabel,
+  } = deriveSyncModalState({
+    statusData,
+    currentSessionRunId,
+    isStarting,
+    errorMessage,
+    oauthRequired,
+    preflightData,
+  });
+
   const isRunningRef = useRef(isRunning);
   isRunningRef.current = isRunning;
 
@@ -60,6 +169,14 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
     try {
       const data = await fetchTagPlusSyncStatus();
       setStatusData(data);
+
+      // Regra 4 & 6: Se há execução em andamento no backend e ainda não rastreamos nada nesta sessão
+      // (ex: modal abriu enquanto o sync já rodava), adota a execução ativa
+      if (data.isRunning && !currentSessionRunIdRef.current && data.activeRun?.runId) {
+        setCurrentSessionRunId(data.activeRun.runId);
+        currentSessionRunIdRef.current = data.activeRun.runId;
+      }
+
       return data;
     } catch {
       // Silenciosamente ignora falhas pontuais de rede no polling
@@ -105,6 +222,15 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
   // Preflight na abertura e retorno via window.focus
   useEffect(() => {
     if (!isOpen) {
+      setCurrentSessionRunId(null);
+      currentSessionRunIdRef.current = null;
+      hasNotifiedSuccessRef.current = false;
+      setStatusData(null);
+      setIsStarting(false);
+      setErrorMessage(null);
+      setOauthRequired(false);
+      setBaselineRequired(false);
+      setAuthorizeUrl(null);
       setPreflightData(null);
       setIsCheckingPreflight(false);
       if (debounceTimerRef.current) {
@@ -151,8 +277,15 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
     pollIntervalRef.current = setInterval(async () => {
       const latest = await refreshStatus();
       if (latest && !latest.isRunning) {
-        // Se a execução acabou de concluir com sucesso, aciona revalidação
-        if (latest.activeRun?.status === "COMPLETED") {
+        const trackedId = currentSessionRunIdRef.current;
+        // Somente notifica sucesso uma única vez e somente se o run da sessão concluiu
+        if (
+          trackedId &&
+          latest.activeRun?.runId === trackedId &&
+          latest.activeRun?.status === "COMPLETED" &&
+          !hasNotifiedSuccessRef.current
+        ) {
+          hasNotifiedSuccessRef.current = true;
           onSyncSuccess?.();
         }
       }
@@ -172,9 +305,39 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
     setOauthRequired(false);
     setBaselineRequired(false);
     setAuthorizeUrl(null);
+    hasNotifiedSuccessRef.current = false;
 
     try {
-      await startTagPlusSync(mode);
+      const result = await startTagPlusSync(mode);
+      // Item 3: Transição imediata após start
+      // - salvar imediatamente em currentSessionRunId
+      // - entrar imediatamente no estado RUNNING
+      // - não esperar o primeiro polling para atualizar a UX
+      setCurrentSessionRunId(result.runId);
+      currentSessionRunIdRef.current = result.runId;
+
+      setStatusData((prev) => ({
+        isRunning: true,
+        activeRun: {
+          runId: result.runId,
+          mode: result.mode,
+          status: result.status,
+          currentStage: result.currentStage,
+          startedAt: result.startedAt,
+          elapsedSeconds: 0,
+          windowSince: result.windowSince,
+          windowUntil: result.windowUntil,
+        },
+        stages: {
+          customers: { status: "RUNNING" },
+          products: { status: "WAITING" },
+          sales: { status: "WAITING" },
+        },
+        lastCompletedSync: prev?.lastCompletedSync ?? null,
+        lastCompletedIncrementalSync: prev?.lastCompletedIncrementalSync ?? null,
+        lastCompletedFullSync: prev?.lastCompletedFullSync ?? null,
+      }));
+
       await refreshStatus();
     } catch (err: unknown) {
       if (err instanceof TagPlusSyncApiError) {
@@ -186,7 +349,11 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
         } else if (err.code === "TAGPLUS_INCREMENTAL_BASELINE_REQUIRED") {
           setBaselineRequired(true);
         } else if (err.code === "TAGPLUS_SYNC_ALREADY_RUNNING") {
-          // Já está rodando: atualiza status
+          const runningId = err.details?.activeRun?.runId;
+          if (runningId) {
+            setCurrentSessionRunId(runningId);
+            currentSessionRunIdRef.current = runningId;
+          }
           await refreshStatus();
         } else {
           setErrorMessage(err.message);
@@ -202,24 +369,6 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
   };
 
   if (!isOpen) return null;
-
-  const isCompleted = !isRunning && statusData?.activeRun?.status === "COMPLETED";
-  const isFailed = !isRunning && statusData?.activeRun?.status === "FAILED";
-  const activeMode = statusData?.activeRun?.mode ?? "INCREMENTAL";
-
-  const isAuthError = Boolean(
-    statusData?.activeRun?.isAuthError ||
-      statusData?.activeRun?.errorCategory === "TAGPLUS_AUTH_EXPIRED",
-  );
-
-  const isPreflightBlocking =
-    preflightData !== null && preflightData.status !== "CONNECTED";
-
-  const stages = statusData?.stages ?? {
-    customers: { status: "WAITING" },
-    products: { status: "WAITING" },
-    sales: { status: "WAITING" },
-  };
 
   const elapsed = statusData?.activeRun?.elapsedSeconds ?? 0;
   const formatDuration = (seconds: number) => {
@@ -399,7 +548,7 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
         )}
 
         {/* Banner de Autorização Expirada durante/após Sync */}
-        {(oauthRequired || isAuthError) && !baselineRequired && (
+        {(oauthRequired || (isSessionFailed && isAuthError)) && !baselineRequired && (
           <div className="tp-sync-banner is-oauth" data-testid="auth-expired-banner">
             <Lock size={18} className="tp-sync-banner-icon" />
             <div className="tp-sync-banner-text">
@@ -419,19 +568,21 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
         )}
 
         {/* Banner de Erro Geral Técnico (não-auth) */}
-        {(errorMessage || isFailed) && !isAuthError && !oauthRequired && !baselineRequired && (
-          <div className="tp-sync-banner is-error">
-            <AlertCircle size={18} className="tp-sync-banner-icon" />
-            <div className="tp-sync-banner-text">
-              <strong>Falha na Sincronização</strong>
-              <p>
-                {errorMessage ||
-                  statusData?.activeRun?.errorMessage ||
-                  "Ocorreu um erro durante a execução da sincronização."}
-              </p>
+        {(errorMessage || (isSessionFailed && !isAuthError)) &&
+          !oauthRequired &&
+          !baselineRequired && (
+            <div className="tp-sync-banner is-error">
+              <AlertCircle size={18} className="tp-sync-banner-icon" />
+              <div className="tp-sync-banner-text">
+                <strong>Falha na Sincronização</strong>
+                <p>
+                  {errorMessage ||
+                    statusData?.activeRun?.errorMessage ||
+                    "Ocorreu um erro durante a execução da sincronização."}
+                </p>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
         {/* Banner de Sucesso */}
         {isCompleted && (
@@ -584,6 +735,19 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
                 </span>
               </div>
             )}
+            {!isRunning && isHistoricalFailed && (
+              <div
+                className="tp-sync-last-run-info"
+                style={{ color: "#f87171", marginTop: "2px" }}
+              >
+                <span>
+                  Última tentativa falhou
+                  {statusData?.activeRun?.errorMessage
+                    ? `: ${statusData.activeRun.errorMessage}`
+                    : ""}
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="tp-sync-footer-actions">
@@ -615,7 +779,7 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
                   }
                 >
                   <RefreshCw size={15} />
-                  <span>{isFailed ? "Tentar Novamente" : "Sincronizar Dados"}</span>
+                  <span>{primaryButtonLabel}</span>
                 </button>
               </>
             )}
@@ -631,7 +795,7 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
               </button>
             )}
 
-            {!isRunning && isFailed && (
+            {!isRunning && isSessionFailed && (
               <button
                 type="button"
                 className="tp-button tp-button-secondary"
