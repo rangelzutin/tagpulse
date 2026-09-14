@@ -124,29 +124,26 @@ export function ProductsView({
       {/* 2. Bloco Contextual de Catálogo & Estoque */}
       <CatalogContextCard summary={summary} />
 
-      {/* 3. Grid Principal de Produtos & Mix */}
-      <div className="tp-products-split-grid">
-        {/* Coluna Principal: Mais Vendidos */}
-        <div className="tp-products-main-col">
-          <TopProductsCard
-            products={topProducts}
-            totalRevenue={summary.realizedRevenue}
-            totalQuantity={summary.realizedQuantity}
-          />
-        </div>
+      {/* 3. Seção Principal: Mais Vendidos (Largura Total) */}
+      <section className="tp-products-full-section" aria-label="Ranking de Produtos">
+        <TopProductsCard
+          products={topProducts}
+          totalRevenue={summary.realizedRevenue}
+          totalQuantity={summary.realizedQuantity}
+        />
+      </section>
 
-        {/* Coluna Lateral: Mix por Categoria e Mix por Canal */}
-        <div className="tp-products-side-col">
-          <ProductCategoryMixCard
-            categories={categories}
-            totalRevenue={summary.realizedRevenue}
-          />
+      {/* 4. Seção Complementar: Mix por Categoria e Mix por Canal lado a lado */}
+      <div className="tp-products-complementary-grid">
+        <ProductCategoryMixCard
+          categories={categories}
+          totalRevenue={summary.realizedRevenue}
+        />
 
-          <ProductChannelMixCard
-            channelMix={channelMix}
-            totalRevenue={summary.realizedRevenue}
-          />
-        </div>
+        <ProductChannelMixCard
+          channelMix={channelMix}
+          totalRevenue={summary.realizedRevenue}
+        />
       </div>
     </section>
   );
