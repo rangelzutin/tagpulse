@@ -3777,7 +3777,24 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  padding: 0.25rem 0;
+  padding: 0.25rem 0.5rem 0.25rem 0;
+  max-height: 420px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--tp-border-medium) transparent;
+}
+
+.tp-category-ranking-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.tp-category-ranking-list::-webkit-scrollbar-thumb {
+  background-color: var(--tp-border-medium);
+  border-radius: 4px;
+}
+
+.tp-category-ranking-list::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .tp-category-item-row {
