@@ -1,6 +1,7 @@
 import type { PrismaClient, TagPlusSyncRun } from "@prisma/client";
 import { TagPlusSyncMode, TagPlusSyncStage, TagPlusSyncStatus } from "@prisma/client";
 import type { TagPlusOAuthTokenStore } from "../../integrations/tagplus/oauth-token-store.js";
+import { TagPlusHttpError } from "../../integrations/tagplus/tagplus-client.js";
 import {
   formatTagPlusDateSaoPaulo,
   truncateToSeconds,
@@ -45,6 +46,17 @@ export interface SyncStepProgress {
   error?: string;
 }
 
+export type TagPlusPreflightStatus = "CONNECTED" | "AUTH_REQUIRED" | "ERROR";
+
+export interface TagPlusPreflightResponse {
+  status: TagPlusPreflightStatus;
+  reason?: "TOKEN_MISSING" | "TOKEN_EXPIRED" | "CONNECTION_FAILED";
+  message: string;
+  description?: string;
+  authorizeUrl: string;
+  isLocalEnvironment: boolean;
+}
+
 export interface TagPlusSyncStatusResponse {
   isRunning: boolean;
   activeRun: {
@@ -59,6 +71,8 @@ export interface TagPlusSyncStatusResponse {
     windowUntil?: Date | null;
     errorStage?: TagPlusSyncStage | null;
     errorMessage?: string | null;
+    errorCategory?: string | null;
+    isAuthError?: boolean;
   } | null;
   stages: {
     customers: SyncStepProgress;
@@ -72,6 +86,7 @@ export interface TagPlusSyncStatusResponse {
 
 export interface CustomerRunnerLike {
   preflight(connectionId: string): Promise<unknown>;
+  ping?(connectionId: string): Promise<unknown>;
   run(
     connectionId: string,
     options?: {
@@ -142,6 +157,7 @@ export interface TagPlusSyncOrchestratorDependencies {
   salesRunner: SalesRunnerLike;
   targetConnectionId?: string;
   now?: () => Date;
+  isLocalEnvironment?: boolean;
 }
 
 export function createTagPlusSyncOrchestrator(
@@ -299,16 +315,21 @@ export function createTagPlusSyncOrchestrator(
       });
       await dependencies.syncRepository.completeRun(run.id, completedAt, finalSummary);
     } catch (error: unknown) {
-      const sanitizedCategory = sanitizeErrorCategory(error);
+      const isAuth = isTagPlusAuthError(error);
+      const rawCategory = sanitizeErrorCategory(error);
+      const sanitizedCategory = isAuth ? "TAGPLUS_AUTH_EXPIRED" : rawCategory;
       const sanitizedMessage = sanitizeErrorMessage(error);
+      const stageErrorMessage = isAuth
+        ? (rawCategory && rawCategory !== "TAGPLUS_AUTH_EXPIRED" ? rawCategory : sanitizedMessage)
+        : sanitizedMessage;
 
       // Marca erro na etapa atual em memória
       if (currentStage === TagPlusSyncStage.CUSTOMERS) {
-        inMemoryStages.customers = { status: "FAILED", error: sanitizedMessage };
+        inMemoryStages.customers = { status: "FAILED", error: stageErrorMessage };
       } else if (currentStage === TagPlusSyncStage.PRODUCTS) {
-        inMemoryStages.products = { status: "FAILED", error: sanitizedMessage };
+        inMemoryStages.products = { status: "FAILED", error: stageErrorMessage };
       } else if (currentStage === TagPlusSyncStage.SALES) {
-        inMemoryStages.sales = { status: "FAILED", error: sanitizedMessage };
+        inMemoryStages.sales = { status: "FAILED", error: stageErrorMessage };
       }
 
       await dependencies.syncRepository.failRun(
@@ -328,6 +349,74 @@ export function createTagPlusSyncOrchestrator(
   }
 
   return {
+    async checkPreflight(): Promise<TagPlusPreflightResponse> {
+      const isLocal = dependencies.isLocalEnvironment ?? false;
+      const authorizeUrl = "/integrations/tagplus/authorize";
+
+      // 1. Verificar se o token de acesso existe no store
+      const tokens = dependencies.tokenStore.get();
+      if (!tokens?.accessToken) {
+        return {
+          status: "AUTH_REQUIRED",
+          reason: "TOKEN_MISSING",
+          message: "Autorização do TagPlus necessária",
+          description: "Sua sessão expirou ou ainda não foi autorizada.",
+          authorizeUrl,
+          isLocalEnvironment: isLocal,
+        };
+      }
+
+      // 2. Resolver conexão ativa no banco
+      let connectionId: string;
+      try {
+        connectionId = await resolveConnectionId();
+      } catch {
+        return {
+          status: "ERROR",
+          reason: "CONNECTION_FAILED",
+          message: "Não foi possível conectar ao TagPlus.",
+          description: "Verifique sua conexão e tente novamente.",
+          authorizeUrl,
+          isLocalEnvironment: isLocal,
+        };
+      }
+
+      // 3. Executar o ping leve reutilizando o mesmo cliente e caminho do sync
+      try {
+        if (typeof dependencies.customerRunner.ping === "function") {
+          await dependencies.customerRunner.ping(connectionId);
+        } else {
+          await dependencies.customerRunner.preflight(connectionId);
+        }
+        return {
+          status: "CONNECTED",
+          message: "TagPlus conectado",
+          authorizeUrl,
+          isLocalEnvironment: isLocal,
+        };
+      } catch (error: unknown) {
+        if (isTagPlusAuthError(error)) {
+          return {
+            status: "AUTH_REQUIRED",
+            reason: "TOKEN_EXPIRED",
+            message: "Autorização do TagPlus necessária",
+            description: "Sua sessão expirou ou ainda não foi autorizada.",
+            authorizeUrl,
+            isLocalEnvironment: isLocal,
+          };
+        }
+
+        return {
+          status: "ERROR",
+          reason: "CONNECTION_FAILED",
+          message: "Não foi possível conectar ao TagPlus.",
+          description: "Verifique sua conexão e tente novamente.",
+          authorizeUrl,
+          isLocalEnvironment: isLocal,
+        };
+      }
+    },
+
     async preflight(): Promise<{ connectionId: string; status: "READY" }> {
       const connectionId = await resolveConnectionId();
       await preflightCheck(connectionId);
@@ -489,6 +578,8 @@ export function createTagPlusSyncOrchestrator(
             elapsedSeconds,
             windowSince: activeWindowSince,
             windowUntil: activeWindowUntil,
+            errorCategory: null,
+            isAuthError: false,
           },
           stages: { ...inMemoryStages },
           lastCompletedSync: lastCompleted?.completedAt ?? null,
@@ -523,6 +614,10 @@ export function createTagPlusSyncOrchestrator(
           ? Math.max(0, Math.floor((latestRun.completedAt.getTime() - latestRun.startedAt.getTime()) / 1000))
           : 0;
 
+      const isAuth =
+        latestRun?.errorCategory === "TAGPLUS_AUTH_EXPIRED" ||
+        latestRun?.errorMessage?.includes("TAGPLUS_AUTH_EXPIRED") === true;
+
       return {
         isRunning: false,
         activeRun: latestRun
@@ -538,6 +633,8 @@ export function createTagPlusSyncOrchestrator(
               windowUntil: latestRun.windowUntil,
               errorStage: latestRun.errorStage,
               errorMessage: latestRun.errorMessage,
+              errorCategory: latestRun.errorCategory,
+              isAuthError: isAuth,
             }
           : null,
         stages: stagesResult,
@@ -580,4 +677,58 @@ export function toJsonSafe<T = Record<string, unknown>>(value: unknown): T {
       return val;
     }),
   ) as T;
+}
+
+export function isTagPlusAuthError(error: unknown): boolean {
+  if (!error) return false;
+  if (error instanceof TagPlusOAuthRequiredError) return true;
+  if (
+    error instanceof TagPlusHttpError &&
+    (error.status === 401 || error.status === 403)
+  ) {
+    return true;
+  }
+  if (typeof error === "object" && error !== null) {
+    const errObj = error as Record<string, unknown>;
+    if (
+      errObj.status === 401 ||
+      errObj.status === 403 ||
+      errObj.statusCode === 401 ||
+      errObj.statusCode === 403
+    ) {
+      return true;
+    }
+    if (
+      errObj.category === "TAGPLUS_AUTH_EXPIRED" ||
+      errObj.errorCategory === "TAGPLUS_AUTH_EXPIRED" ||
+      errObj.category === "TAGPLUS_OAUTH_TOKEN_NOT_AVAILABLE"
+    ) {
+      return true;
+    }
+    if ("cause" in errObj && errObj.cause && isTagPlusAuthError(errObj.cause)) {
+      return true;
+    }
+  }
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase();
+    if (
+      (msg.includes("401") || msg.includes("403")) &&
+      (msg.includes("tagplus") ||
+        msg.includes("oauth") ||
+        msg.includes("token") ||
+        msg.includes("unauthorized") ||
+        msg.includes("forbidden") ||
+        error.name.includes("TagPlus"))
+    ) {
+      return true;
+    }
+    if (
+      "cause" in error &&
+      (error as { cause?: unknown }).cause &&
+      isTagPlusAuthError((error as { cause?: unknown }).cause)
+    ) {
+      return true;
+    }
+  }
+  return false;
 }

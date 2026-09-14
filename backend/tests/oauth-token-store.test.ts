@@ -3,7 +3,7 @@ import { createTagPlusOAuthTokenStore } from "../src/integrations/tagplus/oauth-
 
 describe("TagPlus OAuth token store", () => {
   it("starts empty, stores, replaces and clears synthetic state", () => {
-    const store = createTagPlusOAuthTokenStore();
+    const store = createTagPlusOAuthTokenStore({ filePath: null });
     expect(store.get()).toBeUndefined();
     store.set({
       accessToken: "synthetic-token-one",

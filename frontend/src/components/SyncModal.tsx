@@ -12,10 +12,12 @@ import {
   Database,
 } from "lucide-react";
 import {
+  fetchTagPlusPreflight,
   fetchTagPlusSyncStatus,
   getBaseUrl,
   startTagPlusSync,
   TagPlusSyncApiError,
+  type TagPlusPreflightResponse,
   type TagPlusSyncMode,
   type TagPlusSyncStatusResponse,
 } from "../api/sync.js";
@@ -34,20 +36,107 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
   const [baselineRequired, setBaselineRequired] = useState(false);
   const [authorizeUrl, setAuthorizeUrl] = useState<string | null>(null);
 
+  // Preflight state
+  const [preflightData, setPreflightData] = useState<TagPlusPreflightResponse | null>(null);
+  const [isCheckingPreflight, setIsCheckingPreflight] = useState(false);
+
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const preflightSeqRef = useRef(0);
+  const isPreflightInProgressRef = useRef(false);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const isRunning = Boolean(statusData?.isRunning || isStarting);
+  const isRunningRef = useRef(isRunning);
+  isRunningRef.current = isRunning;
+
+  const resolveAuthorizeUrl = useCallback((rawUrl?: string | null): string => {
+    const target = rawUrl || "/integrations/tagplus/authorize";
+    if (target.startsWith("http")) return target;
+    const base = getBaseUrl();
+    return `${base}${target.startsWith("/") ? "" : "/"}${target}`;
+  }, []);
 
   const refreshStatus = useCallback(async () => {
     try {
       const data = await fetchTagPlusSyncStatus();
       setStatusData(data);
       return data;
-    } catch (err: unknown) {
+    } catch {
       // Silenciosamente ignora falhas pontuais de rede no polling
       return null;
     }
   }, []);
 
-  // Inicia polling quando o modal abre ou se uma execução estiver ativa
+  const runPreflight = useCallback(async () => {
+    if (isRunningRef.current) return;
+    if (isPreflightInProgressRef.current) return;
+
+    const currentSeq = ++preflightSeqRef.current;
+    setIsCheckingPreflight(true);
+    isPreflightInProgressRef.current = true;
+
+    try {
+      const data = await fetchTagPlusPreflight();
+      if (currentSeq === preflightSeqRef.current) {
+        setPreflightData(data);
+        if (data.status === "CONNECTED") {
+          setOauthRequired(false);
+        }
+      }
+    } catch {
+      if (currentSeq === preflightSeqRef.current) {
+        setPreflightData({
+          status: "ERROR",
+          reason: "CONNECTION_FAILED",
+          message: "Não foi possível conectar ao TagPlus.",
+          description: "Verifique sua conexão e tente novamente.",
+          authorizeUrl: "/integrations/tagplus/authorize",
+          isLocalEnvironment: false,
+        });
+      }
+    } finally {
+      if (currentSeq === preflightSeqRef.current) {
+        setIsCheckingPreflight(false);
+      }
+      isPreflightInProgressRef.current = false;
+    }
+  }, []);
+
+  // Preflight na abertura e retorno via window.focus
+  useEffect(() => {
+    if (!isOpen) {
+      setPreflightData(null);
+      setIsCheckingPreflight(false);
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+      return;
+    }
+
+    void runPreflight();
+
+    const handleFocus = () => {
+      if (isRunningRef.current) return;
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      debounceTimerRef.current = setTimeout(() => {
+        void runPreflight();
+      }, 300);
+    };
+
+    window.addEventListener("focus", handleFocus);
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+    };
+  }, [isOpen, runPreflight]);
+
+  // Polling de status quando o modal abre ou execução ativa
   useEffect(() => {
     if (!isOpen) {
       if (pollIntervalRef.current) {
@@ -91,15 +180,13 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
       if (err instanceof TagPlusSyncApiError) {
         if (err.code === "TAGPLUS_OAUTH_REQUIRED") {
           setOauthRequired(true);
-          const rawAuthorizeUrl = err.details?.authorizeUrl || "/integrations/tagplus/authorize";
-          const finalUrl = rawAuthorizeUrl.startsWith("http")
-            ? rawAuthorizeUrl
-            : `${getBaseUrl()}${rawAuthorizeUrl.startsWith("/") ? "" : "/"}${rawAuthorizeUrl}`;
-          setAuthorizeUrl(finalUrl);
+          const rawAuthorizeUrl =
+            err.details?.authorizeUrl || "/integrations/tagplus/authorize";
+          setAuthorizeUrl(resolveAuthorizeUrl(rawAuthorizeUrl));
         } else if (err.code === "TAGPLUS_INCREMENTAL_BASELINE_REQUIRED") {
           setBaselineRequired(true);
         } else if (err.code === "TAGPLUS_SYNC_ALREADY_RUNNING") {
-          // Já está rodando: basta atualizar o status
+          // Já está rodando: atualiza status
           await refreshStatus();
         } else {
           setErrorMessage(err.message);
@@ -116,10 +203,17 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
 
   if (!isOpen) return null;
 
-  const isRunning = statusData?.isRunning || isStarting;
   const isCompleted = !isRunning && statusData?.activeRun?.status === "COMPLETED";
   const isFailed = !isRunning && statusData?.activeRun?.status === "FAILED";
   const activeMode = statusData?.activeRun?.mode ?? "INCREMENTAL";
+
+  const isAuthError = Boolean(
+    statusData?.activeRun?.isAuthError ||
+      statusData?.activeRun?.errorCategory === "TAGPLUS_AUTH_EXPIRED",
+  );
+
+  const isPreflightBlocking =
+    preflightData !== null && preflightData.status !== "CONNECTED";
 
   const stages = statusData?.stages ?? {
     customers: { status: "WAITING" },
@@ -136,7 +230,12 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
   };
 
   return (
-    <div className="tp-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="sync-modal-title">
+    <div
+      className="tp-modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="sync-modal-title"
+    >
       <div className="tp-modal-card tp-sync-modal">
         {/* Header */}
         <div className="tp-modal-header">
@@ -155,9 +254,15 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
                     fontWeight: 600,
                     padding: "2px 8px",
                     borderRadius: "12px",
-                    background: activeMode === "FULL" ? "rgba(234, 179, 8, 0.15)" : "rgba(59, 130, 246, 0.15)",
+                    background:
+                      activeMode === "FULL"
+                        ? "rgba(234, 179, 8, 0.15)"
+                        : "rgba(59, 130, 246, 0.15)",
                     color: activeMode === "FULL" ? "#eab308" : "#3b82f6",
-                    border: activeMode === "FULL" ? "1px solid rgba(234, 179, 8, 0.3)" : "1px solid rgba(59, 130, 246, 0.3)",
+                    border:
+                      activeMode === "FULL"
+                        ? "1px solid rgba(234, 179, 8, 0.3)"
+                        : "1px solid rgba(59, 130, 246, 0.3)",
                   }}
                 >
                   {activeMode === "FULL" ? "Reconciliação Completa" : "Incremental"}
@@ -179,6 +284,97 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
           </button>
         </div>
 
+        {/* Bloco Conexão TagPlus */}
+        <div
+          className={`tp-sync-connection-card is-${
+            isCheckingPreflight
+              ? "checking"
+              : preflightData?.status?.toLowerCase() || "checking"
+          }`}
+          data-testid="tagplus-connection-card"
+        >
+          <div className="tp-sync-connection-main">
+            <div className="tp-sync-connection-status">
+              {isCheckingPreflight ? (
+                <>
+                  <RefreshCw size={15} className="tp-spin" />
+                  <span>Verificando conexão com o TagPlus...</span>
+                </>
+              ) : preflightData?.status === "CONNECTED" ? (
+                <>
+                  <CheckCircle2 size={15} />
+                  <span>✓ TagPlus conectado</span>
+                </>
+              ) : preflightData?.status === "AUTH_REQUIRED" ? (
+                <>
+                  <Lock size={15} />
+                  <span>Autorização do TagPlus necessária</span>
+                </>
+              ) : (
+                <>
+                  <AlertCircle size={15} />
+                  <span>Erro de conexão com o TagPlus</span>
+                </>
+              )}
+            </div>
+
+            <div className="tp-sync-connection-actions">
+              {preflightData?.status === "CONNECTED" && (
+                <a
+                  href={resolveAuthorizeUrl(preflightData.authorizeUrl)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="tp-sync-reauth-btn"
+                  title="Abrir novamente o fluxo de autorização OAuth do TagPlus"
+                >
+                  <ExternalLink size={12} />
+                  <span>Reautorizar TagPlus</span>
+                </a>
+              )}
+
+              {preflightData?.status === "AUTH_REQUIRED" && (
+                <a
+                  href={resolveAuthorizeUrl(preflightData.authorizeUrl)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="tp-button tp-button-primary tp-button-sm"
+                >
+                  <ExternalLink size={13} />
+                  <span>Autorizar TagPlus</span>
+                </a>
+              )}
+
+              {preflightData?.status === "ERROR" && (
+                <button
+                  type="button"
+                  className="tp-button tp-button-secondary tp-button-sm"
+                  onClick={() => void runPreflight()}
+                  disabled={isCheckingPreflight}
+                >
+                  <RefreshCw
+                    size={13}
+                    className={isCheckingPreflight ? "tp-spin" : ""}
+                  />
+                  <span>Testar Conexão</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {!isCheckingPreflight && preflightData?.description && (
+            <p className="tp-sync-connection-desc">{preflightData.description}</p>
+          )}
+
+          {preflightData?.isLocalEnvironment && (
+            <div className="tp-sync-local-hint">
+              <span className="tp-sync-local-tag">Ambiente local</span>
+              <span className="tp-sync-local-text">
+                Para concluir a autorização do TagPlus, mantenha o túnel ngrok configurado para o callback OAuth ativo.
+              </span>
+            </div>
+          )}
+        </div>
+
         {/* Banner Baseline Requerida */}
         {baselineRequired && (
           <div className="tp-sync-banner is-error">
@@ -194,7 +390,7 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
               type="button"
               className="tp-button tp-button-primary tp-button-sm"
               onClick={() => handleStartSync("FULL")}
-              disabled={isRunning}
+              disabled={isRunning || isPreflightBlocking}
             >
               <Database size={14} />
               <span>Executar Reconciliação Completa</span>
@@ -202,30 +398,28 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
           </div>
         )}
 
-        {/* Banner OAuth */}
-        {oauthRequired && (
-          <div className="tp-sync-banner is-oauth">
+        {/* Banner de Autorização Expirada durante/após Sync */}
+        {(oauthRequired || isAuthError) && !baselineRequired && (
+          <div className="tp-sync-banner is-oauth" data-testid="auth-expired-banner">
             <Lock size={18} className="tp-sync-banner-icon" />
             <div className="tp-sync-banner-text">
-              <strong>Autenticação Necessária</strong>
-              <p>O token do TagPlus não está ativo na aplicação. Conecte-se para permitir o acesso.</p>
+              <strong>Autorização do TagPlus expirada</strong>
+              <p>Autorize novamente sua conta para continuar a sincronização.</p>
             </div>
-            {authorizeUrl && (
-              <a
-                href={authorizeUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="tp-button tp-button-primary tp-button-sm"
-              >
-                <ExternalLink size={14} />
-                <span>Autorizar no TagPlus</span>
-              </a>
-            )}
+            <a
+              href={resolveAuthorizeUrl(authorizeUrl || preflightData?.authorizeUrl)}
+              target="_blank"
+              rel="noreferrer"
+              className="tp-button tp-button-primary tp-button-sm"
+            >
+              <ExternalLink size={14} />
+              <span>Autorizar TagPlus</span>
+            </a>
           </div>
         )}
 
-        {/* Banner de Erro Geral */}
-        {(errorMessage || isFailed) && !oauthRequired && !baselineRequired && (
+        {/* Banner de Erro Geral Técnico (não-auth) */}
+        {(errorMessage || isFailed) && !isAuthError && !oauthRequired && !baselineRequired && (
           <div className="tp-sync-banner is-error">
             <AlertCircle size={18} className="tp-sync-banner-icon" />
             <div className="tp-sync-banner-text">
@@ -245,7 +439,9 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
             <CheckCircle2 size={18} className="tp-sync-banner-icon" />
             <div className="tp-sync-banner-text">
               <strong>
-                {activeMode === "FULL" ? "Reconciliação Completa Concluída" : "Sincronização Incremental Concluída"}
+                {activeMode === "FULL"
+                  ? "Reconciliação Completa Concluída"
+                  : "Sincronização Incremental Concluída"}
               </strong>
               <p>
                 A base local do TagPulse foi atualizada em {formatDuration(elapsed)}.
@@ -397,8 +593,12 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
                   type="button"
                   className="tp-button tp-button-secondary"
                   onClick={() => handleStartSync("FULL")}
-                  disabled={isStarting}
-                  title="Executa varredura completa de reconciliação na API TagPlus"
+                  disabled={isStarting || isPreflightBlocking}
+                  title={
+                    isPreflightBlocking
+                      ? "Conecte o TagPlus antes de sincronizar"
+                      : "Executa varredura completa de reconciliação na API TagPlus"
+                  }
                 >
                   <Database size={15} />
                   <span>Reconciliação Completa</span>
@@ -407,7 +607,12 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
                   type="button"
                   className="tp-button tp-button-primary"
                   onClick={() => handleStartSync("INCREMENTAL")}
-                  disabled={isStarting}
+                  disabled={isStarting || isPreflightBlocking}
+                  title={
+                    isPreflightBlocking
+                      ? "Conecte o TagPlus antes de sincronizar"
+                      : undefined
+                  }
                 >
                   <RefreshCw size={15} />
                   <span>{isFailed ? "Tentar Novamente" : "Sincronizar Dados"}</span>

@@ -8,7 +8,7 @@ const companyId = "00000000-0000-4000-8000-000000000002";
 
 function harness(connection: object | null, withToken = true) {
   const fetch = vi.fn<typeof globalThis.fetch>();
-  const tokenStore = createTagPlusOAuthTokenStore();
+  const tokenStore = createTagPlusOAuthTokenStore({ filePath: null });
   if (withToken) tokenStore.set({ accessToken: "synthetic-preflight-token" });
   const prisma = {
     tagPlusConnection: { findUnique: vi.fn().mockResolvedValue(connection) },

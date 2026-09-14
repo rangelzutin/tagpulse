@@ -25,7 +25,11 @@ export function AppShell({
   onSyncSuccess,
 }: AppShellProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.location.search.includes("modal=sync"),
+  );
   const [lastCompletedSync, setLastCompletedSync] = useState<string | null>(null);
 
   const loadFreshness = useCallback(async () => {

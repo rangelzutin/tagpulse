@@ -37,9 +37,13 @@ export class CustomerSyncError extends Error {
     public readonly normalizationCategory?: CustomerNormalizationErrorCategory,
     public readonly persistenceDiagnostics?: CustomerPersistenceDiagnostics,
     public readonly syncDiagnostics?: CustomerSyncDiagnostics,
+    options?: { cause?: unknown },
   ) {
-    super(category);
+    super(category, options);
     this.name = "CustomerSyncError";
+    if (options?.cause && !this.cause) {
+      this.cause = options.cause;
+    }
   }
 }
 
@@ -235,6 +239,7 @@ export function createCustomerFullSync(
           ? error.diagnostics
           : undefined,
         syncDiagnostics,
+        { cause: error },
       );
     }
   };

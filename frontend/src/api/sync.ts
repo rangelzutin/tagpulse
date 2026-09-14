@@ -13,6 +13,17 @@ export interface SyncStepProgress {
   error?: string;
 }
 
+export type TagPlusPreflightStatus = "CONNECTED" | "AUTH_REQUIRED" | "ERROR";
+
+export interface TagPlusPreflightResponse {
+  status: TagPlusPreflightStatus;
+  reason?: "TOKEN_MISSING" | "TOKEN_EXPIRED" | "CONNECTION_FAILED";
+  message: string;
+  description?: string;
+  authorizeUrl: string;
+  isLocalEnvironment: boolean;
+}
+
 export interface TagPlusSyncStatusResponse {
   isRunning: boolean;
   activeRun: {
@@ -27,6 +38,8 @@ export interface TagPlusSyncStatusResponse {
     windowUntil?: string | null;
     errorStage?: TagPlusSyncStage | null;
     errorMessage?: string | null;
+    errorCategory?: string | null;
+    isAuthError?: boolean;
   } | null;
   stages: {
     customers: SyncStepProgress;
@@ -121,4 +134,20 @@ export async function startTagPlusSync(
 
 export async function startTagPlusFullSync(): Promise<StartSyncSuccessResponse> {
   return startTagPlusSync("FULL");
+}
+
+export async function fetchTagPlusPreflight(): Promise<TagPlusPreflightResponse> {
+  const url = `${getBaseUrl()}/api/sync/tagplus/preflight`;
+  const response = await fetch(url, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Erro ao consultar preflight TagPlus: HTTP ${response.status}`,
+    );
+  }
+
+  return response.json() as Promise<TagPlusPreflightResponse>;
 }

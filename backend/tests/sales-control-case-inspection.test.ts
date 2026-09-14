@@ -18,7 +18,7 @@ afterEach(async () => {
 
 async function createApp(
   fetchMock = vi.fn<typeof fetch>(),
-  tokenStore = createTagPlusOAuthTokenStore(),
+  tokenStore = createTagPlusOAuthTokenStore({ filePath: null }),
 ) {
   const app = await buildApp({
     databaseHealth: { check: vi.fn() },
@@ -231,7 +231,7 @@ describe("Sales Control Case Inspection (/integrations/tagplus/inspect-sales-con
       return new Response("Not Found", { status: 404 });
     });
 
-    const tokenStore = createTagPlusOAuthTokenStore();
+    const tokenStore = createTagPlusOAuthTokenStore({ filePath: null });
     tokenStore.set({
       accessToken: ACCESS_TOKEN_CANARY,
       refreshToken: REFRESH_TOKEN_CANARY,
@@ -347,7 +347,7 @@ describe("Sales Control Case Inspection (/integrations/tagplus/inspect-sales-con
       return new Response("Not Found", { status: 404 });
     });
 
-    const tokenStore = createTagPlusOAuthTokenStore();
+    const tokenStore = createTagPlusOAuthTokenStore({ filePath: null });
     tokenStore.set({ accessToken: "TEST_TOKEN" });
 
     const { app } = await createApp(fetchMock, tokenStore);
@@ -399,7 +399,7 @@ describe("Sales Control Case Inspection (/integrations/tagplus/inspect-sales-con
       return new Response("Not Found", { status: 404 });
     });
 
-    const tokenStore = createTagPlusOAuthTokenStore();
+    const tokenStore = createTagPlusOAuthTokenStore({ filePath: null });
     tokenStore.set({ accessToken: "TEST_TOKEN" });
 
     const { app } = await createApp(fetchMock, tokenStore);

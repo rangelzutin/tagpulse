@@ -88,6 +88,41 @@ export function createProductionCustomerSyncRunner(input: {
 
   return {
     preflight,
+    async ping(connectionId: string): Promise<void> {
+      assertApplicationDatabase(input.config);
+      const connection = await input.prisma.tagPlusConnection.findUnique({
+        where: { id: connectionId },
+        select: {
+          id: true,
+          companyId: true,
+          status: true,
+          apiVersion: true,
+        },
+      });
+      if (!connection) {
+        throw new ProductionCustomerSyncError(
+          "CUSTOMER_SYNC_CONNECTION_NOT_FOUND",
+        );
+      }
+      if (connection.status !== "ACTIVE") {
+        throw new ProductionCustomerSyncError(
+          "CUSTOMER_SYNC_CONNECTION_INACTIVE",
+        );
+      }
+      const tokens = input.tokenStore.get();
+      if (!tokens?.accessToken) {
+        throw new ProductionCustomerSyncError(
+          "TAGPLUS_OAUTH_TOKEN_NOT_AVAILABLE",
+        );
+      }
+      const client = createTagPlusClient({
+        baseUrl: input.config.baseUrl,
+        apiVersion: connection.apiVersion,
+        accessToken: tokens.accessToken,
+        ...(input.config.fetch ? { fetch: input.config.fetch } : {}),
+      });
+      await client.get("/clientes?page=1&per_page=1");
+    },
     async run(connectionId: string, options?: CustomerSyncOptions) {
       const ready = await preflight(connectionId);
       const tokens = input.tokenStore.get();

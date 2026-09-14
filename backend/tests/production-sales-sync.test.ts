@@ -38,7 +38,7 @@ function createHarness(options?: {
   const scopes = options?.scopes ?? validScopes;
 
   const fetch = vi.fn<typeof globalThis.fetch>();
-  const tokenStore = createTagPlusOAuthTokenStore();
+  const tokenStore = createTagPlusOAuthTokenStore({ filePath: null });
   if (withToken) tokenStore.set({ accessToken: "synthetic-preflight-token" });
 
   const prisma = {
@@ -294,7 +294,7 @@ describe("production sales sync launcher", () => {
             findUnique: vi.fn().mockResolvedValue(activeConnection),
           },
         } as unknown as PrismaClient;
-        const tokenStore = createTagPlusOAuthTokenStore();
+        const tokenStore = createTagPlusOAuthTokenStore({ filePath: null });
         tokenStore.set({ accessToken: "synthetic-preflight-token" });
 
         // Runner without clientFactory option, exercising default createTagPlusClient

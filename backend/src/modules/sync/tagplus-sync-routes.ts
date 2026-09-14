@@ -95,4 +95,28 @@ export function registerTagPlusSyncRoutes(
   app.get("/api/sync/tagplus/status", async () => {
     return orchestrator.getStatus();
   });
+
+  /**
+   * GET /api/sync/tagplus/preflight
+   * Executa a verificação leve de conexão TagPlus antes de sincronizar.
+   */
+  app.get("/api/sync/tagplus/preflight", async (_request, reply) => {
+    try {
+      const result = await orchestrator.checkPreflight();
+      return reply.code(200).send(result);
+    } catch (error: unknown) {
+      _request.log.error(
+        { err: error },
+        "Erro inesperado durante o preflight de conexão TagPlus",
+      );
+      return reply.code(200).send({
+        status: "ERROR",
+        reason: "CONNECTION_FAILED",
+        message: "Não foi possível conectar ao TagPlus.",
+        description: "Verifique sua conexão e tente novamente.",
+        authorizeUrl: "/integrations/tagplus/authorize",
+        isLocalEnvironment: false,
+      });
+    }
+  });
 }

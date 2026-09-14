@@ -26,7 +26,7 @@ function createHarness(options?: {
   productFail?: boolean;
   salesFail?: boolean;
 }) {
-  const tokenStore = createTagPlusOAuthTokenStore();
+  const tokenStore = createTagPlusOAuthTokenStore({ filePath: null });
   if (options?.tokenAvailable !== false) {
     tokenStore.set({ accessToken: "test-valid-access-token" });
   }

@@ -3,6 +3,8 @@ import path from "node:path";
 import type { TagPlusTokens } from "./oauth.js";
 
 const TOKEN_FILE_PATH = path.resolve(process.cwd(), ".tagplus-token.json");
+const isTestEnv =
+  process.env.NODE_ENV === "test" || process.env.VITEST === "true";
 
 export interface TagPlusOAuthTokenStore {
   get(): TagPlusTokens | undefined;
@@ -10,13 +12,26 @@ export interface TagPlusOAuthTokenStore {
   clear(): void;
 }
 
-export function createTagPlusOAuthTokenStore(): TagPlusOAuthTokenStore {
+export interface TagPlusOAuthTokenStoreOptions {
+  filePath?: string | null;
+}
+
+export function createTagPlusOAuthTokenStore(
+  options?: TagPlusOAuthTokenStoreOptions,
+): TagPlusOAuthTokenStore {
+  const defaultPath = isTestEnv ? null : TOKEN_FILE_PATH;
+  const filePath =
+    options?.filePath === null
+      ? null
+      : (options?.filePath ?? defaultPath);
+
   let current: TagPlusTokens | undefined;
 
   function loadFromFile(): TagPlusTokens | undefined {
+    if (!filePath) return undefined;
     try {
-      if (fs.existsSync(TOKEN_FILE_PATH)) {
-        const raw = fs.readFileSync(TOKEN_FILE_PATH, "utf-8");
+      if (fs.existsSync(filePath)) {
+        const raw = fs.readFileSync(filePath, "utf-8");
         const parsed = JSON.parse(raw);
         if (parsed && typeof parsed.accessToken === "string") {
           return {
@@ -32,8 +47,9 @@ export function createTagPlusOAuthTokenStore(): TagPlusOAuthTokenStore {
   }
 
   function saveToFile(tokens: TagPlusTokens): void {
+    if (!filePath) return;
     try {
-      fs.writeFileSync(TOKEN_FILE_PATH, JSON.stringify(tokens, null, 2), "utf-8");
+      fs.writeFileSync(filePath, JSON.stringify(tokens, null, 2), "utf-8");
     } catch {
       // Ignora erro de gravação
     }
@@ -43,7 +59,7 @@ export function createTagPlusOAuthTokenStore(): TagPlusOAuthTokenStore {
 
   return {
     get: () => {
-      if (!current) {
+      if (!current && filePath) {
         current = loadFromFile();
       }
       return current;
@@ -54,12 +70,14 @@ export function createTagPlusOAuthTokenStore(): TagPlusOAuthTokenStore {
     },
     clear() {
       current = undefined;
-      try {
-        if (fs.existsSync(TOKEN_FILE_PATH)) {
-          fs.unlinkSync(TOKEN_FILE_PATH);
+      if (filePath) {
+        try {
+          if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+          }
+        } catch {
+          // Ignora erro
         }
-      } catch {
-        // Ignora erro
       }
     },
   };

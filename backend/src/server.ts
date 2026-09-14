@@ -69,6 +69,22 @@ if (
   );
 }
 
+function isNgrokCallbackUrl(urlStr: string): boolean {
+  try {
+    const url = new URL(urlStr);
+    const host = url.hostname.toLowerCase();
+    return (
+      host === "ngrok" ||
+      host.endsWith(".ngrok.io") ||
+      host.endsWith(".ngrok-free.app") ||
+      host.endsWith(".ngrok-free.dev") ||
+      host.endsWith(".ngrok.app")
+    );
+  } catch {
+    return false;
+  }
+}
+
 // Orquestrador TagPlus
 const tagPlusSyncOrchestrator = createTagPlusSyncOrchestrator({
   prisma,
@@ -77,6 +93,7 @@ const tagPlusSyncOrchestrator = createTagPlusSyncOrchestrator({
   customerRunner,
   productRunner,
   salesRunner,
+  isLocalEnvironment: isNgrokCallbackUrl(env.TAGPLUS_CALLBACK_URL),
 });
 
 const app = await buildApp({

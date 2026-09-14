@@ -218,4 +218,39 @@ describe("frontend sync API client", () => {
     );
     expect(result.mode).toBe("FULL");
   });
+
+  it("fetchTagPlusPreflight returns preflight payload on 200", async () => {
+    const mockPreflight = {
+      status: "CONNECTED" as const,
+      message: "TagPlus conectado",
+      authorizeUrl: "/integrations/tagplus/authorize",
+      isLocalEnvironment: true,
+    };
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => mockPreflight,
+    } as Response);
+
+    const result = await (await import("./sync.js")).fetchTagPlusPreflight();
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.stringContaining("/api/sync/tagplus/preflight"),
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(result).toEqual(mockPreflight);
+  });
+
+  it("fetchTagPlusPreflight throws explicit error when response is not ok", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: false,
+      status: 500,
+    } as Response);
+
+    const { fetchTagPlusPreflight } = await import("./sync.js");
+    await expect(fetchTagPlusPreflight()).rejects.toThrow(
+      "Erro ao consultar preflight TagPlus: HTTP 500",
+    );
+  });
 });
