@@ -104,10 +104,10 @@ export function TopProductsCard({
                   <th className="tp-th-rank">#</th>
                   <th className="tp-th-product">Produto</th>
                   <th className="tp-th-category">Categoria</th>
-                  <th className="tp-th-num">Faturamento</th>
-                  <th className="tp-th-num">Unidades</th>
+                  <th className="tp-th-num tp-th-revenue">Faturamento</th>
+                  <th className="tp-th-num tp-th-quantity">Unidades</th>
                   <th className="tp-th-share">Participação</th>
-                  <th className="tp-th-num">Clientes</th>
+                  <th className="tp-th-num tp-th-customers">Clientes</th>
                   <th className="tp-th-stock">Estoque</th>
                 </tr>
               </thead>
@@ -192,7 +192,7 @@ export function TopProductsCard({
                         </div>
                       </td>
 
-                      <td className="tp-td-num">
+                      <td className="tp-td-num tp-td-customers">
                         <span>{formatNumber(item.distinctCustomers)}</span>
                       </td>
 
