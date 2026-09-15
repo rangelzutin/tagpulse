@@ -414,3 +414,144 @@ export interface ProductsOverviewResult {
   channelMix: ProductChannelMixItem[];
   reconciliation: ProductReconciliation;
 }
+
+// ====================================================
+// Inventory & Turnover (Estoque & Giro) V1 Types
+// ====================================================
+
+export type InventoryWindowDays = 30 | 90 | 180;
+
+export type CoverageBucket =
+  | "LT_15"
+  | "15_TO_30"
+  | "30_TO_45"
+  | "45_TO_90"
+  | "GT_90";
+
+export type InventoryOperationalFlag =
+  | "DEMAND_WITHOUT_STOCK"
+  | "LOW_ESTIMATED_COVERAGE"
+  | "LONG_ESTIMATED_COVERAGE"
+  | "NO_SALES_IN_WINDOW"
+  | "INACTIVE_WITH_STOCK"
+  | "NEGATIVE_STOCK"
+  | "STOCK_WITH_SALES";
+
+/**
+ * Resumo global de estoque e giro atual (17 campos exatos).
+ */
+export interface InventoryOverviewSummary {
+  /** 1. Total de produtos cadastrados no catálogo */
+  totalProducts: number;
+  /** 2. Total de produtos com active === true */
+  activeProducts: number;
+  /** 3. Produtos com estoque atual > 0 (ativos e inativos) */
+  productsWithPositiveStock: number;
+  /** 4. Produtos com estoque atual = 0 */
+  productsWithZeroStock: number;
+  /** 5. Produtos com estoque atual < 0 */
+  productsWithNegativeStock: number;
+  /** 6. Capital total em estoque a custo: SUM(max(stock, 0) * effectiveCost) */
+  inventoryCostValue: number;
+  /** 7. Valor total de tabela do estoque atual: SUM(max(stock, 0) * retailSalePrice) */
+  inventoryListValue: number;
+  /** 8. Produtos distintos com saída física realizada na janela (quantity > 0) */
+  productsSoldInWindow: number;
+  /** 9. Produtos atuais com estoque <= 0 e saída física na janela (todos) */
+  demandWithoutStockCount: number;
+  /** 10. Produtos atuais ativos e sourcePresent com estoque <= 0 e saída física na janela */
+  activeDemandWithoutStockCount: number;
+  /** 11. Produtos com estoque atual > 0 e saída física na janela */
+  productsWithStockAndSales: number;
+  /** 12. Produtos com estoque atual > 0 e zero saída física na janela */
+  productsWithStockNoSales: number;
+  /** 13. Capital a custo dos produtos com estoque > 0 e saída física na janela */
+  capitalWithSales: number;
+  /** 14. Capital a custo dos produtos com estoque > 0 e zero saída física na janela */
+  capitalWithoutSales: number;
+  /** 15. Percentual do capital sem saída sobre o inventoryCostValue total */
+  capitalWithoutSalesShare: number;
+  /** 16. Quantidade de produtos inativos (active === false) com estoque > 0 */
+  inactiveProductsWithStock: number;
+  /** 17. Capital a custo imobilizado em produtos inativos com estoque > 0 */
+  inactiveStockCostValue: number;
+}
+
+export interface InventoryCoverageDistribution {
+  /** Cobertura estimada < 15 dias */
+  lt15: number;
+  /** Cobertura estimada de 15 a < 30 dias */
+  from15to30: number;
+  /** Cobertura estimada de 30 a < 45 dias */
+  from30to45: number;
+  /** Cobertura estimada de 45 a 90 dias */
+  from45to90: number;
+  /** Cobertura estimada > 90 dias */
+  gt90: number;
+  /** Total de produtos com estoque > 0 e venda na janela (soma exata das faixas acima) */
+  totalWithStockAndSales: number;
+  /** Produtos com estoque > 0 e zero saída física na janela (fora das faixas matemáticas) */
+  noSalesInWindow: number;
+}
+
+export interface InventoryProductItem {
+  productId: string | null;
+  sourceProductId: string;
+  code: string;
+  description: string;
+  category: string;
+  active: boolean;
+  currentStock: number;
+  effectiveCost: number;
+  retailSalePrice: number;
+  stockCostValue: number;
+  stockListValue: number;
+  quantityInWindow: number;
+  realizedRevenueInWindow: number;
+  averageDailySales: number;
+  lastPhysicalSaleDate: string | null;
+  daysSinceLastPhysicalSale: number | null;
+  estimatedDaysOfStock: number | null;
+  coverageBucket: CoverageBucket | null;
+  distinctCustomersInWindow: number;
+  operationalFlags: InventoryOperationalFlag[];
+}
+
+export interface InventoryCategoryItem {
+  category: string;
+  products: number;
+  productsWithStock: number;
+  stockUnits: number;
+  inventoryCostValue: number;
+  inventoryListValue: number;
+  quantityInWindow: number;
+  realizedRevenueInWindow: number;
+  productsWithSales: number;
+  productsWithoutSales: number;
+  capitalWithoutSales: number;
+  capitalWithoutSalesShare: number;
+  demandWithoutStockCount: number;
+  lowCoverageCount: number;
+  aggregatedEstimatedDaysOfStock: number | null;
+}
+
+export interface InventoryDataQuality {
+  negativeStockCount: number;
+  activeWithoutStockCount: number;
+  inactiveWithStockCount: number;
+  effectiveCostMissingOrZero: number;
+  retailSalePriceMissingOrZero: number;
+  averageCostMissingOrZero: number;
+  stockMinNotConfiguredCount: number;
+  stockMaxNotConfiguredCount: number;
+}
+
+export interface InventoryOverviewResult {
+  asOfDate: string;
+  windowDays: InventoryWindowDays;
+  summary: InventoryOverviewSummary;
+  coverageDistribution: InventoryCoverageDistribution;
+  products: InventoryProductItem[];
+  categories: InventoryCategoryItem[];
+  dataQuality: InventoryDataQuality;
+}

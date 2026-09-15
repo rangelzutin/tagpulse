@@ -27,9 +27,19 @@ import type {
   CustomerSegmentSort,
   CustomerSegmentType,
   CustomerOverviewResult,
+  InventoryOverviewResult,
+  InventoryWindowDays,
   ProductsOverviewResult,
   SalesOverviewResult,
 } from "./bi-types.js";
+import {
+  calculateInventoryOverview,
+  calculateWindowDateRange,
+} from "./bi-inventory-calculator.js";
+
+export type BiInventoryOverviewResult =
+  | { success: true; data: InventoryOverviewResult }
+  | { success: false; error: string };
 
 export type BiSalesOverviewResult =
   | { success: true; data: SalesOverviewResult }
@@ -80,6 +90,10 @@ export interface BiService {
     customerId: unknown,
     query: Record<string, unknown>,
   ): Promise<BiCustomerSalesServiceResult>;
+  getInventoryOverview(
+    windowDaysParam?: unknown,
+    internalAsOfDateOverride?: string,
+  ): Promise<BiInventoryOverviewResult>;
 }
 
 function parseCustomerDocumentType(
@@ -137,7 +151,21 @@ function formatDateUtcIso(d: Date | null): string | null {
   return `${y}-${m}-${day}`;
 }
 
-export function createBiService(repository: BiRepository): BiService {
+function formatLocalDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+export interface CreateBiServiceOptions {
+  getNow?: () => Date;
+}
+
+export function createBiService(
+  repository: BiRepository,
+  options?: CreateBiServiceOptions,
+): BiService {
   return {
     async getDataRange(): Promise<BiDataRangeServiceResult> {
       if (!repository.findDataRange) {
@@ -921,6 +949,82 @@ export function createBiService(repository: BiRepository): BiService {
           sales: paginatedSales,
         },
       };
+    },
+
+    async getInventoryOverview(
+      windowDaysParam?: unknown,
+      internalAsOfDateOverride?: string,
+    ): Promise<BiInventoryOverviewResult> {
+      // 1. Validação do parâmetro windowDays (30 | 90 | 180, default 90)
+      let windowDays: InventoryWindowDays = 90;
+      if (
+        windowDaysParam !== undefined &&
+        windowDaysParam !== null &&
+        windowDaysParam !== ""
+      ) {
+        const parsed = Number(windowDaysParam);
+        if (parsed !== 30 && parsed !== 90 && parsed !== 180) {
+          return {
+            success: false,
+            error:
+              "Parâmetro 'windowDays' inválido. Valores permitidos: 30, 90, 180.",
+          };
+        }
+        windowDays = parsed;
+      }
+
+      // 2. Determinação da data operacional (sem off-by-one por UTC)
+      let asOfDate: string;
+      if (internalAsOfDateOverride && internalAsOfDateOverride.trim()) {
+        asOfDate = internalAsOfDateOverride.trim();
+      } else {
+        const now = options?.getNow ? options.getNow() : new Date();
+        asOfDate = formatLocalDateStr(now);
+      }
+
+      // 3. Janela de datas canônica
+      const { fromDate, toExclusiveDate } = calculateWindowDateRange(
+        asOfDate,
+        windowDays,
+      );
+
+      // 4. Buscar produtos do catálogo
+      if (!repository.findCatalogInventoryProducts) {
+        return {
+          success: false,
+          error: "Repositório não possui método findCatalogInventoryProducts.",
+        };
+      }
+
+      const catalogProducts = await repository.findCatalogInventoryProducts();
+
+      // 5. Buscar movimentações físicas e financeiras realizadas na janela
+      if (!repository.findRealizedProductMovements) {
+        return {
+          success: false,
+          error: "Repositório não possui método findRealizedProductMovements.",
+        };
+      }
+
+      const { movements: movementsInWindow } =
+        await repository.findRealizedProductMovements(fromDate, toExclusiveDate);
+
+      // 6. Buscar última saída física histórica no acervo disponível
+      const historicalLastPhysicalSales =
+        repository.findHistoricalLastPhysicalSales
+          ? await repository.findHistoricalLastPhysicalSales(toExclusiveDate)
+          : new Map<string, Date>();
+
+      // 7. Cálculo puro determinístico
+      const data = calculateInventoryOverview({
+        asOfDate,
+        windowDays,
+        catalogProducts,
+        movementsInWindow,
+        historicalLastPhysicalSales,
+      });
+
+      return { success: true, data };
     },
   };
 }

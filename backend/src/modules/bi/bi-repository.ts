@@ -47,6 +47,10 @@ export interface BiRepository {
     productIds: string[],
     sourceProductIds: string[],
   ): Promise<Map<string, CatalogProductInfo>>;
+  findCatalogInventoryProducts?(): Promise<import("./bi-inventory-calculator.js").CatalogInventoryProduct[]>;
+  findHistoricalLastPhysicalSales?(
+    toExclusive: Date,
+  ): Promise<Map<string, Date>>;
 }
 
 export function createBiRepository(prisma: PrismaClient): BiRepository {
@@ -497,6 +501,73 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
         };
         map.set(p.id, info);
         map.set(`source:${p.sourceId}`, info);
+      }
+
+      return map;
+    },
+
+    async findCatalogInventoryProducts() {
+      const products = await prisma.product.findMany({
+        select: {
+          id: true,
+          sourceId: true,
+          code: true,
+          description: true,
+          categoryDescription: true,
+          active: true,
+          sourcePresent: true,
+          stockQuantity: true,
+          effectiveCost: true,
+          averageCost: true,
+          retailSalePrice: true,
+          stockMinQuantity: true,
+          stockMaxQuantity: true,
+        },
+      });
+
+      return products.map((p) => ({
+        id: p.id,
+        sourceId: p.sourceId,
+        code: p.code,
+        description: p.description,
+        categoryDescription: p.categoryDescription,
+        active: p.active,
+        sourcePresent: p.sourcePresent,
+        stockQuantity:
+          p.stockQuantity !== null ? Number(p.stockQuantity) : null,
+        effectiveCost:
+          p.effectiveCost !== null ? Number(p.effectiveCost) : null,
+        averageCost: p.averageCost !== null ? Number(p.averageCost) : null,
+        retailSalePrice:
+          p.retailSalePrice !== null ? Number(p.retailSalePrice) : null,
+        stockMinQuantity:
+          p.stockMinQuantity !== null ? Number(p.stockMinQuantity) : null,
+        stockMaxQuantity:
+          p.stockMaxQuantity !== null ? Number(p.stockMaxQuantity) : null,
+      }));
+    },
+
+    async findHistoricalLastPhysicalSales(toExclusive: Date) {
+      // Reutiliza a camada canônica de movimentações para todo o histórico disponível
+      const { movements } = await this.findRealizedProductMovements!(
+        new Date(0),
+        toExclusive,
+      );
+
+      const map = new Map<string, Date>();
+      for (const m of movements) {
+        if (m.quantity > 0) {
+          const prevSrc = map.get(m.sourceProductId);
+          if (!prevSrc || m.realizedDate > prevSrc) {
+            map.set(m.sourceProductId, m.realizedDate);
+          }
+          if (m.productId) {
+            const prevId = map.get(m.productId);
+            if (!prevId || m.realizedDate > prevId) {
+              map.set(m.productId, m.realizedDate);
+            }
+          }
+        }
       }
 
       return map;
