@@ -1,12 +1,15 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   fetchSalesOverview,
   fetchCustomerOverview,
   fetchProductsOverview,
+  fetchInventoryOverview,
   fetchDataRange,
   type SalesOverviewResult,
   type CustomerOverviewResult,
   type ProductsOverviewResult,
+  type InventoryOverviewResult,
+  type InventoryWindowDays,
   type BiDataRangeResult,
   type CustomerDocumentType,
 } from "./api/bi";
@@ -21,13 +24,15 @@ import { RecencyDistributionCard } from "./components/RecencyDistributionCard";
 import { CustomerSegmentDrawer } from "./components/CustomerSegmentDrawer";
 import { CustomerDocumentTypeSelector } from "./components/CustomerDocumentTypeSelector";
 import { ProductsView } from "./components/ProductsView";
+import { InventoryView } from "./components/InventoryView";
+import { InventoryWindowSelector } from "./components/InventoryWindowSelector";
 import type { CustomerRecencyBucket, CustomerSegmentType } from "./api/bi";
 import type { RateContextData } from "./components/CustomerSegmentView";
 import { AlertCircle, RefreshCw, Users } from "lucide-react";
-import { getDefaultPeriod } from "./utils/formatters";
+import { getDefaultPeriod, formatDateBr } from "./utils/formatters";
 
 export function App() {
-  const [activeNav, setActiveNav] = useState<"commercial" | "products">("commercial");
+  const [activeNav, setActiveNav] = useState<"commercial" | "products" | "inventory">("commercial");
   const [periodMode, setPeriodMode] = useState<PeriodMode>("range");
   const [dataRange, setDataRange] = useState<BiDataRangeResult | null>(null);
 
@@ -54,6 +59,19 @@ export function App() {
   const [productsLoadedPeriod, setProductsLoadedPeriod] = useState<string | null>(
     null,
   );
+
+  // Inventory State (Lazy loaded)
+  const [inventoryData, setInventoryData] =
+    useState<InventoryOverviewResult | null>(null);
+  const [isInventoryLoading, setIsInventoryLoading] = useState(false);
+  const [isInventoryRefreshing, setIsInventoryRefreshing] = useState(false);
+  const [inventoryError, setInventoryError] = useState<string | null>(null);
+  const [inventoryWindowDays, setInventoryWindowDays] =
+    useState<InventoryWindowDays>(90);
+  const [inventoryLoadedWindow, setInventoryLoadedWindow] =
+    useState<InventoryWindowDays | null>(null);
+  const inventoryRequestSeq = useRef(0);
+  const inventoryAbortControllerRef = useRef<AbortController | null>(null);
 
   // Drawer State
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -150,6 +168,54 @@ export function App() {
     [],
   );
 
+  // Fetch Inventory Overview independently (lazy loaded, protected against race conditions)
+  const loadInventoryOverview = useCallback(
+    async (windowDays: InventoryWindowDays, isBackground = false) => {
+      if (inventoryAbortControllerRef.current) {
+        inventoryAbortControllerRef.current.abort();
+      }
+      const controller = new AbortController();
+      inventoryAbortControllerRef.current = controller;
+
+      const currentSeq = ++inventoryRequestSeq.current;
+
+      setInventoryError(null);
+      if (!isBackground) {
+        setIsInventoryLoading(true);
+      } else {
+        setIsInventoryRefreshing(true);
+      }
+
+      try {
+        const result = await fetchInventoryOverview(
+          windowDays,
+          controller.signal,
+        );
+        if (currentSeq === inventoryRequestSeq.current) {
+          setInventoryData(result);
+          setInventoryLoadedWindow(windowDays);
+        }
+      } catch (err: unknown) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          return;
+        }
+        if (currentSeq === inventoryRequestSeq.current) {
+          const message =
+            err instanceof Error
+              ? err.message
+              : "Não foi possível carregar os dados de Estoque & Giro.";
+          setInventoryError(message);
+        }
+      } finally {
+        if (currentSeq === inventoryRequestSeq.current) {
+          setIsInventoryLoading(false);
+          setIsInventoryRefreshing(false);
+        }
+      }
+    },
+    [],
+  );
+
   // Orchestrate commercial endpoints concurrently
   const loadCommercialData = useCallback(
     async (
@@ -194,7 +260,7 @@ export function App() {
     );
   };
 
-  const handleSelectNav = (nav: "commercial" | "products") => {
+  const handleSelectNav = (nav: "commercial" | "products" | "inventory") => {
     setActiveNav(nav);
     if (nav === "products") {
       const periodKey = `${currentPeriod.from}:${currentPeriod.to}`;
@@ -205,7 +271,20 @@ export function App() {
           Boolean(productsData),
         );
       }
+    } else if (nav === "inventory") {
+      if (inventoryLoadedWindow !== inventoryWindowDays && !isInventoryLoading) {
+        void loadInventoryOverview(
+          inventoryWindowDays,
+          Boolean(inventoryData),
+        );
+      }
     }
+  };
+
+  const handleInventoryWindowChange = (newWindow: InventoryWindowDays) => {
+    if (newWindow === inventoryWindowDays) return;
+    setInventoryWindowDays(newWindow);
+    void loadInventoryOverview(newWindow, Boolean(inventoryData));
   };
 
   const handleSyncSuccess = useCallback(() => {
@@ -217,22 +296,42 @@ export function App() {
 
     if (activeNav === "commercial") {
       setProductsLoadedPeriod(null);
+      setInventoryLoadedWindow(null);
       void loadCommercialData(currentPeriod.from, currentPeriod.to);
-    } else {
+    } else if (activeNav === "products") {
+      setInventoryLoadedWindow(null);
       void loadProductsOverview(
         currentPeriod.from,
         currentPeriod.to,
         Boolean(productsData),
       );
+    } else if (activeNav === "inventory") {
+      setProductsLoadedPeriod(null);
+      void loadInventoryOverview(
+        inventoryWindowDays,
+        Boolean(inventoryData),
+      );
     }
   }, [
     activeNav,
-    loadCommercialData,
-    loadProductsOverview,
     currentPeriod.from,
     currentPeriod.to,
+    inventoryData,
+    inventoryWindowDays,
+    loadCommercialData,
+    loadInventoryOverview,
+    loadProductsOverview,
     productsData,
   ]);
+
+  // Cleanup de requisições abortadas ao desmontar
+  useEffect(() => {
+    return () => {
+      if (inventoryAbortControllerRef.current) {
+        inventoryAbortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   // Initial load: apenas comercial
   useEffect(() => {
@@ -273,7 +372,7 @@ export function App() {
       ]).finally(() => {
         setIsUpdating(false);
       });
-    } else {
+    } else if (activeNav === "products") {
       Promise.allSettled([
         loadProductsOverview(from, to, Boolean(productsData)),
       ]).finally(() => {
@@ -297,6 +396,10 @@ export function App() {
 
   const handleRetryProducts = () => {
     void loadProductsOverview(currentPeriod.from, currentPeriod.to, false);
+  };
+
+  const handleRetryInventory = () => {
+    void loadInventoryOverview(inventoryWindowDays, false);
   };
 
   const handleOpenSegmentDrawer = (
@@ -325,7 +428,11 @@ export function App() {
   };
 
   const isAnyLoading =
-    isSalesLoading || isCustomerLoading || isProductsLoading || isUpdating;
+    isSalesLoading ||
+    isCustomerLoading ||
+    isProductsLoading ||
+    isInventoryLoading ||
+    isUpdating;
 
   return (
     <AppShell
@@ -334,27 +441,56 @@ export function App() {
       onSyncSuccess={handleSyncSuccess}
     >
       <main className="tp-dashboard-main">
-        {/* Header with integrated Period Filter */}
+        {/* Header with integrated Period Filter or Inventory Window Selector */}
         <Header
-          title={activeNav === "products" ? "Produtos" : "Performance Comercial"}
-          subtitle={
-            activeNav === "products"
-              ? "Mix, volume e desempenho dos produtos realizados no período"
-              : "Análise operacional e comercial da Nineclouds com base nas vendas realizadas e no comportamento da base de clientes."
+          title={
+            activeNav === "inventory"
+              ? "Estoque & Giro"
+              : activeNav === "products"
+                ? "Produtos"
+                : "Performance Comercial"
           }
-          isUpdating={isUpdating}
+          subtitle={
+            activeNav === "inventory"
+              ? "Estoque atual cruzado com a velocidade recente de saída"
+              : activeNav === "products"
+                ? "Mix, volume e desempenho dos produtos realizados no período"
+                : "Análise operacional e comercial da Nineclouds com base nas vendas realizadas e no comportamento da base de clientes."
+          }
+          badge={
+            activeNav === "inventory" && inventoryData?.asOfDate
+              ? `Posição em ${formatDateBr(inventoryData.asOfDate)}`
+              : undefined
+          }
+          isUpdating={isUpdating || isInventoryRefreshing}
         >
-          <PeriodFilter
-            initialFrom={currentPeriod.from}
-            initialTo={currentPeriod.to}
-            periodMode={periodMode}
-            minDate={dataRange?.firstRealizedDate}
-            isLoading={isAnyLoading}
-            onApply={handleApplyFilter}
-          />
+          {activeNav === "inventory" ? (
+            <InventoryWindowSelector
+              value={inventoryWindowDays}
+              onChange={handleInventoryWindowChange}
+              disabled={isInventoryLoading || isInventoryRefreshing}
+            />
+          ) : (
+            <PeriodFilter
+              initialFrom={currentPeriod.from}
+              initialTo={currentPeriod.to}
+              periodMode={periodMode}
+              minDate={dataRange?.firstRealizedDate}
+              isLoading={isAnyLoading}
+              onApply={handleApplyFilter}
+            />
+          )}
         </Header>
 
-        {activeNav === "products" ? (
+        {activeNav === "inventory" ? (
+          <InventoryView
+            data={inventoryData}
+            isLoading={isInventoryLoading}
+            isRefreshing={isInventoryRefreshing}
+            error={inventoryError}
+            onRetry={handleRetryInventory}
+          />
+        ) : activeNav === "products" ? (
           <ProductsView
             data={productsData}
             isLoading={isProductsLoading}

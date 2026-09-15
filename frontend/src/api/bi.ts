@@ -630,3 +630,161 @@ export async function fetchProductsOverview(
 
   return (await response.json()) as ProductsOverviewResult;
 }
+
+// ============================================================================
+// ESTOQUE & GIRO V1 — TIPOS E CLIENT API
+// ============================================================================
+
+export type InventoryWindowDays = 30 | 90 | 180;
+
+export type CoverageBucket =
+  | "LT_15"
+  | "15_TO_30"
+  | "30_TO_45"
+  | "45_TO_90"
+  | "GT_90";
+
+export type InventoryOperationalFlag =
+  | "DEMAND_WITHOUT_STOCK"
+  | "LOW_ESTIMATED_COVERAGE"
+  | "LONG_ESTIMATED_COVERAGE"
+  | "NO_SALES_IN_WINDOW"
+  | "INACTIVE_WITH_STOCK"
+  | "NEGATIVE_STOCK"
+  | "STOCK_WITH_SALES";
+
+export interface InventoryOverviewSummary {
+  totalProducts: number;
+  activeProducts: number;
+  productsWithPositiveStock: number;
+  productsWithZeroStock: number;
+  productsWithNegativeStock: number;
+  inventoryCostValue: number;
+  inventoryListValue: number;
+  productsSoldInWindow: number;
+  demandWithoutStockCount: number;
+  activeDemandWithoutStockCount: number;
+  productsWithStockAndSales: number;
+  productsWithStockNoSales: number;
+  capitalWithSales: number;
+  capitalWithoutSales: number;
+  capitalWithoutSalesShare: number;
+  inactiveProductsWithStock: number;
+  inactiveStockCostValue: number;
+}
+
+export interface InventoryCoverageDistribution {
+  lt15: number;
+  from15to30: number;
+  from30to45: number;
+  from45to90: number;
+  gt90: number;
+  totalWithStockAndSales: number;
+  noSalesInWindow: number;
+}
+
+export interface InventoryProductItem {
+  productId: string | null;
+  sourceProductId: string;
+  code: string;
+  description: string;
+  category: string;
+  active: boolean;
+  currentStock: number;
+  effectiveCost: number;
+  retailSalePrice: number;
+  stockCostValue: number;
+  stockListValue: number;
+  quantityInWindow: number;
+  realizedRevenueInWindow: number;
+  averageDailySales: number;
+  lastPhysicalSaleDate: string | null;
+  daysSinceLastPhysicalSale: number | null;
+  estimatedDaysOfStock: number | null;
+  coverageBucket: CoverageBucket | null;
+  distinctCustomersInWindow: number;
+  operationalFlags: InventoryOperationalFlag[];
+}
+
+export interface InventoryCategoryItem {
+  category: string;
+  products: number;
+  productsWithStock: number;
+  stockUnits: number;
+  inventoryCostValue: number;
+  inventoryListValue: number;
+  quantityInWindow: number;
+  realizedRevenueInWindow: number;
+  productsWithSales: number;
+  productsWithoutSales: number;
+  capitalWithoutSales: number;
+  capitalWithoutSalesShare: number;
+  demandWithoutStockCount: number;
+  lowCoverageCount: number;
+  aggregatedEstimatedDaysOfStock: number | null;
+}
+
+export interface InventoryDataQuality {
+  negativeStockCount: number;
+  activeWithoutStockCount: number;
+  inactiveWithStockCount: number;
+  effectiveCostMissingOrZero: number;
+  retailSalePriceMissingOrZero: number;
+  averageCostMissingOrZero: number;
+  stockMinNotConfiguredCount: number;
+  stockMaxNotConfiguredCount: number;
+}
+
+export interface InventoryOverviewResult {
+  asOfDate: string;
+  windowDays: InventoryWindowDays;
+  summary: InventoryOverviewSummary;
+  coverageDistribution: InventoryCoverageDistribution;
+  products: InventoryProductItem[];
+  categories: InventoryCategoryItem[];
+  dataQuality: InventoryDataQuality;
+}
+
+export async function fetchInventoryOverview(
+  windowDays: InventoryWindowDays = 90,
+  signal?: AbortSignal,
+): Promise<InventoryOverviewResult> {
+  const rawBaseUrl = import.meta.env.VITE_API_URL || "";
+  const baseUrl = rawBaseUrl.endsWith("/")
+    ? rawBaseUrl.slice(0, -1)
+    : rawBaseUrl;
+
+  const url = `${baseUrl}/bi/inventory/overview?windowDays=${windowDays}`;
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+      },
+      signal,
+    });
+  } catch (err: unknown) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw err;
+    }
+    throw new Error(
+      "Não foi possível conectar ao servidor para carregar Estoque & Giro.",
+    );
+  }
+
+  if (!response.ok) {
+    let errorMsg = "Erro ao carregar os dados de Estoque & Giro.";
+    try {
+      const errJson = await response.json();
+      if (errJson.message) {
+        errorMsg = errJson.message;
+      }
+    } catch {
+      // ignora falha de parse
+    }
+    throw new Error(errorMsg);
+  }
+
+  return (await response.json()) as InventoryOverviewResult;
+}

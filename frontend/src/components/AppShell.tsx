@@ -13,8 +13,8 @@ import { fetchTagPlusSyncStatus } from "../api/sync";
 
 interface AppShellProps {
   children: ReactNode;
-  activeNav?: "commercial" | "products";
-  onSelectNav?: (nav: "commercial" | "products") => void;
+  activeNav?: "commercial" | "products" | "inventory";
+  onSelectNav?: (nav: "commercial" | "products" | "inventory") => void;
   onSyncSuccess?: () => void;
 }
 
@@ -150,6 +150,20 @@ export function AppShell({
                   <span className="tp-nav-text">Produtos</span>
                 </button>
               </li>
+              <li>
+                <button
+                  type="button"
+                  className={`tp-nav-item ${activeNav === "inventory" ? "is-active" : ""}`}
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    onSelectNav?.("inventory");
+                    scrollToSection("topo");
+                  }}
+                >
+                  <Boxes size={17} className="tp-nav-icon" />
+                  <span className="tp-nav-text">Estoque &amp; Giro</span>
+                </button>
+              </li>
             </ul>
           </div>
 
@@ -157,13 +171,6 @@ export function AppShell({
           <div className="tp-nav-group">
             <span className="tp-nav-group-title">FUTURO</span>
             <ul className="tp-nav-list">
-              <li>
-                <div className="tp-nav-item is-disabled">
-                  <Boxes size={17} className="tp-nav-icon" />
-                  <span className="tp-nav-text">Estoque</span>
-                  <span className="tp-badge-soon">Em breve</span>
-                </div>
-              </li>
               <li>
                 <div className="tp-nav-item is-disabled">
                   <PieChart size={17} className="tp-nav-icon" />
