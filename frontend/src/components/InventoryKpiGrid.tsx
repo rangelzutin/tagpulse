@@ -18,7 +18,7 @@ export function InventoryKpiGrid({
   dataQuality,
 }: InventoryKpiGridProps) {
   return (
-    <section className="tp-kpi-section" aria-label="Indicadores de Estoque e Giro">
+    <section className="tp-kpi-section tp-inventory-kpi-section" aria-label="Indicadores de Estoque e Giro">
       <div className="tp-kpi-grid">
         {/* KPI 1 — Capital atual em estoque */}
         <article className="tp-kpi-card tp-kpi-highlight">

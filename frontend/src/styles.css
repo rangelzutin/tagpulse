@@ -4331,8 +4331,12 @@ body {
 .tp-inventory-section {
   display: flex;
   flex-direction: column;
-  gap: var(--tp-space-md);
+  gap: var(--tp-space-base);
   transition: opacity 0.2s ease;
+}
+
+.tp-inventory-kpi-section {
+  gap: var(--tp-space-base);
 }
 
 .tp-inventory-section.is-refreshing {
