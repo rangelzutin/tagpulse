@@ -51,6 +51,7 @@ export interface BiRepository {
   findHistoricalLastPhysicalSales?(
     toExclusive: Date,
   ): Promise<Map<string, Date>>;
+  invalidateHistoricalLastPhysicalSalesCache?(): void;
 }
 
 export function createBiRepository(prisma: PrismaClient): BiRepository {
@@ -594,6 +595,10 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
       };
 
       return map;
+    },
+
+    invalidateHistoricalLastPhysicalSalesCache() {
+      cachedHistoricalSales = null;
     },
   };
 }

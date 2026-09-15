@@ -158,6 +158,7 @@ export interface TagPlusSyncOrchestratorDependencies {
   targetConnectionId?: string;
   now?: () => Date;
   isLocalEnvironment?: boolean;
+  onSalesSyncCompleted?: () => void;
 }
 
 export function createTagPlusSyncOrchestrator(
@@ -301,6 +302,12 @@ export function createTagPlusSyncOrchestrator(
         status: "COMPLETED",
         summary: stageSummaries.sales as Record<string, unknown>,
       };
+
+      try {
+        dependencies.onSalesSyncCompleted?.();
+      } catch {
+        // Invalidation callback failure should not abort sync completion
+      }
 
       // Conclusão total - Summary normalizado para JSON válido (ISO strings em datas)
       const completedAt = now();

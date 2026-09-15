@@ -25,6 +25,7 @@ function createHarness(options?: {
   customerFail?: boolean;
   productFail?: boolean;
   salesFail?: boolean;
+  onSalesSyncCompleted?: () => void;
 }) {
   const tokenStore = createTagPlusOAuthTokenStore({ filePath: null });
   if (options?.tokenAvailable !== false) {
@@ -186,6 +187,7 @@ function createHarness(options?: {
     salesRunner,
     targetConnectionId: TEST_CONNECTION_ID,
     now: () => fixedNow,
+    onSalesSyncCompleted: options?.onSalesSyncCompleted,
   });
 
   return {
@@ -520,6 +522,58 @@ describe("TagPlusSyncOrchestrator", () => {
 
     const reSerialized = JSON.stringify(summary);
     expect(JSON.parse(reSerialized)).toEqual(summary);
+  });
+
+  it("calls onSalesSyncCompleted when sales sync completes successfully", async () => {
+    const onSalesSyncCompleted = vi.fn();
+    const h = createHarness({ onSalesSyncCompleted });
+
+    await h.orchestrator.startSync();
+
+    await vi.waitFor(() => {
+      expect(h.syncRepository.completeRun).toHaveBeenCalled();
+    });
+
+    expect(onSalesSyncCompleted).toHaveBeenCalledTimes(1);
+  });
+
+  it("does NOT call onSalesSyncCompleted if sales stage fails", async () => {
+    const onSalesSyncCompleted = vi.fn();
+    const h = createHarness({ salesFail: true, onSalesSyncCompleted });
+
+    await h.orchestrator.startSync();
+
+    await vi.waitFor(() => {
+      expect(h.syncRepository.failRun).toHaveBeenCalled();
+    });
+
+    expect(onSalesSyncCompleted).not.toHaveBeenCalled();
+  });
+
+  it("does NOT call onSalesSyncCompleted if customer stage fails", async () => {
+    const onSalesSyncCompleted = vi.fn();
+    const h = createHarness({ customerFail: true, onSalesSyncCompleted });
+
+    await h.orchestrator.startSync();
+
+    await vi.waitFor(() => {
+      expect(h.syncRepository.failRun).toHaveBeenCalled();
+    });
+
+    expect(onSalesSyncCompleted).not.toHaveBeenCalled();
+  });
+
+  it("does NOT call onSalesSyncCompleted if product stage fails", async () => {
+    const onSalesSyncCompleted = vi.fn();
+    const h = createHarness({ productFail: true, onSalesSyncCompleted });
+
+    await h.orchestrator.startSync();
+
+    await vi.waitFor(() => {
+      expect(h.syncRepository.failRun).toHaveBeenCalled();
+    });
+
+    expect(onSalesSyncCompleted).not.toHaveBeenCalled();
   });
 });
 

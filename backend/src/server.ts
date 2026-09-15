@@ -85,6 +85,9 @@ function isNgrokCallbackUrl(urlStr: string): boolean {
   }
 }
 
+// Repositório BI
+const biRepository = createBiRepository(prisma);
+
 // Orquestrador TagPlus
 const tagPlusSyncOrchestrator = createTagPlusSyncOrchestrator({
   prisma,
@@ -94,12 +97,15 @@ const tagPlusSyncOrchestrator = createTagPlusSyncOrchestrator({
   productRunner,
   salesRunner,
   isLocalEnvironment: isNgrokCallbackUrl(env.TAGPLUS_CALLBACK_URL),
+  onSalesSyncCompleted: () => {
+    biRepository.invalidateHistoricalLastPhysicalSalesCache?.();
+  },
 });
 
 const app = await buildApp({
   databaseHealth: createDatabaseHealthChecker(prisma),
   frontendUrl: env.FRONTEND_URL,
-  biRepository: createBiRepository(prisma),
+  biRepository,
   tagPlusSyncOrchestrator,
   tagPlusOAuth: {
     config: {
