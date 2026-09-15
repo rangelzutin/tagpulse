@@ -10,6 +10,7 @@
     "test": "vitest run",
     "test:db:prepare": "tsx tests/helpers/prepare-test-database.ts",
     "test:integration": "vitest run --passWithNoTests tests/integration",
+    "audit:inventory": "tsx src/scripts/audit-inventory.ts",
     "ensure:tagplus-connection": "tsx src/scripts/ensure-tagplus-connection.ts",
     "lint": "eslint .",
     "prisma:generate": "prisma generate",

@@ -54,6 +54,12 @@ export interface BiRepository {
 }
 
 export function createBiRepository(prisma: PrismaClient): BiRepository {
+  let cachedHistoricalSales: {
+    toExclusiveMs: number;
+    map: Map<string, Date>;
+    cachedAtMs: number;
+  } | null = null;
+
   return {
     async findDataRange(): Promise<BiDataRangeResult> {
       const agg = await prisma.saleSourceDocument.aggregate({
@@ -548,6 +554,17 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
     },
 
     async findHistoricalLastPhysicalSales(toExclusive: Date) {
+      const nowMs = Date.now();
+      const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos de cache em memória
+
+      if (
+        cachedHistoricalSales &&
+        cachedHistoricalSales.toExclusiveMs === toExclusive.getTime() &&
+        nowMs - cachedHistoricalSales.cachedAtMs < CACHE_TTL_MS
+      ) {
+        return cachedHistoricalSales.map;
+      }
+
       // Reutiliza a camada canônica de movimentações para todo o histórico disponível
       const { movements } = await this.findRealizedProductMovements!(
         new Date(0),
@@ -569,6 +586,12 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
           }
         }
       }
+
+      cachedHistoricalSales = {
+        toExclusiveMs: toExclusive.getTime(),
+        map,
+        cachedAtMs: nowMs,
+      };
 
       return map;
     },
