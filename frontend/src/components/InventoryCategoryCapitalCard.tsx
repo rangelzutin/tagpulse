@@ -42,15 +42,18 @@ export function InventoryCategoryCapitalCard({
             return (
               <div key={cat.category} className="tp-cat-capital-item">
                 <div className="tp-cat-capital-header">
-                  <div className="tp-cat-capital-name-wrap">
-                    <span className="tp-cat-capital-name" title={cat.category}>
+                  {/* Coluna Esquerda: Categoria + SKUs */}
+                  <div className="tp-cat-capital-left">
+                    <span className="tp-cat-capital-name" title={cat.category || "Sem categoria"}>
                       {cat.category || "Sem categoria"}
                     </span>
                     <span className="tp-cat-capital-count">
                       {`${formatNumber(cat.productsWithStock)} SKUs com estoque`}
                     </span>
                   </div>
-                  <div className="tp-cat-capital-values">
+
+                  {/* Coluna Direita: Capital Total + Sem Saída */}
+                  <div className="tp-cat-capital-right">
                     <strong className="tp-cat-capital-total">
                       {formatCurrency(cat.inventoryCostValue)}
                     </strong>

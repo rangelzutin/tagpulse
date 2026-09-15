@@ -85,56 +85,66 @@ export function InventoryCoverageCard({
         </div>
       </div>
 
-      {/* Barra segmentada contínua */}
-      <div className="tp-coverage-bar-wrap">
-        <div
-          className="tp-coverage-segmented-bar"
-          role="progressbar"
-          aria-label="Distribuição de cobertura estimada"
-        >
-          {segments.map((seg) => {
-            if (seg.percent <= 0) return null;
-            return (
-              <div
-                key={seg.label}
-                className={`tp-coverage-bar-seg ${seg.colorClass}`}
-                style={{ width: `${seg.percent}%` }}
-                title={`${seg.label}: ${seg.count} SKUs (${seg.percent.toFixed(1)}%)`}
-              />
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Legenda e contadores das faixas */}
-      <div className="tp-coverage-legend-grid">
-        {segments.map((seg) => (
-          <div key={seg.label} className="tp-coverage-legend-item">
-            <div className="tp-coverage-legend-header">
-              <span className={`tp-coverage-legend-dot ${seg.colorClass}`} />
-              <span className="tp-coverage-legend-label">{seg.label}</span>
-            </div>
-            <div className="tp-coverage-legend-values">
-              <strong className="tp-coverage-legend-count">
-                {formatNumber(seg.count)}
-              </strong>
-              <span className="tp-coverage-legend-share">
-                {`${seg.percent.toFixed(1)}%`}
-              </span>
+      <div className="tp-coverage-card-body">
+        {/* Barra segmentada contínua */}
+        <div className="tp-coverage-bar-section">
+          <div className="tp-coverage-bar-wrap">
+            <div
+              className="tp-coverage-segmented-bar"
+              role="progressbar"
+              aria-label="Distribuição de cobertura estimada"
+            >
+              {segments.map((seg) => {
+                if (seg.percent <= 0) return null;
+                return (
+                  <div
+                    key={seg.label}
+                    className={`tp-coverage-bar-seg ${seg.colorClass}`}
+                    style={{ width: `${seg.percent}%` }}
+                    title={`${seg.label}: ${seg.count} SKUs (${seg.percent.toFixed(1)}%) — ${seg.desc}`}
+                  />
+                );
+              })}
             </div>
           </div>
-        ))}
-      </div>
-
-      {/* Item destacado separado: Produtos com estoque e sem saída */}
-      <div className="tp-coverage-no-sales-pill">
-        <div className="tp-no-sales-pill-left">
-          <ShieldAlert size={15} className="tp-pill-icon" />
-          <span className="tp-pill-label">Sem saída física na janela:</span>
         </div>
-        <div className="tp-no-sales-pill-right">
-          <strong className="tp-pill-count">{`${formatNumber(noSalesInWindow)} SKUs`}</strong>
-          <span className="tp-pill-desc">(fora da distribuição matemática de cobertura)</span>
+
+        {/* Legenda e contadores das faixas */}
+        <div className="tp-coverage-legend-grid">
+          {segments.map((seg) => (
+            <div key={seg.label} className="tp-coverage-legend-item">
+              <div className="tp-coverage-legend-header">
+                <span className={`tp-coverage-legend-dot ${seg.colorClass}`} />
+                <span className="tp-coverage-legend-label">{seg.label}</span>
+              </div>
+              <div className="tp-coverage-legend-values">
+                <strong className="tp-coverage-legend-count">
+                  {formatNumber(seg.count)}
+                </strong>
+                <span className="tp-coverage-legend-share">
+                  {`${seg.percent.toFixed(1)}%`}
+                </span>
+              </div>
+              <span className="tp-coverage-legend-desc">
+                {seg.desc}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Item destacado separado: Produtos com estoque e sem saída */}
+        <div className="tp-coverage-no-sales-pill">
+          <div className="tp-no-sales-pill-left">
+            <ShieldAlert size={16} className="tp-pill-icon" />
+            <div className="tp-no-sales-pill-text">
+              <span className="tp-pill-label">Sem saída física na janela:</span>
+              <span className="tp-pill-desc">SKUs com saldo positivo e zero vendas recentes</span>
+            </div>
+          </div>
+          <div className="tp-no-sales-pill-right">
+            <strong className="tp-pill-count">{`${formatNumber(noSalesInWindow)} SKUs`}</strong>
+            <span className="tp-pill-sub">(fora da distribuição matemática)</span>
+          </div>
         </div>
       </div>
     </section>
