@@ -30,7 +30,7 @@ export function InventoryCoverageCard({
       count: lt15,
       percent: getPercent(lt15),
       colorClass: "tp-seg-lt15",
-      desc: "Risco imediato de ruptura",
+      desc: "Cobertura muito curta",
     },
     {
       label: "15–30 dias",
@@ -58,7 +58,7 @@ export function InventoryCoverageCard({
       count: gt90,
       percent: getPercent(gt90),
       colorClass: "tp-seg-gt90",
-      desc: "Longa permanência",
+      desc: "Cobertura estimada longa",
     },
   ];
 
