@@ -3,10 +3,16 @@ import { formatCurrency, formatNumber } from "../utils/formatters";
 
 interface InventoryCategoryCapitalCardProps {
   categories: InventoryCategoryItem[];
+  selectedCategory?: string;
+  activeStatusFilter?: string;
+  onSelectCategory?: (category: string, onlyNoSales?: boolean) => void;
 }
 
 export function InventoryCategoryCapitalCard({
   categories,
+  selectedCategory,
+  activeStatusFilter,
+  onSelectCategory,
 }: InventoryCategoryCapitalCardProps) {
   // Ordena por capital a custo DESC e pega Top 7
   const sortedCategories = [...categories]
@@ -38,46 +44,92 @@ export function InventoryCategoryCapitalCard({
             const widthPercent =
               maxCapital > 0 ? (cat.inventoryCostValue / maxCapital) * 100 : 0;
             const noSalesShare = Math.min(100, Math.max(0, cat.capitalWithoutSalesShare));
+            const isCatSelected = selectedCategory === cat.category;
+            const isIdleSelected = isCatSelected && activeStatusFilter === "NO_SALES_IN_WINDOW";
+            const isAllCatSelected = isCatSelected && activeStatusFilter !== "NO_SALES_IN_WINDOW";
 
             return (
-              <div key={cat.category} className="tp-cat-capital-item">
+              <div
+                key={cat.category}
+                className={`tp-cat-capital-item ${isCatSelected ? "is-category-active" : ""}`}
+              >
                 <div className="tp-cat-capital-header">
-                  {/* Coluna Esquerda: Categoria + SKUs */}
-                  <div className="tp-cat-capital-left">
+                  {/* Coluna Esquerda: Categoria + SKUs (Botão para ver todos da categoria) */}
+                  <button
+                    type="button"
+                    className={`tp-cat-capital-left-btn ${isAllCatSelected ? "is-active" : ""}`}
+                    onClick={() => onSelectCategory?.(cat.category, false)}
+                    title={`Filtrar todos os produtos de ${cat.category || "Sem categoria"}`}
+                  >
                     <span className="tp-cat-capital-name" title={cat.category || "Sem categoria"}>
                       {cat.category || "Sem categoria"}
                     </span>
                     <span className="tp-cat-capital-count">
                       {`${formatNumber(cat.productsWithStock)} SKUs com estoque`}
                     </span>
-                  </div>
+                  </button>
 
-                  {/* Coluna Direita: Capital Total + Sem Saída */}
+                  {/* Coluna Direita: Capital Total + Botão de Parcela Sem Saída */}
                   <div className="tp-cat-capital-right">
-                    <strong className="tp-cat-capital-total">
+                    <button
+                      type="button"
+                      className="tp-cat-capital-total-btn"
+                      onClick={() => onSelectCategory?.(cat.category, false)}
+                      title={`Filtrar categoria ${cat.category || "Sem categoria"}`}
+                    >
                       {formatCurrency(cat.inventoryCostValue)}
-                    </strong>
+                    </button>
                     {cat.capitalWithoutSales > 0 && (
-                      <span className="tp-cat-capital-idle">
+                      <button
+                        type="button"
+                        className={`tp-cat-capital-idle-btn ${isIdleSelected ? "is-active" : ""}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectCategory?.(cat.category, true);
+                        }}
+                        title={`Filtrar apenas produtos de ${cat.category || "Sem categoria"} sem saída na janela`}
+                      >
                         {`${formatCurrency(cat.capitalWithoutSales)} sem saída (${noSalesShare.toFixed(1)}%)`}
-                      </span>
+                      </button>
                     )}
                   </div>
                 </div>
 
-                {/* Barra de progresso com subsegmento de capital sem saída */}
+                {/* Barra de progresso interativa */}
                 <div className="tp-cat-progress-track">
                   <div
-                    className="tp-cat-progress-fill"
+                    className="tp-cat-progress-fill tp-clickable-bar"
                     style={{ width: `${widthPercent}%` }}
-                    title={`${cat.category || "Sem categoria"}: ${formatCurrency(cat.inventoryCostValue)}`}
+                    onClick={() => onSelectCategory?.(cat.category, false)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onSelectCategory?.(cat.category, false);
+                      }
+                    }}
+                    title={`${cat.category || "Sem categoria"}: ${formatCurrency(cat.inventoryCostValue)} — clique para ver produtos`}
                   >
-                    {/* Parcela sem saída visualmente destacada */}
+                    {/* Parcela sem saída visualmente destacada e clicável */}
                     {noSalesShare > 0 && (
                       <div
-                        className="tp-cat-idle-fill"
+                        className={`tp-cat-idle-fill tp-clickable-idle ${isIdleSelected ? "is-selected-fill" : ""}`}
                         style={{ width: `${noSalesShare}%` }}
-                        title={`${noSalesShare.toFixed(1).replace(".", ",")}% do capital da categoria está sem saída na janela`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectCategory?.(cat.category, true);
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            onSelectCategory?.(cat.category, true);
+                          }
+                        }}
+                        title={`${noSalesShare.toFixed(1).replace(".", ",")}% do capital sem saída — clique para filtrar apenas sem saída`}
                       />
                     )}
                   </div>

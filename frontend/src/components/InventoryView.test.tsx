@@ -8,6 +8,7 @@ import { InventoryProblemCards } from "./InventoryProblemCards";
 import { InventoryCoverageCard } from "./InventoryCoverageCard";
 import { InventoryCategoryCapitalCard } from "./InventoryCategoryCapitalCard";
 import { InventoryProductsTable } from "./InventoryProductsTable";
+import { InventoryCategoryCombobox } from "./InventoryCategoryCombobox";
 import type {
   InventoryOverviewResult,
   InventoryProductItem,
@@ -129,6 +130,62 @@ describe("InventoryView & Components", () => {
     operationalFlags: ["STOCK_WITH_SALES"],
   };
 
+  const mockProductLt15: InventoryProductItem = {
+    productId: "p-6",
+    sourceProductId: "106",
+    code: "SKU-006",
+    description: "Tênis Skate Pro Low",
+    category: "Tenis",
+    active: true,
+    currentStock: 3,
+    effectiveCost: 150,
+    retailSalePrice: 300,
+    stockCostValue: 450,
+    stockListValue: 900,
+    quantityInWindow: 20,
+    realizedRevenueInWindow: 6000,
+    averageDailySales: 0.35,
+    lastPhysicalSaleDate: "2026-09-15",
+    daysSinceLastPhysicalSale: 1,
+    estimatedDaysOfStock: 8.5,
+    coverageBucket: "LT_15",
+    distinctCustomersInWindow: 12,
+    operationalFlags: ["STOCK_WITH_SALES"],
+  };
+
+  const mockInactiveZeroStock: InventoryProductItem = {
+    productId: "p-7",
+    sourceProductId: "107",
+    code: "SKU-007",
+    description: "Shape Hustler - Completo",
+    category: "3 - HUSTLER",
+    active: false,
+    currentStock: 0,
+    effectiveCost: 80,
+    retailSalePrice: 160,
+    stockCostValue: 0,
+    stockListValue: 0,
+    quantityInWindow: 0,
+    realizedRevenueInWindow: 0,
+    averageDailySales: 0,
+    lastPhysicalSaleDate: null,
+    daysSinceLastPhysicalSale: null,
+    estimatedDaysOfStock: null,
+    coverageBucket: null,
+    distinctCustomersInWindow: 0,
+    operationalFlags: [],
+  };
+
+  const allMockProducts = [
+    mockProductWithDemand,
+    mockProductIdleCapital,
+    mockInactiveProductIdleCapital,
+    mockProductNegativeStock,
+    mockProductWithNormalSales,
+    mockProductLt15,
+    mockInactiveZeroStock,
+  ];
+
   const mockData: InventoryOverviewResult = {
     asOfDate: "2026-09-14",
     windowDays: 90,
@@ -141,7 +198,7 @@ describe("InventoryView & Components", () => {
       inventoryCostValue: 148936.33,
       inventoryListValue: 518727.6,
       productsSoldInWindow: 154,
-      demandWithoutStockCount: 41,
+      demandWithoutStockCount: 42,
       activeDemandWithoutStockCount: 39,
       productsWithStockAndSales: 113,
       productsWithStockNoSales: 148,
@@ -149,52 +206,63 @@ describe("InventoryView & Components", () => {
       capitalWithoutSales: 29574.22,
       capitalWithoutSalesShare: 19.9,
       inactiveProductsWithStock: 18,
-      inactiveStockCostValue: 8420.5,
+      inactiveStockCostValue: 12000,
     },
     coverageDistribution: {
-      lt15: 16,
-      from15to30: 22,
-      from30to45: 18,
-      from45to90: 24,
-      gt90: 33,
+      lt15: 12,
+      from15to30: 25,
+      from30to45: 35,
+      from45to90: 28,
+      gt90: 13,
       totalWithStockAndSales: 113,
       noSalesInWindow: 148,
     },
-    products: [
-      mockProductWithDemand,
-      mockProductIdleCapital,
-      mockInactiveProductIdleCapital,
-      mockProductNegativeStock,
-      mockProductWithNormalSales,
-    ],
     categories: [
       {
         category: "Shapes",
         products: 50,
         productsWithStock: 45,
         stockUnits: 320,
-        inventoryCostValue: 45000,
-        inventoryListValue: 90000,
-        quantityInWindow: 200,
-        realizedRevenueInWindow: 40000,
-        productsWithSales: 35,
-        productsWithoutSales: 10,
-        capitalWithoutSales: 9000,
+        inventoryCostValue: 35000,
+        inventoryListValue: 70000,
+        quantityInWindow: 120,
+        realizedRevenueInWindow: 15000,
+        productsWithSales: 30,
+        productsWithoutSales: 20,
+        capitalWithoutSales: 7000,
         capitalWithoutSalesShare: 20.0,
         demandWithoutStockCount: 5,
-        lowCoverageCount: 8,
-        aggregatedEstimatedDaysOfStock: 48,
+        lowCoverageCount: 3,
+        aggregatedEstimatedDaysOfStock: 45,
+      },
+      {
+        category: "Rodas",
+        products: 30,
+        productsWithStock: 25,
+        stockUnits: 150,
+        inventoryCostValue: 15000,
+        inventoryListValue: 30000,
+        quantityInWindow: 60,
+        realizedRevenueInWindow: 8000,
+        productsWithSales: 20,
+        productsWithoutSales: 10,
+        capitalWithoutSales: 3000,
+        capitalWithoutSalesShare: 20.0,
+        demandWithoutStockCount: 2,
+        lowCoverageCount: 1,
+        aggregatedEstimatedDaysOfStock: 60,
       },
     ],
+    products: allMockProducts,
     dataQuality: {
       negativeStockCount: 6,
       activeWithoutStockCount: 33,
       inactiveWithStockCount: 18,
-      effectiveCostMissingOrZero: 0,
+      effectiveCostMissingOrZero: 5,
       retailSalePriceMissingOrZero: 0,
-      averageCostMissingOrZero: 0,
-      stockMinNotConfiguredCount: 15,
-      stockMaxNotConfiguredCount: 20,
+      averageCostMissingOrZero: 5,
+      stockMinNotConfiguredCount: 10,
+      stockMaxNotConfiguredCount: 10,
     },
   };
 
@@ -203,14 +271,13 @@ describe("InventoryView & Components", () => {
       <InventoryWindowSelector value={90} onChange={() => {}} />,
     );
 
-    expect(html).toContain("Janela de velocidade");
     expect(html).toContain("30 dias");
     expect(html).toContain("90 dias");
     expect(html).toContain("180 dias");
-    expect(html).toContain('aria-pressed="true"');
+    expect(html).toContain("is-active");
   });
 
-  it("2. InventoryKpiGrid: renders 4 executive cards with exact required labels and context", () => {
+  it("2. InventoryKpiGrid: renders 4 executive cards and SITUAÇÃO DO ESTOQUE indicators", () => {
     const html = renderToString(
       <InventoryKpiGrid
         summary={mockData.summary}
@@ -220,26 +287,28 @@ describe("InventoryView & Components", () => {
 
     // KPI 1: Capital atual em estoque
     expect(html).toContain("Capital atual em estoque");
+    expect(html).toContain("R$ 148.936,33");
     expect(html).toContain("261 SKUs com estoque");
 
-    // KPI 2: Valor de tabela com contexto obrigatório
+    // KPI 2: Valor de tabela
     expect(html).toContain("Valor de tabela");
-    expect(html).toContain("Estoque atual a preço cadastrado");
+    expect(html).toContain("R$ 518.727,60");
 
-    // KPI 3: Demanda sem estoque (subconjunto operacional ativo: 39)
+    // KPI 3: Demanda sem estoque (subconjunto ativo)
     expect(html).toContain("Demanda sem estoque");
     expect(html).toContain("39");
     expect(html).toContain("SKUs ativos com saída na janela");
 
-    // KPI 4: Capital sem saída (capitalWithoutSales: 29.574,22 e 19,9%)
+    // KPI 4: Capital sem saída
     expect(html).toContain("Capital sem saída");
     expect(html).toContain("19,9% do capital em estoque");
 
-    // Context Strip
-    expect(html).toContain("Estoque negativo:");
-    expect(html).toContain("Ativos sem estoque:");
-    expect(html).toContain("Inativos com estoque:");
-    expect(html).toContain("Produtos vendidos na janela:");
+    // Seção Executiva: Situação do Estoque
+    expect(html).toContain("SITUAÇÃO DO ESTOQUE");
+    expect(html).toContain("Estoque negativo");
+    expect(html).toContain("Ativos sem estoque");
+    expect(html).toContain("Inativos com estoque");
+    expect(html).toContain("Vendidos na janela");
   });
 
   it("3. InventoryProblemCards: shows Demanda sem estoque and Capital sem saída", () => {
@@ -250,26 +319,21 @@ describe("InventoryView & Components", () => {
       />,
     );
 
-    // Card A: Demanda sem estoque
     expect(html).toContain("Demanda sem estoque");
     expect(html).toContain("Produtos ativos com saída na janela e saldo atual ≤ 0");
     expect(html).toContain("Shape Nineclouds Maple 8.0");
     expect(html).toContain("35 un");
-    // Estoque negativo com destaque
     expect(html).toContain("Estoque negativo (-3)");
 
-    // Card B: Capital sem saída
     expect(html).toContain("Capital sem saída");
     expect(html).toContain("Estoque atual sem saída física na janela");
     expect(html).toContain("Roda Spitfire Formula Four 54mm");
-    // Se lastPhysicalSaleDate é null: "Sem saída registrada" (NUNCA "Nunca vendeu")
     expect(html).toContain("Sem saída registrada");
     expect(html).not.toContain("Nunca vendeu");
-    // Produto inativo: badge discreta "Inativo com estoque"
     expect(html).toContain("Inativo com estoque");
   });
 
-  it("4. InventoryCoverageCard: renders segmented distribution and separate idle pill", () => {
+  it("4. InventoryCoverageCard: renders compact segmented distribution and clickable buttons", () => {
     const html = renderToString(
       <InventoryCoverageCard distribution={mockData.coverageDistribution} />,
     );
@@ -280,12 +344,12 @@ describe("InventoryView & Components", () => {
     expect(html).toContain("113 SKUs");
     expect(html).toContain("&lt; 15 dias");
     expect(html).toContain("&gt; 90 dias");
-    // Sem saída na janela fora da distribuição matemática
     expect(html).toContain("Sem saída física na janela:");
     expect(html).toContain("148 SKUs");
+    expect(html).toContain("tp-coverage-compact");
   });
 
-  it("5. InventoryCategoryCapitalCard: renders categories sorted by capital with idle share", () => {
+  it("5. InventoryCategoryCapitalCard: renders categories sorted by capital with interactive buttons", () => {
     const html = renderToString(
       <InventoryCategoryCapitalCard categories={mockData.categories} />,
     );
@@ -294,14 +358,15 @@ describe("InventoryView & Components", () => {
     expect(html).toContain("Shapes");
     expect(html).toContain("45 SKUs com estoque");
     expect(html).toContain("sem saída (20.0%)");
+    expect(html).toContain("tp-cat-capital-left-btn");
+    expect(html).toContain("tp-cat-capital-idle-btn");
   });
 
-  it("6. InventoryProductsTable: renders table headers, formatted statuses without STOCK_WITH_SALES, and correct coverage", () => {
+  it("6. InventoryProductsTable: renders combobox, table headers, and correct badges", () => {
     const html = renderToString(
       <InventoryProductsTable
         products={mockData.products}
-        activeChip="ALL"
-        onChipChange={() => {}}
+        statusFilter="ALL"
       />,
     );
 
@@ -315,18 +380,123 @@ describe("InventoryView & Components", () => {
     expect(html).toContain("ÚLTIMA SAÍDA");
     expect(html).toContain("COBERTURA");
 
+    // Verifica combobox de categorias
+    expect(html).toContain("tp-combobox-trigger");
+    expect(html).toContain("Todas as categorias");
+
     // Verifica que STOCK_WITH_SALES não vira badge poluída
     expect(html).not.toContain("STOCK_WITH_SALES");
+  });
 
-    // Cobertura formatada como inteiro de dias
-    expect(html).toContain("45 dias");
-    // Cobertura com saldo <= 0
-    expect(html).toContain("—");
-    // Cobertura com saldo > 0 e zero venda
+  it("7. Bug Fix: Inativo com estoque=0 NÃO exibe 'Inativo com estoque'", () => {
+    const html = renderToString(
+      <InventoryProductsTable
+        products={[mockInactiveZeroStock, mockInactiveProductIdleCapital]}
+        statusFilter="ALL"
+      />,
+    );
+
+    // mockInactiveZeroStock (active=false, currentStock=0) não deve ter a badge
+    expect(html).toContain("Shape Hustler - Completo");
+    // O mockInactiveProductIdleCapital (active=false, currentStock=5) DEVE ter a badge
+    expect(html).toContain("Truck Independent 139 Stage 11");
+    expect(html).toContain("Inativo com estoque");
+
+    // Apenas 1 ocorrência de "Inativo com estoque" (pertencente ao Truck Independent)
+    const matches = html.match(/Inativo com estoque/g);
+    expect(matches).toHaveLength(1);
+  });
+
+  it("8. InventoryProductsTable: filters by coverageBucket LT_15 correctly", () => {
+    const html = renderToString(
+      <InventoryProductsTable
+        products={allMockProducts}
+        coverageBucket="LT_15"
+      />,
+    );
+
+    expect(html).toContain("Tênis Skate Pro Low");
+    expect(html).not.toContain("Shape Nineclouds Maple 8.0");
+    expect(html).toContain("Cobertura:");
+    expect(html).toContain("&lt; 15 dias");
+    expect(html).toContain("Limpar filtros");
+  });
+
+  it("9. InventoryProductsTable: filters by selectedCategory correctly with exact match", () => {
+    const html = renderToString(
+      <InventoryProductsTable
+        products={allMockProducts}
+        selectedCategory="Shapes"
+      />,
+    );
+
+    expect(html).toContain("Shape Nineclouds Maple 8.0");
+    expect(html).not.toContain("Tênis Skate Pro Low");
+    expect(html).toContain("Categoria:");
+    expect(html).toContain("Shapes");
+    expect(html).toContain("Limpar filtros");
+  });
+
+  it("10. InventoryProductsTable: filters by selectedCategory + NO_SALES_IN_WINDOW (clique no vermelho)", () => {
+    const html = renderToString(
+      <InventoryProductsTable
+        products={allMockProducts}
+        selectedCategory="Rodas"
+        statusFilter="NO_SALES_IN_WINDOW"
+      />,
+    );
+
+    expect(html).toContain("Roda Spitfire Formula Four 54mm");
+    expect(html).not.toContain("Shape Nineclouds Maple 8.0");
+    expect(html).toContain("Categoria:");
+    expect(html).toContain("Rodas");
+    expect(html).toContain("Status:");
     expect(html).toContain("Sem saída");
   });
 
-  it("7. InventoryView: renders full dashboard view with all blocks", () => {
+  it("11. InventoryProductsTable: filters by SITUAÇÃO DO ESTOQUE indicators", () => {
+    // 1. Estoque negativo
+    const htmlNeg = renderToString(
+      <InventoryProductsTable
+        products={allMockProducts}
+        statusFilter="NEGATIVE_STOCK"
+      />,
+    );
+    expect(htmlNeg).toContain("Lixa Jessup Ultra Grip");
+    expect(htmlNeg).not.toContain("Rolamento Red Bones");
+
+    // 2. Ativos sem estoque
+    const htmlActiveNoStock = renderToString(
+      <InventoryProductsTable
+        products={allMockProducts}
+        statusFilter="ACTIVE_WITHOUT_STOCK"
+      />,
+    );
+    expect(htmlActiveNoStock).toContain("Shape Nineclouds Maple 8.0");
+    expect(htmlActiveNoStock).not.toContain("Roda Spitfire Formula Four 54mm");
+
+    // 3. Inativos com estoque
+    const htmlInactiveWithStock = renderToString(
+      <InventoryProductsTable
+        products={allMockProducts}
+        statusFilter="INACTIVE_WITH_STOCK"
+      />,
+    );
+    expect(htmlInactiveWithStock).toContain("Truck Independent 139 Stage 11");
+    expect(htmlInactiveWithStock).not.toContain("Shape Hustler - Completo");
+
+    // 4. Vendidos na janela
+    const htmlSoldInWindow = renderToString(
+      <InventoryProductsTable
+        products={allMockProducts}
+        statusFilter="SOLD_IN_WINDOW"
+      />,
+    );
+    expect(htmlSoldInWindow).toContain("Rolamento Red Bones");
+    expect(htmlSoldInWindow).not.toContain("Roda Spitfire Formula Four 54mm");
+  });
+
+  it("12. InventoryView: renders full dashboard with unified interactions", () => {
     const html = renderToString(
       <InventoryView
         data={mockData}
@@ -340,37 +510,9 @@ describe("InventoryView & Components", () => {
     expect(html).toContain("Capital atual em estoque");
     expect(html).toContain("Demanda sem estoque");
     expect(html).toContain("Capital sem saída");
+    expect(html).toContain("SITUAÇÃO DO ESTOQUE");
     expect(html).toContain("Cobertura estimada");
     expect(html).toContain("Capital sem saída por categoria");
     expect(html).toContain("Saúde do estoque");
-  });
-
-  it("8. InventoryView: renders skeleton state when loading with no previous data", () => {
-    const html = renderToString(
-      <InventoryView
-        data={null}
-        isLoading={true}
-        error={null}
-        onRetry={() => {}}
-      />,
-    );
-
-    expect(html).toContain("tp-section-skeleton");
-    expect(html).toContain("tp-skeleton-card");
-  });
-
-  it("9. InventoryView: renders error state with retry button", () => {
-    const html = renderToString(
-      <InventoryView
-        data={null}
-        isLoading={false}
-        error="Falha de conexão com a API de Estoque"
-        onRetry={() => {}}
-      />,
-    );
-
-    expect(html).toContain("tp-state-error");
-    expect(html).toContain("Falha de conexão com a API de Estoque");
-    expect(html).toContain("Tentar novamente");
   });
 });

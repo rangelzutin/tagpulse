@@ -6,8 +6,10 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  X,
 } from "lucide-react";
 import type {
+  CoverageBucket,
   InventoryOperationalFlag,
   InventoryProductItem,
 } from "../api/bi";
@@ -16,15 +18,21 @@ import {
   formatDateBr,
   formatNumber,
 } from "../utils/formatters";
+import { InventoryCategoryCombobox } from "./InventoryCategoryCombobox";
 
-export type TableFilterChip =
+export type TableStatusFilter =
   | "ALL"
   | "DEMAND_WITHOUT_STOCK"
   | "LOW_ESTIMATED_COVERAGE"
   | "LONG_ESTIMATED_COVERAGE"
   | "NO_SALES_IN_WINDOW"
   | "NEGATIVE_STOCK"
-  | "INACTIVE_WITH_STOCK";
+  | "INACTIVE_WITH_STOCK"
+  | "ACTIVE_WITHOUT_STOCK"
+  | "SOLD_IN_WINDOW";
+
+// Alias para compatibilidade reversa
+export type TableFilterChip = TableStatusFilter;
 
 export type TableSortField =
   | "capital"
@@ -38,13 +46,21 @@ export type TableSortDirection = "asc" | "desc";
 
 interface InventoryProductsTableProps {
   products: InventoryProductItem[];
-  activeChip: TableFilterChip;
-  onChipChange: (chip: TableFilterChip) => void;
+  statusFilter?: TableStatusFilter;
+  onStatusFilterChange?: (filter: TableStatusFilter) => void;
+  coverageBucket?: CoverageBucket | null;
+  onCoverageBucketChange?: (bucket: CoverageBucket | null) => void;
+  selectedCategory?: string;
+  onCategoryChange?: (category: string) => void;
+  onResetAllFilters?: () => void;
+  // Compatibilidade com código/testes legados
+  activeChip?: TableFilterChip;
+  onChipChange?: (chip: TableFilterChip) => void;
 }
 
 const PAGE_SIZE = 15;
 
-const CHIPS: { id: TableFilterChip; label: string }[] = [
+const CHIPS: { id: TableStatusFilter; label: string }[] = [
   { id: "ALL", label: "Todos" },
   { id: "DEMAND_WITHOUT_STOCK", label: "Demanda sem estoque" },
   { id: "LOW_ESTIMATED_COVERAGE", label: "Cobertura < 30d" },
@@ -52,20 +68,35 @@ const CHIPS: { id: TableFilterChip; label: string }[] = [
   { id: "NO_SALES_IN_WINDOW", label: "Sem saída" },
   { id: "NEGATIVE_STOCK", label: "Estoque negativo" },
   { id: "INACTIVE_WITH_STOCK", label: "Inativos com estoque" },
+  { id: "ACTIVE_WITHOUT_STOCK", label: "Ativos sem estoque" },
+  { id: "SOLD_IN_WINDOW", label: "Vendidos na janela" },
 ];
 
 export function InventoryProductsTable({
   products,
+  statusFilter: propStatusFilter,
+  onStatusFilterChange,
+  coverageBucket: propCoverageBucket = null,
+  onCoverageBucketChange,
+  selectedCategory: propCategory,
+  onCategoryChange,
+  onResetAllFilters,
   activeChip,
   onChipChange,
 }: InventoryProductsTableProps) {
-  const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
+  // Gerenciamento de estado controlado vs local
+  const currentStatusFilter = propStatusFilter ?? activeChip ?? "ALL";
+  const currentCoverageBucket = propCoverageBucket ?? null;
+
+  const [localCategory, setLocalCategory] = useState<string>("ALL");
+  const currentCategory = propCategory ?? localCategory;
+
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [sortField, setSortField] = useState<TableSortField>("capital");
   const [sortDirection, setSortDirection] = useState<TableSortDirection>("desc");
   const [currentPage, setCurrentPage] = useState<number>(1);
 
-  // Lista de categorias distintas disponíveis
+  // Lista canônica de categorias distintas a partir dos produtos
   const categories = useMemo(() => {
     const set = new Set<string>();
     for (const p of products) {
@@ -76,19 +107,55 @@ export function InventoryProductsTable({
     return Array.from(set).sort((a, b) => a.localeCompare(b, "pt-BR"));
   }, [products]);
 
-  // Resetar página quando os filtros mudam
-  const handleChipChange = (chip: TableFilterChip) => {
-    onChipChange(chip);
+  // Sempre reseta para a primeira página quando qualquer dimensão de filtro muda
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [currentStatusFilter, currentCoverageBucket, currentCategory, searchQuery]);
+
+  const handleChipClick = (id: TableStatusFilter) => {
+    if (id === "ALL") {
+      // O chip "Todos" limpa statusFilter e coverageBucket, mas preserva categoria e busca
+      if (onStatusFilterChange) {
+        onStatusFilterChange("ALL");
+      } else if (onChipChange) {
+        onChipChange("ALL");
+      }
+      onCoverageBucketChange?.(null);
+    } else {
+      if (onStatusFilterChange) {
+        onStatusFilterChange(id);
+      } else if (onChipChange) {
+        onChipChange(id);
+      }
+    }
     setCurrentPage(1);
   };
 
-  const handleCategoryChange = (cat: string) => {
-    setSelectedCategory(cat);
+  const handleCategorySelect = (cat: string) => {
+    if (onCategoryChange) {
+      onCategoryChange(cat);
+    } else {
+      setLocalCategory(cat);
+    }
     setCurrentPage(1);
   };
 
   const handleSearchChange = (query: string) => {
     setSearchQuery(query);
+    setCurrentPage(1);
+  };
+
+  const handleResetAll = () => {
+    if (onResetAllFilters) {
+      onResetAllFilters();
+    } else {
+      if (onStatusFilterChange) onStatusFilterChange("ALL");
+      if (onChipChange) onChipChange("ALL");
+      onCoverageBucketChange?.(null);
+      if (onCategoryChange) onCategoryChange("ALL");
+      setLocalCategory("ALL");
+    }
+    setSearchQuery("");
     setCurrentPage(1);
   };
 
@@ -103,32 +170,41 @@ export function InventoryProductsTable({
     setCurrentPage(1);
   };
 
-  // Filtragem
+  // Filtragem multi-dimensional estrita e inequívoca
   const filteredProducts = useMemo(() => {
     return products.filter((item) => {
-      // 1. Filtro por Chip
-      if (activeChip !== "ALL") {
-        if (activeChip === "DEMAND_WITHOUT_STOCK") {
+      // 1. Filtro Operacional (Status)
+      if (currentStatusFilter !== "ALL") {
+        if (currentStatusFilter === "DEMAND_WITHOUT_STOCK") {
           if (!item.operationalFlags.includes("DEMAND_WITHOUT_STOCK")) return false;
-        } else if (activeChip === "LOW_ESTIMATED_COVERAGE") {
+        } else if (currentStatusFilter === "LOW_ESTIMATED_COVERAGE") {
           if (!item.operationalFlags.includes("LOW_ESTIMATED_COVERAGE")) return false;
-        } else if (activeChip === "LONG_ESTIMATED_COVERAGE") {
+        } else if (currentStatusFilter === "LONG_ESTIMATED_COVERAGE") {
           if (!item.operationalFlags.includes("LONG_ESTIMATED_COVERAGE")) return false;
-        } else if (activeChip === "NO_SALES_IN_WINDOW") {
+        } else if (currentStatusFilter === "NO_SALES_IN_WINDOW") {
           if (!item.operationalFlags.includes("NO_SALES_IN_WINDOW")) return false;
-        } else if (activeChip === "NEGATIVE_STOCK") {
+        } else if (currentStatusFilter === "NEGATIVE_STOCK") {
           if (!item.operationalFlags.includes("NEGATIVE_STOCK") && item.currentStock >= 0) return false;
-        } else if (activeChip === "INACTIVE_WITH_STOCK") {
+        } else if (currentStatusFilter === "INACTIVE_WITH_STOCK") {
           if (!item.operationalFlags.includes("INACTIVE_WITH_STOCK")) return false;
+        } else if (currentStatusFilter === "ACTIVE_WITHOUT_STOCK") {
+          if (!(item.active && item.currentStock <= 0)) return false;
+        } else if (currentStatusFilter === "SOLD_IN_WINDOW") {
+          if (item.quantityInWindow <= 0) return false;
         }
       }
 
-      // 2. Filtro por Categoria
-      if (selectedCategory !== "ALL" && item.category !== selectedCategory) {
+      // 2. Filtro de Cobertura Estimada (product.coverageBucket enviado pelo backend)
+      if (currentCoverageBucket !== null) {
+        if (item.coverageBucket !== currentCoverageBucket) return false;
+      }
+
+      // 3. Filtro por Categoria (Match exato)
+      if (currentCategory !== "ALL" && item.category !== currentCategory) {
         return false;
       }
 
-      // 3. Filtro por Busca de Texto (código ou descrição)
+      // 4. Filtro por Busca de Texto (código ou descrição)
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const codeMatch = item.code.toLowerCase().includes(q);
@@ -138,7 +214,7 @@ export function InventoryProductsTable({
 
       return true;
     });
-  }, [products, activeChip, selectedCategory, searchQuery]);
+  }, [products, currentStatusFilter, currentCoverageBucket, currentCategory, searchQuery]);
 
   // Ordenação
   const sortedProducts = useMemo(() => {
@@ -209,8 +285,9 @@ export function InventoryProductsTable({
     );
   };
 
-  // Renderiza badges operacionais humanos (excluindo STOCK_WITH_SALES)
-  const renderStatusBadges = (flags: InventoryOperationalFlag[], isInactive: boolean) => {
+  // Renderiza badges operacionais humanos estritamente a partir de flags
+  // Correção: produtos com active=false e estoque=0 NÃO recebem "Inativo com estoque"
+  const renderStatusBadges = (flags: InventoryOperationalFlag[]) => {
     const badges: { text: string; className: string }[] = [];
 
     if (flags.includes("DEMAND_WITHOUT_STOCK")) {
@@ -228,7 +305,7 @@ export function InventoryProductsTable({
     if (flags.includes("LONG_ESTIMATED_COVERAGE")) {
       badges.push({ text: "Cobertura > 90d", className: "is-blue" });
     }
-    if (isInactive || flags.includes("INACTIVE_WITH_STOCK")) {
+    if (flags.includes("INACTIVE_WITH_STOCK")) {
       badges.push({ text: "Inativo com estoque", className: "is-inactive" });
     }
 
@@ -266,6 +343,28 @@ export function InventoryProductsTable({
     return <span className="tp-muted">—</span>;
   };
 
+  // Labels humanizados para os filtros ativos
+  const getCoverageLabel = (bucket: CoverageBucket) => {
+    switch (bucket) {
+      case "LT_15": return "< 15 dias";
+      case "15_TO_30": return "15–30 dias";
+      case "30_TO_45": return "30–45 dias";
+      case "45_TO_90": return "45–90 dias";
+      case "GT_90": return "> 90 dias";
+    }
+  };
+
+  const getStatusLabel = (s: TableStatusFilter) => {
+    const item = CHIPS.find((c) => c.id === s);
+    return item ? item.label : s;
+  };
+
+  const hasAnyFilterActive =
+    currentStatusFilter !== "ALL" ||
+    currentCoverageBucket !== null ||
+    currentCategory !== "ALL" ||
+    searchQuery.trim() !== "";
+
   return (
     <section
       className="tp-card tp-inventory-table-card"
@@ -287,7 +386,7 @@ export function InventoryProductsTable({
           </p>
         </div>
 
-        {/* Controles: Busca e Filtro de Categoria */}
+        {/* Controles: Busca e Combobox Pesquisável de Categoria */}
         <div className="tp-table-header-controls">
           <div className="tp-table-search-box">
             <Search size={14} className="tp-search-icon" />
@@ -298,25 +397,105 @@ export function InventoryProductsTable({
               onChange={(e) => handleSearchChange(e.target.value)}
               className="tp-table-search-input"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                className="tp-table-search-clear"
+                onClick={() => handleSearchChange("")}
+                title="Limpar busca"
+              >
+                <X size={12} />
+              </button>
+            )}
           </div>
 
           <div className="tp-table-category-filter">
-            <select
-              value={selectedCategory}
-              onChange={(e) => handleCategoryChange(e.target.value)}
-              className="tp-table-category-select"
-              aria-label="Filtrar por categoria"
-            >
-              <option value="ALL">Todas as categorias ({categories.length})</option>
-              {categories.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
-            </select>
+            <InventoryCategoryCombobox
+              categories={categories}
+              selectedCategory={currentCategory}
+              onSelectCategory={handleCategorySelect}
+            />
           </div>
         </div>
       </div>
+
+      {/* Faixa de Feedback de Filtros Ativos e Ação Limpar Filtros */}
+      {hasAnyFilterActive && (
+        <div className="tp-table-active-context-bar" aria-label="Filtros ativos">
+          <div className="tp-active-tags-row">
+            <span className="tp-active-context-title">Filtros ativos:</span>
+
+            {/* Tag Categoria */}
+            {currentCategory !== "ALL" && (
+              <span className="tp-active-tag">
+                <span>Categoria: <strong>{currentCategory}</strong></span>
+                <button
+                  type="button"
+                  className="tp-active-tag-remove"
+                  onClick={() => handleCategorySelect("ALL")}
+                  title="Remover filtro de categoria"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+
+            {/* Tag Cobertura */}
+            {currentCoverageBucket !== null && (
+              <span className="tp-active-tag">
+                <span>Cobertura: <strong>{getCoverageLabel(currentCoverageBucket)}</strong></span>
+                <button
+                  type="button"
+                  className="tp-active-tag-remove"
+                  onClick={() => onCoverageBucketChange?.(null)}
+                  title="Remover filtro de cobertura"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+
+            {/* Tag Status Operacional */}
+            {currentStatusFilter !== "ALL" && (
+              <span className="tp-active-tag">
+                <span>Status: <strong>{getStatusLabel(currentStatusFilter)}</strong></span>
+                <button
+                  type="button"
+                  className="tp-active-tag-remove"
+                  onClick={() => handleChipClick("ALL")}
+                  title="Remover filtro de status"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+
+            {/* Tag Busca */}
+            {searchQuery.trim() !== "" && (
+              <span className="tp-active-tag">
+                <span>Busca: "<strong>{searchQuery}</strong>"</span>
+                <button
+                  type="button"
+                  className="tp-active-tag-remove"
+                  onClick={() => handleSearchChange("")}
+                  title="Limpar busca textual"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+          </div>
+
+          <button
+            type="button"
+            className="tp-btn-clear-all-filters"
+            onClick={handleResetAll}
+            title="Limpar todos os filtros da tabela"
+          >
+            Limpar filtros
+          </button>
+        </div>
+      )}
 
       {/* Chips de filtro operacional */}
       <div
@@ -325,7 +504,10 @@ export function InventoryProductsTable({
         aria-label="Filtros operacionais da tabela"
       >
         {CHIPS.map((chip) => {
-          const isActive = activeChip === chip.id;
+          const isActive =
+            chip.id === "ALL"
+              ? currentStatusFilter === "ALL" && currentCoverageBucket === null
+              : currentStatusFilter === chip.id;
           return (
             <button
               key={chip.id}
@@ -333,7 +515,7 @@ export function InventoryProductsTable({
               role="tab"
               aria-selected={isActive}
               className={`tp-table-chip ${isActive ? "is-active" : ""}`}
-              onClick={() => handleChipChange(chip.id)}
+              onClick={() => handleChipClick(chip.id)}
             >
               {chip.label}
             </button>
@@ -442,9 +624,9 @@ export function InventoryProductsTable({
                         </div>
                       </td>
 
-                      {/* STATUS */}
+                      {/* STATUS (corrigido: sem flag errônea em inativo com estoque 0) */}
                       <td className="tp-col-status">
-                        {renderStatusBadges(item.operationalFlags, !item.active)}
+                        {renderStatusBadges(item.operationalFlags)}
                       </td>
 
                       {/* ESTOQUE */}
