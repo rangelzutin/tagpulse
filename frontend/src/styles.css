@@ -4831,7 +4831,7 @@ body {
   white-space: nowrap;
 }
 
-/* Card: Capital por Categoria */
+/* Card: Capital sem saída por categoria */
 .tp-category-capital-list {
   display: flex;
   flex-direction: column;
@@ -4918,10 +4918,11 @@ body {
 
 .tp-cat-idle-fill {
   position: absolute;
-  right: 0;
+  left: 0;
   top: 0;
   bottom: 0;
   background: #f43f5e;
+  transition: width 0.3s ease;
 }
 
 /* Tabela Saúde do Estoque */

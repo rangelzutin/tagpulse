@@ -19,13 +19,13 @@ export function InventoryCategoryCapitalCard({
   return (
     <section
       className="tp-card tp-inventory-category-card"
-      aria-label="Capital por categoria"
+      aria-label="Capital sem saída por categoria"
     >
       <div className="tp-card-header">
         <div>
-          <h3 className="tp-card-title">Capital por categoria</h3>
+          <h3 className="tp-card-title">Capital sem saída por categoria</h3>
           <p className="tp-card-subtitle">
-            Estoque a custo e parcela sem saída recente na janela
+            Capital atual em estoque e parcela sem saída recente na janela
           </p>
         </div>
       </div>
@@ -70,13 +70,14 @@ export function InventoryCategoryCapitalCard({
                   <div
                     className="tp-cat-progress-fill"
                     style={{ width: `${widthPercent}%` }}
+                    title={`${cat.category || "Sem categoria"}: ${formatCurrency(cat.inventoryCostValue)}`}
                   >
                     {/* Parcela sem saída visualmente destacada */}
                     {noSalesShare > 0 && (
                       <div
                         className="tp-cat-idle-fill"
                         style={{ width: `${noSalesShare}%` }}
-                        title={`Sem saída: ${formatCurrency(cat.capitalWithoutSales)} (${noSalesShare.toFixed(1)}%)`}
+                        title={`${noSalesShare.toFixed(1).replace(".", ",")}% do capital da categoria está sem saída na janela`}
                       />
                     )}
                   </div>

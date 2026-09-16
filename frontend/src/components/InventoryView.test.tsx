@@ -290,7 +290,7 @@ describe("InventoryView & Components", () => {
       <InventoryCategoryCapitalCard categories={mockData.categories} />,
     );
 
-    expect(html).toContain("Capital por categoria");
+    expect(html).toContain("Capital sem saída por categoria");
     expect(html).toContain("Shapes");
     expect(html).toContain("45 SKUs com estoque");
     expect(html).toContain("sem saída (20.0%)");
@@ -341,7 +341,7 @@ describe("InventoryView & Components", () => {
     expect(html).toContain("Demanda sem estoque");
     expect(html).toContain("Capital sem saída");
     expect(html).toContain("Cobertura estimada");
-    expect(html).toContain("Capital por categoria");
+    expect(html).toContain("Capital sem saída por categoria");
     expect(html).toContain("Saúde do estoque");
   });
 

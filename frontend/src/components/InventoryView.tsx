@@ -160,7 +160,7 @@ export function InventoryView({
       {/* 2. Bloco Central: As Duas Pontas do Problema */}
       <InventoryProblemCards products={products} onViewAll={handleViewAll} />
 
-      {/* 3. Cobertura Estimada e Capital por Categoria lado a lado */}
+      {/* 3. Cobertura Estimada e Capital sem saída por Categoria lado a lado */}
       <div className="tp-inventory-split-grid">
         <InventoryCoverageCard distribution={coverageDistribution} />
         <InventoryCategoryCapitalCard categories={categories} />
