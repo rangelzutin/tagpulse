@@ -4,6 +4,7 @@ import { createDatabaseHealthChecker } from "./database/health.js";
 import { prisma } from "./database/prisma.js";
 import { createTagPlusOAuthTokenStore } from "./integrations/tagplus/oauth-token-store.js";
 import { createBiRepository } from "./modules/bi/bi-repository.js";
+import { createProductionCategorySyncRunner } from "./modules/categories/production-category-sync.js";
 import { registerCustomerSyncConsole } from "./modules/customers/customer-sync-console.js";
 import { createProductionCustomerSyncRunner } from "./modules/customers/production-customer-sync.js";
 import { registerProductSyncConsole } from "./modules/products/product-sync-console.js";
@@ -19,6 +20,17 @@ const env = loadEnv();
 const tokenStore = createTagPlusOAuthTokenStore();
 
 // Instanciação dos runners de produção
+const categoryRunner = createProductionCategorySyncRunner({
+  prisma,
+  tokenStore,
+  config: {
+    baseUrl: env.TAGPLUS_BASE_URL,
+    databaseUrl: env.DATABASE_URL,
+    ...(env.TEST_DATABASE_URL
+      ? { testDatabaseUrl: env.TEST_DATABASE_URL }
+      : {}),
+  },
+});
 const customerRunner = createProductionCustomerSyncRunner({
   prisma,
   tokenStore,
@@ -93,6 +105,7 @@ const tagPlusSyncOrchestrator = createTagPlusSyncOrchestrator({
   prisma,
   syncRepository,
   tokenStore,
+  categoryRunner,
   customerRunner,
   productRunner,
   salesRunner,

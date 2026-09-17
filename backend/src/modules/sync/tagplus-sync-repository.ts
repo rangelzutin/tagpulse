@@ -163,7 +163,7 @@ export function createTagPlusSyncRepository(
         data: {
           connectionId,
           status: TagPlusSyncStatus.RUNNING,
-          currentStage: TagPlusSyncStage.CUSTOMERS,
+          currentStage: TagPlusSyncStage.CATEGORIES,
           mode,
           startedAt,
           windowSince: window?.since ?? null,

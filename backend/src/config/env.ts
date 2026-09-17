@@ -17,7 +17,12 @@ const envSchema = z.object({
   TAGPLUS_CLIENT_SECRET: z.string().min(1),
   TAGPLUS_AUTH_URL: z.url(),
   TAGPLUS_CALLBACK_URL: z.url(),
-  TAGPLUS_SCOPES: z.string().min(1).default("read:clientes"),
+  TAGPLUS_SCOPES: z
+    .string()
+    .min(1)
+    .default(
+      "read:clientes read:produtos read:pedidos read:vendas_simples read:nfes read:categorias",
+    ),
 });
 
 export type Env = z.infer<typeof envSchema>;

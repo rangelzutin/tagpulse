@@ -1,6 +1,7 @@
 export type TagPlusSyncMode = "FULL" | "INCREMENTAL";
 export type TagPlusSyncStatus = "RUNNING" | "COMPLETED" | "FAILED";
 export type TagPlusSyncStage =
+  | "CATEGORIES"
   | "CUSTOMERS"
   | "PRODUCTS"
   | "SALES"
@@ -42,6 +43,7 @@ export interface TagPlusSyncStatusResponse {
     isAuthError?: boolean;
   } | null;
   stages: {
+    categories: SyncStepProgress;
     customers: SyncStepProgress;
     products: SyncStepProgress;
     sales: SyncStepProgress;

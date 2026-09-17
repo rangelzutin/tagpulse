@@ -163,7 +163,7 @@ describe("TagPlusSyncRepository", () => {
           mode: TagPlusSyncMode.INCREMENTAL,
           windowSince: since,
           windowUntil: until,
-          currentStage: TagPlusSyncStage.CUSTOMERS,
+          currentStage: TagPlusSyncStage.CATEGORIES,
         }),
       }),
     );

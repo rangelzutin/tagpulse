@@ -44,6 +44,7 @@ describe("SyncModal Preflight & Auth UX", () => {
         isAuthError: true,
       },
       stages: {
+        categories: { status: "COMPLETED" },
         customers: {
           status: "FAILED",
           error: "CUSTOMER_SYNC_FETCH_ERROR",
@@ -183,6 +184,7 @@ describe("SyncModal State Machine (Cenários Obrigatórios A–I)", () => {
       elapsedSeconds: 195,
     },
     stages: {
+      categories: { status: "COMPLETED", summary: { recordsFetched: 71, recordsInserted: 0, recordsUpdated: 0 } },
       customers: { status: "COMPLETED", summary: { recordsFetched: 10, recordsInserted: 0, recordsUpdated: 0 } },
       products: { status: "COMPLETED", summary: { recordsFetched: 25, recordsInserted: 0, recordsUpdated: 0 } },
       sales: { status: "COMPLETED", summary: { pedidos: { recordsFetched: 0 }, vendasSimples: { recordsFetched: 0 }, nfes: { recordsFetched: 0 } } },
@@ -229,6 +231,7 @@ describe("SyncModal State Machine (Cenários Obrigatórios A–I)", () => {
         elapsedSeconds: 2,
       },
       stages: {
+        categories: { status: "COMPLETED" },
         customers: { status: "RUNNING" },
         products: { status: "WAITING" },
         sales: { status: "WAITING" },
@@ -266,6 +269,7 @@ describe("SyncModal State Machine (Cenários Obrigatórios A–I)", () => {
         elapsedSeconds: 45,
       },
       stages: {
+        categories: { status: "COMPLETED", summary: { recordsFetched: 71, recordsInserted: 0, recordsUpdated: 0 } },
         customers: { status: "COMPLETED", summary: { recordsFetched: 15, recordsInserted: 2, recordsUpdated: 1 } },
         products: { status: "COMPLETED", summary: { recordsFetched: 40, recordsInserted: 0, recordsUpdated: 3 } },
         sales: { status: "COMPLETED", summary: { pedidos: { recordsFetched: 5 }, vendasSimples: { recordsFetched: 2 }, nfes: { recordsFetched: 1 } } },
@@ -307,6 +311,7 @@ describe("SyncModal State Machine (Cenários Obrigatórios A–I)", () => {
         elapsedSeconds: 45,
       },
       stages: {
+        categories: { status: "COMPLETED", summary: { recordsFetched: 71 } },
         customers: { status: "COMPLETED", summary: { recordsFetched: 15 } },
         products: { status: "COMPLETED" },
         sales: { status: "COMPLETED" },
@@ -345,6 +350,7 @@ describe("SyncModal State Machine (Cenários Obrigatórios A–I)", () => {
         elapsedSeconds: 20,
       },
       stages: {
+        categories: { status: "COMPLETED", summary: { recordsFetched: 71 } },
         customers: { status: "COMPLETED", summary: { recordsFetched: 50 } },
         products: { status: "RUNNING" },
         sales: { status: "WAITING" },
@@ -386,6 +392,7 @@ describe("SyncModal State Machine (Cenários Obrigatórios A–I)", () => {
         errorMessage: "Network timeout",
       },
       stages: {
+        categories: { status: "COMPLETED" },
         customers: { status: "COMPLETED" },
         products: { status: "COMPLETED" },
         sales: { status: "FAILED", error: "Network timeout" },
@@ -426,6 +433,7 @@ describe("SyncModal State Machine (Cenários Obrigatórios A–I)", () => {
         isAuthError: true,
       },
       stages: {
+        categories: { status: "COMPLETED" },
         customers: { status: "FAILED", error: "TOKEN_EXPIRED" },
         products: { status: "WAITING" },
         sales: { status: "WAITING" },
@@ -481,6 +489,7 @@ describe("SyncModal State Machine (Cenários Obrigatórios A–I)", () => {
         elapsedSeconds: 12,
       },
       stages: {
+        categories: { status: "COMPLETED", summary: { recordsFetched: 71 } },
         customers: { status: "COMPLETED", summary: { recordsFetched: 10 } },
         products: { status: "RUNNING" },
         sales: { status: "WAITING" },
@@ -525,6 +534,7 @@ describe("SyncModal State Machine (Cenários Obrigatórios A–I)", () => {
         elapsedSeconds: 0,
       },
       stages: {
+        categories: { status: "COMPLETED" },
         customers: { status: "RUNNING" },
         products: { status: "WAITING" },
         sales: { status: "WAITING" },
@@ -548,5 +558,125 @@ describe("SyncModal State Machine (Cenários Obrigatórios A–I)", () => {
     expect(state.stages.customers.status).toBe("RUNNING");
     expect(state.stages.products.status).toBe("WAITING");
     expect(state.stages.sales.status).toBe("WAITING");
+  });
+
+  it("Cenário J: Modal renders 4 stages including 1. Categorias with correct badges and metrics", () => {
+    expect(IDLE_STAGES).toEqual({
+      categories: { status: "WAITING" },
+      customers: { status: "WAITING" },
+      products: { status: "WAITING" },
+      sales: { status: "WAITING" },
+    });
+
+    const html = renderToString(
+      <SyncModal isOpen={true} onClose={() => {}} />,
+    );
+
+    expect(html).toContain("1. Categorias");
+    expect(html).toContain("2. Clientes");
+    expect(html).toContain("3. Produtos");
+    expect(html).toContain("4. Vendas e Faturamento");
+  });
+
+  it("Cenário K: Category transitions through WAITING, RUNNING, COMPLETED, FAILED", () => {
+    const runId = "run-cat-test";
+
+    // RUNNING
+    const runningStatus: TagPlusSyncStatusResponse = {
+      isRunning: true,
+      activeRun: {
+        runId,
+        mode: "INCREMENTAL",
+        status: "RUNNING",
+        currentStage: "CATEGORIES",
+        startedAt: "2026-09-17T00:00:00.000Z",
+        elapsedSeconds: 2,
+      },
+      stages: {
+        categories: { status: "RUNNING" },
+        customers: { status: "WAITING" },
+        products: { status: "WAITING" },
+        sales: { status: "WAITING" },
+      },
+      lastCompletedSync: null,
+    };
+
+    const runningState = deriveSyncModalState({
+      statusData: runningStatus,
+      currentSessionRunId: runId,
+      isStarting: false,
+      errorMessage: null,
+      oauthRequired: false,
+      preflightData: connectedPreflight,
+    });
+    expect(runningState.stages.categories.status).toBe("RUNNING");
+
+    // COMPLETED
+    const completedStatus: TagPlusSyncStatusResponse = {
+      isRunning: false,
+      activeRun: {
+        runId,
+        mode: "INCREMENTAL",
+        status: "COMPLETED",
+        currentStage: "COMPLETED",
+        startedAt: "2026-09-17T00:00:00.000Z",
+        completedAt: "2026-09-17T00:01:00.000Z",
+        elapsedSeconds: 60,
+      },
+      stages: {
+        categories: {
+          status: "COMPLETED",
+          summary: { recordsFetched: 71, recordsInserted: 71, recordsUpdated: 0 },
+        },
+        customers: { status: "COMPLETED" },
+        products: { status: "COMPLETED" },
+        sales: { status: "COMPLETED" },
+      },
+      lastCompletedSync: "2026-09-17T00:01:00.000Z",
+    };
+
+    const completedState = deriveSyncModalState({
+      statusData: completedStatus,
+      currentSessionRunId: runId,
+      isStarting: false,
+      errorMessage: null,
+      oauthRequired: false,
+      preflightData: connectedPreflight,
+    });
+    expect(completedState.isCompleted).toBe(true);
+    expect(completedState.stages.categories.status).toBe("COMPLETED");
+
+    // FAILED
+    const failedStatus: TagPlusSyncStatusResponse = {
+      isRunning: false,
+      activeRun: {
+        runId,
+        mode: "INCREMENTAL",
+        status: "FAILED",
+        currentStage: "CATEGORIES",
+        startedAt: "2026-09-17T00:00:00.000Z",
+        elapsedSeconds: 2,
+        errorStage: "CATEGORIES",
+        errorMessage: "Category sync error",
+      },
+      stages: {
+        categories: { status: "FAILED", error: "Category sync error" },
+        customers: { status: "WAITING" },
+        products: { status: "WAITING" },
+        sales: { status: "WAITING" },
+      },
+      lastCompletedSync: null,
+    };
+
+    const failedState = deriveSyncModalState({
+      statusData: failedStatus,
+      currentSessionRunId: runId,
+      isStarting: false,
+      errorMessage: null,
+      oauthRequired: false,
+      preflightData: connectedPreflight,
+    });
+    expect(failedState.isSessionFailed).toBe(true);
+    expect(failedState.stages.categories.status).toBe("FAILED");
   });
 });

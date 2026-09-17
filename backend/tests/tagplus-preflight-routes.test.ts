@@ -11,6 +11,7 @@ import {
 import {
   createTagPlusSyncOrchestrator,
   isTagPlusAuthError,
+  type CategoryRunnerLike,
   type CustomerRunnerLike,
   type ProductRunnerLike,
   type SalesRunnerLike,
@@ -24,12 +25,33 @@ const TEST_CONNECTION_ID = "00000000-0000-4000-8000-000000000001";
 function createTestHarness(options?: {
   tokenAvailable?: boolean;
   pingError?: Error;
+  categoryAuthError?: boolean;
+  categoryError?: boolean;
   isLocalEnvironment?: boolean;
 }) {
   const tokenStore = createTagPlusOAuthTokenStore({ filePath: null });
   if (options?.tokenAvailable !== false) {
     tokenStore.set({ accessToken: "synthetic-preflight-token" });
   }
+
+  const categoryRunner: CategoryRunnerLike = {
+    preflight: vi.fn().mockResolvedValue({ status: "READY" }),
+    ping: vi.fn().mockImplementation(async () => {
+      if (options?.categoryAuthError) {
+        throw new Error("O aplicativo não possui permissão para realizar a operação 'read:categorias'");
+      }
+      if (options?.categoryError) {
+        throw new Error("Category connection failed");
+      }
+    }),
+    run: vi.fn().mockResolvedValue({
+      pagesFetched: 1,
+      recordsFetched: 71,
+      recordsInserted: 71,
+      recordsUpdated: 0,
+      recordsUnchanged: 0,
+    }),
+  };
 
   const customerRunner: CustomerRunnerLike = {
     preflight: vi.fn().mockResolvedValue({ status: "READY" }),
@@ -136,6 +158,7 @@ function createTestHarness(options?: {
     prisma,
     syncRepository,
     tokenStore,
+    categoryRunner,
     customerRunner,
     productRunner,
     salesRunner,
@@ -146,7 +169,7 @@ function createTestHarness(options?: {
   const app = Fastify({ logger: false });
   registerTagPlusSyncRoutes(app, orchestrator);
 
-  return { app, orchestrator, customerRunner, tokenStore, syncRepository };
+  return { app, orchestrator, categoryRunner, customerRunner, tokenStore, syncRepository };
 }
 
 describe("TagPlus Preflight & Auth Error Handling", () => {
@@ -321,5 +344,35 @@ describe("TagPlus Preflight & Auth Error Handling", () => {
     expect(status.activeRun?.status).toBe(TagPlusSyncStatus.FAILED);
     expect(status.activeRun?.errorCategory).toBe("TAGPLUS_AUTH_EXPIRED");
     expect(status.activeRun?.isAuthError).toBe(true);
+  });
+
+  it("returns AUTH_REQUIRED when category ping fails with missing read:categorias scope", async () => {
+    const { app } = createTestHarness({ categoryAuthError: true });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/sync/tagplus/preflight",
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.status).toBe("AUTH_REQUIRED");
+    expect(body.description).toBe(
+      "É necessário reautorizar o TagPlus para habilitar acesso às categorias.",
+    );
+  });
+
+  it("returns CONNECTED when both category and customer checks succeed", async () => {
+    const { app } = createTestHarness();
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/sync/tagplus/preflight",
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.status).toBe("CONNECTED");
+    expect(body.message).toBe("TagPlus conectado");
   });
 });

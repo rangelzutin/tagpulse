@@ -5,6 +5,7 @@ import {
   AlertCircle,
   X,
   ExternalLink,
+  FolderTree,
   Users,
   Package,
   ShoppingCart,
@@ -23,6 +24,7 @@ import {
 } from "../api/sync.js";
 
 export const IDLE_STAGES: TagPlusSyncStatusResponse["stages"] = {
+  categories: { status: "WAITING" },
   customers: { status: "WAITING" },
   products: { status: "WAITING" },
   sales: { status: "WAITING" },
@@ -329,7 +331,8 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
           windowUntil: result.windowUntil,
         },
         stages: {
-          customers: { status: "RUNNING" },
+          categories: { status: "RUNNING" },
+          customers: { status: "WAITING" },
           products: { status: "WAITING" },
           sales: { status: "WAITING" },
         },
@@ -603,14 +606,53 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
 
         {/* Lista de Etapas */}
         <div className="tp-sync-stages-list">
-          {/* Etapa 1: Clientes */}
+          {/* Etapa 1: Categorias */}
+          <div
+            className={`tp-sync-stage-item is-${stages.categories?.status.toLowerCase() ?? "waiting"}`}
+            data-testid="stage-categories"
+          >
+            <div className="tp-sync-stage-icon-wrap">
+              <FolderTree size={16} />
+            </div>
+            <div className="tp-sync-stage-info">
+              <div className="tp-sync-stage-header">
+                <span className="tp-sync-stage-name">1. Categorias</span>
+                <span className={`tp-sync-stage-badge is-${stages.categories?.status.toLowerCase() ?? "waiting"}`}>
+                  {stages.categories?.status === "WAITING" && "Aguardando"}
+                  {stages.categories?.status === "RUNNING" && "Sincronizando..."}
+                  {stages.categories?.status === "COMPLETED" && "Concluído"}
+                  {stages.categories?.status === "FAILED" && "Erro"}
+                </span>
+              </div>
+              {stages.categories?.summary && (
+                <div className="tp-sync-stage-metrics">
+                  <span>
+                    {(stages.categories.summary.recordsFetched as number)?.toLocaleString() ?? 0} categorias analisadas
+                  </span>
+                  <span className="tp-metric-sep">•</span>
+                  <span>
+                    {(stages.categories.summary.recordsInserted as number) ?? 0} novas
+                  </span>
+                  <span className="tp-metric-sep">•</span>
+                  <span>
+                    {(stages.categories.summary.recordsUpdated as number) ?? 0} atualizadas
+                  </span>
+                </div>
+              )}
+              {stages.categories?.error && (
+                <p className="tp-sync-stage-error">{stages.categories.error}</p>
+              )}
+            </div>
+          </div>
+
+          {/* Etapa 2: Clientes */}
           <div className={`tp-sync-stage-item is-${stages.customers.status.toLowerCase()}`}>
             <div className="tp-sync-stage-icon-wrap">
               <Users size={16} />
             </div>
             <div className="tp-sync-stage-info">
               <div className="tp-sync-stage-header">
-                <span className="tp-sync-stage-name">1. Clientes</span>
+                <span className="tp-sync-stage-name">2. Clientes</span>
                 <span className={`tp-sync-stage-badge is-${stages.customers.status.toLowerCase()}`}>
                   {stages.customers.status === "WAITING" && "Aguardando"}
                   {stages.customers.status === "RUNNING" && "Sincronizando..."}
@@ -639,14 +681,14 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
             </div>
           </div>
 
-          {/* Etapa 2: Produtos */}
+          {/* Etapa 3: Produtos */}
           <div className={`tp-sync-stage-item is-${stages.products.status.toLowerCase()}`}>
             <div className="tp-sync-stage-icon-wrap">
               <Package size={16} />
             </div>
             <div className="tp-sync-stage-info">
               <div className="tp-sync-stage-header">
-                <span className="tp-sync-stage-name">2. Produtos</span>
+                <span className="tp-sync-stage-name">3. Produtos</span>
                 <span className={`tp-sync-stage-badge is-${stages.products.status.toLowerCase()}`}>
                   {stages.products.status === "WAITING" && "Aguardando"}
                   {stages.products.status === "RUNNING" && "Sincronizando..."}
@@ -675,14 +717,14 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
             </div>
           </div>
 
-          {/* Etapa 3: Vendas */}
+          {/* Etapa 4: Vendas e Faturamento */}
           <div className={`tp-sync-stage-item is-${stages.sales.status.toLowerCase()}`}>
             <div className="tp-sync-stage-icon-wrap">
               <ShoppingCart size={16} />
             </div>
             <div className="tp-sync-stage-info">
               <div className="tp-sync-stage-header">
-                <span className="tp-sync-stage-name">3. Vendas e Faturamento</span>
+                <span className="tp-sync-stage-name">4. Vendas e Faturamento</span>
                 <span className={`tp-sync-stage-badge is-${stages.sales.status.toLowerCase()}`}>
                   {stages.sales.status === "WAITING" && "Aguardando"}
                   {stages.sales.status === "RUNNING" && "Sincronizando..."}

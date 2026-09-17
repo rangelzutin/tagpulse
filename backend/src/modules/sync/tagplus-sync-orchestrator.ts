@@ -75,6 +75,7 @@ export interface TagPlusSyncStatusResponse {
     isAuthError?: boolean;
   } | null;
   stages: {
+    categories: SyncStepProgress;
     customers: SyncStepProgress;
     products: SyncStepProgress;
     sales: SyncStepProgress;
@@ -82,6 +83,25 @@ export interface TagPlusSyncStatusResponse {
   lastCompletedSync: Date | null;
   lastCompletedIncrementalSync?: Date | null;
   lastCompletedFullSync?: Date | null;
+}
+
+export interface CategoryRunnerLike {
+  ping?(connectionId: string): Promise<unknown>;
+  preflight(connectionId: string): Promise<unknown>;
+  run(
+    connectionId: string,
+    options?: {
+      mode?: TagPlusSyncMode;
+      window?: { since: string; until: string };
+    },
+  ): Promise<{
+    pagesFetched: number;
+    recordsFetched: number;
+    recordsInserted: number;
+    recordsUpdated: number;
+    recordsUnchanged: number;
+    recordsNoLongerObserved?: number;
+  }>;
 }
 
 export interface CustomerRunnerLike {
@@ -152,6 +172,7 @@ export interface TagPlusSyncOrchestratorDependencies {
   prisma: PrismaClient;
   syncRepository: TagPlusSyncRepository;
   tokenStore: TagPlusOAuthTokenStore;
+  categoryRunner: CategoryRunnerLike;
   customerRunner: CustomerRunnerLike;
   productRunner: ProductRunnerLike;
   salesRunner: SalesRunnerLike;
@@ -167,11 +188,12 @@ export function createTagPlusSyncOrchestrator(
   let isRunning = false;
   let activeRunId: string | null = null;
   let activeMode: TagPlusSyncMode = TagPlusSyncMode.INCREMENTAL;
-  let currentStage: TagPlusSyncStage = TagPlusSyncStage.CUSTOMERS;
+  let currentStage: TagPlusSyncStage = TagPlusSyncStage.CATEGORIES;
   let runStartedAt: Date | null = null;
   let activeWindowSince: Date | null = null;
   let activeWindowUntil: Date | null = null;
   let inMemoryStages: {
+    categories: SyncStepProgress;
     customers: SyncStepProgress;
     products: SyncStepProgress;
     sales: SyncStepProgress;
@@ -179,11 +201,12 @@ export function createTagPlusSyncOrchestrator(
 
   const now = dependencies.now ?? (() => new Date());
 
-  function resetStages() {
+  function resetStages(): TagPlusSyncStatusResponse["stages"] {
     return {
-      customers: { status: "WAITING" } as SyncStepProgress,
-      products: { status: "WAITING" } as SyncStepProgress,
-      sales: { status: "WAITING" } as SyncStepProgress,
+      categories: { status: "WAITING" },
+      customers: { status: "WAITING" },
+      products: { status: "WAITING" },
+      sales: { status: "WAITING" },
     };
   }
 
@@ -233,6 +256,7 @@ export function createTagPlusSyncOrchestrator(
       });
     }
 
+    await dependencies.categoryRunner.preflight(connectionId);
     await dependencies.customerRunner.preflight(connectionId);
     await dependencies.productRunner.preflight(connectionId);
     await dependencies.salesRunner.preflight(connectionId);
@@ -249,7 +273,26 @@ export function createTagPlusSyncOrchestrator(
     const stageSummaries: Record<string, unknown> = {};
 
     try {
-      // 1. Customers
+      // 1. Categories
+      currentStage = TagPlusSyncStage.CATEGORIES;
+      inMemoryStages.categories = { status: "RUNNING" };
+      await dependencies.syncRepository.updateStage(run.id, TagPlusSyncStage.CATEGORIES);
+
+      const categoryResult = await dependencies.categoryRunner.run(connectionId, runnerOptions);
+      stageSummaries.categories = {
+        pagesFetched: categoryResult.pagesFetched,
+        recordsFetched: categoryResult.recordsFetched,
+        recordsInserted: categoryResult.recordsInserted,
+        recordsUpdated: categoryResult.recordsUpdated,
+        recordsUnchanged: categoryResult.recordsUnchanged,
+        recordsNoLongerObserved: categoryResult.recordsNoLongerObserved ?? 0,
+      };
+      inMemoryStages.categories = {
+        status: "COMPLETED",
+        summary: stageSummaries.categories as Record<string, unknown>,
+      };
+
+      // 2. Customers
       currentStage = TagPlusSyncStage.CUSTOMERS;
       inMemoryStages.customers = { status: "RUNNING" };
       await dependencies.syncRepository.updateStage(run.id, TagPlusSyncStage.CUSTOMERS);
@@ -331,7 +374,9 @@ export function createTagPlusSyncOrchestrator(
         : sanitizedMessage;
 
       // Marca erro na etapa atual em memória
-      if (currentStage === TagPlusSyncStage.CUSTOMERS) {
+      if (currentStage === TagPlusSyncStage.CATEGORIES) {
+        inMemoryStages.categories = { status: "FAILED", error: stageErrorMessage };
+      } else if (currentStage === TagPlusSyncStage.CUSTOMERS) {
         inMemoryStages.customers = { status: "FAILED", error: stageErrorMessage };
       } else if (currentStage === TagPlusSyncStage.PRODUCTS) {
         inMemoryStages.products = { status: "FAILED", error: stageErrorMessage };
@@ -390,6 +435,12 @@ export function createTagPlusSyncOrchestrator(
 
       // 3. Executar o ping leve reutilizando o mesmo cliente e caminho do sync
       try {
+        if (typeof dependencies.categoryRunner.ping === "function") {
+          await dependencies.categoryRunner.ping(connectionId);
+        } else {
+          await dependencies.categoryRunner.preflight(connectionId);
+        }
+
         if (typeof dependencies.customerRunner.ping === "function") {
           await dependencies.customerRunner.ping(connectionId);
         } else {
@@ -403,11 +454,24 @@ export function createTagPlusSyncOrchestrator(
         };
       } catch (error: unknown) {
         if (isTagPlusAuthError(error)) {
+          const isScopeError =
+            (error instanceof Error &&
+              (error.message.includes("categorias") ||
+                error.message.includes("read:categorias") ||
+                error.message.includes("escopo") ||
+                error.message.includes("permiss"))) ||
+            (typeof error === "object" &&
+              error !== null &&
+              ((error as any).category === "TAGPLUS_AUTH_SCOPE_REQUIRED" ||
+                (error as any).errorCategory === "TAGPLUS_AUTH_SCOPE_REQUIRED"));
+
           return {
             status: "AUTH_REQUIRED",
             reason: "TOKEN_EXPIRED",
             message: "Autorização do TagPlus necessária",
-            description: "Sua sessão expirou ou ainda não foi autorizada.",
+            description: isScopeError
+              ? "É necessário reautorizar o TagPlus para habilitar acesso às categorias."
+              : "Sua sessão expirou ou ainda não foi autorizada.",
             authorizeUrl,
             isLocalEnvironment: isLocal,
           };
@@ -551,7 +615,7 @@ export function createTagPlusSyncOrchestrator(
         runId: run.id,
         mode: run.mode,
         status: TagPlusSyncStatus.RUNNING,
-        currentStage: TagPlusSyncStage.CUSTOMERS,
+        currentStage: TagPlusSyncStage.CATEGORIES,
         startedAt,
         windowSince: run.windowSince,
         windowUntil: run.windowUntil,
@@ -604,6 +668,9 @@ export function createTagPlusSyncOrchestrator(
       if (latestRun?.summary && typeof latestRun.summary === "object") {
         const sum = latestRun.summary as Record<string, unknown>;
         stagesResult = {
+          categories: sum.categories
+            ? { status: "COMPLETED", summary: sum.categories as Record<string, unknown> }
+            : { status: latestRun.errorStage === TagPlusSyncStage.CATEGORIES ? "FAILED" : "WAITING" },
           customers: sum.customers
             ? { status: "COMPLETED", summary: sum.customers as Record<string, unknown> }
             : { status: latestRun.errorStage === TagPlusSyncStage.CUSTOMERS ? "FAILED" : "WAITING" },
@@ -708,6 +775,8 @@ export function isTagPlusAuthError(error: unknown): boolean {
     if (
       errObj.category === "TAGPLUS_AUTH_EXPIRED" ||
       errObj.errorCategory === "TAGPLUS_AUTH_EXPIRED" ||
+      errObj.category === "TAGPLUS_AUTH_SCOPE_REQUIRED" ||
+      errObj.errorCategory === "TAGPLUS_AUTH_SCOPE_REQUIRED" ||
       errObj.category === "TAGPLUS_OAUTH_TOKEN_NOT_AVAILABLE"
     ) {
       return true;
@@ -719,13 +788,18 @@ export function isTagPlusAuthError(error: unknown): boolean {
   if (error instanceof Error) {
     const msg = error.message.toLowerCase();
     if (
-      (msg.includes("401") || msg.includes("403")) &&
-      (msg.includes("tagplus") ||
-        msg.includes("oauth") ||
-        msg.includes("token") ||
-        msg.includes("unauthorized") ||
-        msg.includes("forbidden") ||
-        error.name.includes("TagPlus"))
+      msg.includes("read:categorias") ||
+      msg.includes("permissão") ||
+      msg.includes("permissao") ||
+      msg.includes("escopo") ||
+      msg.includes("tagplus_auth_scope_required") ||
+      ((msg.includes("401") || msg.includes("403")) &&
+        (msg.includes("tagplus") ||
+          msg.includes("oauth") ||
+          msg.includes("token") ||
+          msg.includes("unauthorized") ||
+          msg.includes("forbidden") ||
+          error.name.includes("TagPlus")))
     ) {
       return true;
     }

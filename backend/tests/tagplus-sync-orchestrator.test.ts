@@ -7,6 +7,7 @@ import {
   TagPlusIncrementalBaselineRequiredError,
   TagPlusOAuthRequiredError,
   TagPlusSyncAlreadyRunningError,
+  type CategoryRunnerLike,
   type CustomerRunnerLike,
   type ProductRunnerLike,
   type SalesRunnerLike,
@@ -22,6 +23,7 @@ function createHarness(options?: {
   hasIncrementalRun?: boolean;
   lastCompletedFullDate?: Date;
   lastCompletedIncrementalWindowUntil?: Date;
+  categoryFail?: boolean;
   customerFail?: boolean;
   productFail?: boolean;
   salesFail?: boolean;
@@ -33,6 +35,29 @@ function createHarness(options?: {
   }
 
   const callOrder: string[] = [];
+
+  const categoryRunner: CategoryRunnerLike = {
+    preflight: vi.fn().mockImplementation(async () => {
+      callOrder.push("category:preflight");
+    }),
+    ping: vi.fn().mockImplementation(async () => {
+      callOrder.push("category:ping");
+    }),
+    run: vi.fn().mockImplementation(async () => {
+      callOrder.push("category:run");
+      if (options?.categoryFail) {
+        throw new Error("Category sync failed");
+      }
+      return {
+        pagesFetched: 1,
+        recordsFetched: 71,
+        recordsInserted: 71,
+        recordsUpdated: 0,
+        recordsUnchanged: 0,
+        recordsNoLongerObserved: 0,
+      };
+    }),
+  };
 
   const customerRunner: CustomerRunnerLike = {
     preflight: vi.fn().mockImplementation(async () => {
@@ -98,7 +123,7 @@ function createHarness(options?: {
     mode: TagPlusSyncMode.INCREMENTAL,
     windowSince: new Date("2026-09-11T20:00:00Z"),
     windowUntil: new Date("2026-09-11T21:00:00Z"),
-    currentStage: TagPlusSyncStage.CUSTOMERS,
+    currentStage: TagPlusSyncStage.CATEGORIES,
     startedAt: new Date("2026-09-11T21:00:00Z"),
     completedAt: null,
     errorStage: null,
@@ -182,6 +207,7 @@ function createHarness(options?: {
     prisma,
     syncRepository,
     tokenStore,
+    categoryRunner,
     customerRunner,
     productRunner,
     salesRunner,
@@ -193,6 +219,7 @@ function createHarness(options?: {
   return {
     orchestrator,
     callOrder,
+    categoryRunner,
     customerRunner,
     productRunner,
     salesRunner,
@@ -307,7 +334,7 @@ describe("TagPlusSyncOrchestrator", () => {
     );
   });
 
-  it("executes strictly in order: Customers -> Products -> Sales and marks COMPLETED on success", async () => {
+  it("executes strictly in order: Categories -> Customers -> Products -> Sales and marks COMPLETED on success", async () => {
     const h = createHarness();
     const startResult = await h.orchestrator.startSync();
 
@@ -315,7 +342,7 @@ describe("TagPlusSyncOrchestrator", () => {
       expect.objectContaining({
         runId: "run-uuid-1",
         status: TagPlusSyncStatus.RUNNING,
-        currentStage: TagPlusSyncStage.CUSTOMERS,
+        currentStage: TagPlusSyncStage.CATEGORIES,
       }),
     );
 
@@ -325,14 +352,17 @@ describe("TagPlusSyncOrchestrator", () => {
     });
 
     expect(h.callOrder).toEqual([
+      "category:preflight",
       "customer:preflight",
       "product:preflight",
       "sales:preflight",
+      "category:run",
       "customer:run",
       "product:run",
       "sales:run",
     ]);
 
+    expect(h.syncRepository.updateStage).toHaveBeenCalledWith("run-uuid-1", TagPlusSyncStage.CATEGORIES);
     expect(h.syncRepository.updateStage).toHaveBeenCalledWith("run-uuid-1", TagPlusSyncStage.CUSTOMERS);
     expect(h.syncRepository.updateStage).toHaveBeenCalledWith("run-uuid-1", TagPlusSyncStage.PRODUCTS);
     expect(h.syncRepository.updateStage).toHaveBeenCalledWith("run-uuid-1", TagPlusSyncStage.SALES);
@@ -341,6 +371,7 @@ describe("TagPlusSyncOrchestrator", () => {
       "run-uuid-1",
       expect.any(Date),
       expect.objectContaining({
+        categories: expect.objectContaining({ recordsFetched: 71 }),
         customers: expect.objectContaining({ recordsFetched: 150 }),
         products: expect.objectContaining({ recordsFetched: 50 }),
         sales: expect.objectContaining({
@@ -350,6 +381,20 @@ describe("TagPlusSyncOrchestrator", () => {
         }),
       }),
     );
+  });
+
+  it("does NOT run Customers, Products or Sales if Categories fails", async () => {
+    const h = createHarness({ categoryFail: true });
+    await h.orchestrator.startSync();
+
+    await vi.waitFor(() => {
+      expect(h.syncRepository.failRun).toHaveBeenCalled();
+    });
+
+    expect(h.callOrder).toContain("category:run");
+    expect(h.callOrder).not.toContain("customer:run");
+    expect(h.callOrder).not.toContain("product:run");
+    expect(h.callOrder).not.toContain("sales:run");
   });
 
   it("does NOT run Products or Sales if Customers fails", async () => {
