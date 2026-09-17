@@ -3,8 +3,9 @@ import { AlertCircle, RefreshCw } from "lucide-react";
 import type { CoverageBucket, InventoryOverviewResult } from "../api/bi";
 import { InventoryKpiGrid } from "./InventoryKpiGrid";
 import { InventoryProblemCards } from "./InventoryProblemCards";
-import { InventoryCoverageCard } from "./InventoryCoverageCard";
+import { InventoryCategorySalesCard } from "./InventoryCategorySalesCard";
 import { InventoryCategoryCapitalCard } from "./InventoryCategoryCapitalCard";
+import { InventoryCoverageCard } from "./InventoryCoverageCard";
 import {
   InventoryProductsTable,
   type TableStatusFilter,
@@ -61,7 +62,15 @@ export function InventoryView({
     scrollToTable();
   }, []);
 
-  // 4. Clique no card de Capital por Categoria (geral ou somente sem saída)
+  // 4a. Clique no card de Saída Recente por Categoria (categoria + SOLD_IN_WINDOW)
+  const handleSelectSalesCategory = useCallback((category: string) => {
+    setSelectedCategory(category);
+    setStatusFilter("SOLD_IN_WINDOW");
+    setCoverageBucket(null);
+    scrollToTable();
+  }, []);
+
+  // 4b. Clique no card de Capital por Categoria (geral ou somente sem saída)
   const handleSelectCategory = useCallback((category: string, onlyNoSales = false) => {
     setSelectedCategory(category);
     setCoverageBucket(null);
@@ -120,7 +129,7 @@ export function InventoryView({
         aria-label="Carregando Estoque e Giro"
       >
         <div className="tp-section-skeleton">
-          {/* Skeleton KPIs */}
+          {/* Skeleton LINHA 1: KPIs */}
           <div className="tp-kpi-grid">
             {[1, 2, 3, 4].map((idx) => (
               <div key={idx} className="tp-kpi-card tp-skeleton-card">
@@ -130,12 +139,17 @@ export function InventoryView({
             ))}
           </div>
 
-          {/* Skeleton Situação do Estoque */}
-          <div className="tp-card tp-skeleton-card" style={{ height: 60 }}>
-            <div className="tp-skeleton-line tp-skeleton-long" />
+          {/* Skeleton LINHA 2: 4 Cards Situação do Estoque */}
+          <div className="tp-situation-cards-grid">
+            {[1, 2, 3, 4].map((idx) => (
+              <div key={idx} className="tp-situation-mini-card tp-skeleton-card" style={{ minHeight: 84 }}>
+                <div className="tp-skeleton-line tp-skeleton-short" />
+                <div className="tp-skeleton-line tp-skeleton-long" />
+              </div>
+            ))}
           </div>
 
-          {/* Skeleton Problem Cards (2 colunas) */}
+          {/* Skeleton LINHA 3: Problem Cards (2 colunas) */}
           <div className="tp-inventory-problems-grid">
             <div className="tp-card tp-skeleton-card" style={{ minHeight: 320 }}>
               <div className="tp-skeleton-line tp-skeleton-short" />
@@ -147,19 +161,25 @@ export function InventoryView({
             </div>
           </div>
 
-          {/* Skeleton Cobertura + Categorias */}
+          {/* Skeleton LINHA 4: Categorias (Saída Recente + Capital sem saída) */}
           <div className="tp-inventory-split-grid">
-            <div className="tp-card tp-skeleton-card" style={{ minHeight: 260 }}>
+            <div className="tp-card tp-skeleton-card" style={{ minHeight: 300 }}>
               <div className="tp-skeleton-line tp-skeleton-short" />
               <div className="tp-skeleton-line tp-skeleton-chart-body" />
             </div>
-            <div className="tp-card tp-skeleton-card" style={{ minHeight: 260 }}>
+            <div className="tp-card tp-skeleton-card" style={{ minHeight: 300 }}>
               <div className="tp-skeleton-line tp-skeleton-short" />
               <div className="tp-skeleton-line tp-skeleton-chart-body" />
             </div>
           </div>
 
-          {/* Skeleton Tabela */}
+          {/* Skeleton LINHA 5: Cobertura Estimada Full Width */}
+          <div className="tp-card tp-skeleton-card" style={{ minHeight: 180 }}>
+            <div className="tp-skeleton-line tp-skeleton-short" />
+            <div className="tp-skeleton-line tp-skeleton-chart-body" />
+          </div>
+
+          {/* Skeleton LINHA 6: Tabela */}
           <div className="tp-card tp-skeleton-card" style={{ minHeight: 400 }}>
             <div className="tp-skeleton-line tp-skeleton-short" />
             <div className="tp-skeleton-line tp-skeleton-chart-body" />
@@ -196,7 +216,7 @@ export function InventoryView({
         </div>
       )}
 
-      {/* 1. Grid com 4 KPIs Executivos + Situação do Estoque */}
+      {/* LINHA 1 & 2: 4 KPIs Principais + 4 Cards Situação do Estoque */}
       <InventoryKpiGrid
         summary={summary}
         dataQuality={dataQuality}
@@ -204,17 +224,16 @@ export function InventoryView({
         onSelectContextFilter={handleSelectContextFilter}
       />
 
-      {/* 2. Bloco Central: As Duas Pontas do Problema */}
+      {/* LINHA 3: Demanda sem estoque | Capital sem saída */}
       <InventoryProblemCards products={products} onViewAll={handleViewAll} />
 
-      {/* 3. Cobertura Estimada e Capital sem saída por Categoria lado a lado */}
+      {/* LINHA 4: Saída recente por categoria | Capital sem saída por categoria */}
       <div className="tp-inventory-split-grid">
-        <InventoryCoverageCard
-          distribution={coverageDistribution}
-          activeBucket={coverageBucket}
-          isNoSalesActive={selectedCategory === "ALL" && coverageBucket === null && statusFilter === "NO_SALES_IN_WINDOW"}
-          onSelectBucket={handleSelectCoverageBucket}
-          onSelectNoSales={handleSelectNoSalesCoverage}
+        <InventoryCategorySalesCard
+          categories={categories}
+          selectedCategory={selectedCategory}
+          activeStatusFilter={statusFilter}
+          onSelectCategory={handleSelectSalesCategory}
         />
         <InventoryCategoryCapitalCard
           categories={categories}
@@ -224,7 +243,16 @@ export function InventoryView({
         />
       </div>
 
-      {/* 4. Tabela Operacional Full Width com Estado Unificado */}
+      {/* LINHA 5: Cobertura estimada — FULL WIDTH */}
+      <InventoryCoverageCard
+        distribution={coverageDistribution}
+        activeBucket={coverageBucket}
+        isNoSalesActive={selectedCategory === "ALL" && coverageBucket === null && statusFilter === "NO_SALES_IN_WINDOW"}
+        onSelectBucket={handleSelectCoverageBucket}
+        onSelectNoSales={handleSelectNoSalesCoverage}
+      />
+
+      {/* LINHA 6: Saúde do estoque — FULL WIDTH */}
       <InventoryProductsTable
         products={products}
         statusFilter={statusFilter}

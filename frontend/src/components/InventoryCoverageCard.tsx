@@ -83,7 +83,7 @@ export function InventoryCoverageCard({
   ];
 
   return (
-    <section className="tp-card tp-inventory-coverage-card tp-coverage-compact" aria-label="Cobertura estimada">
+    <section className="tp-card tp-inventory-coverage-card tp-coverage-compact tp-coverage-fullwidth" aria-label="Cobertura estimada">
       <div className="tp-card-header">
         <div>
           <div className="tp-title-with-badge">

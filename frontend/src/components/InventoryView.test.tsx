@@ -5,6 +5,7 @@ import { InventoryView } from "./InventoryView";
 import { InventoryWindowSelector } from "./InventoryWindowSelector";
 import { InventoryKpiGrid } from "./InventoryKpiGrid";
 import { InventoryProblemCards } from "./InventoryProblemCards";
+import { InventoryCategorySalesCard } from "./InventoryCategorySalesCard";
 import { InventoryCoverageCard } from "./InventoryCoverageCard";
 import { InventoryCategoryCapitalCard } from "./InventoryCategoryCapitalCard";
 import { InventoryProductsTable } from "./InventoryProductsTable";
@@ -277,7 +278,7 @@ describe("InventoryView & Components", () => {
     expect(html).toContain("is-active");
   });
 
-  it("2. InventoryKpiGrid: renders 4 executive cards and SITUAÇÃO DO ESTOQUE indicators", () => {
+  it("2. InventoryKpiGrid: renders 4 executive cards and 4 independent Situação do estoque mini-cards", () => {
     const html = renderToString(
       <InventoryKpiGrid
         summary={mockData.summary}
@@ -303,8 +304,9 @@ describe("InventoryView & Components", () => {
     expect(html).toContain("Capital sem saída");
     expect(html).toContain("19,9% do capital em estoque");
 
-    // Seção Executiva: Situação do Estoque
-    expect(html).toContain("SITUAÇÃO DO ESTOQUE");
+    // LINHA 2: 4 Cards independentes de Situação do Estoque
+    expect(html).toContain("tp-situation-cards-grid");
+    expect(html).toContain("tp-situation-mini-card");
     expect(html).toContain("Estoque negativo");
     expect(html).toContain("Ativos sem estoque");
     expect(html).toContain("Inativos com estoque");
@@ -496,7 +498,7 @@ describe("InventoryView & Components", () => {
     expect(htmlSoldInWindow).not.toContain("Roda Spitfire Formula Four 54mm");
   });
 
-  it("12. InventoryView: renders full dashboard with unified interactions", () => {
+  it("12. InventoryView: renders full dashboard with 6-line layout hierarchy", () => {
     const html = renderToString(
       <InventoryView
         data={mockData}
@@ -507,12 +509,77 @@ describe("InventoryView & Components", () => {
     );
 
     expect(html).toContain("tp-inventory-section");
+    // LINHA 1: 4 KPIs principais
     expect(html).toContain("Capital atual em estoque");
+    expect(html).toContain("Valor de tabela");
+    // LINHA 2: 4 cards Situação do estoque
+    expect(html).toContain("tp-situation-cards-grid");
+    expect(html).toContain("Estoque negativo");
+    expect(html).toContain("Ativos sem estoque");
+    expect(html).toContain("Inativos com estoque");
+    expect(html).toContain("Vendidos na janela");
+    // LINHA 3: Demanda sem estoque | Capital sem saída
     expect(html).toContain("Demanda sem estoque");
     expect(html).toContain("Capital sem saída");
-    expect(html).toContain("SITUAÇÃO DO ESTOQUE");
-    expect(html).toContain("Cobertura estimada");
+    // LINHA 4: Saída recente por categoria | Capital sem saída por categoria
+    expect(html).toContain("Saída recente por categoria");
     expect(html).toContain("Capital sem saída por categoria");
+    // LINHA 5: Cobertura estimada — FULL WIDTH
+    expect(html).toContain("Cobertura estimada");
+    expect(html).toContain("tp-coverage-fullwidth");
+    // LINHA 6: Saúde do estoque — FULL WIDTH
     expect(html).toContain("Saúde do estoque");
+  });
+
+  it("13. InventoryCategorySalesCard: renders top categories sorted by realizedRevenueInWindow DESC", () => {
+    const html = renderToString(
+      <InventoryCategorySalesCard categories={mockData.categories} />,
+    );
+
+    expect(html).toContain("Saída recente por categoria");
+    expect(html).toContain("Faturamento realizado e unidades vendidas na janela");
+    expect(html).toContain("Shapes");
+    expect(html).toContain("120 un na janela");
+    expect(html).toContain("R$ 15.000,00");
+    expect(html).toContain("Rodas");
+    expect(html).toContain("60 un na janela");
+    expect(html).toContain("R$ 8.000,00");
+    expect(html).toContain("tp-cat-sales-progress-fill");
+  });
+
+  it("14. InventoryProductsTable: filters by selectedCategory + SOLD_IN_WINDOW correctly", () => {
+    const html = renderToString(
+      <InventoryProductsTable
+        products={allMockProducts}
+        selectedCategory="Rolamentos"
+        statusFilter="SOLD_IN_WINDOW"
+      />,
+    );
+
+    expect(html).toContain("Rolamento Red Bones");
+    expect(html).not.toContain("Roda Spitfire Formula Four 54mm");
+    expect(html).toContain("Categoria:");
+    expect(html).toContain("Rolamentos");
+    expect(html).toContain("Status:");
+    expect(html).toContain("Vendidos na janela");
+  });
+
+  it("15. InventoryCoverageCard: full width layout renders all buckets and NO_SALES_IN_WINDOW pill", () => {
+    const html = renderToString(
+      <InventoryCoverageCard
+        distribution={mockData.coverageDistribution}
+        activeBucket="LT_15"
+        isNoSalesActive={false}
+      />,
+    );
+
+    expect(html).toContain("tp-coverage-fullwidth");
+    expect(html).toContain("&lt; 15 dias");
+    expect(html).toContain("15–30 dias");
+    expect(html).toContain("30–45 dias");
+    expect(html).toContain("45–90 dias");
+    expect(html).toContain("&gt; 90 dias");
+    expect(html).toContain("Sem saída física na janela:");
+    expect(html).toContain("148 SKUs");
   });
 });

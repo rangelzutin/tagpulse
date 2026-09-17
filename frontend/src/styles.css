@@ -4343,7 +4343,113 @@ body {
   opacity: 0.75;
 }
 
-/* Seção Executiva: Situação do Estoque */
+/* Seção Executiva: Situação do Estoque - 4 Cards Independentes (LINHA 2) */
+.tp-situation-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--tp-space-md);
+}
+
+.tp-situation-mini-card {
+  background: var(--tp-bg-card);
+  border: 1px solid var(--tp-border-subtle);
+  border-radius: var(--tp-radius-md);
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+  box-shadow: var(--tp-shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+.tp-situation-mini-card:hover {
+  background: var(--tp-bg-card-hover);
+  border-color: var(--tp-border-medium);
+  transform: translateY(-1px);
+}
+
+.tp-situation-mini-card.is-active {
+  border-color: var(--tp-cyan);
+  background: rgba(56, 189, 248, 0.08);
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.35);
+}
+
+.tp-situation-mini-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tp-situation-mini-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--tp-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.tp-situation-mini-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  flex-shrink: 0;
+}
+
+.tp-situation-mini-icon.tp-icon-rose {
+  background: rgba(244, 63, 94, 0.12);
+  color: #f43f5e;
+  border: 1px solid rgba(244, 63, 94, 0.25);
+}
+
+.tp-situation-mini-icon.tp-icon-amber {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.tp-situation-mini-icon.tp-icon-muted {
+  background: rgba(148, 163, 184, 0.12);
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.tp-situation-mini-icon.tp-icon-cyan {
+  background: rgba(56, 189, 248, 0.12);
+  color: var(--tp-cyan);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+}
+
+.tp-situation-mini-value-wrap {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.tp-situation-mini-value {
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+.tp-situation-mini-subtext {
+  font-size: 0.6875rem;
+  color: var(--tp-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Compatibilidade retroativa */
 .tp-situation-card {
   background: var(--tp-bg-card);
   border: 1px solid var(--tp-border-subtle);
@@ -4419,7 +4525,7 @@ body {
   background: var(--tp-border-subtle);
 }
 
-/* Bloco Central: As Duas Pontas do Problema */
+/* Bloco Central: As Duas Pontas do Problema (LINHA 3) */
 .tp-inventory-problems-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -4430,7 +4536,11 @@ body {
   display: flex;
   flex-direction: column;
   gap: var(--tp-space-sm);
-  min-height: 380px;
+  height: 100%;
+}
+
+.tp-inventory-problem-card .tp-card-header {
+  min-height: 48px;
 }
 
 .tp-inventory-card-header {
@@ -4476,7 +4586,8 @@ body {
 .tp-inventory-items-list {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 8px;
+  flex: 1;
 }
 
 .tp-inventory-mini-item {
@@ -4485,6 +4596,7 @@ body {
   align-items: center;
   gap: 12px;
   padding: 8px 12px;
+  min-height: 52px;
   background: rgba(255, 255, 255, 0.015);
   border: 1px solid var(--tp-border-subtle);
   border-radius: var(--tp-radius-sm);
@@ -4644,11 +4756,26 @@ body {
   gap: var(--tp-space-md);
 }
 
-.tp-inventory-coverage-card,
+.tp-inventory-coverage-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tp-space-sm);
+}
+
+.tp-coverage-fullwidth {
+  width: 100%;
+  min-height: auto;
+}
+
 .tp-inventory-category-card {
   display: flex;
   flex-direction: column;
-  min-height: 380px;
+  gap: var(--tp-space-sm);
+  height: 100%;
+}
+
+.tp-inventory-category-card .tp-card-header {
+  min-height: 48px;
 }
 
 .tp-help-tooltip-icon {
@@ -5050,6 +5177,124 @@ body {
 .tp-clickable-idle.is-selected-fill {
   box-shadow: 0 0 8px #f43f5e;
   outline: 1px solid #fff;
+}
+
+/* Card: Saída recente por categoria (LINHA 4) */
+.tp-category-sales-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  flex: 1;
+}
+
+.tp-cat-sales-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: padding 0.15s ease;
+}
+
+.tp-cat-sales-item.is-category-active {
+  border-left: 2px solid var(--tp-cyan);
+  padding-left: 6px;
+  margin-left: -6px;
+}
+
+.tp-cat-sales-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.tp-cat-sales-left-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.tp-cat-sales-left-btn:hover .tp-cat-sales-name {
+  color: var(--tp-cyan);
+  text-decoration: underline;
+}
+
+.tp-cat-sales-left-btn.is-active .tp-cat-sales-name {
+  color: var(--tp-cyan);
+  font-weight: 700;
+}
+
+.tp-cat-sales-name {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--tp-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color 0.15s ease;
+}
+
+.tp-cat-sales-count {
+  font-size: 0.6875rem;
+  color: var(--tp-text-muted);
+  white-space: nowrap;
+}
+
+.tp-cat-sales-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.tp-cat-sales-revenue-btn {
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--tp-text-primary);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.tp-cat-sales-revenue-btn:hover {
+  color: var(--tp-cyan);
+}
+
+.tp-cat-sales-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #0284c7 0%, #38bdf8 100%);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+/* Card: Cobertura Estimada - FULL WIDTH (LINHA 5) */
+.tp-coverage-fullwidth .tp-coverage-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tp-coverage-fullwidth .tp-coverage-legend-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.tp-coverage-fullwidth .tp-coverage-legend-item {
+  min-height: 58px;
+  padding: 7px 9px;
 }
 
 /* Tabela Saúde do Estoque */
@@ -5578,6 +5823,10 @@ body {
 
 /* Responsividade Estoque & Giro */
 @media (max-width: 1080px) {
+  .tp-situation-cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
   .tp-inventory-problems-grid {
     grid-template-columns: 1fr;
   }
@@ -5586,7 +5835,8 @@ body {
     grid-template-columns: 1fr;
   }
 
-  .tp-coverage-legend-grid {
+  .tp-coverage-legend-grid,
+  .tp-coverage-fullwidth .tp-coverage-legend-grid {
     grid-template-columns: repeat(3, 1fr);
   }
 }
@@ -5597,7 +5847,8 @@ body {
     justify-content: space-between;
   }
 
-  .tp-coverage-legend-grid {
+  .tp-coverage-legend-grid,
+  .tp-coverage-fullwidth .tp-coverage-legend-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 
@@ -5615,5 +5866,16 @@ body {
   .tp-table-category-select {
     width: 100%;
     max-width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .tp-situation-cards-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tp-coverage-legend-grid,
+  .tp-coverage-fullwidth .tp-coverage-legend-grid {
+    grid-template-columns: 1fr;
   }
 }

@@ -1,4 +1,12 @@
-import { DollarSign, Tag, AlertTriangle, Clock } from "lucide-react";
+import {
+  DollarSign,
+  Tag,
+  AlertTriangle,
+  Clock,
+  AlertOctagon,
+  PackageMinus,
+  TrendingUp,
+} from "lucide-react";
 import type {
   InventoryDataQuality,
   InventoryOverviewSummary,
@@ -23,6 +31,7 @@ export function InventoryKpiGrid({
 }: InventoryKpiGridProps) {
   return (
     <section className="tp-kpi-section tp-inventory-kpi-section" aria-label="Indicadores de Estoque e Giro">
+      {/* LINHA 1 — 4 KPIs Principais */}
       <div className="tp-kpi-grid">
         {/* KPI 1 — Capital atual em estoque */}
         <article className="tp-kpi-card tp-kpi-highlight">
@@ -101,70 +110,102 @@ export function InventoryKpiGrid({
         </article>
       </div>
 
-      {/* Seção Executiva: SITUAÇÃO DO ESTOQUE com indicadores acionáveis */}
+      {/* LINHA 2 — 4 Cards Independentes: Situação do Estoque */}
       <div
-        className="tp-situation-card"
+        className="tp-situation-cards-grid"
         aria-label="Situação do estoque"
       >
-        <div className="tp-situation-header">
-          <span className="tp-situation-title">SITUAÇÃO DO ESTOQUE</span>
-        </div>
-
-        <div className="tp-situation-grid">
-          <button
-            type="button"
-            className={`tp-situation-item ${activeFilter === "NEGATIVE_STOCK" ? "is-active" : ""}`}
-            onClick={() => onSelectContextFilter?.("NEGATIVE_STOCK")}
-            title="Filtrar estoque negativo na tabela"
-          >
-            <strong className="tp-situation-val tp-val-rose">
+        {/* Mini-card 1: Estoque negativo */}
+        <button
+          type="button"
+          className={`tp-situation-mini-card ${activeFilter === "NEGATIVE_STOCK" ? "is-active" : ""}`}
+          onClick={() => onSelectContextFilter?.("NEGATIVE_STOCK")}
+          title="Filtrar estoque negativo na tabela"
+        >
+          <div className="tp-situation-mini-header">
+            <span className="tp-situation-mini-label">Estoque negativo</span>
+            <span className="tp-situation-mini-icon tp-icon-rose">
+              <AlertOctagon size={14} />
+            </span>
+          </div>
+          <div className="tp-situation-mini-value-wrap">
+            <strong className="tp-situation-mini-value tp-val-rose">
               {formatNumber(dataQuality.negativeStockCount)}
             </strong>
-            <span className="tp-situation-label">Estoque negativo</span>
-          </button>
+          </div>
+          <span className="tp-situation-mini-subtext">
+            SKUs com saldo negativo
+          </span>
+        </button>
 
-          <div className="tp-situation-divider" aria-hidden="true" />
-
-          <button
-            type="button"
-            className={`tp-situation-item ${activeFilter === "ACTIVE_WITHOUT_STOCK" ? "is-active" : ""}`}
-            onClick={() => onSelectContextFilter?.("ACTIVE_WITHOUT_STOCK")}
-            title="Filtrar ativos sem estoque na tabela"
-          >
-            <strong className="tp-situation-val tp-val-amber">
+        {/* Mini-card 2: Ativos sem estoque */}
+        <button
+          type="button"
+          className={`tp-situation-mini-card ${activeFilter === "ACTIVE_WITHOUT_STOCK" ? "is-active" : ""}`}
+          onClick={() => onSelectContextFilter?.("ACTIVE_WITHOUT_STOCK")}
+          title="Filtrar ativos sem estoque na tabela"
+        >
+          <div className="tp-situation-mini-header">
+            <span className="tp-situation-mini-label">Ativos sem estoque</span>
+            <span className="tp-situation-mini-icon tp-icon-amber">
+              <AlertTriangle size={14} />
+            </span>
+          </div>
+          <div className="tp-situation-mini-value-wrap">
+            <strong className="tp-situation-mini-value tp-val-amber">
               {formatNumber(dataQuality.activeWithoutStockCount)}
             </strong>
-            <span className="tp-situation-label">Ativos sem estoque</span>
-          </button>
+          </div>
+          <span className="tp-situation-mini-subtext">
+            Ativos com saldo zerado
+          </span>
+        </button>
 
-          <div className="tp-situation-divider" aria-hidden="true" />
-
-          <button
-            type="button"
-            className={`tp-situation-item ${activeFilter === "INACTIVE_WITH_STOCK" ? "is-active" : ""}`}
-            onClick={() => onSelectContextFilter?.("INACTIVE_WITH_STOCK")}
-            title="Filtrar inativos com estoque na tabela"
-          >
-            <strong className="tp-situation-val tp-val-muted">
+        {/* Mini-card 3: Inativos com estoque */}
+        <button
+          type="button"
+          className={`tp-situation-mini-card ${activeFilter === "INACTIVE_WITH_STOCK" ? "is-active" : ""}`}
+          onClick={() => onSelectContextFilter?.("INACTIVE_WITH_STOCK")}
+          title="Filtrar inativos com estoque na tabela"
+        >
+          <div className="tp-situation-mini-header">
+            <span className="tp-situation-mini-label">Inativos com estoque</span>
+            <span className="tp-situation-mini-icon tp-icon-muted">
+              <PackageMinus size={14} />
+            </span>
+          </div>
+          <div className="tp-situation-mini-value-wrap">
+            <strong className="tp-situation-mini-value tp-val-muted">
               {formatNumber(dataQuality.inactiveWithStockCount)}
             </strong>
-            <span className="tp-situation-label">Inativos com estoque</span>
-          </button>
+          </div>
+          <span className="tp-situation-mini-subtext">
+            Inativos com capital parado
+          </span>
+        </button>
 
-          <div className="tp-situation-divider" aria-hidden="true" />
-
-          <button
-            type="button"
-            className={`tp-situation-item ${activeFilter === "SOLD_IN_WINDOW" ? "is-active" : ""}`}
-            onClick={() => onSelectContextFilter?.("SOLD_IN_WINDOW")}
-            title="Filtrar produtos vendidos na janela na tabela"
-          >
-            <strong className="tp-situation-val tp-val-cyan">
+        {/* Mini-card 4: Vendidos na janela */}
+        <button
+          type="button"
+          className={`tp-situation-mini-card ${activeFilter === "SOLD_IN_WINDOW" ? "is-active" : ""}`}
+          onClick={() => onSelectContextFilter?.("SOLD_IN_WINDOW")}
+          title="Filtrar produtos vendidos na janela na tabela"
+        >
+          <div className="tp-situation-mini-header">
+            <span className="tp-situation-mini-label">Vendidos na janela</span>
+            <span className="tp-situation-mini-icon tp-icon-cyan">
+              <TrendingUp size={14} />
+            </span>
+          </div>
+          <div className="tp-situation-mini-value-wrap">
+            <strong className="tp-situation-mini-value tp-val-cyan">
               {formatNumber(summary.productsSoldInWindow)}
             </strong>
-            <span className="tp-situation-label">Vendidos na janela</span>
-          </button>
-        </div>
+          </div>
+          <span className="tp-situation-mini-subtext">
+            Com saída física recente
+          </span>
+        </button>
       </div>
     </section>
   );
