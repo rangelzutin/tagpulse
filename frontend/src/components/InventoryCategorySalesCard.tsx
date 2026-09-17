@@ -3,14 +3,14 @@ import { formatCurrency, formatNumber } from "../utils/formatters";
 
 interface InventoryCategorySalesCardProps {
   categories: InventoryCategoryItem[];
-  selectedCategory?: string;
+  selectedCategorySourceId?: string | null;
   activeStatusFilter?: string;
-  onSelectCategory?: (category: string) => void;
+  onSelectCategory?: (categorySourceId: string | null) => void;
 }
 
 export function InventoryCategorySalesCard({
   categories,
-  selectedCategory,
+  selectedCategorySourceId,
   activeStatusFilter,
   onSelectCategory,
 }: InventoryCategorySalesCardProps) {
@@ -54,12 +54,13 @@ export function InventoryCategorySalesCard({
                 : 0;
 
             const isCatSelected =
-              selectedCategory === cat.category &&
+              Boolean(selectedCategorySourceId) &&
+              selectedCategorySourceId === cat.categorySourceId &&
               activeStatusFilter === "SOLD_IN_WINDOW";
 
             return (
               <div
-                key={cat.category}
+                key={cat.categorySourceId ?? cat.category}
                 className={`tp-cat-sales-item ${
                   isCatSelected ? "is-category-active" : ""
                 }`}
@@ -71,7 +72,7 @@ export function InventoryCategorySalesCard({
                     className={`tp-cat-sales-left-btn ${
                       isCatSelected ? "is-active" : ""
                     }`}
-                    onClick={() => onSelectCategory?.(cat.category)}
+                    onClick={() => onSelectCategory?.(cat.categorySourceId)}
                     title={`Filtrar produtos vendidos de ${
                       cat.category || "Sem categoria"
                     }`}

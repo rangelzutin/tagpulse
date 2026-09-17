@@ -9,19 +9,93 @@ import { InventoryCategorySalesCard } from "./InventoryCategorySalesCard";
 import { InventoryCoverageCard } from "./InventoryCoverageCard";
 import { InventoryCategoryCapitalCard } from "./InventoryCategoryCapitalCard";
 import { InventoryProductsTable } from "./InventoryProductsTable";
-import { InventoryCategoryCombobox } from "./InventoryCategoryCombobox";
+import { InventoryCategoryTreeSelector } from "./InventoryCategoryTreeSelector";
 import type {
+  CategoryTreeResult,
   InventoryOverviewResult,
   InventoryProductItem,
 } from "../api/bi";
 
 describe("InventoryView & Components", () => {
+  const mockCategoryTree: CategoryTreeResult = {
+    categories: [
+      {
+        sourceId: "49",
+        description: "1 - NINECLOUDS",
+        parentSourceId: null,
+        directProductCount: 0,
+        descendantProductCount: 2,
+        children: [
+          {
+            sourceId: "50",
+            description: "Shapes",
+            parentSourceId: "49",
+            directProductCount: 1,
+            descendantProductCount: 1,
+            children: [],
+          },
+          {
+            sourceId: "60",
+            description: "Rodas",
+            parentSourceId: "49",
+            directProductCount: 1,
+            descendantProductCount: 1,
+            children: [],
+          },
+        ],
+      },
+      {
+        sourceId: "78",
+        description: "2 - DESTRUX",
+        parentSourceId: null,
+        directProductCount: 0,
+        descendantProductCount: 1,
+        children: [
+          {
+            sourceId: "70",
+            description: "Trucks",
+            parentSourceId: "78",
+            directProductCount: 1,
+            descendantProductCount: 1,
+            children: [],
+          },
+        ],
+      },
+      {
+        sourceId: "77",
+        description: "3 - HUSTLER",
+        parentSourceId: null,
+        directProductCount: 1,
+        descendantProductCount: 2,
+        children: [
+          {
+            sourceId: "90",
+            description: "Rolamentos",
+            parentSourceId: "77",
+            directProductCount: 1,
+            descendantProductCount: 1,
+            children: [],
+          },
+        ],
+      },
+      {
+        sourceId: "48",
+        description: "X - DESATIVADOS",
+        parentSourceId: null,
+        directProductCount: 0,
+        descendantProductCount: 0,
+        children: [],
+      },
+    ],
+  };
+
   const mockProductWithDemand: InventoryProductItem = {
     productId: "p-1",
     sourceProductId: "101",
     code: "SKU-001",
     description: "Shape Nineclouds Maple 8.0",
     category: "Shapes",
+    categorySourceId: "50",
     active: true,
     currentStock: 0,
     effectiveCost: 80,
@@ -45,6 +119,7 @@ describe("InventoryView & Components", () => {
     code: "SKU-002",
     description: "Roda Spitfire Formula Four 54mm",
     category: "Rodas",
+    categorySourceId: "60",
     active: true,
     currentStock: 12,
     effectiveCost: 120,
@@ -68,6 +143,7 @@ describe("InventoryView & Components", () => {
     code: "SKU-003",
     description: "Truck Independent 139 Stage 11",
     category: "Trucks",
+    categorySourceId: "70",
     active: false,
     currentStock: 5,
     effectiveCost: 200,
@@ -91,6 +167,7 @@ describe("InventoryView & Components", () => {
     code: "SKU-004",
     description: "Lixa Jessup Ultra Grip",
     category: "Acessórios",
+    categorySourceId: "80",
     active: true,
     currentStock: -3,
     effectiveCost: 25,
@@ -114,6 +191,7 @@ describe("InventoryView & Components", () => {
     code: "SKU-005",
     description: "Rolamento Red Bones",
     category: "Rolamentos",
+    categorySourceId: "90",
     active: true,
     currentStock: 20,
     effectiveCost: 60,
@@ -137,6 +215,7 @@ describe("InventoryView & Components", () => {
     code: "SKU-006",
     description: "Tênis Skate Pro Low",
     category: "Tenis",
+    categorySourceId: "100",
     active: true,
     currentStock: 3,
     effectiveCost: 150,
@@ -160,6 +239,7 @@ describe("InventoryView & Components", () => {
     code: "SKU-007",
     description: "Shape Hustler - Completo",
     category: "3 - HUSTLER",
+    categorySourceId: "77",
     active: false,
     currentStock: 0,
     effectiveCost: 80,
@@ -221,6 +301,7 @@ describe("InventoryView & Components", () => {
     categories: [
       {
         category: "Shapes",
+        categorySourceId: "50",
         products: 50,
         productsWithStock: 45,
         stockUnits: 320,
@@ -238,6 +319,7 @@ describe("InventoryView & Components", () => {
       },
       {
         category: "Rodas",
+        categorySourceId: "60",
         products: 30,
         productsWithStock: 25,
         stockUnits: 150,
@@ -364,11 +446,12 @@ describe("InventoryView & Components", () => {
     expect(html).toContain("tp-cat-capital-idle-btn");
   });
 
-  it("6. InventoryProductsTable: renders combobox, table headers, and correct badges", () => {
+  it("6. InventoryProductsTable: renders tree selector trigger, table headers, and correct badges", () => {
     const html = renderToString(
       <InventoryProductsTable
         products={mockData.products}
         statusFilter="ALL"
+        categoryTree={mockCategoryTree.categories}
       />,
     );
 
@@ -382,8 +465,8 @@ describe("InventoryView & Components", () => {
     expect(html).toContain("ÚLTIMA SAÍDA");
     expect(html).toContain("COBERTURA");
 
-    // Verifica combobox de categorias
-    expect(html).toContain("tp-combobox-trigger");
+    // Verifica seletor hierárquico de categorias
+    expect(html).toContain("tp-tree-trigger");
     expect(html).toContain("Todas as categorias");
 
     // Verifica que STOCK_WITH_SALES não vira badge poluída
@@ -424,11 +507,12 @@ describe("InventoryView & Components", () => {
     expect(html).toContain("Limpar filtros");
   });
 
-  it("9. InventoryProductsTable: filters by selectedCategory correctly with exact match", () => {
+  it("9. InventoryProductsTable: filters by selectedCategorySourceId correctly with exact match", () => {
     const html = renderToString(
       <InventoryProductsTable
         products={allMockProducts}
-        selectedCategory="Shapes"
+        categoryTree={mockCategoryTree.categories}
+        selectedCategorySourceId="50"
       />,
     );
 
@@ -439,11 +523,12 @@ describe("InventoryView & Components", () => {
     expect(html).toContain("Limpar filtros");
   });
 
-  it("10. InventoryProductsTable: filters by selectedCategory + NO_SALES_IN_WINDOW (clique no vermelho)", () => {
+  it("10. InventoryProductsTable: filters by selectedCategorySourceId + NO_SALES_IN_WINDOW (clique no vermelho)", () => {
     const html = renderToString(
       <InventoryProductsTable
         products={allMockProducts}
-        selectedCategory="Rodas"
+        categoryTree={mockCategoryTree.categories}
+        selectedCategorySourceId="60"
         statusFilter="NO_SALES_IN_WINDOW"
       />,
     );
@@ -547,11 +632,12 @@ describe("InventoryView & Components", () => {
     expect(html).toContain("tp-cat-sales-progress-fill");
   });
 
-  it("14. InventoryProductsTable: filters by selectedCategory + SOLD_IN_WINDOW correctly", () => {
+  it("14. InventoryProductsTable: filters by selectedCategorySourceId + SOLD_IN_WINDOW correctly", () => {
     const html = renderToString(
       <InventoryProductsTable
         products={allMockProducts}
-        selectedCategory="Rolamentos"
+        categoryTree={mockCategoryTree.categories}
+        selectedCategorySourceId="90"
         statusFilter="SOLD_IN_WINDOW"
       />,
     );
@@ -581,5 +667,130 @@ describe("InventoryView & Components", () => {
     expect(html).toContain("&gt; 90 dias");
     expect(html).toContain("Sem saída física na janela:");
     expect(html).toContain("148 SKUs");
+  });
+
+  it("C. Nenhum estado legado selectedCategory permanece influenciando a tabela", () => {
+    // Quando selectedCategorySourceId é null, todos os produtos aparecem sem filtro textual fantasma
+    const html = renderToString(
+      <InventoryProductsTable
+        products={allMockProducts}
+        categoryTree={mockCategoryTree.categories}
+        selectedCategorySourceId={null}
+      />,
+    );
+
+    expect(html).toContain("Shape Nineclouds Maple 8.0");
+    expect(html).toContain("Roda Spitfire Formula Four 54mm");
+    expect(html).toContain("Truck Independent 139 Stage 11");
+    expect(html).toContain("Lixa Jessup Ultra Grip");
+    expect(html).toContain("Rolamento Red Bones");
+    expect(html).toContain("Tênis Skate Pro Low");
+    expect(html).toContain("Shape Hustler - Completo");
+    // Não pode conter filtro ativo de categoria
+    expect(html).not.toContain("Categoria:");
+  });
+
+  it("E. Clique de card troca corretamente categorySourceId e não deixa filtro textual anterior oculto", () => {
+    // Ambos os cards enviam categorySourceId no callback
+    let selectedId: string | null = null;
+    const handleSelect = (id: string | null) => {
+      selectedId = id;
+    };
+
+    const salesHtml = renderToString(
+      <InventoryCategorySalesCard
+        categories={mockData.categories}
+        selectedCategorySourceId="50"
+        activeStatusFilter="SOLD_IN_WINDOW"
+        onSelectCategory={handleSelect}
+      />,
+    );
+    expect(salesHtml).toContain("is-category-active");
+
+    const capitalHtml = renderToString(
+      <InventoryCategoryCapitalCard
+        categories={mockData.categories}
+        selectedCategorySourceId="60"
+        onSelectCategory={handleSelect}
+      />,
+    );
+    expect(capitalHtml).toContain("is-category-active");
+  });
+
+  it("F. selectedCategorySourceId = null mostra todos os Products independentemente de a categoria estar ou não sourcePresent", () => {
+    const productOrphan: InventoryProductItem = {
+      ...mockProductWithDemand,
+      productId: "p-orphan",
+      sourceProductId: "999",
+      description: "Shape Antigo Categoria Removida",
+      categorySourceId: "999-not-in-tree",
+      category: "Categoria Descontinuada",
+    };
+
+    const html = renderToString(
+      <InventoryProductsTable
+        products={[...allMockProducts, productOrphan]}
+        categoryTree={mockCategoryTree.categories}
+        selectedCategorySourceId={null}
+      />,
+    );
+
+    // Produto com categoria fora da árvore sourcePresent deve aparecer normalmente quando filtro é null
+    expect(html).toContain("Shape Antigo Categoria Removida");
+  });
+
+  it("Hierarquia de Categorias: seleção da raiz inclui todos os produtos descendentes da subárvore (cascata)", () => {
+    // Raiz "1 - NINECLOUDS" (sourceId "49") possui filhos Shapes ("50") e Rodas ("60")
+    const html = renderToString(
+      <InventoryProductsTable
+        products={allMockProducts}
+        categoryTree={mockCategoryTree.categories}
+        selectedCategorySourceId="49"
+      />,
+    );
+
+    // Filhos devem estar presentes
+    expect(html).toContain("Shape Nineclouds Maple 8.0"); // Shapes (50)
+    expect(html).toContain("Roda Spitfire Formula Four 54mm"); // Rodas (60)
+    // Produtos de outros ramos NÃO devem estar presentes
+    expect(html).not.toContain("Truck Independent 139 Stage 11"); // Trucks (70)
+    expect(html).not.toContain("Rolamento Red Bones"); // Rolamentos (90)
+    expect(html).toContain("Categoria: <strong>1 - NINECLOUDS</strong>");
+  });
+
+  it("Hierarquia de Categorias: seleção da raiz HUSTLER inclui produtos diretos da raiz E de filhos", () => {
+    // Raiz "3 - HUSTLER" (77) possui produto direto (Shape Hustler - Completo, 77) e filho Rolamentos (90)
+    const html = renderToString(
+      <InventoryProductsTable
+        products={allMockProducts}
+        categoryTree={mockCategoryTree.categories}
+        selectedCategorySourceId="77"
+      />,
+    );
+
+    expect(html).toContain("Shape Hustler - Completo"); // Direto na raiz 77
+    expect(html).toContain("Rolamento Red Bones"); // Filho 90
+    expect(html).not.toContain("Shape Nineclouds Maple 8.0");
+    expect(html).toContain("Categoria: <strong>3 - HUSTLER</strong>");
+  });
+
+  it("Hierarquia de Categorias: seletor exibe 4 raízes e categorias com 0 produtos sem ocultá-las", () => {
+    const html = renderToString(
+      <InventoryCategoryTreeSelector
+        categories={mockCategoryTree.categories}
+        selectedCategorySourceId={null}
+        onSelectCategorySourceId={() => {}}
+        initialOpen={true}
+      />,
+    );
+
+    expect(html).toContain("1 - NINECLOUDS");
+    expect(html).toContain("2 - DESTRUX");
+    expect(html).toContain("3 - HUSTLER");
+    expect(html).toContain("X - DESATIVADOS");
+    // X - DESATIVADOS tem 0 produtos e deve exibir badge is-zero com 0 prod.
+    expect(html).toContain("is-zero");
+    expect(html).toContain("0");
+    expect(html).toContain("prod.");
   });
 });

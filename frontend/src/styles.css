@@ -5546,6 +5546,107 @@ body {
   color: var(--tp-text-muted);
 }
 
+/* Tree Selector Styles */
+.tp-tree-popover {
+  min-width: 320px;
+  max-width: 420px;
+  max-height: 400px;
+}
+
+.tp-tree-options-list {
+  max-height: 330px;
+}
+
+.tp-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-right: 8px;
+}
+
+.tp-tree-chevron-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--tp-text-muted);
+  cursor: pointer;
+  border-radius: 3px;
+  flex-shrink: 0;
+  transition: background 0.1s ease, color 0.1s ease;
+}
+
+.tp-tree-chevron-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--tp-text-primary);
+}
+
+.tp-tree-chevron-icon {
+  transition: transform 0.15s ease;
+}
+
+.tp-tree-chevron-icon.is-rotated {
+  transform: rotate(90deg);
+}
+
+.tp-tree-chevron-spacer {
+  display: inline-block;
+  width: 18px;
+  flex-shrink: 0;
+}
+
+.tp-tree-select-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  color: inherit;
+  font-size: inherit;
+  font-family: inherit;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.tp-tree-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tp-tree-count-badge {
+  font-size: 0.68rem;
+  color: var(--tp-text-muted);
+  margin-left: 8px;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.tp-tree-count-badge.is-zero {
+  opacity: 0.45;
+}
+
+.tp-tree-row.is-search-match .tp-tree-text {
+  color: var(--tp-cyan);
+  font-weight: 600;
+}
+
+.tp-tree-all-option {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 4px;
+  padding-bottom: 7px;
+}
+
 /* Faixa de Contexto de Filtros Ativos na Tabela */
 .tp-table-active-context-bar {
   display: flex;

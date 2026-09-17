@@ -500,6 +500,7 @@ export interface InventoryProductItem {
   code: string;
   description: string;
   category: string;
+  categorySourceId: string | null;
   active: boolean;
   currentStock: number;
   effectiveCost: number;
@@ -518,6 +519,7 @@ export interface InventoryProductItem {
 }
 
 export interface InventoryCategoryItem {
+  categorySourceId: string | null;
   category: string;
   products: number;
   productsWithStock: number;
@@ -533,6 +535,19 @@ export interface InventoryCategoryItem {
   demandWithoutStockCount: number;
   lowCoverageCount: number;
   aggregatedEstimatedDaysOfStock: number | null;
+}
+
+export interface CategoryTreeNode {
+  sourceId: string;
+  description: string;
+  parentSourceId: string | null;
+  directProductCount: number;
+  descendantProductCount: number;
+  children: CategoryTreeNode[];
+}
+
+export interface CategoryTreeResult {
+  categories: CategoryTreeNode[];
 }
 
 export interface InventoryDataQuality {

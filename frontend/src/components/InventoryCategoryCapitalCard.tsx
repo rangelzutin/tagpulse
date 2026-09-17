@@ -3,14 +3,14 @@ import { formatCurrency, formatNumber } from "../utils/formatters";
 
 interface InventoryCategoryCapitalCardProps {
   categories: InventoryCategoryItem[];
-  selectedCategory?: string;
+  selectedCategorySourceId?: string | null;
   activeStatusFilter?: string;
-  onSelectCategory?: (category: string, onlyNoSales?: boolean) => void;
+  onSelectCategory?: (categorySourceId: string | null, onlyNoSales?: boolean) => void;
 }
 
 export function InventoryCategoryCapitalCard({
   categories,
-  selectedCategory,
+  selectedCategorySourceId,
   activeStatusFilter,
   onSelectCategory,
 }: InventoryCategoryCapitalCardProps) {
@@ -44,13 +44,15 @@ export function InventoryCategoryCapitalCard({
             const widthPercent =
               maxCapital > 0 ? (cat.inventoryCostValue / maxCapital) * 100 : 0;
             const noSalesShare = Math.min(100, Math.max(0, cat.capitalWithoutSalesShare));
-            const isCatSelected = selectedCategory === cat.category;
+            const isCatSelected =
+              Boolean(selectedCategorySourceId) &&
+              selectedCategorySourceId === cat.categorySourceId;
             const isIdleSelected = isCatSelected && activeStatusFilter === "NO_SALES_IN_WINDOW";
             const isAllCatSelected = isCatSelected && activeStatusFilter !== "NO_SALES_IN_WINDOW";
 
             return (
               <div
-                key={cat.category}
+                key={cat.categorySourceId ?? cat.category}
                 className={`tp-cat-capital-item ${isCatSelected ? "is-category-active" : ""}`}
               >
                 <div className="tp-cat-capital-header">
@@ -58,7 +60,7 @@ export function InventoryCategoryCapitalCard({
                   <button
                     type="button"
                     className={`tp-cat-capital-left-btn ${isAllCatSelected ? "is-active" : ""}`}
-                    onClick={() => onSelectCategory?.(cat.category, false)}
+                    onClick={() => onSelectCategory?.(cat.categorySourceId, false)}
                     title={`Filtrar todos os produtos de ${cat.category || "Sem categoria"}`}
                   >
                     <span className="tp-cat-capital-name" title={cat.category || "Sem categoria"}>
@@ -74,7 +76,7 @@ export function InventoryCategoryCapitalCard({
                     <button
                       type="button"
                       className="tp-cat-capital-total-btn"
-                      onClick={() => onSelectCategory?.(cat.category, false)}
+                      onClick={() => onSelectCategory?.(cat.categorySourceId, false)}
                       title={`Filtrar categoria ${cat.category || "Sem categoria"}`}
                     >
                       {formatCurrency(cat.inventoryCostValue)}
@@ -85,7 +87,7 @@ export function InventoryCategoryCapitalCard({
                         className={`tp-cat-capital-idle-btn ${isIdleSelected ? "is-active" : ""}`}
                         onClick={(e) => {
                           e.stopPropagation();
-                          onSelectCategory?.(cat.category, true);
+                          onSelectCategory?.(cat.categorySourceId, true);
                         }}
                         title={`Filtrar apenas produtos de ${cat.category || "Sem categoria"} sem saída na janela`}
                       >

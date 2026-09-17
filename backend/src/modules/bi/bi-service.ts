@@ -94,6 +94,10 @@ export interface BiService {
     windowDaysParam?: unknown,
     internalAsOfDateOverride?: string,
   ): Promise<BiInventoryOverviewResult>;
+  getCategoryTree(): Promise<
+    | { success: true; data: import("./bi-types.js").CategoryTreeResult }
+    | { success: false; error: string }
+  >;
 }
 
 function parseCustomerDocumentType(
@@ -1025,6 +1029,21 @@ export function createBiService(
       });
 
       return { success: true, data };
+    },
+
+    async getCategoryTree() {
+      try {
+        const data = await repository.findCategoryTree();
+        return { success: true as const, data };
+      } catch (err: unknown) {
+        return {
+          success: false as const,
+          error:
+            err instanceof Error
+              ? err.message
+              : "Erro ao carregar árvore de categorias.",
+        };
+      }
     },
   };
 }

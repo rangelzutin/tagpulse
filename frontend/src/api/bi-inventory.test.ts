@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import {
+  fetchCategoryTree,
   fetchInventoryOverview,
   type InventoryOverviewResult,
 } from "./bi";
@@ -47,6 +48,7 @@ describe("Estoque & Giro Frontend — API Client", () => {
         code: "SKU-101",
         description: "Shape Nineclouds Maple 8.0",
         category: "Shapes",
+        categorySourceId: "51",
         active: true,
         currentStock: 10,
         effectiveCost: 100,
@@ -66,6 +68,7 @@ describe("Estoque & Giro Frontend — API Client", () => {
     ],
     categories: [
       {
+        categorySourceId: "51",
         category: "Shapes",
         products: 50,
         productsWithStock: 45,
@@ -144,5 +147,41 @@ describe("Estoque & Giro Frontend — API Client", () => {
     await expect(
       fetchInventoryOverview(90, controller.signal),
     ).rejects.toThrow(abortErr);
+  });
+
+  it("fetchCategoryTree calls GET /bi/categories/tree and returns tree structure", async () => {
+    const mockTree = {
+      categories: [
+        {
+          sourceId: "49",
+          description: "1 - NINECLOUDS",
+          parentSourceId: null,
+          directProductCount: 0,
+          descendantProductCount: 1342,
+          children: [],
+        },
+      ],
+    };
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => mockTree,
+    } as Response);
+
+    const result = await fetchCategoryTree();
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy.mock.calls[0][0]).toContain("/bi/categories/tree");
+    expect(result.categories).toHaveLength(1);
+    expect(result.categories[0].sourceId).toBe("49");
+  });
+
+  it("fetchCategoryTree throws friendly error on network failure", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(
+      new Error("Network connection lost"),
+    );
+
+    await expect(fetchCategoryTree()).rejects.toThrow(
+      "Não foi possível conectar ao servidor para carregar a árvore de categorias.",
+    );
   });
 });

@@ -9,12 +9,15 @@ import type {
   BiPeriodCustomerDoc,
   BiSaleRealizationRecord,
   BiSaleRecord,
+  CategoryTreeNode,
+  CategoryTreeResult,
   ProductReconciliationAdjustment,
   RealizedProductMovement,
 } from "./bi-types.js";
 
 export interface BiRepository {
   findRealizedSales(from: Date, toExclusive: Date): Promise<BiSaleRecord[]>;
+  findCategoryTree(): Promise<CategoryTreeResult>;
   findDataRange?(): Promise<BiDataRangeResult>;
   findPeriodCustomerDocuments?(
     from: Date,
@@ -521,6 +524,7 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
           code: true,
           description: true,
           categoryDescription: true,
+          categorySourceId: true,
           active: true,
           sourcePresent: true,
           stockQuantity: true,
@@ -538,6 +542,7 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
         code: p.code,
         description: p.description,
         categoryDescription: p.categoryDescription,
+        categorySourceId: p.categorySourceId,
         active: p.active,
         sourcePresent: p.sourcePresent,
         stockQuantity:
@@ -552,6 +557,101 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
         stockMaxQuantity:
           p.stockMaxQuantity !== null ? Number(p.stockMaxQuantity) : null,
       }));
+    },
+
+    async findCategoryTree(): Promise<CategoryTreeResult> {
+      const connection = await prisma.tagPlusConnection.findFirst({
+        where: { status: "ACTIVE" },
+        select: { id: true },
+      });
+
+      if (!connection) {
+        return { categories: [] };
+      }
+
+      const connectionId = connection.id;
+
+      // 1. Busca todas as categorias da conexão com sourcePresent = true
+      const dbCategories = await prisma.category.findMany({
+        where: { connectionId, sourcePresent: true },
+        select: {
+          sourceId: true,
+          description: true,
+          parentSourceId: true,
+        },
+        orderBy: { description: "asc" },
+      });
+
+      // 2. Busca contagem de produtos associados diretamente a cada categoria (connection-scoped)
+      const products = await prisma.product.findMany({
+        where: { connectionId },
+        select: { categorySourceId: true },
+      });
+
+      const directCountMap = new Map<string, number>();
+      for (const p of products) {
+        if (p.categorySourceId) {
+          directCountMap.set(
+            p.categorySourceId,
+            (directCountMap.get(p.categorySourceId) || 0) + 1,
+          );
+        }
+      }
+
+      // 3. Monta nós internos
+      const nodeMap = new Map<string, CategoryTreeNode>();
+      for (const cat of dbCategories) {
+        nodeMap.set(cat.sourceId, {
+          sourceId: cat.sourceId,
+          description: cat.description,
+          parentSourceId: cat.parentSourceId,
+          directProductCount: directCountMap.get(cat.sourceId) || 0,
+          descendantProductCount: 0,
+          children: [],
+        });
+      }
+
+      // 4. Conecta pais e filhos
+      const roots: CategoryTreeNode[] = [];
+      for (const node of nodeMap.values()) {
+        if (node.parentSourceId && nodeMap.has(node.parentSourceId)) {
+          const parent = nodeMap.get(node.parentSourceId)!;
+          parent.children.push(node);
+        } else {
+          roots.push(node);
+        }
+      }
+
+      // 5. Calcula descendantProductCount recursivamente
+      function computeDescendants(node: CategoryTreeNode): number {
+        let total = node.directProductCount;
+        for (const child of node.children) {
+          total += computeDescendants(child);
+        }
+        node.descendantProductCount = total;
+        return total;
+      }
+
+      for (const root of roots) {
+        computeDescendants(root);
+      }
+
+      // 6. Ordenação determinística por description
+      function sortTree(node: CategoryTreeNode) {
+        node.children.sort((a, b) =>
+          a.description.localeCompare(b.description, "pt-BR"),
+        );
+        for (const child of node.children) {
+          sortTree(child);
+        }
+      }
+
+      roots.sort((a, b) => a.description.localeCompare(b.description, "pt-BR"));
+      for (const root of roots) {
+        sortTree(root);
+      }
+
+      return { categories: roots };
     },
 
     async findHistoricalLastPhysicalSales(toExclusive: Date) {

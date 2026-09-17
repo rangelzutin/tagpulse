@@ -18,7 +18,8 @@ import {
   formatDateBr,
   formatNumber,
 } from "../utils/formatters";
-import { InventoryCategoryCombobox } from "./InventoryCategoryCombobox";
+import { InventoryCategoryTreeSelector } from "./InventoryCategoryTreeSelector";
+import type { CategoryTreeNode } from "../api/bi";
 
 export type TableStatusFilter =
   | "ALL"
@@ -46,12 +47,13 @@ export type TableSortDirection = "asc" | "desc";
 
 interface InventoryProductsTableProps {
   products: InventoryProductItem[];
+  categoryTree?: CategoryTreeNode[];
   statusFilter?: TableStatusFilter;
   onStatusFilterChange?: (filter: TableStatusFilter) => void;
   coverageBucket?: CoverageBucket | null;
   onCoverageBucketChange?: (bucket: CoverageBucket | null) => void;
-  selectedCategory?: string;
-  onCategoryChange?: (category: string) => void;
+  selectedCategorySourceId?: string | null;
+  onCategorySourceIdChange?: (sourceId: string | null) => void;
   onResetAllFilters?: () => void;
   // Compatibilidade com código/testes legados
   activeChip?: TableFilterChip;
@@ -74,12 +76,13 @@ const CHIPS: { id: TableStatusFilter; label: string }[] = [
 
 export function InventoryProductsTable({
   products,
+  categoryTree = [],
   statusFilter: propStatusFilter,
   onStatusFilterChange,
   coverageBucket: propCoverageBucket = null,
   onCoverageBucketChange,
-  selectedCategory: propCategory,
-  onCategoryChange,
+  selectedCategorySourceId: propCategorySourceId,
+  onCategorySourceIdChange,
   onResetAllFilters,
   activeChip,
   onChipChange,
@@ -88,29 +91,58 @@ export function InventoryProductsTable({
   const currentStatusFilter = propStatusFilter ?? activeChip ?? "ALL";
   const currentCoverageBucket = propCoverageBucket ?? null;
 
-  const [localCategory, setLocalCategory] = useState<string>("ALL");
-  const currentCategory = propCategory ?? localCategory;
+  const [localCategorySourceId, setLocalCategorySourceId] = useState<string | null>(null);
+  const currentCategorySourceId =
+    propCategorySourceId !== undefined ? propCategorySourceId : localCategorySourceId;
 
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [sortField, setSortField] = useState<TableSortField>("capital");
   const [sortDirection, setSortDirection] = useState<TableSortDirection>("desc");
   const [currentPage, setCurrentPage] = useState<number>(1);
 
-  // Lista canônica de categorias distintas a partir dos produtos
-  const categories = useMemo(() => {
-    const set = new Set<string>();
-    for (const p of products) {
-      if (p.category) {
-        set.add(p.category);
+  // Mapa plano de nós da árvore para resolver label e dados
+  const categoryMap = useMemo(() => {
+    const map = new Map<string, CategoryTreeNode>();
+    const roots = categoryTree ?? [];
+    function traverse(nodes: CategoryTreeNode[]) {
+      for (const node of nodes) {
+        map.set(node.sourceId, node);
+        if (node.children?.length) {
+          traverse(node.children);
+        }
       }
     }
-    return Array.from(set).sort((a, b) => a.localeCompare(b, "pt-BR"));
-  }, [products]);
+    traverse(roots);
+    return map;
+  }, [categoryTree]);
+
+  // Mapa de subárvore recursiva: sourceId -> Set de todos os sourceIds descendentes (inclusive ele próprio)
+  const subtreeMap = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    const roots = categoryTree ?? [];
+    function traverse(node: CategoryTreeNode): Set<string> {
+      const set = new Set<string>([node.sourceId]);
+      if (node.children?.length) {
+        for (const child of node.children) {
+          const childSet = traverse(child);
+          for (const id of childSet) {
+            set.add(id);
+          }
+        }
+      }
+      map.set(node.sourceId, set);
+      return set;
+    }
+    for (const root of roots) {
+      traverse(root);
+    }
+    return map;
+  }, [categoryTree]);
 
   // Sempre reseta para a primeira página quando qualquer dimensão de filtro muda
   useEffect(() => {
     setCurrentPage(1);
-  }, [currentStatusFilter, currentCoverageBucket, currentCategory, searchQuery]);
+  }, [currentStatusFilter, currentCoverageBucket, currentCategorySourceId, searchQuery]);
 
   const handleChipClick = (id: TableStatusFilter) => {
     if (id === "ALL") {
@@ -131,11 +163,11 @@ export function InventoryProductsTable({
     setCurrentPage(1);
   };
 
-  const handleCategorySelect = (cat: string) => {
-    if (onCategoryChange) {
-      onCategoryChange(cat);
+  const handleCategorySourceIdSelect = (sourceId: string | null) => {
+    if (onCategorySourceIdChange) {
+      onCategorySourceIdChange(sourceId);
     } else {
-      setLocalCategory(cat);
+      setLocalCategorySourceId(sourceId);
     }
     setCurrentPage(1);
   };
@@ -152,8 +184,8 @@ export function InventoryProductsTable({
       if (onStatusFilterChange) onStatusFilterChange("ALL");
       if (onChipChange) onChipChange("ALL");
       onCoverageBucketChange?.(null);
-      if (onCategoryChange) onCategoryChange("ALL");
-      setLocalCategory("ALL");
+      if (onCategorySourceIdChange) onCategorySourceIdChange(null);
+      setLocalCategorySourceId(null);
     }
     setSearchQuery("");
     setCurrentPage(1);
@@ -199,9 +231,17 @@ export function InventoryProductsTable({
         if (item.coverageBucket !== currentCoverageBucket) return false;
       }
 
-      // 3. Filtro por Categoria (Match exato)
-      if (currentCategory !== "ALL" && item.category !== currentCategory) {
-        return false;
+      // 3. Filtro por Categoria Hierárquica em Cascata
+      if (currentCategorySourceId !== null) {
+        const allowedSourceIds =
+          subtreeMap.get(currentCategorySourceId) ??
+          new Set([currentCategorySourceId]);
+        if (
+          !item.categorySourceId ||
+          !allowedSourceIds.has(item.categorySourceId)
+        ) {
+          return false;
+        }
       }
 
       // 4. Filtro por Busca de Texto (código ou descrição)
@@ -214,7 +254,7 @@ export function InventoryProductsTable({
 
       return true;
     });
-  }, [products, currentStatusFilter, currentCoverageBucket, currentCategory, searchQuery]);
+  }, [products, currentStatusFilter, currentCoverageBucket, currentCategorySourceId, searchQuery, subtreeMap]);
 
   // Ordenação
   const sortedProducts = useMemo(() => {
@@ -359,10 +399,17 @@ export function InventoryProductsTable({
     return item ? item.label : s;
   };
 
+  const selectedCategoryNode = currentCategorySourceId
+    ? categoryMap.get(currentCategorySourceId)
+    : null;
+  const selectedCategoryLabel = selectedCategoryNode
+    ? selectedCategoryNode.description
+    : (currentCategorySourceId ? `Categoria #${currentCategorySourceId}` : "");
+
   const hasAnyFilterActive =
     currentStatusFilter !== "ALL" ||
     currentCoverageBucket !== null ||
-    currentCategory !== "ALL" ||
+    currentCategorySourceId !== null ||
     searchQuery.trim() !== "";
 
   return (
@@ -386,7 +433,7 @@ export function InventoryProductsTable({
           </p>
         </div>
 
-        {/* Controles: Busca e Combobox Pesquisável de Categoria */}
+        {/* Controles: Busca e Seletor Hierárquico de Categoria */}
         <div className="tp-table-header-controls">
           <div className="tp-table-search-box">
             <Search size={14} className="tp-search-icon" />
@@ -410,10 +457,10 @@ export function InventoryProductsTable({
           </div>
 
           <div className="tp-table-category-filter">
-            <InventoryCategoryCombobox
-              categories={categories}
-              selectedCategory={currentCategory}
-              onSelectCategory={handleCategorySelect}
+            <InventoryCategoryTreeSelector
+              categories={categoryTree ?? []}
+              selectedCategorySourceId={currentCategorySourceId}
+              onSelectCategorySourceId={handleCategorySourceIdSelect}
             />
           </div>
         </div>
@@ -426,13 +473,13 @@ export function InventoryProductsTable({
             <span className="tp-active-context-title">Filtros ativos:</span>
 
             {/* Tag Categoria */}
-            {currentCategory !== "ALL" && (
+            {currentCategorySourceId !== null && (
               <span className="tp-active-tag">
-                <span>Categoria: <strong>{currentCategory}</strong></span>
+                <span>Categoria: <strong>{selectedCategoryLabel}</strong></span>
                 <button
                   type="button"
                   className="tp-active-tag-remove"
-                  onClick={() => handleCategorySelect("ALL")}
+                  onClick={() => handleCategorySourceIdSelect(null)}
                   title="Remover filtro de categoria"
                 >
                   <X size={12} />

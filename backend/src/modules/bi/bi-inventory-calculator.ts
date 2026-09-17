@@ -20,6 +20,7 @@ export interface CatalogInventoryProduct {
   code: string | null;
   description: string | null;
   categoryDescription: string | null;
+  categorySourceId?: string | null;
   active: boolean | null;
   sourcePresent: boolean;
   stockQuantity: number | null;
@@ -137,6 +138,7 @@ export function calculateInventoryOverview(
 
   // Agregação por categoria
   interface CategoryAccumulator {
+    categorySourceId: string | null;
     category: string;
     products: number;
     productsWithStock: number;
@@ -332,12 +334,15 @@ export function calculateInventoryOverview(
       operationalFlags.push("INACTIVE_WITH_STOCK");
     }
 
+    const categorySourceId = prod.categorySourceId?.trim() || null;
     const categoryName = prod.categoryDescription?.trim() || "Sem categoria";
+    const categoryKey = categorySourceId ?? `unassigned:${categoryName}`;
 
     // Acumulador de categoria
-    let catAcc = categoryMap.get(categoryName);
+    let catAcc = categoryMap.get(categoryKey);
     if (!catAcc) {
       catAcc = {
+        categorySourceId,
         category: categoryName,
         products: 0,
         productsWithStock: 0,
@@ -353,7 +358,7 @@ export function calculateInventoryOverview(
         demandWithoutStockCount: 0,
         lowCoverageCount: 0,
       };
-      categoryMap.set(categoryName, catAcc);
+      categoryMap.set(categoryKey, catAcc);
     }
 
     catAcc.products++;
@@ -392,6 +397,7 @@ export function calculateInventoryOverview(
       code: prod.code || "S/C",
       description: prod.description || "Sem descrição",
       category: categoryName,
+      categorySourceId,
       active,
       currentStock: stock,
       effectiveCost,
@@ -476,6 +482,7 @@ export function calculateInventoryOverview(
       }
 
       return {
+        categorySourceId: cat.categorySourceId,
         category: cat.category,
         products: cat.products,
         productsWithStock: cat.productsWithStock,

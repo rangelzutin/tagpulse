@@ -689,6 +689,7 @@ export interface InventoryProductItem {
   code: string;
   description: string;
   category: string;
+  categorySourceId: string | null;
   active: boolean;
   currentStock: number;
   effectiveCost: number;
@@ -707,6 +708,7 @@ export interface InventoryProductItem {
 }
 
 export interface InventoryCategoryItem {
+  categorySourceId: string | null;
   category: string;
   products: number;
   productsWithStock: number;
@@ -787,4 +789,60 @@ export async function fetchInventoryOverview(
   }
 
   return (await response.json()) as InventoryOverviewResult;
+}
+
+export interface CategoryTreeNode {
+  sourceId: string;
+  description: string;
+  parentSourceId: string | null;
+  directProductCount: number;
+  descendantProductCount: number;
+  children: CategoryTreeNode[];
+}
+
+export interface CategoryTreeResult {
+  categories: CategoryTreeNode[];
+}
+
+export async function fetchCategoryTree(
+  signal?: AbortSignal,
+): Promise<CategoryTreeResult> {
+  const rawBaseUrl = import.meta.env.VITE_API_URL || "";
+  const baseUrl = rawBaseUrl.endsWith("/")
+    ? rawBaseUrl.slice(0, -1)
+    : rawBaseUrl;
+
+  const url = `${baseUrl}/bi/categories/tree`;
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+      },
+      signal,
+    });
+  } catch (err: unknown) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw err;
+    }
+    throw new Error(
+      "Não foi possível conectar ao servidor para carregar a árvore de categorias.",
+    );
+  }
+
+  if (!response.ok) {
+    let errorMsg = "Erro ao carregar a árvore de categorias.";
+    try {
+      const errJson = await response.json();
+      if (errJson.message) {
+        errorMsg = errJson.message;
+      }
+    } catch {
+      // ignora falha de parse
+    }
+    throw new Error(errorMsg);
+  }
+
+  return (await response.json()) as CategoryTreeResult;
 }

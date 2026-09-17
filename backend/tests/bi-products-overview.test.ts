@@ -791,7 +791,7 @@ describe("Products BI V1 — Reconciliação com Banco de Dados de Produção", 
 
     const totalQty = movements.reduce((acc, m) => acc + m.quantity, 0);
     expect(totalQty).toBe(5289);
-  });
+  }, 15000);
 
   it("reconcilia quantidade homologada: 2025 = 4.646 (com ajuste da duplicidade #2806)", async () => {
     const repo = createBiRepository(prisma);

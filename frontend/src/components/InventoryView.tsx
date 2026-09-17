@@ -1,6 +1,11 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { AlertCircle, RefreshCw } from "lucide-react";
-import type { CoverageBucket, InventoryOverviewResult } from "../api/bi";
+import {
+  fetchCategoryTree,
+  type CategoryTreeNode,
+  type CoverageBucket,
+  type InventoryOverviewResult,
+} from "../api/bi";
 import { InventoryKpiGrid } from "./InventoryKpiGrid";
 import { InventoryProblemCards } from "./InventoryProblemCards";
 import { InventoryCategorySalesCard } from "./InventoryCategorySalesCard";
@@ -26,10 +31,31 @@ export function InventoryView({
   error,
   onRetry,
 }: InventoryViewProps) {
+  // Árvore de categorias carregada do backend
+  const [categoryTree, setCategoryTree] = useState<CategoryTreeNode[]>([]);
+
   // Estado unificado e coordenado dos filtros da tabela
   const [statusFilter, setStatusFilter] = useState<TableStatusFilter>("ALL");
   const [coverageBucket, setCoverageBucket] = useState<CoverageBucket | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
+  const [selectedCategorySourceId, setSelectedCategorySourceId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isCancelled = false;
+    async function loadTree() {
+      try {
+        const res = await fetchCategoryTree();
+        if (!isCancelled) {
+          setCategoryTree(res.categories);
+        }
+      } catch {
+        // Falha não-bloqueante na árvore
+      }
+    }
+    loadTree();
+    return () => {
+      isCancelled = true;
+    };
+  }, [isRefreshing]);
 
   const scrollToTable = () => {
     const el = document.getElementById("tabela-estoque");
@@ -42,7 +68,7 @@ export function InventoryView({
   const handleSelectCoverageBucket = useCallback((bucket: CoverageBucket) => {
     setCoverageBucket(bucket);
     setStatusFilter("ALL");
-    setSelectedCategory("ALL");
+    setSelectedCategorySourceId(null);
     scrollToTable();
   }, []);
 
@@ -50,7 +76,7 @@ export function InventoryView({
   const handleSelectNoSalesCoverage = useCallback(() => {
     setStatusFilter("NO_SALES_IN_WINDOW");
     setCoverageBucket(null);
-    setSelectedCategory("ALL");
+    setSelectedCategorySourceId(null);
     scrollToTable();
   }, []);
 
@@ -58,21 +84,21 @@ export function InventoryView({
   const handleSelectContextFilter = useCallback((filter: TableStatusFilter) => {
     setStatusFilter(filter);
     setCoverageBucket(null);
-    setSelectedCategory("ALL");
+    setSelectedCategorySourceId(null);
     scrollToTable();
   }, []);
 
-  // 4a. Clique no card de Saída Recente por Categoria (categoria + SOLD_IN_WINDOW)
-  const handleSelectSalesCategory = useCallback((category: string) => {
-    setSelectedCategory(category);
+  // 4a. Clique no card de Saída Recente por Categoria (categorySourceId + SOLD_IN_WINDOW)
+  const handleSelectSalesCategory = useCallback((categorySourceId: string | null) => {
+    setSelectedCategorySourceId(categorySourceId);
     setStatusFilter("SOLD_IN_WINDOW");
     setCoverageBucket(null);
     scrollToTable();
   }, []);
 
   // 4b. Clique no card de Capital por Categoria (geral ou somente sem saída)
-  const handleSelectCategory = useCallback((category: string, onlyNoSales = false) => {
-    setSelectedCategory(category);
+  const handleSelectCategory = useCallback((categorySourceId: string | null, onlyNoSales = false) => {
+    setSelectedCategorySourceId(categorySourceId);
     setCoverageBucket(null);
     setStatusFilter(onlyNoSales ? "NO_SALES_IN_WINDOW" : "ALL");
     scrollToTable();
@@ -82,7 +108,7 @@ export function InventoryView({
   const handleViewAll = useCallback((filter: "demand_without_stock" | "no_sales") => {
     setStatusFilter(filter === "demand_without_stock" ? "DEMAND_WITHOUT_STOCK" : "NO_SALES_IN_WINDOW");
     setCoverageBucket(null);
-    setSelectedCategory("ALL");
+    setSelectedCategorySourceId(null);
     scrollToTable();
   }, []);
 
@@ -90,7 +116,7 @@ export function InventoryView({
   const handleResetAllFilters = useCallback(() => {
     setStatusFilter("ALL");
     setCoverageBucket(null);
-    setSelectedCategory("ALL");
+    setSelectedCategorySourceId(null);
   }, []);
 
   // Estado de Erro sem dados em cache
@@ -220,7 +246,7 @@ export function InventoryView({
       <InventoryKpiGrid
         summary={summary}
         dataQuality={dataQuality}
-        activeFilter={selectedCategory === "ALL" && coverageBucket === null ? statusFilter : undefined}
+        activeFilter={selectedCategorySourceId === null && coverageBucket === null ? statusFilter : undefined}
         onSelectContextFilter={handleSelectContextFilter}
       />
 
@@ -231,13 +257,13 @@ export function InventoryView({
       <div className="tp-inventory-split-grid">
         <InventoryCategorySalesCard
           categories={categories}
-          selectedCategory={selectedCategory}
+          selectedCategorySourceId={selectedCategorySourceId}
           activeStatusFilter={statusFilter}
           onSelectCategory={handleSelectSalesCategory}
         />
         <InventoryCategoryCapitalCard
           categories={categories}
-          selectedCategory={selectedCategory}
+          selectedCategorySourceId={selectedCategorySourceId}
           activeStatusFilter={statusFilter}
           onSelectCategory={handleSelectCategory}
         />
@@ -247,7 +273,7 @@ export function InventoryView({
       <InventoryCoverageCard
         distribution={coverageDistribution}
         activeBucket={coverageBucket}
-        isNoSalesActive={selectedCategory === "ALL" && coverageBucket === null && statusFilter === "NO_SALES_IN_WINDOW"}
+        isNoSalesActive={selectedCategorySourceId === null && coverageBucket === null && statusFilter === "NO_SALES_IN_WINDOW"}
         onSelectBucket={handleSelectCoverageBucket}
         onSelectNoSales={handleSelectNoSalesCoverage}
       />
@@ -255,12 +281,13 @@ export function InventoryView({
       {/* LINHA 6: Saúde do estoque — FULL WIDTH */}
       <InventoryProductsTable
         products={products}
+        categoryTree={categoryTree}
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
         coverageBucket={coverageBucket}
         onCoverageBucketChange={setCoverageBucket}
-        selectedCategory={selectedCategory}
-        onCategoryChange={setSelectedCategory}
+        selectedCategorySourceId={selectedCategorySourceId}
+        onCategorySourceIdChange={setSelectedCategorySourceId}
         onResetAllFilters={handleResetAllFilters}
       />
     </section>
