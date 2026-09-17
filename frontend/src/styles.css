@@ -4654,14 +4654,29 @@ body {
 
 .tp-inventory-item-cat {
   color: var(--tp-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tp-inventory-item-date {
   color: var(--tp-text-muted);
 }
 
+.tp-inventory-item-stock-row {
+  display: flex;
+  align-items: center;
+  font-size: 0.7rem;
+  line-height: 1.2;
+}
+
 .tp-inventory-item-stock {
   color: var(--tp-text-secondary);
+}
+
+.tp-inventory-item-stock strong {
+  color: var(--tp-text-primary);
+  font-variant-numeric: tabular-nums;
 }
 
 .tp-inventory-item-numbers {

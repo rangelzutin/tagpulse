@@ -179,7 +179,8 @@ export function InventoryProblemCards({
                       <span className="tp-inventory-item-code">{item.code}</span>
                       <span className="tp-inventory-item-bullet">•</span>
                       <span className="tp-inventory-item-cat">{item.category}</span>
-                      <span className="tp-inventory-item-bullet">•</span>
+                    </div>
+                    <div className="tp-inventory-item-stock-row">
                       <span className="tp-inventory-item-stock">
                         Estoque: <strong>{formatNumber(item.currentStock)}</strong>
                       </span>
