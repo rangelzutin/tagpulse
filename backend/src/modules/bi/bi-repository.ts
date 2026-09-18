@@ -3,6 +3,10 @@ import { SaleAnchorType } from "@prisma/client";
 import { generateRealizedProductMovements } from "./bi-product-movements.js";
 import type { CatalogProductInfo } from "./bi-products-calculator.js";
 import type {
+  CatalogProductProfitabilityInfo,
+  FlatCategoryInfo,
+} from "./bi-profitability-calculator.js";
+import type {
   BiCustomerMetadata,
   BiCustomerSaleRawRecord,
   BiDataRangeResult,
@@ -12,6 +16,7 @@ import type {
   CategoryTreeNode,
   CategoryTreeResult,
   ProductReconciliationAdjustment,
+  ProfitabilityCostSnapshot,
   RealizedProductMovement,
 } from "./bi-types.js";
 
@@ -23,6 +28,7 @@ export interface BiRepository {
     from: Date,
     toExclusive: Date,
   ): Promise<BiPeriodCustomerDoc[]>;
+
   findSalesRealizationRecordsUntil?(
     toExclusive: Date,
   ): Promise<BiSaleRealizationRecord[]>;
@@ -55,6 +61,17 @@ export interface BiRepository {
     toExclusive: Date,
   ): Promise<Map<string, Date>>;
   invalidateHistoricalLastPhysicalSalesCache?(): void;
+  findProfitabilityContext?(
+    from: Date,
+    toExclusive: Date,
+  ): Promise<{
+    movements: RealizedProductMovement[];
+    adjustments: ProductReconciliationAdjustment[];
+    catalogProductsMap: Map<string, CatalogProductProfitabilityInfo>;
+    categoriesFlat: FlatCategoryInfo[];
+    categoryTree: CategoryTreeNode[];
+    costSnapshot: ProfitabilityCostSnapshot;
+  }>;
 }
 
 export function createBiRepository(prisma: PrismaClient): BiRepository {
@@ -699,6 +716,110 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
 
     invalidateHistoricalLastPhysicalSalesCache() {
       cachedHistoricalSales = null;
+    },
+
+    async findProfitabilityContext(from: Date, toExclusive: Date) {
+      const connection = await prisma.tagPlusConnection.findFirst({
+        where: { status: "ACTIVE" },
+        select: { id: true },
+      });
+
+      if (!connection) {
+        return {
+          movements: [],
+          adjustments: [],
+          catalogProductsMap: new Map(),
+          categoriesFlat: [],
+          categoryTree: [],
+          costSnapshot: { completedAt: null, source: "PRODUCT_SYNC_RUN" as const },
+        };
+      }
+
+      const connectionId = connection.id;
+
+      // 1. Movimentos realizados canônicos
+      const movementResult = await this.findRealizedProductMovements!(from, toExclusive);
+
+      // 2. Produtos do catálogo (connection-scoped)
+      const products = await prisma.product.findMany({
+        where: { connectionId },
+        select: {
+          id: true,
+          sourceId: true,
+          code: true,
+          description: true,
+          categorySourceId: true,
+          categoryDescription: true,
+          effectiveCost: true,
+        },
+      });
+
+      const catalogProductsMap = new Map<string, CatalogProductProfitabilityInfo>();
+      for (const p of products) {
+        catalogProductsMap.set(p.sourceId, {
+          id: p.id,
+          sourceId: p.sourceId,
+          code: p.code,
+          description: p.description,
+          categorySourceId: p.categorySourceId,
+          categoryDescription: p.categoryDescription,
+          effectiveCost: p.effectiveCost !== null ? Number(p.effectiveCost) : null,
+        });
+      }
+
+      // 3. Categorias planas (connection-scoped)
+      const categoriesFlatDb = await prisma.category.findMany({
+        where: { connectionId, sourcePresent: true },
+        select: {
+          sourceId: true,
+          description: true,
+          parentSourceId: true,
+        },
+        orderBy: { description: "asc" },
+      });
+
+      const categoriesFlat: FlatCategoryInfo[] = categoriesFlatDb.map((c) => ({
+        sourceId: c.sourceId,
+        description: c.description,
+        parentSourceId: c.parentSourceId,
+      }));
+
+      // 4. Árvore de categorias
+      const categoryTreeResult = await this.findCategoryTree();
+      const categoryTree = categoryTreeResult.categories;
+
+      // 5. Cost snapshot connection-scoped
+      const lastProductSync = await prisma.productSyncRun.findFirst({
+        where: { connectionId, status: "COMPLETED" },
+        orderBy: { completedAt: "desc" },
+        select: { completedAt: true },
+      });
+
+      let costSnapshot: ProfitabilityCostSnapshot;
+      if (lastProductSync?.completedAt) {
+        costSnapshot = {
+          completedAt: lastProductSync.completedAt.toISOString(),
+          source: "PRODUCT_SYNC_RUN",
+        };
+      } else {
+        const maxLastSeen = await prisma.product.aggregate({
+          where: { connectionId },
+          _max: { lastSeenAt: true },
+        });
+        costSnapshot = {
+          completedAt: maxLastSeen._max.lastSeenAt?.toISOString() ?? null,
+          source: "PRODUCT_LAST_SEEN_FALLBACK",
+        };
+      }
+
+      return {
+        movements: movementResult.movements,
+        adjustments: movementResult.adjustments,
+        catalogProductsMap,
+        categoriesFlat,
+        categoryTree,
+        costSnapshot,
+      };
     },
   };
 }

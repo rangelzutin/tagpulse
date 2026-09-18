@@ -846,3 +846,181 @@ export async function fetchCategoryTree(
 
   return (await response.json()) as CategoryTreeResult;
 }
+
+export interface ProfitabilitySummary {
+  realizedRevenue: number;
+  revenueWithCurrentCost: number;
+  revenueWithoutCurrentCost: number;
+  costCoveragePercent: number | null;
+  estimatedCOGS: number | null;
+  estimatedGrossProfit: number | null;
+  estimatedGrossMarginPercent: number | null;
+}
+
+export interface ProfitabilityCostSnapshot {
+  asOf: string;
+  lastProductSyncAt: string | null;
+  lastProductSyncStatus: string | null;
+  totalCatalogProducts: number;
+  productsWithCostCount: number;
+  productsWithoutCostCount: number;
+}
+
+export interface ProfitabilityDataQuality {
+  movementsWithCurrentCost: number;
+  movementsWithoutCurrentCost: number;
+  financialComplementCount: number;
+  financialComplementRevenue: number;
+  movementsWithoutCurrentProduct: number;
+  revenueWithoutCurrentProduct: number;
+  currentCategoryCoveragePercent: number | null;
+  costBasis: "CURRENT_PRODUCT_EFFECTIVE_COST";
+  categoryBasis: "CURRENT_PRODUCT_CATEGORY";
+}
+
+export interface ProfitabilityTrendPoint {
+  period: string;
+  realizedRevenue: number;
+  revenueWithCurrentCost: number;
+  revenueWithoutCurrentCost: number;
+  estimatedCOGS: number;
+  estimatedGrossProfit: number;
+  estimatedGrossMarginPercent: number | null;
+  costCoveragePercent: number | null;
+}
+
+export interface ProfitabilityChannelItem {
+  channel: CommercialChannel;
+  realizedRevenue: number;
+  revenueWithCurrentCost: number;
+  estimatedCOGS: number;
+  estimatedGrossProfit: number;
+  estimatedGrossMarginPercent: number | null;
+  costCoveragePercent: number | null;
+  physicalQuantity: number;
+}
+
+export interface ProfitabilityRootCategoryItem {
+  categorySourceId: string;
+  category: string;
+  realizedRevenue: number;
+  revenueWithCurrentCost: number;
+  revenueWithoutCurrentCost: number;
+  estimatedCOGS: number;
+  estimatedGrossProfit: number;
+  estimatedGrossMarginPercent: number | null;
+  costCoveragePercent: number | null;
+  physicalQuantity: number;
+}
+
+export interface ProfitabilityCategoryItem {
+  categorySourceId: string;
+  category: string;
+  parentSourceId: string | null;
+  realizedRevenue: number;
+  revenueWithCurrentCost: number;
+  revenueWithoutCurrentCost: number;
+  estimatedCOGS: number;
+  estimatedGrossProfit: number;
+  estimatedGrossMarginPercent: number | null;
+  costCoveragePercent: number | null;
+  physicalQuantity: number;
+}
+
+export interface ProfitabilityProductItem {
+  productId: string | null;
+  productSourceId: string;
+  sku: string | null;
+  productName: string;
+  category: string | null;
+  categorySourceId: string | null;
+  currentEffectiveCost: number | null;
+  physicalQuantity: number;
+  realizedRevenue: number;
+  revenueWithCurrentCost: number;
+  revenueWithoutCurrentCost: number;
+  estimatedCOGS: number | null;
+  estimatedGrossProfit: number | null;
+  estimatedGrossMarginPercent: number | null;
+  costCoveragePercent: number | null;
+  isOrphan: boolean;
+}
+
+export interface ProfitabilityOverviewResult {
+  period: {
+    from: string;
+    to: string;
+  };
+  filters: {
+    channel: CommercialChannel | null;
+    categorySourceId: string | null;
+  };
+  summary: ProfitabilitySummary;
+  costSnapshot: ProfitabilityCostSnapshot;
+  dataQuality: ProfitabilityDataQuality;
+  trendGranularity: "DAY" | "MONTH";
+  trend: ProfitabilityTrendPoint[];
+  channels: ProfitabilityChannelItem[];
+  rootCategories: ProfitabilityRootCategoryItem[];
+  categories: ProfitabilityCategoryItem[];
+  products: ProfitabilityProductItem[];
+}
+
+export async function fetchProfitabilityOverview(options: {
+  from: string;
+  to: string;
+  channel?: string | null;
+  categorySourceId?: string | null;
+  signal?: AbortSignal;
+}): Promise<ProfitabilityOverviewResult> {
+  const rawBaseUrl = import.meta.env.VITE_API_URL || "";
+  const baseUrl = rawBaseUrl.endsWith("/")
+    ? rawBaseUrl.slice(0, -1)
+    : rawBaseUrl;
+
+  const params = new URLSearchParams({
+    from: options.from,
+    to: options.to,
+  });
+
+  if (options.channel && options.channel !== "TODOS") {
+    params.set("channel", options.channel);
+  }
+  if (options.categorySourceId) {
+    params.set("categorySourceId", options.categorySourceId);
+  }
+
+  const url = `${baseUrl}/bi/profitability/overview?${params.toString()}`;
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+      },
+      signal: options.signal,
+    });
+  } catch (err: unknown) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw err;
+    }
+    throw new Error(
+      "Não foi possível conectar ao servidor para carregar a visão de rentabilidade.",
+    );
+  }
+
+  if (!response.ok) {
+    let errorMsg = "Erro ao carregar os dados de rentabilidade.";
+    try {
+      const errJson = await response.json();
+      if (errJson.message) {
+        errorMsg = errJson.message;
+      }
+    } catch {
+      // ignora falha de parse
+    }
+    throw new Error(errorMsg);
+  }
+
+  return (await response.json()) as ProfitabilityOverviewResult;
+}

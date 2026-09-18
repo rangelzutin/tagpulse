@@ -4,6 +4,7 @@ import {
   calculateSalesOverview,
 } from "./bi-calculator.js";
 import { calculateProductsOverview } from "./bi-products-calculator.js";
+import { calculateProfitabilityOverview } from "./bi-profitability-calculator.js";
 import {
   buildCustomerBehavioralMap,
   computeDisplayName,
@@ -18,6 +19,7 @@ import type { BiRepository } from "./bi-repository.js";
 import type {
   BiCustomerMetadata,
   BiDataRangeResult,
+  CommercialChannel,
   CustomerDetailOverviewResult,
   CustomerDocumentType,
   CustomerSalesResult,
@@ -30,6 +32,7 @@ import type {
   InventoryOverviewResult,
   InventoryWindowDays,
   ProductsOverviewResult,
+  ProfitabilityOverviewResult,
   SalesOverviewResult,
 } from "./bi-types.js";
 import {
@@ -39,6 +42,10 @@ import {
 
 export type BiInventoryOverviewResult =
   | { success: true; data: InventoryOverviewResult }
+  | { success: false; error: string };
+
+export type BiProfitabilityOverviewResult =
+  | { success: true; data: ProfitabilityOverviewResult }
   | { success: false; error: string };
 
 export type BiSalesOverviewResult =
@@ -73,6 +80,9 @@ export interface BiService {
   getDataRange(): Promise<BiDataRangeServiceResult>;
   getSalesOverview(from: unknown, to: unknown): Promise<BiSalesOverviewResult>;
   getProductsOverview(from: unknown, to: unknown): Promise<BiProductsOverviewResult>;
+  getProfitabilityOverview(
+    query: Record<string, unknown>,
+  ): Promise<BiProfitabilityOverviewResult>;
   getCustomerOverview(
     from: unknown,
     to: unknown,
@@ -99,6 +109,7 @@ export interface BiService {
     | { success: false; error: string }
   >;
 }
+
 
 function parseCustomerDocumentType(
   param: unknown,
@@ -281,6 +292,67 @@ export function createBiService(
 
       return { success: true, data };
     },
+
+    async getProfitabilityOverview(
+      query: Record<string, unknown>,
+    ): Promise<BiProfitabilityOverviewResult> {
+      const parsedRange = parseOverviewDateRange(query.from, query.to);
+      if (!parsedRange.success) {
+        return { success: false, error: parsedRange.error };
+      }
+
+      const { from: fromStr, to: toStr, fromDate, toExclusiveDate } =
+        parsedRange.range;
+
+      if (!repository.findProfitabilityContext) {
+        return {
+          success: false,
+          error: "Repositório não suporta inteligência de rentabilidade.",
+        };
+      }
+
+      let channel: CommercialChannel | null = null;
+      if (typeof query.channel === "string" && query.channel.trim()) {
+        const c = query.channel.trim().toUpperCase() as CommercialChannel;
+        if (
+          c === "ATACADO" ||
+          c === "VAREJO" ||
+          c === "INDETERMINADO" ||
+          c === "CONFLITO"
+        ) {
+          channel = c;
+        }
+      }
+
+      let categorySourceId: string | null = null;
+      if (
+        typeof query.categorySourceId === "string" &&
+        query.categorySourceId.trim()
+      ) {
+        categorySourceId = query.categorySourceId.trim();
+      }
+
+      const context = await repository.findProfitabilityContext(
+        fromDate,
+        toExclusiveDate,
+      );
+
+      const data = calculateProfitabilityOverview({
+        movements: context.movements,
+        catalogProductsMap: context.catalogProductsMap,
+        categoriesFlat: context.categoriesFlat,
+        categoryTree: context.categoryTree,
+        period: { from: fromStr, to: toStr },
+        filters: {
+          channel,
+          categorySourceId,
+        },
+        costSnapshot: context.costSnapshot,
+      });
+
+      return { success: true, data };
+    },
+
 
     async getCustomerOverview(
       from: unknown,

@@ -4,11 +4,16 @@ import {
   fetchCustomerOverview,
   fetchProductsOverview,
   fetchInventoryOverview,
+  fetchProfitabilityOverview,
+  fetchCategoryTree,
   fetchDataRange,
   type SalesOverviewResult,
   type CustomerOverviewResult,
   type ProductsOverviewResult,
   type InventoryOverviewResult,
+  type ProfitabilityOverviewResult,
+  type CommercialChannel,
+  type CategoryTreeNode,
   type InventoryWindowDays,
   type BiDataRangeResult,
   type CustomerDocumentType,
@@ -25,6 +30,7 @@ import { CustomerSegmentDrawer } from "./components/CustomerSegmentDrawer";
 import { CustomerDocumentTypeSelector } from "./components/CustomerDocumentTypeSelector";
 import { ProductsView } from "./components/ProductsView";
 import { InventoryView } from "./components/InventoryView";
+import { ProfitabilityView } from "./components/ProfitabilityView";
 import { InventoryWindowSelector } from "./components/InventoryWindowSelector";
 import type { CustomerRecencyBucket, CustomerSegmentType } from "./api/bi";
 import type { RateContextData } from "./components/CustomerSegmentView";
@@ -32,7 +38,9 @@ import { AlertCircle, RefreshCw, Users } from "lucide-react";
 import { getDefaultPeriod, formatDateBr } from "./utils/formatters";
 
 export function App() {
-  const [activeNav, setActiveNav] = useState<"commercial" | "products" | "inventory">("commercial");
+  const [activeNav, setActiveNav] = useState<
+    "commercial" | "products" | "inventory" | "profitability"
+  >("commercial");
   const [periodMode, setPeriodMode] = useState<PeriodMode>("range");
   const [dataRange, setDataRange] = useState<BiDataRangeResult | null>(null);
 
@@ -72,6 +80,25 @@ export function App() {
     useState<InventoryWindowDays | null>(null);
   const inventoryRequestSeq = useRef(0);
   const inventoryAbortControllerRef = useRef<AbortController | null>(null);
+
+  // Profitability State (Lazy loaded, protected against race conditions)
+  const [profitabilityData, setProfitabilityData] =
+    useState<ProfitabilityOverviewResult | null>(null);
+  const [isProfitabilityLoading, setIsProfitabilityLoading] = useState(false);
+  const [isProfitabilityRefreshing, setIsProfitabilityRefreshing] =
+    useState(false);
+  const [profitabilityError, setProfitabilityError] = useState<string | null>(
+    null,
+  );
+  const [selectedProfitabilityChannel, setSelectedProfitabilityChannel] =
+    useState<CommercialChannel | null>(null);
+  const [
+    selectedProfitabilityCategorySourceId,
+    setSelectedProfitabilityCategorySourceId,
+  ] = useState<string | null>(null);
+  const [categoryTree, setCategoryTree] = useState<CategoryTreeNode[]>([]);
+  const profitabilityRequestSeq = useRef(0);
+  const profitabilityAbortControllerRef = useRef<AbortController | null>(null);
 
   // Drawer State
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -216,6 +243,62 @@ export function App() {
     [],
   );
 
+  // Fetch Profitability Overview independently (lazy loaded, protected against race conditions)
+  const loadProfitabilityOverview = useCallback(
+    async (
+      from: string,
+      to: string,
+      channel: CommercialChannel | null = selectedProfitabilityChannel,
+      categorySourceId: string | null = selectedProfitabilityCategorySourceId,
+      isBackground = false,
+    ) => {
+      if (profitabilityAbortControllerRef.current) {
+        profitabilityAbortControllerRef.current.abort();
+      }
+      const controller = new AbortController();
+      profitabilityAbortControllerRef.current = controller;
+
+      const currentSeq = ++profitabilityRequestSeq.current;
+
+      setProfitabilityError(null);
+      if (!isBackground) {
+        setIsProfitabilityLoading(true);
+      } else {
+        setIsProfitabilityRefreshing(true);
+      }
+
+      try {
+        const result = await fetchProfitabilityOverview({
+          from,
+          to,
+          channel,
+          categorySourceId,
+          signal: controller.signal,
+        });
+        if (currentSeq === profitabilityRequestSeq.current) {
+          setProfitabilityData(result);
+        }
+      } catch (err: unknown) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          return;
+        }
+        if (currentSeq === profitabilityRequestSeq.current) {
+          const message =
+            err instanceof Error
+              ? err.message
+              : "Não foi possível carregar a inteligência de rentabilidade.";
+          setProfitabilityError(message);
+        }
+      } finally {
+        if (currentSeq === profitabilityRequestSeq.current) {
+          setIsProfitabilityLoading(false);
+          setIsProfitabilityRefreshing(false);
+        }
+      }
+    },
+    [selectedProfitabilityChannel, selectedProfitabilityCategorySourceId],
+  );
+
   // Orchestrate commercial endpoints concurrently
   const loadCommercialData = useCallback(
     async (
@@ -260,7 +343,9 @@ export function App() {
     );
   };
 
-  const handleSelectNav = (nav: "commercial" | "products" | "inventory") => {
+  const handleSelectNav = (
+    nav: "commercial" | "products" | "inventory" | "profitability",
+  ) => {
     setActiveNav(nav);
     if (nav === "products") {
       const periodKey = `${currentPeriod.from}:${currentPeriod.to}`;
@@ -276,6 +361,16 @@ export function App() {
         void loadInventoryOverview(
           inventoryWindowDays,
           Boolean(inventoryData),
+        );
+      }
+    } else if (nav === "profitability") {
+      if (!profitabilityData && !isProfitabilityLoading) {
+        void loadProfitabilityOverview(
+          currentPeriod.from,
+          currentPeriod.to,
+          selectedProfitabilityChannel,
+          selectedProfitabilityCategorySourceId,
+          false,
         );
       }
     }
@@ -311,6 +406,16 @@ export function App() {
         inventoryWindowDays,
         Boolean(inventoryData),
       );
+    } else if (activeNav === "profitability") {
+      setProductsLoadedPeriod(null);
+      setInventoryLoadedWindow(null);
+      void loadProfitabilityOverview(
+        currentPeriod.from,
+        currentPeriod.to,
+        selectedProfitabilityChannel,
+        selectedProfitabilityCategorySourceId,
+        Boolean(profitabilityData),
+      );
     }
   }, [
     activeNav,
@@ -321,14 +426,40 @@ export function App() {
     loadCommercialData,
     loadInventoryOverview,
     loadProductsOverview,
+    loadProfitabilityOverview,
     productsData,
+    profitabilityData,
+    selectedProfitabilityChannel,
+    selectedProfitabilityCategorySourceId,
   ]);
+
+  // Carrega a árvore de categorias na montagem inicial
+  useEffect(() => {
+    let isCancelled = false;
+    async function loadTree() {
+      try {
+        const res = await fetchCategoryTree();
+        if (!isCancelled) {
+          setCategoryTree(res.categories);
+        }
+      } catch {
+        // Falha não-bloqueante na árvore
+      }
+    }
+    loadTree();
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
 
   // Cleanup de requisições abortadas ao desmontar
   useEffect(() => {
     return () => {
       if (inventoryAbortControllerRef.current) {
         inventoryAbortControllerRef.current.abort();
+      }
+      if (profitabilityAbortControllerRef.current) {
+        profitabilityAbortControllerRef.current.abort();
       }
     };
   }, []);
@@ -378,6 +509,18 @@ export function App() {
       ]).finally(() => {
         setIsUpdating(false);
       });
+    } else if (activeNav === "profitability") {
+      Promise.allSettled([
+        loadProfitabilityOverview(
+          from,
+          to,
+          selectedProfitabilityChannel,
+          selectedProfitabilityCategorySourceId,
+          Boolean(profitabilityData),
+        ),
+      ]).finally(() => {
+        setIsUpdating(false);
+      });
     }
   };
 
@@ -400,6 +543,42 @@ export function App() {
 
   const handleRetryInventory = () => {
     void loadInventoryOverview(inventoryWindowDays, false);
+  };
+
+  const handleRetryProfitability = () => {
+    void loadProfitabilityOverview(
+      currentPeriod.from,
+      currentPeriod.to,
+      selectedProfitabilityChannel,
+      selectedProfitabilityCategorySourceId,
+      false,
+    );
+  };
+
+  const handleProfitabilityChannelChange = (
+    channel: CommercialChannel | null,
+  ) => {
+    setSelectedProfitabilityChannel(channel);
+    void loadProfitabilityOverview(
+      currentPeriod.from,
+      currentPeriod.to,
+      channel,
+      selectedProfitabilityCategorySourceId,
+      Boolean(profitabilityData),
+    );
+  };
+
+  const handleProfitabilityCategoryChange = (
+    categorySourceId: string | null,
+  ) => {
+    setSelectedProfitabilityCategorySourceId(categorySourceId);
+    void loadProfitabilityOverview(
+      currentPeriod.from,
+      currentPeriod.to,
+      selectedProfitabilityChannel,
+      categorySourceId,
+      Boolean(profitabilityData),
+    );
   };
 
   const handleOpenSegmentDrawer = (
@@ -432,6 +611,7 @@ export function App() {
     isCustomerLoading ||
     isProductsLoading ||
     isInventoryLoading ||
+    isProfitabilityLoading ||
     isUpdating;
 
   return (
@@ -448,21 +628,27 @@ export function App() {
               ? "Estoque & Giro"
               : activeNav === "products"
                 ? "Produtos"
-                : "Performance Comercial"
+                : activeNav === "profitability"
+                  ? "Rentabilidade"
+                  : "Performance Comercial"
           }
           subtitle={
             activeNav === "inventory"
               ? "Estoque atual cruzado com a velocidade recente de saída"
               : activeNav === "products"
                 ? "Mix, volume e desempenho dos produtos realizados no período"
-                : "Análise operacional e comercial da Nineclouds com base nas vendas realizadas e no comportamento da base de clientes."
+                : activeNav === "profitability"
+                  ? "Rentabilidade estimada ao custo atual de catálogo TagPlus"
+                  : "Análise operacional e comercial da Nineclouds com base nas vendas realizadas e no comportamento da base de clientes."
           }
           badge={
             activeNav === "inventory" && inventoryData?.asOfDate
               ? `Posição em ${formatDateBr(inventoryData.asOfDate)}`
               : undefined
           }
-          isUpdating={isUpdating || isInventoryRefreshing}
+          isUpdating={
+            isUpdating || isInventoryRefreshing || isProfitabilityRefreshing
+          }
         >
           {activeNav === "inventory" ? (
             <InventoryWindowSelector
@@ -497,6 +683,19 @@ export function App() {
             isRefreshing={isUpdating}
             error={productsError}
             onRetry={handleRetryProducts}
+          />
+        ) : activeNav === "profitability" ? (
+          <ProfitabilityView
+            data={profitabilityData}
+            isLoading={isProfitabilityLoading}
+            isRefreshing={isProfitabilityRefreshing}
+            error={profitabilityError}
+            onRetry={handleRetryProfitability}
+            selectedChannel={selectedProfitabilityChannel}
+            onSelectChannel={handleProfitabilityChannelChange}
+            selectedCategorySourceId={selectedProfitabilityCategorySourceId}
+            onSelectCategorySourceId={handleProfitabilityCategoryChange}
+            categoryTree={categoryTree}
           />
         ) : (
           <>

@@ -570,3 +570,125 @@ export interface InventoryOverviewResult {
   categories: InventoryCategoryItem[];
   dataQuality: InventoryDataQuality;
 }
+
+// ====================================================
+// Profitability (Rentabilidade Estimada ao Custo Atual) V1 Types
+// ====================================================
+
+export interface ProfitabilitySummary {
+  realizedRevenue: number;
+  revenueWithCurrentCost: number;
+  revenueWithoutCurrentCost: number;
+  costCoveragePercent: number | null;
+  estimatedCOGS: number;
+  estimatedGrossProfit: number;
+  estimatedGrossMarginPercent: number | null;
+}
+
+export interface ProfitabilityCostSnapshot {
+  completedAt: string | null;
+  source: "PRODUCT_SYNC_RUN" | "PRODUCT_LAST_SEEN_FALLBACK";
+}
+
+export interface ProfitabilityDataQuality {
+  movementsTotal: number;
+  movementsWithCurrentCost: number;
+  movementsWithoutCurrentCost: number;
+  realizedRevenue: number;
+  revenueWithCurrentCost: number;
+  revenueWithoutCurrentCost: number;
+  costCoveragePercent: number | null;
+  financialComplementMovementCount: number;
+  financialComplementRevenue: number;
+  movementsWithoutCurrentProduct: number;
+  revenueWithoutCurrentProduct: number;
+  currentCategoryCoveragePercent: number | null;
+  costBasis: "CURRENT_PRODUCT_EFFECTIVE_COST";
+  categoryBasis: "CURRENT_PRODUCT_CATEGORY";
+}
+
+export interface ProfitabilityTrendPoint {
+  period: string;
+  realizedRevenue: number;
+  revenueWithCurrentCost: number;
+  revenueWithoutCurrentCost: number;
+  estimatedCOGS: number;
+  estimatedGrossProfit: number;
+  estimatedGrossMarginPercent: number | null;
+  costCoveragePercent: number | null;
+}
+
+export interface ProfitabilityChannelItem {
+  channel: CommercialChannel;
+  realizedRevenue: number;
+  revenueWithCurrentCost: number;
+  estimatedCOGS: number;
+  estimatedGrossProfit: number;
+  estimatedGrossMarginPercent: number | null;
+  costCoveragePercent: number | null;
+  physicalQuantity: number;
+}
+
+export interface ProfitabilityRootCategoryItem {
+  categorySourceId: string;
+  category: string;
+  realizedRevenue: number;
+  revenueWithCurrentCost: number;
+  estimatedCOGS: number;
+  estimatedGrossProfit: number;
+  estimatedGrossMarginPercent: number | null;
+  costCoveragePercent: number | null;
+  physicalQuantity: number;
+}
+
+export interface ProfitabilityCategoryItem {
+  categorySourceId: string;
+  category: string;
+  realizedRevenue: number;
+  revenueWithCurrentCost: number;
+  estimatedCOGS: number;
+  estimatedGrossProfit: number;
+  estimatedGrossMarginPercent: number | null;
+  costCoveragePercent: number | null;
+  physicalQuantity: number;
+}
+
+export interface ProfitabilityProductItem {
+  productSourceId: string;
+  sku: string | null;
+  productName: string;
+  categorySourceId: string | null;
+  category: string | null;
+  rootCategorySourceId: string | null;
+  rootCategory: string | null;
+  physicalQuantity: number;
+  realizedRevenue: number;
+  currentEffectiveCost: number | null;
+  revenueWithCurrentCost: number;
+  revenueWithoutCurrentCost: number;
+  estimatedCOGS: number | null;
+  estimatedGrossProfit: number | null;
+  estimatedGrossMarginPercent: number | null;
+  costCoveragePercent: number | null;
+  lastRealizedDate: string | null;
+}
+
+export interface ProfitabilityOverviewResult {
+  period: {
+    from: string;
+    to: string;
+  };
+  filters: {
+    channel: CommercialChannel | null;
+    categorySourceId: string | null;
+  };
+  summary: ProfitabilitySummary;
+  costSnapshot: ProfitabilityCostSnapshot;
+  dataQuality: ProfitabilityDataQuality;
+  trendGranularity: "DAY" | "MONTH";
+  trend: ProfitabilityTrendPoint[];
+  channels: ProfitabilityChannelItem[];
+  rootCategories: ProfitabilityRootCategoryItem[];
+  categories: ProfitabilityCategoryItem[];
+  products: ProfitabilityProductItem[];
+}

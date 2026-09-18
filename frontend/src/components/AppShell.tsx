@@ -7,14 +7,17 @@ import {
   Menu,
   X,
   RefreshCw,
+  TrendingUp,
 } from "lucide-react";
 import { SyncModal } from "./SyncModal";
 import { fetchTagPlusSyncStatus } from "../api/sync";
 
 interface AppShellProps {
   children: ReactNode;
-  activeNav?: "commercial" | "products" | "inventory";
-  onSelectNav?: (nav: "commercial" | "products" | "inventory") => void;
+  activeNav?: "commercial" | "products" | "inventory" | "profitability";
+  onSelectNav?: (
+    nav: "commercial" | "products" | "inventory" | "profitability",
+  ) => void;
   onSyncSuccess?: () => void;
 }
 
@@ -164,6 +167,20 @@ export function AppShell({
                   <span className="tp-nav-text">Estoque &amp; Giro</span>
                 </button>
               </li>
+              <li>
+                <button
+                  type="button"
+                  className={`tp-nav-item ${activeNav === "profitability" ? "is-active" : ""}`}
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    onSelectNav?.("profitability");
+                    scrollToSection("topo");
+                  }}
+                >
+                  <TrendingUp size={17} className="tp-nav-icon" />
+                  <span className="tp-nav-text">Rentabilidade</span>
+                </button>
+              </li>
             </ul>
           </div>
 
@@ -174,8 +191,8 @@ export function AppShell({
               <li>
                 <div className="tp-nav-item is-disabled">
                   <PieChart size={17} className="tp-nav-icon" />
-                  <span className="tp-nav-text">Margem</span>
-                  <span className="tp-badge-soon">Em breve</span>
+                  <span className="tp-nav-text">Margem Histórica</span>
+                  <span className="tp-badge-soon">Futuro</span>
                 </div>
               </li>
             </ul>
