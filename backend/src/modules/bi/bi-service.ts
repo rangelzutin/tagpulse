@@ -29,16 +29,20 @@ import type {
   CustomerSegmentSort,
   CustomerSegmentType,
   CustomerOverviewResult,
+  CategoryTreeResult,
   InventoryOverviewResult,
   InventoryWindowDays,
   ProductsOverviewResult,
   ProfitabilityOverviewResult,
   SalesOverviewResult,
+  BiDecisionsOverviewResult,
 } from "./bi-types.js";
 import {
   calculateInventoryOverview,
   calculateWindowDateRange,
 } from "./bi-inventory-calculator.js";
+import { calculateDecisionsOverview } from "./bi-decision-calculator.js";
+import type { FlatCategoryInfo } from "./bi-profitability-calculator.js";
 
 export type BiInventoryOverviewResult =
   | { success: true; data: InventoryOverviewResult }
@@ -105,9 +109,13 @@ export interface BiService {
     internalAsOfDateOverride?: string,
   ): Promise<BiInventoryOverviewResult>;
   getCategoryTree(): Promise<
-    | { success: true; data: import("./bi-types.js").CategoryTreeResult }
+    | { success: true; data: CategoryTreeResult }
     | { success: false; error: string }
   >;
+  getDecisionsOverview(
+    queryParam?: Record<string, unknown>,
+    internalAsOfDateOverride?: string,
+  ): Promise<BiDecisionsOverviewResult>;
 }
 
 
@@ -1116,6 +1124,106 @@ export function createBiService(
               : "Erro ao carregar árvore de categorias.",
         };
       }
+    },
+
+    async getDecisionsOverview(
+      queryParam?: Record<string, unknown>,
+      internalAsOfDateOverride?: string,
+    ): Promise<BiDecisionsOverviewResult> {
+      const query = queryParam ?? {};
+
+      // 1. Validação do parâmetro windowDays (30 | 90 | 180, default 90)
+      let windowDays: InventoryWindowDays = 90;
+      if (
+        query.windowDays !== undefined &&
+        query.windowDays !== null &&
+        query.windowDays !== ""
+      ) {
+        const parsed = Number(query.windowDays);
+        if (parsed !== 30 && parsed !== 90 && parsed !== 180) {
+          return {
+            success: false,
+            error:
+              "Parâmetro 'windowDays' inválido. Valores permitidos: 30, 90, 180.",
+          };
+        }
+        windowDays = parsed;
+      }
+
+      // 2. Data operacional no fuso America/Sao_Paulo (sem off-by-one de timezone)
+      let asOfDate: string;
+      if (internalAsOfDateOverride && internalAsOfDateOverride.trim()) {
+        asOfDate = internalAsOfDateOverride.trim();
+      } else {
+        const now = options?.getNow ? options.getNow() : new Date();
+        asOfDate = new Intl.DateTimeFormat("en-CA", {
+          timeZone: "America/Sao_Paulo",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).format(now);
+      }
+
+      // 3. Janela de datas canônica
+      const { fromDate, toExclusiveDate, fromStr, toStr } =
+        calculateWindowDateRange(asOfDate, windowDays);
+
+      // 4. Buscar produtos do catálogo
+      if (!repository.findCatalogInventoryProducts) {
+        return {
+          success: false,
+          error: "Repositório não possui método findCatalogInventoryProducts.",
+        };
+      }
+      const catalogProducts = await repository.findCatalogInventoryProducts();
+
+      // 5. Buscar movimentações realizadas na janela
+      if (!repository.findRealizedProductMovements) {
+        return {
+          success: false,
+          error: "Repositório não possui método findRealizedProductMovements.",
+        };
+      }
+      const { movements: movementsInWindow } =
+        await repository.findRealizedProductMovements(fromDate, toExclusiveDate);
+
+      // 6. Buscar última saída física histórica
+      const historicalLastPhysicalSales =
+        repository.findHistoricalLastPhysicalSales
+          ? await repository.findHistoricalLastPhysicalSales(toExclusiveDate)
+          : new Map<string, Date>();
+
+      // 7. Buscar categorias planas
+      let categoriesFlat: FlatCategoryInfo[] = [];
+      if (repository.findFlatCategories) {
+        categoriesFlat = await repository.findFlatCategories();
+      }
+
+      // 8. Filtro opcional de categoria
+      let categorySourceId: string | null = null;
+      if (
+        typeof query.categorySourceId === "string" &&
+        query.categorySourceId.trim()
+      ) {
+        categorySourceId = query.categorySourceId.trim();
+      }
+
+      // 9. Cálculo puro determinístico
+      const data = calculateDecisionsOverview({
+        asOfDate,
+        windowDays,
+        startDate: fromStr,
+        endDate: toStr,
+        catalogProducts,
+        movementsInWindow,
+        categoriesFlat,
+        historicalLastPhysicalSales,
+        filters: {
+          categorySourceId,
+        },
+      });
+
+      return { success: true, data };
     },
   };
 }

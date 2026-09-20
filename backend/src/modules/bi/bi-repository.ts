@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { SaleAnchorType } from "@prisma/client";
 import { generateRealizedProductMovements } from "./bi-product-movements.js";
+import type { CatalogInventoryProduct } from "./bi-inventory-calculator.js";
 import type { CatalogProductInfo } from "./bi-products-calculator.js";
 import type {
   CatalogProductProfitabilityInfo,
@@ -56,11 +57,12 @@ export interface BiRepository {
     productIds: string[],
     sourceProductIds: string[],
   ): Promise<Map<string, CatalogProductInfo>>;
-  findCatalogInventoryProducts?(): Promise<import("./bi-inventory-calculator.js").CatalogInventoryProduct[]>;
+  findCatalogInventoryProducts?(): Promise<CatalogInventoryProduct[]>;
   findHistoricalLastPhysicalSales?(
     toExclusive: Date,
   ): Promise<Map<string, Date>>;
   invalidateHistoricalLastPhysicalSalesCache?(): void;
+  findFlatCategories?(): Promise<FlatCategoryInfo[]>;
   findProfitabilityContext?(
     from: Date,
     toExclusive: Date,
@@ -716,6 +718,33 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
 
     invalidateHistoricalLastPhysicalSalesCache() {
       cachedHistoricalSales = null;
+    },
+
+    async findFlatCategories(): Promise<FlatCategoryInfo[]> {
+      const connection = await prisma.tagPlusConnection.findFirst({
+        where: { status: "ACTIVE" },
+        select: { id: true },
+      });
+
+      if (!connection) {
+        return [];
+      }
+
+      const dbCategories = await prisma.category.findMany({
+        where: { connectionId: connection.id, sourcePresent: true },
+        select: {
+          sourceId: true,
+          description: true,
+          parentSourceId: true,
+        },
+        orderBy: { description: "asc" },
+      });
+
+      return dbCategories.map((c) => ({
+        sourceId: c.sourceId,
+        description: c.description,
+        parentSourceId: c.parentSourceId,
+      }));
     },
 
     async findProfitabilityContext(from: Date, toExclusive: Date) {

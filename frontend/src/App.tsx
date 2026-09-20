@@ -5,6 +5,7 @@ import {
   fetchProductsOverview,
   fetchInventoryOverview,
   fetchProfitabilityOverview,
+  fetchDecisionsOverview,
   fetchCategoryTree,
   fetchDataRange,
   type SalesOverviewResult,
@@ -12,6 +13,8 @@ import {
   type ProductsOverviewResult,
   type InventoryOverviewResult,
   type ProfitabilityOverviewResult,
+  type DecisionsOverviewResult,
+  type DecisionsWindowDays,
   type CommercialChannel,
   type CategoryTreeNode,
   type InventoryWindowDays,
@@ -31,6 +34,7 @@ import { CustomerDocumentTypeSelector } from "./components/CustomerDocumentTypeS
 import { ProductsView } from "./components/ProductsView";
 import { InventoryView } from "./components/InventoryView";
 import { ProfitabilityView } from "./components/ProfitabilityView";
+import { DecisionsView } from "./components/DecisionsView";
 import { InventoryWindowSelector } from "./components/InventoryWindowSelector";
 import type { CustomerRecencyBucket, CustomerSegmentType } from "./api/bi";
 import type { RateContextData } from "./components/CustomerSegmentView";
@@ -39,7 +43,7 @@ import { getDefaultPeriod, formatDateBr } from "./utils/formatters";
 
 export function App() {
   const [activeNav, setActiveNav] = useState<
-    "commercial" | "products" | "inventory" | "profitability"
+    "commercial" | "products" | "inventory" | "profitability" | "decisions"
   >("commercial");
   const [periodMode, setPeriodMode] = useState<PeriodMode>("range");
   const [dataRange, setDataRange] = useState<BiDataRangeResult | null>(null);
@@ -99,6 +103,21 @@ export function App() {
   const [categoryTree, setCategoryTree] = useState<CategoryTreeNode[]>([]);
   const profitabilityRequestSeq = useRef(0);
   const profitabilityAbortControllerRef = useRef<AbortController | null>(null);
+
+  // Decisions State (Lazy loaded, protected against race conditions)
+  const [decisionsData, setDecisionsData] =
+    useState<DecisionsOverviewResult | null>(null);
+  const [isDecisionsLoading, setIsDecisionsLoading] = useState(false);
+  const [isDecisionsRefreshing, setIsDecisionsRefreshing] = useState(false);
+  const [decisionsError, setDecisionsError] = useState<string | null>(null);
+  const [decisionsWindowDays, setDecisionsWindowDays] =
+    useState<DecisionsWindowDays>(90);
+  const [
+    decisionsSelectedCategorySourceId,
+    setDecisionsSelectedCategorySourceId,
+  ] = useState<string | null>(null);
+  const decisionsRequestSeq = useRef(0);
+  const decisionsAbortControllerRef = useRef<AbortController | null>(null);
 
   // Drawer State
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -299,6 +318,58 @@ export function App() {
     [selectedProfitabilityChannel, selectedProfitabilityCategorySourceId],
   );
 
+  // Fetch Decisions Overview independently (lazy loaded, protected against race conditions)
+  const loadDecisionsOverview = useCallback(
+    async (
+      windowDays: DecisionsWindowDays = decisionsWindowDays,
+      categorySourceId: string | null = decisionsSelectedCategorySourceId,
+      isBackground = false,
+    ) => {
+      if (decisionsAbortControllerRef.current) {
+        decisionsAbortControllerRef.current.abort();
+      }
+      const controller = new AbortController();
+      decisionsAbortControllerRef.current = controller;
+
+      const currentSeq = ++decisionsRequestSeq.current;
+
+      setDecisionsError(null);
+      if (!isBackground) {
+        setIsDecisionsLoading(true);
+      } else {
+        setIsDecisionsRefreshing(true);
+      }
+
+      try {
+        const result = await fetchDecisionsOverview({
+          windowDays,
+          categorySourceId,
+          signal: controller.signal,
+        });
+        if (currentSeq === decisionsRequestSeq.current) {
+          setDecisionsData(result);
+        }
+      } catch (err: unknown) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          return;
+        }
+        if (currentSeq === decisionsRequestSeq.current) {
+          const message =
+            err instanceof Error
+              ? err.message
+              : "Não foi possível carregar a Central de Decisões.";
+          setDecisionsError(message);
+        }
+      } finally {
+        if (currentSeq === decisionsRequestSeq.current) {
+          setIsDecisionsLoading(false);
+          setIsDecisionsRefreshing(false);
+        }
+      }
+    },
+    [decisionsWindowDays, decisionsSelectedCategorySourceId],
+  );
+
   // Orchestrate commercial endpoints concurrently
   const loadCommercialData = useCallback(
     async (
@@ -344,7 +415,7 @@ export function App() {
   };
 
   const handleSelectNav = (
-    nav: "commercial" | "products" | "inventory" | "profitability",
+    nav: "commercial" | "products" | "inventory" | "profitability" | "decisions",
   ) => {
     setActiveNav(nav);
     if (nav === "products") {
@@ -370,6 +441,14 @@ export function App() {
           currentPeriod.to,
           selectedProfitabilityChannel,
           selectedProfitabilityCategorySourceId,
+          false,
+        );
+      }
+    } else if (nav === "decisions") {
+      if (!decisionsData && !isDecisionsLoading) {
+        void loadDecisionsOverview(
+          decisionsWindowDays,
+          decisionsSelectedCategorySourceId,
           false,
         );
       }
@@ -416,14 +495,26 @@ export function App() {
         selectedProfitabilityCategorySourceId,
         Boolean(profitabilityData),
       );
+    } else if (activeNav === "decisions") {
+      setProductsLoadedPeriod(null);
+      setInventoryLoadedWindow(null);
+      void loadDecisionsOverview(
+        decisionsWindowDays,
+        decisionsSelectedCategorySourceId,
+        Boolean(decisionsData),
+      );
     }
   }, [
     activeNav,
     currentPeriod.from,
     currentPeriod.to,
+    decisionsData,
+    decisionsSelectedCategorySourceId,
+    decisionsWindowDays,
     inventoryData,
     inventoryWindowDays,
     loadCommercialData,
+    loadDecisionsOverview,
     loadInventoryOverview,
     loadProductsOverview,
     loadProfitabilityOverview,
@@ -460,6 +551,9 @@ export function App() {
       }
       if (profitabilityAbortControllerRef.current) {
         profitabilityAbortControllerRef.current.abort();
+      }
+      if (decisionsAbortControllerRef.current) {
+        decisionsAbortControllerRef.current.abort();
       }
     };
   }, []);
@@ -581,6 +675,35 @@ export function App() {
     );
   };
 
+  const handleDecisionsWindowChange = (newWindow: DecisionsWindowDays) => {
+    if (newWindow === decisionsWindowDays) return;
+    setDecisionsWindowDays(newWindow);
+    void loadDecisionsOverview(
+      newWindow,
+      decisionsSelectedCategorySourceId,
+      Boolean(decisionsData),
+    );
+  };
+
+  const handleDecisionsCategoryChange = (
+    categorySourceId: string | null,
+  ) => {
+    setDecisionsSelectedCategorySourceId(categorySourceId);
+    void loadDecisionsOverview(
+      decisionsWindowDays,
+      categorySourceId,
+      Boolean(decisionsData),
+    );
+  };
+
+  const handleRetryDecisions = () => {
+    void loadDecisionsOverview(
+      decisionsWindowDays,
+      decisionsSelectedCategorySourceId,
+      false,
+    );
+  };
+
   const handleOpenSegmentDrawer = (
     segment: CustomerSegmentType,
     rateContext?: RateContextData | null,
@@ -612,6 +735,7 @@ export function App() {
     isProductsLoading ||
     isInventoryLoading ||
     isProfitabilityLoading ||
+    isDecisionsLoading ||
     isUpdating;
 
   return (
@@ -630,7 +754,9 @@ export function App() {
                 ? "Produtos"
                 : activeNav === "profitability"
                   ? "Rentabilidade"
-                  : "Performance Comercial"
+                  : activeNav === "decisions"
+                    ? "Decisões"
+                    : "Performance Comercial"
           }
           subtitle={
             activeNav === "inventory"
@@ -639,15 +765,22 @@ export function App() {
                 ? "Mix, volume e desempenho dos produtos realizados no período"
                 : activeNav === "profitability"
                   ? "Rentabilidade estimada ao custo atual de catálogo TagPlus"
-                  : "Análise operacional e comercial da Nineclouds com base nas vendas realizadas e no comportamento da base de clientes."
+                  : activeNav === "decisions"
+                    ? "Cruzamento operacional de vendas recentes, estoque atual e rentabilidade estimada"
+                    : "Análise operacional e comercial da Nineclouds com base nas vendas realizadas e no comportamento da base de clientes."
           }
           badge={
-            activeNav === "inventory" && inventoryData?.asOfDate
-              ? `Posição em ${formatDateBr(inventoryData.asOfDate)}`
-              : undefined
+            activeNav === "decisions" && decisionsData?.meta.asOfDate
+              ? `Posição em ${formatDateBr(decisionsData.meta.asOfDate)}`
+              : activeNav === "inventory" && inventoryData?.asOfDate
+                ? `Posição em ${formatDateBr(inventoryData.asOfDate)}`
+                : undefined
           }
           isUpdating={
-            isUpdating || isInventoryRefreshing || isProfitabilityRefreshing
+            isUpdating ||
+            isInventoryRefreshing ||
+            isProfitabilityRefreshing ||
+            isDecisionsRefreshing
           }
         >
           {activeNav === "inventory" ? (
@@ -656,7 +789,7 @@ export function App() {
               onChange={handleInventoryWindowChange}
               disabled={isInventoryLoading || isInventoryRefreshing}
             />
-          ) : (
+          ) : activeNav === "profitability" || activeNav === "decisions" ? null : (
             <PeriodFilter
               initialFrom={currentPeriod.from}
               initialTo={currentPeriod.to}
@@ -695,6 +828,19 @@ export function App() {
             onSelectChannel={handleProfitabilityChannelChange}
             selectedCategorySourceId={selectedProfitabilityCategorySourceId}
             onSelectCategorySourceId={handleProfitabilityCategoryChange}
+            categoryTree={categoryTree}
+          />
+        ) : activeNav === "decisions" ? (
+          <DecisionsView
+            data={decisionsData}
+            isLoading={isDecisionsLoading}
+            isRefreshing={isDecisionsRefreshing}
+            error={decisionsError}
+            onRetry={handleRetryDecisions}
+            windowDays={decisionsWindowDays}
+            onSelectWindowDays={handleDecisionsWindowChange}
+            selectedCategorySourceId={decisionsSelectedCategorySourceId}
+            onSelectCategorySourceId={handleDecisionsCategoryChange}
             categoryTree={categoryTree}
           />
         ) : (

@@ -8,15 +8,16 @@ import {
   X,
   RefreshCw,
   TrendingUp,
+  SlidersHorizontal,
 } from "lucide-react";
 import { SyncModal } from "./SyncModal";
 import { fetchTagPlusSyncStatus } from "../api/sync";
 
 interface AppShellProps {
   children: ReactNode;
-  activeNav?: "commercial" | "products" | "inventory" | "profitability";
+  activeNav?: "commercial" | "products" | "inventory" | "profitability" | "decisions";
   onSelectNav?: (
-    nav: "commercial" | "products" | "inventory" | "profitability",
+    nav: "commercial" | "products" | "inventory" | "profitability" | "decisions",
   ) => void;
   onSyncSuccess?: () => void;
 }
@@ -179,6 +180,20 @@ export function AppShell({
                 >
                   <TrendingUp size={17} className="tp-nav-icon" />
                   <span className="tp-nav-text">Rentabilidade</span>
+                </button>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  className={`tp-nav-item ${activeNav === "decisions" ? "is-active" : ""}`}
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    onSelectNav?.("decisions");
+                    scrollToSection("topo");
+                  }}
+                >
+                  <SlidersHorizontal size={17} className="tp-nav-icon" />
+                  <span className="tp-nav-text">Decisões</span>
                 </button>
               </li>
             </ul>

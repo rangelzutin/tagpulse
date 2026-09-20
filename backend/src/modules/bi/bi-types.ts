@@ -1,5 +1,7 @@
 import type { Prisma, SaleAnchorType } from "@prisma/client";
 
+export type { SaleAnchorType };
+
 export interface SalesOverviewPeriod {
   from: string;
   to: string;
@@ -695,3 +697,91 @@ export interface ProfitabilityOverviewResult {
   categories: ProfitabilityCategoryItem[];
   products: ProfitabilityProductItem[];
 }
+
+// ==========================================
+// Central de Decisões V1 (Decisions Layer)
+// ==========================================
+
+export interface DecisionsDataQuality {
+  productsTotal: number;
+  productsWithCurrentCost: number;
+  productsWithoutCurrentCost: number;
+  revenueWithCurrentCost: number;
+  revenueWithoutCurrentCost: number;
+  costCoveragePercent: number | null;
+}
+
+export interface DecisionsMeta {
+  asOfDate: string; // YYYY-MM-DD
+  windowDays: InventoryWindowDays; // 30 | 90 | 180
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
+  totalCatalogProducts: number;
+  activeCatalogProducts: number;
+  appliedFilters: {
+    categorySourceId: string | null;
+    categoryDescription: string | null;
+  };
+  dataQuality: DecisionsDataQuality;
+}
+
+export interface DecisionsKpis {
+  currentInventoryCapital: number;
+  capitalWithoutSalesActive: number;
+  demandWithoutStockCount: number;
+  lowCoverageCount: number;
+  criticalCoverageCount: number;
+  alertCoverageCount: number;
+  estimatedGrossProfitInWindow: number;
+  realizedRevenueInWindow: number;
+}
+
+export interface DecisionsProductItem {
+  productSourceId: string;
+  code: string | null;
+  description: string | null;
+  active: boolean;
+  categorySourceId: string | null;
+  categoryDescription: string | null;
+  rootCategorySourceId: string | null;
+  rootCategoryDescription: string | null;
+  currentStock: number;
+  currentEffectiveCost: number | null;
+  currentInventoryCostValue: number | null;
+  currentInventoryListValue: number | null;
+  retailSalePrice: number | null;
+  physicalQuantityInWindow: number;
+  realizedRevenueInWindow: number;
+  customerCountInWindow: number;
+  averageDailySales: number;
+  estimatedCoverageDays: number | null;
+  lastPhysicalSaleDate: string | null;
+  daysSinceLastPhysicalSale: number | null;
+  estimatedCOGSInWindow: number | null;
+  estimatedGrossProfitInWindow: number | null;
+  estimatedGrossMarginPercentInWindow: number | null;
+  channelsInWindow: CommercialChannel[];
+}
+
+export interface DecisionsReplenishmentGroups {
+  demandWithoutStock: DecisionsProductItem[];
+  criticalCoverage: DecisionsProductItem[];
+  alertCoverage: DecisionsProductItem[];
+}
+
+export interface DecisionsCapitalGroups {
+  inventoryWithoutSales: DecisionsProductItem[];
+  highCoverage: DecisionsProductItem[];
+  inactiveWithStock: DecisionsProductItem[];
+}
+
+export interface DecisionsOverviewResult {
+  meta: DecisionsMeta;
+  kpis: DecisionsKpis;
+  replenishment: DecisionsReplenishmentGroups;
+  capitalOptimization: DecisionsCapitalGroups;
+}
+
+export type BiDecisionsOverviewResult =
+  | { success: true; data: DecisionsOverviewResult }
+  | { success: false; error: string };
