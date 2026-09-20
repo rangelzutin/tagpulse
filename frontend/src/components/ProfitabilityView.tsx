@@ -31,18 +31,28 @@ interface ProfitabilityViewProps {
   categoryTree: CategoryTreeNode[];
 }
 
-function formatSnapshotDate(isoString: string | null | undefined): string {
-  if (!isoString) return "Não disponível";
+function formatCostSnapshotDate(isoString: string | null | undefined): string {
+  if (!isoString) return "Data de atualização dos custos indisponível";
   try {
     const d = new Date(isoString);
-    if (isNaN(d.getTime())) return isoString;
-    return d.toLocaleString("pt-BR", {
-      dateStyle: "short",
-      timeStyle: "short",
-    });
+    if (isNaN(d.getTime())) return "Data de atualização dos custos indisponível";
+    const day = String(d.getDate()).padStart(2, "0");
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const year = d.getFullYear();
+    const hours = String(d.getHours()).padStart(2, "0");
+    const minutes = String(d.getMinutes()).padStart(2, "0");
+    return `Custos atuais atualizados em ${day}/${month}/${year} às ${hours}:${minutes}`;
   } catch {
-    return isoString;
+    return "Data de atualização dos custos indisponível";
   }
+}
+
+function formatProductsCoverage(withCost: number, total: number): string {
+  if (total <= 0) {
+    return "0 de 0";
+  }
+  const pct = formatNumber((withCost / total) * 100);
+  return `${withCost} de ${total} (${pct}%)`;
 }
 
 export function ProfitabilityView({
@@ -154,6 +164,8 @@ export function ProfitabilityView({
     onSelectCategorySourceId(null);
   };
 
+  const [isPremiseExpanded, setIsPremiseExpanded] = useState(false);
+
   const isFullCostCoverage =
     summary.costCoveragePercent !== null && summary.costCoveragePercent >= 99.9;
 
@@ -181,27 +193,45 @@ export function ProfitabilityView({
         </div>
 
         {/* Snapshot timestamp badge */}
-        <div className="tp-profit-snapshot-badge" title="Timestamp do catálogo ERP">
-          <span className="tp-snapshot-dot" />
-          <span>
-            Catálogo TagPlus: {formatSnapshotDate(costSnapshot.asOf)}
-          </span>
+        <div
+          className={`tp-profit-snapshot-badge ${!costSnapshot?.completedAt ? "tp-snapshot-badge-muted" : ""}`}
+          title={
+            costSnapshot?.completedAt
+              ? `Origem: ${costSnapshot.source === "PRODUCT_SYNC_RUN" ? "Sincronização de catálogo" : "Última atualização de produtos"}`
+              : "Data de atualização indisponível"
+          }
+        >
+          <span className={`tp-snapshot-dot ${!costSnapshot?.completedAt ? "tp-snapshot-dot-muted" : ""}`} />
+          <span>{formatCostSnapshotDate(costSnapshot?.completedAt)}</span>
         </div>
       </div>
 
-      {/* 2. Canonical Disclaimer Callout */}
-      <div className="tp-profit-disclaimer-box" role="note">
-        <div className="tp-disclaimer-icon">
-          <Info size={18} />
+      {/* 2. Compact Methodology Premise Callout */}
+      <div className="tp-profit-premise-box" role="note">
+        <div className="tp-profit-premise-header">
+          <div className="tp-profit-premise-main">
+            <Info size={15} className="tp-profit-premise-icon" />
+            <span className="tp-profit-premise-title">Sobre esta estimativa:</span>
+            <span className="tp-profit-premise-text">
+              Rentabilidade estimada com o custo atual dos produtos. Não representa o custo histórico na data da venda.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsPremiseExpanded((prev) => !prev)}
+            className="tp-profit-premise-toggle"
+            aria-expanded={isPremiseExpanded}
+          >
+            {isPremiseExpanded ? "Menos detalhes" : "Saiba mais"}
+          </button>
         </div>
-        <div className="tp-disclaimer-content">
-          <span className="tp-disclaimer-title">
-            Premissa Canônica de Custo Atual de Catálogo
-          </span>
-          <p className="tp-disclaimer-text">
-            Esta análise não representa o CMV histórico apurado no momento de cada venda, mas sim a rentabilidade estimada caso os produtos fossem repostos aos custos atuais cadastrados no catálogo do TagPlus. Itens sem custo cadastrado ou produtos históricos descontinuados têm sua receita realizada preservada na íntegra, mas são isolados do cálculo de margem para evitar distorções.
-          </p>
-        </div>
+        {isPremiseExpanded && (
+          <div className="tp-profit-premise-details">
+            <p>
+              Esta análise não representa o CMV histórico apurado no momento de cada venda, mas sim a rentabilidade estimada caso os produtos fossem repostos aos custos atuais cadastrados no catálogo do TagPlus. Itens sem custo cadastrado ou produtos históricos descontinuados têm sua receita realizada preservada na íntegra, mas são isolados do cálculo de margem para evitar distorções.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* 3. Primary KPI Grid */}
@@ -253,10 +283,12 @@ export function ProfitabilityView({
             </div>
 
             <div className="tp-coverage-detail-item">
-              <span className="tp-detail-label">Produtos no catálogo ERP:</span>
+              <span className="tp-detail-label">Produtos vendidos com custo atual:</span>
               <span className="tp-detail-value tp-font-mono">
-                {formatNumber(costSnapshot.productsWithCostCount)} com custo /{" "}
-                {formatNumber(costSnapshot.totalCatalogProducts)} total
+                {formatProductsCoverage(
+                  dataQuality.productsWithCurrentCost ?? 0,
+                  dataQuality.productsTotal ?? 0
+                )}
               </span>
             </div>
 

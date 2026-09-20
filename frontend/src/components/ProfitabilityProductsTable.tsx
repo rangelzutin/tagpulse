@@ -1,8 +1,10 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import {
   Search,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  Check,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
@@ -18,6 +20,14 @@ import {
   formatNumber,
 } from "../utils/formatters";
 import { InventoryCategoryTreeSelector } from "./InventoryCategoryTreeSelector";
+
+const CHANNEL_OPTIONS: { label: string; value: CommercialChannel | null }[] = [
+  { label: "Todos os canais", value: null },
+  { label: "Atacado", value: "ATACADO" },
+  { label: "Varejo", value: "VAREJO" },
+  { label: "Indeterminado", value: "INDETERMINADO" },
+  { label: "Conflito", value: "CONFLITO" },
+];
 
 export type ProductSortField =
   | "name"
@@ -54,6 +64,25 @@ export function ProfitabilityProductsTable({
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [isChannelOpen, setIsChannelOpen] = useState(false);
+  const channelDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        channelDropdownRef.current &&
+        !channelDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsChannelOpen(false);
+      }
+    }
+    if (isChannelOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isChannelOpen]);
 
   // 1. Filtragem local por texto de busca (nome, SKU, ID)
   const filteredProducts = useMemo(() => {
@@ -167,26 +196,59 @@ export function ProfitabilityProductsTable({
 
         {/* Filter Controls Bar */}
         <div className="tp-table-controls-bar">
-          {/* Canal */}
-          <div className="tp-filter-control-item">
-            <select
-              className="tp-select-compact"
-              value={selectedChannel ?? "TODOS"}
-              onChange={(e) => {
-                const val = e.target.value;
-                onSelectChannel(val === "TODOS" ? null : (val as CommercialChannel));
-                setPage(1);
-              }}
-              aria-label="Filtrar por canal"
+          {/* Canal Custom Dropdown */}
+          <div className="tp-filter-control-item tp-channel-filter-item">
+            <div
+              className="tp-combobox-container tp-channel-combobox"
+              ref={channelDropdownRef}
             >
-              <option value="TODOS">Todos os canais</option>
-              <option value="ATACADO">Atacado</option>
-              <option value="VAREJO">Varejo</option>
-            </select>
+              <button
+                type="button"
+                className={`tp-combobox-trigger tp-filter-trigger ${isChannelOpen ? "is-open" : ""} ${selectedChannel ? "is-filtered" : ""}`}
+                onClick={() => setIsChannelOpen((prev) => !prev)}
+                aria-label="Filtrar por canal"
+                aria-expanded={isChannelOpen}
+              >
+                <span className="tp-combobox-label">
+                  {CHANNEL_OPTIONS.find((opt) => opt.value === selectedChannel)?.label ?? "Todos os canais"}
+                </span>
+                <ChevronDown
+                  size={14}
+                  className={`tp-combobox-chevron ${isChannelOpen ? "is-rotated" : ""}`}
+                />
+              </button>
+
+              {isChannelOpen && (
+                <div className="tp-combobox-popover tp-filter-dropdown-popover" role="listbox">
+                  {CHANNEL_OPTIONS.map((opt) => {
+                    const isSelected = selectedChannel === opt.value;
+                    return (
+                      <button
+                        key={opt.value ?? "ALL"}
+                        type="button"
+                        className={`tp-combobox-option ${isSelected ? "is-selected" : ""}`}
+                        onClick={() => {
+                          onSelectChannel(opt.value);
+                          setIsChannelOpen(false);
+                          setPage(1);
+                        }}
+                        role="option"
+                        aria-selected={isSelected}
+                      >
+                        <span className="tp-combobox-option-text">{opt.label}</span>
+                        {isSelected && (
+                          <Check size={14} className="tp-combobox-check-icon" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Seletor Hierárquico de Categorias */}
-          <div className="tp-filter-control-item">
+          <div className="tp-filter-control-item tp-category-filter-item">
             <InventoryCategoryTreeSelector
               categories={categoryTree}
               selectedCategorySourceId={selectedCategorySourceId}
@@ -198,22 +260,22 @@ export function ProfitabilityProductsTable({
           </div>
 
           {/* Search Input */}
-          <div className="tp-search-wrap">
+          <div className="tp-search-input-wrap tp-profit-search-wrap">
             <Search size={14} className="tp-search-icon" />
             <input
               type="text"
-              placeholder="Buscar por produto, SKU ou ID..."
+              placeholder="Buscar produto ou código..."
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value);
                 setPage(1);
               }}
-              className="tp-search-input"
+              className="tp-input-search tp-profit-search-input"
             />
             {searchTerm && (
               <button
                 type="button"
-                className="tp-search-clear"
+                className="tp-search-clear-btn"
                 onClick={() => {
                   setSearchTerm("");
                   setPage(1);
@@ -244,11 +306,11 @@ export function ProfitabilityProductsTable({
 
       {/* Table */}
       <div className="tp-table-wrapper">
-        <table className="tp-table">
+        <table className="tp-table tp-profit-table">
           <thead>
             <tr>
               <th
-                className="tp-clickable-th"
+                className="tp-col-product tp-clickable-th"
                 onClick={() => handleSort("name")}
               >
                 <div className="tp-th-content">
@@ -328,7 +390,7 @@ export function ProfitabilityProductsTable({
 
                 return (
                   <tr key={`${p.productSourceId}-${p.productId ?? "orphan"}`}>
-                    <td>
+                    <td className="tp-col-product">
                       <div className="tp-product-cell">
                         <span className="tp-product-name" title={p.productName}>
                           {p.productName}
@@ -338,12 +400,11 @@ export function ProfitabilityProductsTable({
                             <span className="tp-badge-orphan">
                               {`ID TagPlus: ${p.productSourceId} • Histórico`}
                             </span>
-                          ) : (
-                            <>
-                              {p.sku && <span className="tp-sku-tag">{p.sku}</span>}
-                              <span className="tp-id-tag">ID: {p.productSourceId}</span>
-                            </>
-                          )}
+                          ) : p.sku ? (
+                            <span className="tp-product-code">
+                              {`Código: ${p.sku}`}
+                            </span>
+                          ) : null}
                         </div>
                       </div>
                     </td>

@@ -858,19 +858,18 @@ export interface ProfitabilitySummary {
 }
 
 export interface ProfitabilityCostSnapshot {
-  asOf: string;
-  lastProductSyncAt: string | null;
-  lastProductSyncStatus: string | null;
-  totalCatalogProducts: number;
-  productsWithCostCount: number;
-  productsWithoutCostCount: number;
+  completedAt: string | null;
+  source: "PRODUCT_SYNC_RUN" | "PRODUCT_LAST_SEEN_FALLBACK";
 }
 
 export interface ProfitabilityDataQuality {
   movementsWithCurrentCost: number;
   movementsWithoutCurrentCost: number;
-  financialComplementCount: number;
-  financialComplementRevenue: number;
+  productsTotal: number;
+  productsWithCurrentCost: number;
+  productsWithoutCurrentCost: number;
+  financialComplementCount?: number;
+  financialComplementRevenue?: number;
   movementsWithoutCurrentProduct: number;
   revenueWithoutCurrentProduct: number;
   currentCategoryCoveragePercent: number | null;

@@ -455,4 +455,70 @@ describe("Profitability BI V1 — Deterministic Calculator", () => {
     expect(result.trend[2]!.period).toBe("2026-01-03");
     expect(result.trend[2]!.realizedRevenue).toBe(0);
   });
+
+  it("8. DataQuality: calcula productsTotal, productsWithCurrentCost e productsWithoutCurrentCost corretamente", () => {
+    // 3 movimentos:
+    // - prod-1 (101): tem custo (80)
+    // - prod-2 (102): sem custo (null)
+    // - órfão (999): não existe no catálogo
+    const movements: RealizedProductMovement[] = [
+      {
+        productId: "prod-1",
+        sourceProductId: "101",
+        realizedDate: new Date("2026-01-02T10:00:00.000Z"),
+        quantity: 1,
+        grossItemAmount: 100,
+        allocationBaseAmount: 100,
+        allocatedNetRevenue: 100,
+        saleId: "sale-1",
+        customerId: "cust-1",
+        channel: "ATACADO",
+        sourceDocumentId: "doc-1",
+        sourceDocumentType: "NFE" as any,
+        origin: "DIRECT_NFE",
+      },
+      {
+        productId: "prod-2",
+        sourceProductId: "102",
+        realizedDate: new Date("2026-01-02T10:00:00.000Z"),
+        quantity: 1,
+        grossItemAmount: 100,
+        allocationBaseAmount: 100,
+        allocatedNetRevenue: 100,
+        saleId: "sale-1",
+        customerId: "cust-1",
+        channel: "ATACADO",
+        sourceDocumentId: "doc-1",
+        sourceDocumentType: "NFE" as any,
+        origin: "DIRECT_NFE",
+      },
+      {
+        productId: null,
+        sourceProductId: "999",
+        realizedDate: new Date("2026-01-02T10:00:00.000Z"),
+        quantity: 1,
+        grossItemAmount: 50,
+        allocationBaseAmount: 50,
+        allocatedNetRevenue: 50,
+        saleId: "sale-2",
+        customerId: "cust-1",
+        channel: "ATACADO",
+        sourceDocumentId: "doc-2",
+        sourceDocumentType: "NFE" as any,
+        origin: "DIRECT_NFE",
+      },
+    ];
+
+    const result = runCalculator({ movements });
+
+    expect(result.dataQuality.productsTotal).toBe(3);
+    expect(result.dataQuality.productsWithCurrentCost).toBe(1);
+    expect(result.dataQuality.productsWithoutCurrentCost).toBe(2);
+
+    // Caso de zero movimentos
+    const emptyResult = runCalculator({ movements: [] });
+    expect(emptyResult.dataQuality.productsTotal).toBe(0);
+    expect(emptyResult.dataQuality.productsWithCurrentCost).toBe(0);
+    expect(emptyResult.dataQuality.productsWithoutCurrentCost).toBe(0);
+  });
 });

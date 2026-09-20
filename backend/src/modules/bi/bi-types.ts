@@ -594,6 +594,9 @@ export interface ProfitabilityDataQuality {
   movementsTotal: number;
   movementsWithCurrentCost: number;
   movementsWithoutCurrentCost: number;
+  productsTotal: number;
+  productsWithCurrentCost: number;
+  productsWithoutCurrentCost: number;
   realizedRevenue: number;
   revenueWithCurrentCost: number;
   revenueWithoutCurrentCost: number;

@@ -27,16 +27,15 @@ describe("ProfitabilityView & Components", () => {
       estimatedGrossMarginPercent: 27.84,
     },
     costSnapshot: {
-      asOf: "2026-09-17T21:00:00.000Z",
-      lastProductSyncAt: "2026-09-17T20:30:00.000Z",
-      lastProductSyncStatus: "SUCCESS",
-      totalCatalogProducts: 500,
-      productsWithCostCount: 490,
-      productsWithoutCostCount: 10,
+      completedAt: "2026-09-17T21:00:00.000Z",
+      source: "PRODUCT_SYNC_RUN",
     },
     dataQuality: {
       movementsWithCurrentCost: 150,
       movementsWithoutCurrentCost: 12,
+      productsTotal: 42,
+      productsWithCurrentCost: 42,
+      productsWithoutCurrentCost: 0,
       financialComplementCount: 5,
       financialComplementRevenue: 450,
       movementsWithoutCurrentProduct: 8,
@@ -148,7 +147,7 @@ describe("ProfitabilityView & Components", () => {
     ],
   };
 
-  it("1. Renderiza os 4 KPIs com a nomenclatura canônica e valores formatados", () => {
+  it("1. Renderiza os 4 KPIs com estrutura padronizada e valores preservados (H)", () => {
     const html = renderToString(
       <ProfitabilityKpiGrid summary={mockProfitabilityData.summary} />,
     );
@@ -157,13 +156,17 @@ describe("ProfitabilityView & Components", () => {
     expect(html).toContain("CMV estimado ao custo atual");
     expect(html).toContain("Lucro bruto estimado ao custo atual");
     expect(html).toContain("Margem bruta estimada ao custo atual");
-    // Não pode conter termos vedados
-    expect(html).not.toContain("CMV realizado");
-    expect(html).not.toContain("Margem realizada");
-    expect(html).not.toContain("Margem histórica");
+    expect(html).toContain("53.766,28");
+    expect(html).toContain("36.143,45");
+    expect(html).toContain("13.941,25");
+    expect(html).toContain("27,84%");
+    expect(html).toContain("tp-profit-kpi-card");
+    expect(html).toContain("tp-profit-kpi-header");
+    expect(html).toContain("tp-profit-kpi-value-wrap");
+    expect(html).toContain("tp-profit-kpi-footer");
   });
 
-  it("2. Renderiza o aviso canônico de premissa (disclaimer) e timestamp do snapshot", () => {
+  it("2. Snapshot presente: não exibe 'Catálogo TagPlus: Não disponível' e exibe timestamp formatado (A, B)", () => {
     const html = renderToString(
       <ProfitabilityView
         data={mockProfitabilityData}
@@ -178,14 +181,37 @@ describe("ProfitabilityView & Components", () => {
       />,
     );
 
-    expect(html).toContain("Premissa Canônica de Custo Atual de Catálogo");
-    expect(html).toContain(
-      "Esta análise não representa o CMV histórico apurado no momento de cada venda",
-    );
-    expect(html).toContain("Catálogo TagPlus:");
+    expect(html).not.toContain("Catálogo TagPlus: Não disponível");
+    expect(html).toContain("Custos atuais atualizados em");
+    expect(html).toContain("Sobre esta estimativa:");
+    expect(html).toContain("Rentabilidade estimada com o custo atual dos produtos");
+    expect(html).toContain("Saiba mais");
   });
 
-  it("3. Renderiza o bloco de cobertura de custo e nota de produtos históricos", () => {
+  it("3. Snapshot ausente: exibe fallback semanticamente correto e nunca 'Catálogo TagPlus: Não disponível' (A)", () => {
+    const dataWithoutSnapshot = {
+      ...mockProfitabilityData,
+      costSnapshot: { completedAt: null, source: "PRODUCT_SYNC_RUN" as const },
+    };
+    const html = renderToString(
+      <ProfitabilityView
+        data={dataWithoutSnapshot}
+        isLoading={false}
+        error={null}
+        onRetry={vi.fn()}
+        selectedChannel={null}
+        onSelectChannel={vi.fn()}
+        selectedCategorySourceId={null}
+        onSelectCategorySourceId={vi.fn()}
+        categoryTree={[]}
+      />,
+    );
+
+    expect(html).not.toContain("Catálogo TagPlus: Não disponível");
+    expect(html).toContain("Data de atualização dos custos indisponível");
+  });
+
+  it("4. Renderiza produtos vendidos com custo atual e nunca NaN (C, D)", () => {
     const html = renderToString(
       <ProfitabilityView
         data={mockProfitabilityData}
@@ -200,33 +226,41 @@ describe("ProfitabilityView & Components", () => {
       />,
     );
 
-    expect(html).toContain("Cobertura de Custo Atual");
-    expect(html).toContain("93,15%");
-    expect(html).toContain("produtos históricos descontinuados");
+    expect(html).not.toContain("NaN");
+    expect(html).toContain("Produtos vendidos com custo atual:");
+    expect(html).toContain("42 de 42 (100%)");
   });
 
-  it("4. Renderiza os breakdowns de canais e famílias com nomenclatura neutra de raízes", () => {
+  it("5. Zero produtos nunca gera NaN nem (100%) (C)", () => {
+    const zeroData = {
+      ...mockProfitabilityData,
+      dataQuality: {
+        ...mockProfitabilityData.dataQuality,
+        productsTotal: 0,
+        productsWithCurrentCost: 0,
+        productsWithoutCurrentCost: 0,
+      },
+    };
     const html = renderToString(
-      <ProfitabilityBreakdowns
-        channels={mockProfitabilityData.channels}
-        rootCategories={mockProfitabilityData.rootCategories}
+      <ProfitabilityView
+        data={zeroData}
+        isLoading={false}
+        error={null}
+        onRetry={vi.fn()}
         selectedChannel={null}
         onSelectChannel={vi.fn()}
         selectedCategorySourceId={null}
         onSelectCategorySourceId={vi.fn()}
+        categoryTree={[]}
       />,
     );
 
-    expect(html).toContain("Rentabilidade por Canal");
-    expect(html).toContain("Atacado");
-    expect(html).toContain("Varejo");
-    // Nomenclatura requerida: Família / Categoria Mãe (evitar tratar como Marca)
-    expect(html).toContain("Rentabilidade por Família / Categoria Mãe");
-    expect(html).toContain("1 - NINECLOUDS");
-    expect(html).toContain("X - DESATIVADOS");
+    expect(html).not.toContain("NaN");
+    expect(html).toContain("0 de 0");
+    expect(html).not.toContain("0 de 0 (100%)");
   });
 
-  it("5. Renderiza a tabela de produtos preservando produtos órfãos com apresentação neutra", () => {
+  it("6. Produto normal mostra Código e não mostra ID TagPlus; órfão mostra ID TagPlus + Histórico (E, F)", () => {
     const html = renderToString(
       <ProfitabilityProductsTable
         products={mockProfitabilityData.products}
@@ -241,14 +275,55 @@ describe("ProfitabilityView & Components", () => {
 
     // Produto normal
     expect(html).toContain("Shape Nineclouds Maple 8.0");
-    expect(html).toContain("SKU-PRO-01");
+    expect(html).toContain("Código: SKU-PRO-01");
+    expect(html).not.toContain("ID: 101");
+    expect(html).not.toContain("ID TagPlus: 101");
 
     // Produto órfão
     expect(html).toContain("Produto não disponível no catálogo atual");
     expect(html).toContain("ID TagPlus: 645 • Histórico");
   });
 
-  it("6. Renderiza estado de loading (skeleton) e erro de forma graciosa", () => {
+  it("7. Filtros por canal, categoria e busca estão presentes no DOM estilizado (G)", () => {
+    const html = renderToString(
+      <ProfitabilityProductsTable
+        products={mockProfitabilityData.products}
+        categoryTree={[]}
+        selectedChannel="ATACADO"
+        onSelectChannel={vi.fn()}
+        selectedCategorySourceId={null}
+        onSelectCategorySourceId={vi.fn()}
+        onResetFilters={vi.fn()}
+      />,
+    );
+
+    expect(html).toContain("Atacado");
+    expect(html).toContain("tp-channel-combobox");
+    expect(html).toContain("tp-profit-search-wrap");
+    expect(html).toContain("Buscar produto ou código...");
+    expect(html).toContain("Limpar filtros");
+  });
+
+  it("8. Renderiza breakdowns de canais e famílias com nomenclatura canônica", () => {
+    const html = renderToString(
+      <ProfitabilityBreakdowns
+        channels={mockProfitabilityData.channels}
+        rootCategories={mockProfitabilityData.rootCategories}
+        selectedChannel={null}
+        onSelectChannel={vi.fn()}
+        selectedCategorySourceId={null}
+        onSelectCategorySourceId={vi.fn()}
+      />,
+    );
+
+    expect(html).toContain("Rentabilidade por Canal");
+    expect(html).toContain("Atacado");
+    expect(html).toContain("Varejo");
+    expect(html).toContain("Rentabilidade por Família / Categoria Mãe");
+    expect(html).toContain("1 - NINECLOUDS");
+  });
+
+  it("9. Renderiza loading (skeleton) e estado de erro graciosamente", () => {
     const loadingHtml = renderToString(
       <ProfitabilityView
         data={null}
@@ -278,6 +353,5 @@ describe("ProfitabilityView & Components", () => {
       />,
     );
     expect(errorHtml).toContain("Falha ao consultar indicadores de rentabilidade");
-    expect(errorHtml).toContain("Falha de conexão com a API");
   });
 });

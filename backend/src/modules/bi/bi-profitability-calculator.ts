@@ -190,7 +190,10 @@ export function calculateProfitabilityOverview(
   let movementsWithoutCurrentProduct = 0;
   let revenueWithoutCurrentProduct = 0;
 
+  const distinctProductSourceIds = new Set<string>();
+
   for (const m of filteredMovements) {
+    distinctProductSourceIds.add(m.sourceProductId);
     const rev = m.allocatedNetRevenue;
     totalRealizedRevenue += rev;
 
@@ -219,6 +222,16 @@ export function calculateProfitabilityOverview(
       movementsWithoutCurrentCost++;
     }
   }
+
+  let productsWithCurrentCost = 0;
+  for (const sourceId of distinctProductSourceIds) {
+    const prod = catalogProductsMap.get(sourceId);
+    if (prod?.effectiveCost !== null && prod?.effectiveCost !== undefined) {
+      productsWithCurrentCost++;
+    }
+  }
+  const productsTotal = distinctProductSourceIds.size;
+  const productsWithoutCurrentCost = productsTotal - productsWithCurrentCost;
 
   totalRealizedRevenue = round2(totalRealizedRevenue);
   revenueWithCurrentCost = round2(revenueWithCurrentCost);
@@ -256,6 +269,9 @@ export function calculateProfitabilityOverview(
     movementsTotal: filteredMovements.length,
     movementsWithCurrentCost,
     movementsWithoutCurrentCost,
+    productsTotal,
+    productsWithCurrentCost,
+    productsWithoutCurrentCost,
     realizedRevenue: totalRealizedRevenue,
     revenueWithCurrentCost,
     revenueWithoutCurrentCost,

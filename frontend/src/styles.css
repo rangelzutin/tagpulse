@@ -6007,11 +6007,19 @@ body {
   gap: var(--tp-space-lg);
 }
 
+.tp-profitability-section .tp-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--tp-space-md);
+  flex-wrap: wrap;
+}
+
 .tp-profit-snapshot-badge {
   display: inline-flex;
   align-items: center;
   gap: var(--tp-space-xs);
-  padding: 4px 10px;
+  padding: 4px 12px;
   background-color: rgba(14, 165, 233, 0.08);
   border: 1px solid rgba(14, 165, 233, 0.2);
   border-radius: 9999px;
@@ -6019,6 +6027,14 @@ body {
   color: var(--tp-cyan-300);
   font-weight: 500;
   white-space: nowrap;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.tp-snapshot-badge-muted {
+  background-color: rgba(148, 163, 184, 0.08);
+  border-color: rgba(148, 163, 184, 0.2);
+  color: var(--tp-text-muted);
 }
 
 .tp-snapshot-dot {
@@ -6029,45 +6045,81 @@ body {
   box-shadow: 0 0 6px var(--tp-cyan-400);
 }
 
-/* Disclaimer Callout Box */
-.tp-profit-disclaimer-box {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--tp-space-md);
-  padding: var(--tp-space-md) var(--tp-space-base);
-  background: linear-gradient(
-    90deg,
-    rgba(14, 165, 233, 0.06) 0%,
-    rgba(15, 22, 38, 0.7) 100%
-  );
-  border: 1px solid rgba(56, 189, 248, 0.2);
+.tp-snapshot-dot-muted {
+  background-color: var(--tp-text-muted);
+  box-shadow: none;
+}
+
+/* Compact Methodology Premise Box */
+.tp-profit-premise-box {
+  padding: 10px 14px;
+  background: rgba(14, 165, 233, 0.04);
+  border: 1px solid rgba(56, 189, 248, 0.16);
   border-left: 3px solid var(--tp-cyan-500);
-  border-radius: var(--tp-radius-md);
-}
-
-.tp-disclaimer-icon {
-  color: var(--tp-cyan-400);
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-
-.tp-disclaimer-content {
+  border-radius: var(--tp-radius-sm);
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 6px;
 }
 
-.tp-disclaimer-title {
+.tp-profit-premise-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--tp-space-md);
+  flex-wrap: wrap;
+}
+
+.tp-profit-premise-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 260px;
+}
+
+.tp-profit-premise-icon {
+  color: var(--tp-cyan-400);
+  flex-shrink: 0;
+}
+
+.tp-profit-premise-title {
   font-size: 12px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  color: var(--tp-cyan-300);
+  white-space: nowrap;
+}
+
+.tp-profit-premise-text {
+  font-size: 12px;
+  color: var(--tp-text-secondary);
+  line-height: 1.4;
+}
+
+.tp-profit-premise-toggle {
+  background: none;
+  border: none;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--tp-cyan-400);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: var(--tp-radius-xs);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color 0.15s ease;
+  white-space: nowrap;
+}
+
+.tp-profit-premise-toggle:hover {
   color: var(--tp-cyan-300);
 }
 
-.tp-disclaimer-text {
-  font-size: 12px;
-  color: var(--tp-text-secondary);
+.tp-profit-premise-details {
+  padding-top: 8px;
+  border-top: 1px solid rgba(56, 189, 248, 0.1);
+  font-size: 11px;
+  color: var(--tp-text-muted);
   line-height: 1.5;
 }
 
@@ -6254,7 +6306,63 @@ body {
   color: var(--tp-magenta-400) !important;
 }
 
-/* Products Table Card */
+/* Standardized 3-Zone Profitability KPI Card */
+.tp-profit-kpi-card {
+  height: 122px;
+  min-height: 122px;
+  box-sizing: border-box;
+  padding: 13px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.tp-profit-kpi-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  height: 34px;
+  min-height: 34px;
+  max-height: 34px;
+}
+
+.tp-profit-kpi-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--tp-text-secondary);
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  flex: 1;
+}
+
+.tp-profit-kpi-value-wrap {
+  display: flex;
+  align-items: baseline;
+  height: 32px;
+  min-height: 32px;
+}
+
+.tp-profit-kpi-footer {
+  display: flex;
+  align-items: center;
+  height: 16px;
+  min-height: 16px;
+}
+
+.tp-profit-kpi-subtext {
+  font-size: 0.715rem;
+  color: var(--tp-text-muted);
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Products Table Card & Controls */
 .tp-profit-table-card {
   padding: var(--tp-space-base);
   display: flex;
@@ -6273,36 +6381,127 @@ body {
   align-items: center;
   gap: var(--tp-space-sm);
   flex-wrap: wrap;
+  width: 100%;
 }
 
-.tp-filter-control-item {
-  min-width: 140px;
+.tp-channel-filter-item {
+  width: 170px;
+  flex-shrink: 0;
 }
 
-.tp-btn-clear-inline {
-  background: none;
-  border: none;
-  font-size: 11px;
-  color: var(--tp-cyan-400);
+.tp-channel-combobox {
+  position: relative;
+  width: 100%;
+}
+
+.tp-category-filter-item {
+  width: 280px;
+  flex-shrink: 0;
+}
+
+.tp-category-filter-item .tp-combobox-container {
+  min-width: 0;
+  width: 100%;
+}
+
+.tp-category-filter-item .tp-combobox-trigger {
+  height: 34px;
+  box-sizing: border-box;
+}
+
+.tp-filter-trigger {
+  height: 34px;
+  width: 100%;
+  box-sizing: border-box;
+  background-color: var(--tp-bg-card);
+  border: 1px solid var(--tp-border-medium);
+  border-radius: var(--tp-radius-sm);
+  padding: 0 10px;
+  color: var(--tp-text-primary);
+  font-size: 12px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   cursor: pointer;
-  text-decoration: underline;
-  padding: 2px 4px;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
-.tp-btn-clear-inline:hover {
-  color: var(--tp-cyan-300);
+.tp-filter-trigger:hover,
+.tp-filter-trigger.is-open {
+  border-color: var(--tp-cyan-500);
+  background-color: var(--tp-bg-card-hover);
+}
+
+.tp-filter-trigger.is-filtered {
+  border-color: var(--tp-cyan-500);
+  background-color: rgba(14, 165, 233, 0.08);
+}
+
+.tp-filter-dropdown-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 100%;
+  width: max-content;
+  background: #0f172a;
+  border: 1px solid var(--tp-border-medium);
+  border-radius: var(--tp-radius-sm);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.6);
+  z-index: 50;
+  overflow: hidden;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.tp-profit-search-wrap {
+  flex: 1 1 260px;
+  min-width: 220px;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.tp-profit-search-input {
+  width: 100%;
+  height: 34px;
+  box-sizing: border-box;
+  padding: 0 28px 0 32px;
+  background-color: var(--tp-bg-card);
+  border: 1px solid var(--tp-border-medium);
+  border-radius: var(--tp-radius-sm);
+  color: var(--tp-text-primary);
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.tp-profit-search-input:focus {
+  border-color: var(--tp-cyan-500);
+}
+
+.tp-profit-search-input::placeholder {
+  color: var(--tp-text-muted);
 }
 
 .tp-btn-reset-filters {
   background-color: rgba(244, 63, 94, 0.1);
   border: 1px solid rgba(244, 63, 94, 0.25);
   color: var(--tp-magenta-400);
-  padding: 6px 12px;
+  height: 34px;
+  box-sizing: border-box;
+  padding: 0 12px;
   border-radius: var(--tp-radius-sm);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
   transition: all 0.15s ease;
+  white-space: nowrap;
 }
 
 .tp-btn-reset-filters:hover {
@@ -6310,9 +6509,53 @@ body {
   border-color: rgba(244, 63, 94, 0.4);
 }
 
+/* Profitability Table Layout & Product Hierarchy */
+.tp-profit-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
+}
+
+.tp-col-product {
+  min-width: 260px;
+  max-width: 420px;
+  width: 32%;
+}
+
+.tp-product-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.tp-product-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tp-text-primary);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+
+.tp-product-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1.2;
+}
+
+.tp-product-code {
+  font-size: 11px;
+  color: var(--tp-text-muted);
+  font-family: var(--tp-font-mono, monospace);
+  letter-spacing: 0.01em;
+}
+
 .tp-badge-orphan {
   display: inline-block;
-  padding: 2px 6px;
+  padding: 1px 6px;
   background-color: rgba(244, 63, 94, 0.1);
   border: 1px solid rgba(244, 63, 94, 0.25);
   border-radius: var(--tp-radius-xs);
