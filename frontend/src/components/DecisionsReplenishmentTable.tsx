@@ -98,7 +98,7 @@ export function DecisionsReplenishmentTable({
       </div>
 
       <div className="tp-table-responsive">
-        <table className="tp-table tp-table-compact" aria-label="Tabela de Reposição">
+        <table className="tp-table tp-decisions-table" aria-label="Tabela de Reposição">
           <thead>
             <tr>
               <th className="tp-th-left" scope="col">Produto</th>
@@ -127,15 +127,18 @@ export function DecisionsReplenishmentTable({
 
                 return (
                   <tr key={item.productSourceId} className="tp-table-row">
-                    <td className="tp-td-left">
-                      <div className="tp-prod-info">
-                        <span className="tp-prod-name" title={item.description ?? ""}>
+                    <td className="tp-td-left tp-col-product">
+                      <div className="tp-prod-cell">
+                        <span className="tp-prod-desc" title={item.description ?? ""}>
                           {item.description || "Sem descrição"}
                         </span>
                         <div className="tp-prod-sub">
                           {item.code && <span className="tp-prod-code">Cód: {item.code}</span>}
+                          {item.code && item.categoryDescription && (
+                            <span className="tp-prod-sep">•</span>
+                          )}
                           {item.categoryDescription && (
-                            <span className="tp-prod-cat">• {item.categoryDescription}</span>
+                            <span className="tp-prod-cat">{item.categoryDescription}</span>
                           )}
                         </div>
                       </div>

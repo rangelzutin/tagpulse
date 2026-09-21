@@ -16,7 +16,7 @@ interface DecisionsKpiGridProps {
 export function DecisionsKpiGrid({ kpis, windowDays }: DecisionsKpiGridProps) {
   return (
     <section className="tp-kpi-section" aria-label="Indicadores da Central de Decisões">
-      <div className="tp-kpi-grid">
+      <div className="tp-kpi-grid tp-decisions-kpi-grid">
         {/* KPI 1 — Capital em estoque */}
         <article className="tp-kpi-card tp-profit-kpi-card">
           <div className="tp-profit-kpi-header">
