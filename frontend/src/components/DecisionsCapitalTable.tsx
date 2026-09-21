@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { AlertTriangle, Boxes, ChevronLeft, ChevronRight, Layers } from "lucide-react";
 import type {
   DecisionsCapitalGroups,
@@ -6,6 +6,11 @@ import type {
   InventoryWindowDays,
 } from "../api/bi";
 import { formatCurrency, formatNumber } from "../utils/formatters";
+import {
+  compareNumericNullsLast,
+  type SortDirection,
+} from "../utils/sortUtils";
+import { SortableTh } from "./SortableTh";
 
 interface DecisionsCapitalTableProps {
   capitalOptimization: DecisionsCapitalGroups;
@@ -15,12 +20,23 @@ interface DecisionsCapitalTableProps {
 
 type CapitalTab = "inventoryWithoutSales" | "highCoverage" | "inactiveWithStock";
 
+export type CapitalSortField =
+  | "stock"
+  | "cost"
+  | "capital"
+  | "quantity"
+  | "daysWithoutSale"
+  | "coverage"
+  | "tableValue";
+
 export function DecisionsCapitalTable({
   capitalOptimization,
   windowDays,
   onFilterResetTrigger,
 }: DecisionsCapitalTableProps) {
   const [activeTab, setActiveTab] = useState<CapitalTab>("inventoryWithoutSales");
+  const [sortField, setSortField] = useState<CapitalSortField>("capital");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(10);
 
@@ -29,14 +45,89 @@ export function DecisionsCapitalTable({
     setCurrentPage(1);
   }, [activeTab, onFilterResetTrigger]);
 
+  const handleSort = (field: CapitalSortField) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDirection("desc");
+    }
+    setCurrentPage(1);
+  };
+
   const currentList: DecisionsProductItem[] = capitalOptimization[activeTab] || [];
-  const totalItems = currentList.length;
+
+  const sortedItems = useMemo(() => {
+    return [...currentList].sort((a, b) => {
+      let cmp = 0;
+      switch (sortField) {
+        case "stock":
+          cmp = compareNumericNullsLast(a.currentStock, b.currentStock, sortDirection);
+          break;
+        case "cost":
+          cmp = compareNumericNullsLast(
+            a.currentEffectiveCost,
+            b.currentEffectiveCost,
+            sortDirection,
+          );
+          break;
+        case "capital":
+          cmp = compareNumericNullsLast(
+            a.currentInventoryCostValue,
+            b.currentInventoryCostValue,
+            sortDirection,
+          );
+          break;
+        case "quantity":
+          cmp = compareNumericNullsLast(
+            a.physicalQuantityInWindow,
+            b.physicalQuantityInWindow,
+            sortDirection,
+          );
+          break;
+        case "daysWithoutSale":
+          cmp = compareNumericNullsLast(
+            a.daysSinceLastPhysicalSale,
+            b.daysSinceLastPhysicalSale,
+            sortDirection,
+          );
+          break;
+        case "coverage":
+          cmp = compareNumericNullsLast(
+            a.estimatedCoverageDays,
+            b.estimatedCoverageDays,
+            sortDirection,
+          );
+          break;
+        case "tableValue":
+          cmp = compareNumericNullsLast(
+            a.currentInventoryListValue,
+            b.currentInventoryListValue,
+            sortDirection,
+          );
+          break;
+      }
+
+      if (cmp !== 0) return cmp;
+      // Default tie-breaker: maior capital imobilizado DESC, seguido por ID
+      return (
+        compareNumericNullsLast(
+          a.currentInventoryCostValue,
+          b.currentInventoryCostValue,
+          "desc",
+        ) || a.productSourceId.localeCompare(b.productSourceId)
+      );
+    });
+  }, [currentList, sortField, sortDirection]);
+
+  const totalItems = sortedItems.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
 
   const safePage = Math.min(currentPage, totalPages);
   const startIndex = (safePage - 1) * pageSize;
   const endIndex = Math.min(startIndex + pageSize, totalItems);
-  const paginatedItems = currentList.slice(startIndex, endIndex);
+  const paginatedItems = sortedItems.slice(startIndex, endIndex);
+
 
   return (
     <div className="tp-card tp-decisions-table-card">
@@ -102,13 +193,69 @@ export function DecisionsCapitalTable({
             <tr>
               <th className="tp-th-left" scope="col">Produto</th>
               <th className="tp-th-left" scope="col">Categoria raiz / Família</th>
-              <th className="tp-th-right" scope="col">Estoque</th>
-              <th className="tp-th-right" scope="col">Custo Unitário</th>
-              <th className="tp-th-right" scope="col">Capital Atual</th>
-              <th className="tp-th-right" scope="col">Vendas ({windowDays}d)</th>
-              <th className="tp-th-center" scope="col">Dias s/ Saída</th>
-              <th className="tp-th-center" scope="col">Cobertura</th>
-              <th className="tp-th-right" scope="col">Valor de Tabela</th>
+              <SortableTh
+                field="stock"
+                currentSortField={sortField}
+                currentSortDirection={sortDirection}
+                onSort={handleSort}
+                align="right"
+              >
+                Estoque
+              </SortableTh>
+              <SortableTh
+                field="cost"
+                currentSortField={sortField}
+                currentSortDirection={sortDirection}
+                onSort={handleSort}
+                align="right"
+              >
+                Custo Unitário
+              </SortableTh>
+              <SortableTh
+                field="capital"
+                currentSortField={sortField}
+                currentSortDirection={sortDirection}
+                onSort={handleSort}
+                align="right"
+              >
+                Capital Atual
+              </SortableTh>
+              <SortableTh
+                field="quantity"
+                currentSortField={sortField}
+                currentSortDirection={sortDirection}
+                onSort={handleSort}
+                align="right"
+              >
+                Vendas ({windowDays}d)
+              </SortableTh>
+              <SortableTh
+                field="daysWithoutSale"
+                currentSortField={sortField}
+                currentSortDirection={sortDirection}
+                onSort={handleSort}
+                align="center"
+              >
+                Dias s/ Saída
+              </SortableTh>
+              <SortableTh
+                field="coverage"
+                currentSortField={sortField}
+                currentSortDirection={sortDirection}
+                onSort={handleSort}
+                align="center"
+              >
+                Cobertura
+              </SortableTh>
+              <SortableTh
+                field="tableValue"
+                currentSortField={sortField}
+                currentSortDirection={sortDirection}
+                onSort={handleSort}
+                align="right"
+              >
+                Valor de Tabela
+              </SortableTh>
             </tr>
           </thead>
           <tbody>

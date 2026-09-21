@@ -16,6 +16,7 @@ import {
   formatCustomerName,
   formatCpfCnpj,
   formatDateBr,
+  formatChannelLabel,
   getPeriodPresets,
 } from "./formatters";
 
@@ -371,6 +372,25 @@ describe("formatters utils", () => {
       expect(parsed.getMonth()).toBe(8);
       expect(parsed.getDate()).toBe(14);
       expect(getLocalDateString(parsed)).toBe("2026-09-14");
+    });
+  });
+
+  describe("formatChannelLabel", () => {
+    it("formats enum channels to humanized Portuguese titles", () => {
+      expect(formatChannelLabel("ATACADO")).toBe("Atacado");
+      expect(formatChannelLabel("VAREJO")).toBe("Varejo");
+      expect(formatChannelLabel("INDETERMINADO")).toBe("Indeterminado");
+      expect(formatChannelLabel("CONFLITO")).toBe("Conflito");
+    });
+
+    it("handles null, undefined or empty values gracefully", () => {
+      expect(formatChannelLabel(null)).toBe("—");
+      expect(formatChannelLabel(undefined)).toBe("—");
+      expect(formatChannelLabel("")).toBe("—");
+    });
+
+    it("preserves unknown values as fallback", () => {
+      expect(formatChannelLabel("OUTRO_CANAL")).toBe("OUTRO_CANAL");
     });
   });
 });

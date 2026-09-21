@@ -3,7 +3,7 @@ import type {
   ProfitabilityChannelItem,
   ProfitabilityRootCategoryItem,
 } from "../api/bi";
-import { formatCurrency, formatNumber } from "../utils/formatters";
+import { formatChannelLabel, formatCurrency, formatNumber } from "../utils/formatters";
 
 interface ProfitabilityBreakdownsProps {
   channels: ProfitabilityChannelItem[];
@@ -81,11 +81,7 @@ export function ProfitabilityBreakdowns({
                       <td>
                         <div className="tp-breakdown-name-cell">
                           <span className="tp-breakdown-title">
-                            {c.channel === "ATACADO"
-                              ? "Atacado"
-                              : c.channel === "VAREJO"
-                              ? "Varejo"
-                              : c.channel}
+                            {formatChannelLabel(c.channel)}
                           </span>
                         </div>
                       </td>

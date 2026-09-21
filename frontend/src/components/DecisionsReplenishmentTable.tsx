@@ -1,11 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { AlertCircle, Clock, ShieldAlert, ChevronLeft, ChevronRight } from "lucide-react";
 import type {
   DecisionsProductItem,
   DecisionsReplenishmentGroups,
   InventoryWindowDays,
 } from "../api/bi";
-import { formatCurrency, formatNumber } from "../utils/formatters";
+import { formatChannelLabel, formatCurrency, formatNumber } from "../utils/formatters";
+import {
+  compareNumericNullsLast,
+  type SortDirection,
+} from "../utils/sortUtils";
+import { SortableTh } from "./SortableTh";
 
 interface DecisionsReplenishmentTableProps {
   replenishment: DecisionsReplenishmentGroups;
@@ -15,12 +20,23 @@ interface DecisionsReplenishmentTableProps {
 
 type ReplenishmentTab = "demandWithoutStock" | "criticalCoverage" | "alertCoverage";
 
+export type ReplenishmentSortField =
+  | "stock"
+  | "quantity"
+  | "revenue"
+  | "profit"
+  | "margin"
+  | "coverage"
+  | "customers";
+
 export function DecisionsReplenishmentTable({
   replenishment,
   windowDays,
   onFilterResetTrigger,
 }: DecisionsReplenishmentTableProps) {
   const [activeTab, setActiveTab] = useState<ReplenishmentTab>("demandWithoutStock");
+  const [sortField, setSortField] = useState<ReplenishmentSortField>("profit");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(10);
 
@@ -29,15 +45,90 @@ export function DecisionsReplenishmentTable({
     setCurrentPage(1);
   }, [activeTab, onFilterResetTrigger]);
 
+  const handleSort = (field: ReplenishmentSortField) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDirection("desc");
+    }
+    setCurrentPage(1);
+  };
+
   const currentList: DecisionsProductItem[] = replenishment[activeTab] || [];
-  const totalItems = currentList.length;
+
+  const sortedItems = useMemo(() => {
+    return [...currentList].sort((a, b) => {
+      let cmp = 0;
+      switch (sortField) {
+        case "stock":
+          cmp = compareNumericNullsLast(a.currentStock, b.currentStock, sortDirection);
+          break;
+        case "quantity":
+          cmp = compareNumericNullsLast(
+            a.physicalQuantityInWindow,
+            b.physicalQuantityInWindow,
+            sortDirection,
+          );
+          break;
+        case "revenue":
+          cmp = compareNumericNullsLast(
+            a.realizedRevenueInWindow,
+            b.realizedRevenueInWindow,
+            sortDirection,
+          );
+          break;
+        case "profit":
+          cmp = compareNumericNullsLast(
+            a.estimatedGrossProfitInWindow,
+            b.estimatedGrossProfitInWindow,
+            sortDirection,
+          );
+          break;
+        case "margin":
+          cmp = compareNumericNullsLast(
+            a.estimatedGrossMarginPercentInWindow,
+            b.estimatedGrossMarginPercentInWindow,
+            sortDirection,
+          );
+          break;
+        case "coverage":
+          cmp = compareNumericNullsLast(
+            a.estimatedCoverageDays,
+            b.estimatedCoverageDays,
+            sortDirection,
+          );
+          break;
+        case "customers":
+          cmp = compareNumericNullsLast(
+            a.customerCountInWindow,
+            b.customerCountInWindow,
+            sortDirection,
+          );
+          break;
+      }
+
+      if (cmp !== 0) return cmp;
+      // Default: maior lucro estimado DESC, seguido por ID
+      return (
+        compareNumericNullsLast(
+          a.estimatedGrossProfitInWindow,
+          b.estimatedGrossProfitInWindow,
+          "desc",
+        ) || a.productSourceId.localeCompare(b.productSourceId)
+      );
+    });
+  }, [currentList, sortField, sortDirection]);
+
+  const totalItems = sortedItems.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
 
   // Proteção: não permitir página maior que totalPages
   const safePage = Math.min(currentPage, totalPages);
   const startIndex = (safePage - 1) * pageSize;
   const endIndex = Math.min(startIndex + pageSize, totalItems);
-  const paginatedItems = currentList.slice(startIndex, endIndex);
+  const paginatedItems = sortedItems.slice(startIndex, endIndex);
+
 
   return (
     <div className="tp-card tp-decisions-table-card">
@@ -103,14 +194,70 @@ export function DecisionsReplenishmentTable({
             <tr>
               <th className="tp-th-left" scope="col">Produto</th>
               <th className="tp-th-left" scope="col">Categoria raiz / Família</th>
-              <th className="tp-th-right" scope="col">Estoque</th>
-              <th className="tp-th-right" scope="col">Vendas ({windowDays}d)</th>
-              <th className="tp-th-right" scope="col">Receita</th>
-              <th className="tp-th-right" scope="col">Lucro Bruto Est.</th>
-              <th className="tp-th-right" scope="col">Margem Est.</th>
-              <th className="tp-th-center" scope="col">Cobertura</th>
+              <SortableTh
+                field="stock"
+                currentSortField={sortField}
+                currentSortDirection={sortDirection}
+                onSort={handleSort}
+                align="right"
+              >
+                Estoque
+              </SortableTh>
+              <SortableTh
+                field="quantity"
+                currentSortField={sortField}
+                currentSortDirection={sortDirection}
+                onSort={handleSort}
+                align="right"
+              >
+                Vendas ({windowDays}d)
+              </SortableTh>
+              <SortableTh
+                field="revenue"
+                currentSortField={sortField}
+                currentSortDirection={sortDirection}
+                onSort={handleSort}
+                align="right"
+              >
+                Receita
+              </SortableTh>
+              <SortableTh
+                field="profit"
+                currentSortField={sortField}
+                currentSortDirection={sortDirection}
+                onSort={handleSort}
+                align="right"
+              >
+                Lucro Bruto Est.
+              </SortableTh>
+              <SortableTh
+                field="margin"
+                currentSortField={sortField}
+                currentSortDirection={sortDirection}
+                onSort={handleSort}
+                align="right"
+              >
+                Margem Est.
+              </SortableTh>
+              <SortableTh
+                field="coverage"
+                currentSortField={sortField}
+                currentSortDirection={sortDirection}
+                onSort={handleSort}
+                align="center"
+              >
+                Cobertura
+              </SortableTh>
               <th className="tp-th-center" scope="col">Canais</th>
-              <th className="tp-th-right" scope="col">Clientes</th>
+              <SortableTh
+                field="customers"
+                currentSortField={sortField}
+                currentSortDirection={sortDirection}
+                onSort={handleSort}
+                align="right"
+              >
+                Clientes
+              </SortableTh>
             </tr>
           </thead>
           <tbody>
@@ -224,7 +371,7 @@ export function DecisionsReplenishmentTable({
                                     : "is-other"
                               }`}
                             >
-                              {ch === "ATACADO" ? "Atacado" : ch === "VAREJO" ? "Varejo" : ch}
+                              {formatChannelLabel(ch)}
                             </span>
                           ))
                         )}

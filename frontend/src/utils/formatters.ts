@@ -500,3 +500,19 @@ export function formatDateBr(isoDate?: string | null): string {
   if (parts.length !== 3) return isoDate;
   return `${parts[2]}/${parts[1]}/${parts[0]}`;
 }
+
+export function formatChannelLabel(channel?: string | null): string {
+  if (!channel) return "—";
+  switch (channel.toUpperCase()) {
+    case "ATACADO":
+      return "Atacado";
+    case "VAREJO":
+      return "Varejo";
+    case "INDETERMINADO":
+      return "Indeterminado";
+    case "CONFLITO":
+      return "Conflito";
+    default:
+      return channel;
+  }
+}

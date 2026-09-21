@@ -5,9 +5,6 @@ import {
   ChevronRight,
   ChevronDown,
   Check,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
   X,
 } from "lucide-react";
 import type {
@@ -16,18 +13,26 @@ import type {
   ProfitabilityProductItem,
 } from "../api/bi";
 import {
+  formatChannelLabel,
   formatCurrency,
   formatNumber,
 } from "../utils/formatters";
+import {
+  compareNumericNullsLast,
+  compareStringNullsLast,
+  type SortDirection,
+} from "../utils/sortUtils";
 import { InventoryCategoryTreeSelector } from "./InventoryCategoryTreeSelector";
+import { SortableTh } from "./SortableTh";
 
 const CHANNEL_OPTIONS: { label: string; value: CommercialChannel | null }[] = [
   { label: "Todos os canais", value: null },
-  { label: "Atacado", value: "ATACADO" },
-  { label: "Varejo", value: "VAREJO" },
-  { label: "Indeterminado", value: "INDETERMINADO" },
-  { label: "Conflito", value: "CONFLITO" },
+  { label: formatChannelLabel("ATACADO"), value: "ATACADO" },
+  { label: formatChannelLabel("VAREJO"), value: "VAREJO" },
+  { label: formatChannelLabel("INDETERMINADO"), value: "INDETERMINADO" },
+  { label: formatChannelLabel("CONFLITO"), value: "CONFLITO" },
 ];
+
 
 export type ProductSortField =
   | "name"
@@ -38,7 +43,7 @@ export type ProductSortField =
   | "profit"
   | "margin";
 
-export type SortDirection = "asc" | "desc";
+export type { SortDirection } from "../utils/sortUtils";
 
 interface ProfitabilityProductsTableProps {
   products: ProfitabilityProductItem[];
@@ -101,49 +106,61 @@ export function ProfitabilityProductsTable({
   // 2. Ordenação
   const sortedProducts = useMemo(() => {
     return [...filteredProducts].sort((a, b) => {
-      let valA: number | string = 0;
-      let valB: number | string = 0;
-
+      let cmp = 0;
       switch (sortField) {
         case "name":
-          valA = a.productName.toLowerCase();
-          valB = b.productName.toLowerCase();
+          cmp = compareStringNullsLast(a.productName, b.productName, sortDirection);
           break;
         case "cost":
-          valA = a.currentEffectiveCost ?? -999999;
-          valB = b.currentEffectiveCost ?? -999999;
+          cmp = compareNumericNullsLast(
+            a.currentEffectiveCost,
+            b.currentEffectiveCost,
+            sortDirection,
+          );
           break;
         case "quantity":
-          valA = a.physicalQuantity;
-          valB = b.physicalQuantity;
+          cmp = compareNumericNullsLast(
+            a.physicalQuantity,
+            b.physicalQuantity,
+            sortDirection,
+          );
           break;
         case "revenue":
-          valA = a.realizedRevenue;
-          valB = b.realizedRevenue;
+          cmp = compareNumericNullsLast(
+            a.realizedRevenue,
+            b.realizedRevenue,
+            sortDirection,
+          );
           break;
         case "cogs":
-          valA = a.estimatedCOGS ?? -999999;
-          valB = b.estimatedCOGS ?? -999999;
+          cmp = compareNumericNullsLast(
+            a.estimatedCOGS,
+            b.estimatedCOGS,
+            sortDirection,
+          );
           break;
         case "profit":
-          valA = a.estimatedGrossProfit ?? -999999;
-          valB = b.estimatedGrossProfit ?? -999999;
+          cmp = compareNumericNullsLast(
+            a.estimatedGrossProfit,
+            b.estimatedGrossProfit,
+            sortDirection,
+          );
           break;
         case "margin":
-          valA = a.estimatedGrossMarginPercent ?? -999999;
-          valB = b.estimatedGrossMarginPercent ?? -999999;
+          cmp = compareNumericNullsLast(
+            a.estimatedGrossMarginPercent,
+            b.estimatedGrossMarginPercent,
+            sortDirection,
+          );
           break;
       }
 
-      if (typeof valA === "string" && typeof valB === "string") {
-        return sortDirection === "asc"
-          ? valA.localeCompare(valB)
-          : valB.localeCompare(valA);
-      }
-
-      const numA = valA as number;
-      const numB = valB as number;
-      return sortDirection === "asc" ? numA - numB : numB - numA;
+      if (cmp !== 0) return cmp;
+      // Desempate determinístico: receita DESC, seguido por productSourceId
+      return (
+        b.realizedRevenue - a.realizedRevenue ||
+        a.productSourceId.localeCompare(b.productSourceId)
+      );
     });
   }, [filteredProducts, sortField, sortDirection]);
 
@@ -165,17 +182,6 @@ export function ProfitabilityProductsTable({
       setSortDirection("desc");
     }
     setPage(1);
-  };
-
-  const renderSortIcon = (field: ProductSortField) => {
-    if (sortField !== field) {
-      return <ArrowUpDown size={13} className="tp-sort-icon is-inactive" />;
-    }
-    return sortDirection === "asc" ? (
-      <ArrowUp size={13} className="tp-sort-icon is-active" />
-    ) : (
-      <ArrowDown size={13} className="tp-sort-icon is-active" />
-    );
   };
 
   const hasActiveFilters =
@@ -309,70 +315,70 @@ export function ProfitabilityProductsTable({
         <table className="tp-table tp-profit-table">
           <thead>
             <tr>
-              <th
-                className="tp-col-product tp-clickable-th"
-                onClick={() => handleSort("name")}
+              <SortableTh
+                field="name"
+                currentSortField={sortField}
+                currentSortDirection={sortDirection}
+                onSort={handleSort}
+                className="tp-col-product"
               >
-                <div className="tp-th-content">
-                  <span>Produto</span>
-                  {renderSortIcon("name")}
-                </div>
-              </th>
+                Produto
+              </SortableTh>
               <th>Categoria atual</th>
-              <th
-                className="tp-text-right tp-clickable-th"
-                onClick={() => handleSort("cost")}
+              <SortableTh
+                field="cost"
+                currentSortField={sortField}
+                currentSortDirection={sortDirection}
+                onSort={handleSort}
+                align="right"
               >
-                <div className="tp-th-content tp-justify-end">
-                  <span>Custo Atual</span>
-                  {renderSortIcon("cost")}
-                </div>
-              </th>
-              <th
-                className="tp-text-right tp-clickable-th"
-                onClick={() => handleSort("quantity")}
+                Custo Atual
+              </SortableTh>
+              <SortableTh
+                field="quantity"
+                currentSortField={sortField}
+                currentSortDirection={sortDirection}
+                onSort={handleSort}
+                align="right"
               >
-                <div className="tp-th-content tp-justify-end">
-                  <span>Qtd. Vendida</span>
-                  {renderSortIcon("quantity")}
-                </div>
-              </th>
-              <th
-                className="tp-text-right tp-clickable-th"
-                onClick={() => handleSort("revenue")}
+                Qtd. Vendida
+              </SortableTh>
+              <SortableTh
+                field="revenue"
+                currentSortField={sortField}
+                currentSortDirection={sortDirection}
+                onSort={handleSort}
+                align="right"
               >
-                <div className="tp-th-content tp-justify-end">
-                  <span>Receita Realizada</span>
-                  {renderSortIcon("revenue")}
-                </div>
-              </th>
-              <th
-                className="tp-text-right tp-clickable-th"
-                onClick={() => handleSort("cogs")}
+                Receita Realizada
+              </SortableTh>
+              <SortableTh
+                field="cogs"
+                currentSortField={sortField}
+                currentSortDirection={sortDirection}
+                onSort={handleSort}
+                align="right"
               >
-                <div className="tp-th-content tp-justify-end">
-                  <span>CMV Estimado</span>
-                  {renderSortIcon("cogs")}
-                </div>
-              </th>
-              <th
-                className="tp-text-right tp-clickable-th"
-                onClick={() => handleSort("profit")}
+                CMV Estimado
+              </SortableTh>
+              <SortableTh
+                field="profit"
+                currentSortField={sortField}
+                currentSortDirection={sortDirection}
+                onSort={handleSort}
+                align="right"
               >
-                <div className="tp-th-content tp-justify-end">
-                  <span>Lucro Bruto Est.</span>
-                  {renderSortIcon("profit")}
-                </div>
-              </th>
-              <th
-                className="tp-text-right tp-clickable-th"
-                onClick={() => handleSort("margin")}
+                Lucro Bruto Est.
+              </SortableTh>
+              <SortableTh
+                field="margin"
+                currentSortField={sortField}
+                currentSortDirection={sortDirection}
+                onSort={handleSort}
+                align="right"
               >
-                <div className="tp-th-content tp-justify-end">
-                  <span>Margem Bruta Est.</span>
-                  {renderSortIcon("margin")}
-                </div>
-              </th>
+                Margem Bruta Est.
+              </SortableTh>
             </tr>
           </thead>
           <tbody>

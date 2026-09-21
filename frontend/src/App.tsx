@@ -101,6 +101,8 @@ export function App() {
     setSelectedProfitabilityCategorySourceId,
   ] = useState<string | null>(null);
   const [categoryTree, setCategoryTree] = useState<CategoryTreeNode[]>([]);
+  const [profitabilityLoadedPeriod, setProfitabilityLoadedPeriod] =
+    useState<string | null>(null);
   const profitabilityRequestSeq = useRef(0);
   const profitabilityAbortControllerRef = useRef<AbortController | null>(null);
 
@@ -296,6 +298,7 @@ export function App() {
         });
         if (currentSeq === profitabilityRequestSeq.current) {
           setProfitabilityData(result);
+          setProfitabilityLoadedPeriod(`${from}:${to}`);
         }
       } catch (err: unknown) {
         if (err instanceof DOMException && err.name === "AbortError") {
@@ -435,13 +438,14 @@ export function App() {
         );
       }
     } else if (nav === "profitability") {
-      if (!profitabilityData && !isProfitabilityLoading) {
+      const periodKey = `${currentPeriod.from}:${currentPeriod.to}`;
+      if (profitabilityLoadedPeriod !== periodKey && !isProfitabilityLoading) {
         void loadProfitabilityOverview(
           currentPeriod.from,
           currentPeriod.to,
           selectedProfitabilityChannel,
           selectedProfitabilityCategorySourceId,
-          false,
+          Boolean(profitabilityData),
         );
       }
     } else if (nav === "decisions") {
@@ -471,9 +475,11 @@ export function App() {
     if (activeNav === "commercial") {
       setProductsLoadedPeriod(null);
       setInventoryLoadedWindow(null);
+      setProfitabilityLoadedPeriod(null);
       void loadCommercialData(currentPeriod.from, currentPeriod.to);
     } else if (activeNav === "products") {
       setInventoryLoadedWindow(null);
+      setProfitabilityLoadedPeriod(null);
       void loadProductsOverview(
         currentPeriod.from,
         currentPeriod.to,
@@ -481,6 +487,7 @@ export function App() {
       );
     } else if (activeNav === "inventory") {
       setProductsLoadedPeriod(null);
+      setProfitabilityLoadedPeriod(null);
       void loadInventoryOverview(
         inventoryWindowDays,
         Boolean(inventoryData),
@@ -488,6 +495,7 @@ export function App() {
     } else if (activeNav === "profitability") {
       setProductsLoadedPeriod(null);
       setInventoryLoadedWindow(null);
+      setProfitabilityLoadedPeriod(null);
       void loadProfitabilityOverview(
         currentPeriod.from,
         currentPeriod.to,
@@ -498,6 +506,7 @@ export function App() {
     } else if (activeNav === "decisions") {
       setProductsLoadedPeriod(null);
       setInventoryLoadedWindow(null);
+      setProfitabilityLoadedPeriod(null);
       void loadDecisionsOverview(
         decisionsWindowDays,
         decisionsSelectedCategorySourceId,
@@ -789,7 +798,7 @@ export function App() {
               onChange={handleInventoryWindowChange}
               disabled={isInventoryLoading || isInventoryRefreshing}
             />
-          ) : activeNav === "profitability" || activeNav === "decisions" ? null : (
+          ) : activeNav === "decisions" ? null : (
             <PeriodFilter
               initialFrom={currentPeriod.from}
               initialTo={currentPeriod.to}

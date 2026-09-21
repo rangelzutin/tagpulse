@@ -6893,6 +6893,59 @@ body {
   text-align: center;
 }
 
+/* Sortable Table Headers */
+.tp-clickable-th {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.tp-clickable-th:hover {
+  color: var(--tp-text-primary);
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+.tp-clickable-th.is-active {
+  color: var(--tp-cyan-300);
+}
+
+.tp-th-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tp-th-content.tp-justify-end {
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.tp-th-content.tp-justify-center {
+  justify-content: center;
+  width: 100%;
+}
+
+.tp-th-sort-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  transition: color 0.15s ease, opacity 0.15s ease;
+}
+
+.tp-th-sort-icon.is-inactive {
+  opacity: 0.35;
+  color: var(--tp-text-muted);
+}
+
+.tp-clickable-th:hover .tp-th-sort-icon.is-inactive {
+  opacity: 0.75;
+}
+
+.tp-th-sort-icon.is-active {
+  color: var(--tp-cyan-400);
+  opacity: 1;
+}
+
+
 /* Decisions Table Badges & Tags */
 .tp-cov-badge {
   display: inline-flex;
