@@ -360,52 +360,60 @@ export function DecisionsCapitalTable({
       {totalItems > 0 && (
         <div className="tp-pagination-bar">
           <div className="tp-pagination-info">
-            Mostrando <strong>{startIndex + 1}</strong> a <strong>{endIndex}</strong> de{" "}
-            <strong>{totalItems}</strong> produtos
+            Exibindo{" "}
+            <span className="tp-font-medium">
+              {startIndex + 1}–{endIndex}
+            </span>{" "}
+            de <span className="tp-font-medium">{totalItems}</span> produtos
           </div>
 
           <div className="tp-pagination-controls">
-            <div className="tp-pagesize-select-wrap">
-              <label htmlFor="cap-pagesize" className="tp-pagesize-label">Linhas:</label>
+            <div className="tp-page-size-selector">
+              <label htmlFor="cap-pagesize" className="tp-page-size-label">
+                Por página:
+              </label>
               <select
                 id="cap-pagesize"
-                className="tp-pagesize-select"
+                className="tp-page-size-select"
                 value={pageSize}
                 onChange={(e) => {
                   setPageSize(Number(e.target.value));
                   setCurrentPage(1);
                 }}
+                aria-label="Itens por página"
               >
                 <option value={10}>10</option>
                 <option value={25}>25</option>
               </select>
             </div>
 
-            <button
-              type="button"
-              className="tp-page-btn"
-              disabled={safePage <= 1}
-              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-              aria-label="Página anterior"
-            >
-              <ChevronLeft size={16} />
-              <span>Anterior</span>
-            </button>
+            <div className="tp-pagination-nav">
+              <button
+                type="button"
+                className="tp-pagination-btn"
+                disabled={safePage <= 1}
+                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                aria-label="Página anterior"
+                title="Página anterior"
+              >
+                <ChevronLeft size={16} />
+              </button>
 
-            <span className="tp-pagination-page-indicator">
-              Página {safePage} de {totalPages}
-            </span>
+              <span className="tp-page-indicator">
+                Página {safePage} de {totalPages}
+              </span>
 
-            <button
-              type="button"
-              className="tp-page-btn"
-              disabled={safePage >= totalPages}
-              onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-              aria-label="Próxima página"
-            >
-              <span>Próxima</span>
-              <ChevronRight size={16} />
-            </button>
+              <button
+                type="button"
+                className="tp-pagination-btn"
+                disabled={safePage >= totalPages}
+                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                aria-label="Próxima página"
+                title="Próxima página"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
           </div>
         </div>
       )}

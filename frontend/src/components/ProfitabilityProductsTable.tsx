@@ -464,29 +464,28 @@ export function ProfitabilityProductsTable({
       </div>
 
       {/* Pagination Footer */}
-      <div className="tp-pagination-footer">
+      <div className="tp-pagination-bar">
         <div className="tp-pagination-info">
           Exibindo{" "}
           <span className="tp-font-medium">
             {totalRecords === 0
               ? 0
-              : (currentPage - 1) * pageSize + 1}
-            -
-            {Math.min(currentPage * pageSize, totalRecords)}
+              : `${(currentPage - 1) * pageSize + 1}–${Math.min(currentPage * pageSize, totalRecords)}`}
           </span>{" "}
           de <span className="tp-font-medium">{totalRecords}</span> produtos
         </div>
 
         <div className="tp-pagination-controls">
           <div className="tp-page-size-selector">
-            <span>Por página:</span>
+            <span className="tp-page-size-label">Por página:</span>
             <select
               value={pageSize}
               onChange={(e) => {
                 setPageSize(Number(e.target.value));
                 setPage(1);
               }}
-              className="tp-select-compact"
+              className="tp-page-size-select"
+              aria-label="Itens por página"
             >
               <option value={10}>10</option>
               <option value={25}>25</option>
@@ -497,22 +496,24 @@ export function ProfitabilityProductsTable({
           <div className="tp-pagination-nav">
             <button
               type="button"
-              className="tp-btn-page"
+              className="tp-pagination-btn"
               disabled={currentPage <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               aria-label="Página anterior"
+              title="Página anterior"
             >
               <ChevronLeft size={16} />
             </button>
             <span className="tp-page-indicator">
-              {currentPage} de {totalPages}
+              Página {currentPage} de {totalPages}
             </span>
             <button
               type="button"
-              className="tp-btn-page"
+              className="tp-pagination-btn"
               disabled={currentPage >= totalPages}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               aria-label="Próxima página"
+              title="Próxima página"
             >
               <ChevronRight size={16} />
             </button>
