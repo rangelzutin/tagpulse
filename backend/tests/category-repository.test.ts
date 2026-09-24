@@ -42,11 +42,15 @@ function createInMemoryCategoryPrismaMock() {
     },
   };
 
+  let lastTransactionOptions: any;
+
   return {
     category: tx.category,
-    async $transaction<T>(fn: (txParam: any) => Promise<T>): Promise<T> {
+    async $transaction<T>(fn: (txParam: any) => Promise<T>, options?: any): Promise<T> {
+      lastTransactionOptions = options;
       return fn(tx);
     },
+    getLastTransactionOptions: () => lastTransactionOptions,
     _table: table,
   };
 }
@@ -142,5 +146,17 @@ describe("Category Repository", () => {
     expect(thirdScan.updated).toBe(1); // sourcePresent changed from false to true
     rows = await repo.findCategoriesByConnection(connectionId);
     expect(rows.find((r) => r.sourceId === "77")?.sourcePresent).toBe(true);
+  });
+
+  it("configures interactive transaction with maxWait: 5000 and timeout: 30000", async () => {
+    const mockPrisma = createInMemoryCategoryPrismaMock();
+    const repo = createCategoryRepository(mockPrisma as any);
+
+    await repo.saveCategories(connectionId, []);
+
+    expect(mockPrisma.getLastTransactionOptions()).toEqual({
+      maxWait: 5000,
+      timeout: 30000,
+    });
   });
 });

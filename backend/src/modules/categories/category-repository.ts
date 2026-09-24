@@ -160,6 +160,9 @@ export function createCategoryRepository(
           unchanged,
           noLongerObserved: unobserved.length,
         };
+      }, {
+        maxWait: 5000,
+        timeout: 30000,
       });
     },
   };
