@@ -6249,6 +6249,127 @@ body {
   gap: var(--tp-space-md);
 }
 
+/* Channel Comparative Cards */
+.tp-profit-channel-cards-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tp-profit-channel-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.tp-profit-channel-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--tp-border-subtle);
+  border-radius: var(--tp-radius-md);
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  user-select: none;
+}
+
+.tp-profit-channel-card:hover {
+  background: var(--tp-bg-card-hover);
+  border-color: var(--tp-border-medium);
+  transform: translateY(-1px);
+}
+
+.tp-profit-channel-card:focus-visible {
+  outline: 2px solid var(--tp-cyan-400);
+  outline-offset: 2px;
+}
+
+.tp-profit-channel-card.is-selected {
+  background: rgba(14, 165, 233, 0.08);
+  border-color: var(--tp-cyan-400);
+  box-shadow: 0 0 0 1px var(--tp-cyan-400);
+}
+
+.tp-profit-channel-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tp-profit-channel-selected-badge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: var(--tp-radius-xs);
+  background: rgba(14, 165, 233, 0.18);
+  color: var(--tp-cyan-300);
+  border: 1px solid rgba(14, 165, 233, 0.35);
+}
+
+.tp-profit-channel-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tp-profit-channel-metric-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tp-profit-channel-metric-label {
+  color: var(--tp-text-muted);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+.tp-profit-channel-metric-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tp-text-primary);
+  white-space: nowrap;
+}
+
+.tp-profit-channel-secondary-wrapper {
+  margin-top: 2px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--tp-border-subtle);
+}
+
+.tp-profit-channel-secondary-title {
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--tp-text-muted);
+  margin-bottom: 8px;
+}
+
+.tp-profit-channel-secondary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.tp-profit-channel-card-secondary {
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.01);
+}
+
+@media (max-width: 640px) {
+  .tp-profit-channel-cards-grid,
+  .tp-profit-channel-secondary-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .tp-breakdown-table-wrapper {
   overflow-x: auto;
 }

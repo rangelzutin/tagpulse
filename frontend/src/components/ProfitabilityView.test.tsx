@@ -319,8 +319,45 @@ describe("ProfitabilityView & Components", () => {
     expect(html).toContain("Rentabilidade por Canal");
     expect(html).toContain("Atacado");
     expect(html).toContain("Varejo");
+    expect(html).toContain("Receita realizada:");
+    expect(html).toContain("Lucro bruto estimado:");
+    expect(html).toContain("Margem bruta estimada:");
+    expect(html).not.toContain("lucro líquido");
+    expect(html).not.toContain("margem líquida");
+    expect(html).not.toContain("margem realizada");
     expect(html).toContain("Rentabilidade por Família / Categoria Mãe");
     expect(html).toContain("1 - NINECLOUDS");
+  });
+
+  it("8b. Renderiza cards de canal com badge de seleção e suporte a canais secundários", () => {
+    const channelsWithSecondary = [
+      ...mockProfitabilityData.channels,
+      {
+        channel: "INDETERMINADO" as const,
+        realizedRevenue: 3000,
+        revenueWithCurrentCost: 3000,
+        estimatedCOGS: 1500,
+        estimatedGrossProfit: 1500,
+        estimatedGrossMarginPercent: 50,
+        costCoveragePercent: 100,
+        physicalQuantity: 30,
+      },
+    ];
+
+    const html = renderToString(
+      <ProfitabilityBreakdowns
+        channels={channelsWithSecondary}
+        rootCategories={[]}
+        selectedChannel="ATACADO"
+        onSelectChannel={vi.fn()}
+        selectedCategorySourceId={null}
+        onSelectCategorySourceId={vi.fn()}
+      />,
+    );
+
+    expect(html).toContain("Filtrado");
+    expect(html).toContain("Canais Secundários");
+    expect(html).toContain("Indeterminado");
   });
 
   it("9. Renderiza loading (skeleton) e estado de erro graciosamente", () => {
