@@ -1,16 +1,33 @@
 import { useState, useMemo } from "react";
-import { DollarSign, Package, AlertTriangle, Info, ChevronLeft, ChevronRight } from "lucide-react";
+import { DollarSign, Package, AlertTriangle, Info, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import type { TopProductItem } from "../api/bi";
 import {
   formatCurrency,
   formatNumber,
   formatPercent,
 } from "../utils/formatters";
+import {
+  compareNumericNullsLast,
+  compareStringNullsLast,
+  type SortDirection,
+} from "../utils/sortUtils";
+import { SortableTh } from "./SortableTh";
+
+export type ProductSortField =
+  | "product"
+  | "revenue"
+  | "quantity"
+  | "share"
+  | "customers"
+  | "stock";
 
 interface TopProductsCardProps {
   products: TopProductItem[];
   totalRevenue: number;
   totalQuantity: number;
+  initialSearchTerm?: string;
+  initialSortField?: ProductSortField;
+  initialSortDirection?: SortDirection;
 }
 
 type RankingSortMode = "revenue" | "volume";
@@ -21,34 +38,124 @@ export function TopProductsCard({
   products,
   totalRevenue,
   totalQuantity,
+  initialSearchTerm = "",
+  initialSortField = "revenue",
+  initialSortDirection = "desc",
 }: TopProductsCardProps) {
   const [sortMode, setSortMode] = useState<RankingSortMode>("revenue");
+  const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
+  const [sortField, setSortField] = useState<ProductSortField>(initialSortField);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(initialSortDirection);
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Filtro e Ordenação
-  const processedList = useMemo(() => {
-    if (sortMode === "revenue") {
-      // Todos os produtos ordenados por receita líquida realizada
-      return [...products].sort((a, b) => b.realizedRevenue - a.realizedRevenue);
+  const handleSort = (field: ProductSortField) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
     } else {
-      // Volume: exclui produtos com quantity === 0 no período
-      return products
-        .filter((p) => p.quantity > 0)
-        .sort((a, b) => b.quantity - a.quantity);
+      setSortField(field);
+      // Produto inicia com ASC; métricas numéricas com DESC
+      setSortDirection(field === "product" ? "asc" : "desc");
     }
-  }, [products, sortMode]);
-
-  const totalPages = Math.max(1, Math.ceil(processedList.length / PAGE_SIZE));
-  const safePage = Math.min(currentPage, totalPages);
-  const startIndex = (safePage - 1) * PAGE_SIZE;
-  const paginatedItems = processedList.slice(startIndex, startIndex + PAGE_SIZE);
+    setCurrentPage(1);
+  };
 
   const handleModeChange = (newMode: RankingSortMode) => {
     if (newMode !== sortMode) {
       setSortMode(newMode);
+      if (newMode === "revenue") {
+        setSortField("revenue");
+        setSortDirection("desc");
+      } else {
+        setSortField("quantity");
+        setSortDirection("desc");
+      }
       setCurrentPage(1);
     }
   };
+
+  // 1. Filtro base operacional do card
+  const baseList = useMemo(() => {
+    if (sortMode === "volume") {
+      // Volume: exclui produtos com quantity === 0 no período
+      return products.filter((p) => p.quantity > 0);
+    }
+    return products;
+  }, [products, sortMode]);
+
+  // 2. Busca textual local (case-insensitive, trim)
+  const searchedList = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return baseList;
+
+    return baseList.filter((item) => {
+      const descMatch = item.description?.toLowerCase().includes(term) ?? false;
+      const codeMatch = item.code?.toLowerCase().includes(term) ?? false;
+      const idMatch = item.productId ? item.productId.toLowerCase().includes(term) : false;
+      const sourceIdMatch = (item as any).productSourceId
+        ? String((item as any).productSourceId).toLowerCase().includes(term)
+        : false;
+      return descMatch || codeMatch || idMatch || sourceIdMatch;
+    });
+  }, [baseList, searchTerm]);
+
+  // 3. Ordenação com preservação de null sempre por último
+  const sortedList = useMemo(() => {
+    return [...searchedList].sort((a, b) => {
+      let cmp = 0;
+      switch (sortField) {
+        case "product":
+          cmp = compareStringNullsLast(a.description, b.description, sortDirection);
+          break;
+        case "revenue":
+          cmp = compareNumericNullsLast(a.realizedRevenue, b.realizedRevenue, sortDirection);
+          break;
+        case "quantity":
+          cmp = compareNumericNullsLast(a.quantity, b.quantity, sortDirection);
+          break;
+        case "share": {
+          const shareA =
+            sortMode === "revenue"
+              ? totalRevenue > 0
+                ? (a.realizedRevenue / totalRevenue) * 100
+                : 0
+              : totalQuantity > 0
+                ? (a.quantity / totalQuantity) * 100
+                : 0;
+          const shareB =
+            sortMode === "revenue"
+              ? totalRevenue > 0
+                ? (b.realizedRevenue / totalRevenue) * 100
+                : 0
+              : totalQuantity > 0
+                ? (b.quantity / totalQuantity) * 100
+                : 0;
+          cmp = compareNumericNullsLast(shareA, shareB, sortDirection);
+          break;
+        }
+        case "customers":
+          cmp = compareNumericNullsLast(a.distinctCustomers, b.distinctCustomers, sortDirection);
+          break;
+        case "stock":
+          cmp = compareNumericNullsLast(a.currentStockQuantity, b.currentStockQuantity, sortDirection);
+          break;
+      }
+
+      if (cmp !== 0) return cmp;
+      // Desempate estável: faturamento DESC, código, ID
+      return (
+        compareNumericNullsLast(a.realizedRevenue, b.realizedRevenue, "desc") ||
+        (a.code || "").localeCompare(b.code || "") ||
+        (a.productId || "").localeCompare(b.productId || "")
+      );
+    });
+  }, [searchedList, sortField, sortDirection, sortMode, totalRevenue, totalQuantity]);
+
+  // 4. Paginação
+  const totalItems = sortedList.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const startIndex = (safePage - 1) * PAGE_SIZE;
+  const paginatedItems = sortedList.slice(startIndex, startIndex + PAGE_SIZE);
 
   return (
     <section className="tp-card tp-top-products-card" aria-label="Mais Vendidos">
@@ -57,7 +164,7 @@ export function TopProductsCard({
           <div className="tp-title-with-badge">
             <h3 className="tp-card-title">Mais vendidos</h3>
             <span className="tp-badge-count">
-              {processedList.length} {processedList.length === 1 ? "item" : "itens"}
+              {`${sortedList.length} ${sortedList.length === 1 ? "item" : "itens"}`}
             </span>
           </div>
           <p className="tp-card-subtitle">
@@ -67,31 +174,60 @@ export function TopProductsCard({
           </p>
         </div>
 
-        <div className="tp-ranking-toggles" role="tablist" aria-label="Critério de ordenação">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={sortMode === "revenue"}
-            className={`tp-ranking-toggle-btn ${sortMode === "revenue" ? "is-active" : ""}`}
-            onClick={() => handleModeChange("revenue")}
-          >
-            <DollarSign size={13} />
-            <span>Faturamento</span>
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={sortMode === "volume"}
-            className={`tp-ranking-toggle-btn ${sortMode === "volume" ? "is-active" : ""}`}
-            onClick={() => handleModeChange("volume")}
-          >
-            <Package size={13} />
-            <span>Volume</span>
-          </button>
+        <div className="tp-top-products-controls">
+          <div className="tp-search-input-wrap tp-profit-search-wrap tp-products-search-wrap">
+            <Search size={14} className="tp-search-icon" />
+            <input
+              type="text"
+              placeholder="Buscar produto ou código..."
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="tp-input-search tp-profit-search-input"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                className="tp-search-clear-btn"
+                onClick={() => {
+                  setSearchTerm("");
+                  setCurrentPage(1);
+                }}
+                aria-label="Limpar busca"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+
+          <div className="tp-ranking-toggles" role="tablist" aria-label="Critério de ordenação">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={sortMode === "revenue"}
+              className={`tp-ranking-toggle-btn ${sortMode === "revenue" ? "is-active" : ""}`}
+              onClick={() => handleModeChange("revenue")}
+            >
+              <DollarSign size={13} />
+              <span>Faturamento</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={sortMode === "volume"}
+              className={`tp-ranking-toggle-btn ${sortMode === "volume" ? "is-active" : ""}`}
+              onClick={() => handleModeChange("volume")}
+            >
+              <Package size={13} />
+              <span>Volume</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {processedList.length === 0 ? (
+      {baseList.length === 0 ? (
         <div className="tp-empty-message">
           Nenhum produto registrado com {sortMode === "revenue" ? "faturamento" : "volume físico"} no período selecionado.
         </div>
@@ -102,17 +238,78 @@ export function TopProductsCard({
               <thead>
                 <tr>
                   <th className="tp-th-rank">#</th>
-                  <th className="tp-th-product">Produto</th>
+                  <SortableTh
+                    field="product"
+                    currentSortField={sortField}
+                    currentSortDirection={sortDirection}
+                    onSort={handleSort}
+                    className="tp-th-product"
+                    align="left"
+                  >
+                    Produto
+                  </SortableTh>
                   <th className="tp-th-category">Categoria</th>
-                  <th className="tp-th-num tp-th-revenue">Faturamento</th>
-                  <th className="tp-th-num tp-th-quantity">Unidades</th>
-                  <th className="tp-th-share">Participação</th>
-                  <th className="tp-th-num tp-th-customers">Clientes</th>
-                  <th className="tp-th-stock">Estoque</th>
+                  <SortableTh
+                    field="revenue"
+                    currentSortField={sortField}
+                    currentSortDirection={sortDirection}
+                    onSort={handleSort}
+                    className="tp-th-num tp-th-revenue"
+                    align="right"
+                  >
+                    Faturamento
+                  </SortableTh>
+                  <SortableTh
+                    field="quantity"
+                    currentSortField={sortField}
+                    currentSortDirection={sortDirection}
+                    onSort={handleSort}
+                    className="tp-th-num tp-th-quantity"
+                    align="right"
+                  >
+                    Unidades
+                  </SortableTh>
+                  <SortableTh
+                    field="share"
+                    currentSortField={sortField}
+                    currentSortDirection={sortDirection}
+                    onSort={handleSort}
+                    className="tp-th-share"
+                    align="right"
+                  >
+                    Participação
+                  </SortableTh>
+                  <SortableTh
+                    field="customers"
+                    currentSortField={sortField}
+                    currentSortDirection={sortDirection}
+                    onSort={handleSort}
+                    className="tp-th-num tp-th-customers"
+                    align="right"
+                  >
+                    Clientes
+                  </SortableTh>
+                  <SortableTh
+                    field="stock"
+                    currentSortField={sortField}
+                    currentSortDirection={sortDirection}
+                    onSort={handleSort}
+                    className="tp-th-stock"
+                    align="right"
+                  >
+                    Estoque
+                  </SortableTh>
                 </tr>
               </thead>
               <tbody>
-                {paginatedItems.map((item, idx) => {
+                {paginatedItems.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="tp-table-empty">
+                      Nenhum produto encontrado para esta busca.
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedItems.map((item, idx) => {
                   const globalRank = startIndex + idx + 1;
                   const isTop3 = globalRank <= 3;
                   const isZeroQty = item.quantity === 0;
@@ -212,16 +409,15 @@ export function TopProductsCard({
                       </td>
                     </tr>
                   );
-                })}
+                }))}
               </tbody>
             </table>
           </div>
 
-          {totalPages > 1 && (
+          {totalPages > 1 && totalItems > 0 && (
             <div className="tp-pagination-bar">
               <span className="tp-pagination-info">
-                Mostrando {startIndex + 1}–{Math.min(startIndex + PAGE_SIZE, processedList.length)} de{" "}
-                {processedList.length} produtos
+                {`Mostrando ${startIndex + 1}–${Math.min(startIndex + PAGE_SIZE, totalItems)} de ${totalItems} produtos`}
               </span>
               <div className="tp-pagination-controls">
                 <button
@@ -235,7 +431,7 @@ export function TopProductsCard({
                   <span>Anterior</span>
                 </button>
                 <span className="tp-pagination-page">
-                  {safePage} / {totalPages}
+                  {`${safePage} / ${totalPages}`}
                 </span>
                 <button
                   type="button"
