@@ -6982,6 +6982,24 @@ body {
   gap: 0.75rem;
 }
 
+.tp-decisions-header-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--tp-space-sm);
+  flex-wrap: wrap;
+}
+
+.tp-decisions-search-wrap {
+  flex: 0 0 190px;
+  width: 190px;
+}
+
+.tp-decisions-search-wrap .tp-profit-search-input {
+  height: 30px;
+  font-size: 0.725rem;
+  padding: 0 24px 0 28px;
+}
+
 .tp-decisions-card-title {
   display: flex;
   align-items: center;

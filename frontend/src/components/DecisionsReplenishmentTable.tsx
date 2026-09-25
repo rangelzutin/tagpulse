@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { AlertCircle, Clock, ShieldAlert, ChevronLeft, ChevronRight } from "lucide-react";
+import { AlertCircle, Clock, ShieldAlert, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import type {
   DecisionsProductItem,
   DecisionsReplenishmentGroups,
@@ -16,6 +16,7 @@ interface DecisionsReplenishmentTableProps {
   replenishment: DecisionsReplenishmentGroups;
   windowDays: InventoryWindowDays;
   onFilterResetTrigger?: number; // Para resetar página quando janela ou categoria mudar
+  initialSearchTerm?: string;
 }
 
 type ReplenishmentTab = "demandWithoutStock" | "criticalCoverage" | "alertCoverage";
@@ -33,8 +34,10 @@ export function DecisionsReplenishmentTable({
   replenishment,
   windowDays,
   onFilterResetTrigger,
+  initialSearchTerm = "",
 }: DecisionsReplenishmentTableProps) {
   const [activeTab, setActiveTab] = useState<ReplenishmentTab>("demandWithoutStock");
+  const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
   const [sortField, setSortField] = useState<ReplenishmentSortField>("profit");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [currentPage, setCurrentPage] = useState(1);
@@ -57,8 +60,21 @@ export function DecisionsReplenishmentTable({
 
   const currentList: DecisionsProductItem[] = replenishment[activeTab] || [];
 
+  // Pipeline de busca textual
+  const filteredItems = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return currentList;
+
+    return currentList.filter((item) => {
+      const descMatch = item.description?.toLowerCase().includes(term) ?? false;
+      const codeMatch = item.code?.toLowerCase().includes(term) ?? false;
+      const idMatch = item.productSourceId.toLowerCase().includes(term);
+      return descMatch || codeMatch || idMatch;
+    });
+  }, [currentList, searchTerm]);
+
   const sortedItems = useMemo(() => {
-    return [...currentList].sort((a, b) => {
+    return [...filteredItems].sort((a, b) => {
       let cmp = 0;
       switch (sortField) {
         case "stock":
@@ -118,7 +134,7 @@ export function DecisionsReplenishmentTable({
         ) || a.productSourceId.localeCompare(b.productSourceId)
       );
     });
-  }, [currentList, sortField, sortDirection]);
+  }, [filteredItems, sortField, sortDirection]);
 
   const totalItems = sortedItems.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
@@ -143,48 +159,78 @@ export function DecisionsReplenishmentTable({
           </p>
         </div>
 
-        <div className="tp-decisions-tabs" role="tablist" aria-label="Abas de Reposição">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "demandWithoutStock"}
-            className={`tp-decisions-tab-btn ${activeTab === "demandWithoutStock" ? "is-active is-rose" : ""}`}
-            onClick={() => setActiveTab("demandWithoutStock")}
-          >
-            <AlertCircle size={14} />
-            <span>Demanda sem estoque</span>
-            <span className="tp-tab-count-badge">
-              {replenishment.demandWithoutStock.length}
-            </span>
-          </button>
+        <div className="tp-decisions-header-controls">
+          <div className="tp-decisions-tabs" role="tablist" aria-label="Abas de Reposição">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "demandWithoutStock"}
+              className={`tp-decisions-tab-btn ${activeTab === "demandWithoutStock" ? "is-active is-rose" : ""}`}
+              onClick={() => setActiveTab("demandWithoutStock")}
+            >
+              <AlertCircle size={14} />
+              <span>Demanda sem estoque</span>
+              <span className="tp-tab-count-badge">
+                {replenishment.demandWithoutStock.length}
+              </span>
+            </button>
 
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "criticalCoverage"}
-            className={`tp-decisions-tab-btn ${activeTab === "criticalCoverage" ? "is-active is-red" : ""}`}
-            onClick={() => setActiveTab("criticalCoverage")}
-          >
-            <Clock size={14} />
-            <span>Cobertura crítica &lt; 15 dias</span>
-            <span className="tp-tab-count-badge">
-              {replenishment.criticalCoverage.length}
-            </span>
-          </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "criticalCoverage"}
+              className={`tp-decisions-tab-btn ${activeTab === "criticalCoverage" ? "is-active is-red" : ""}`}
+              onClick={() => setActiveTab("criticalCoverage")}
+            >
+              <Clock size={14} />
+              <span>Cobertura crítica &lt; 15 dias</span>
+              <span className="tp-tab-count-badge">
+                {replenishment.criticalCoverage.length}
+              </span>
+            </button>
 
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "alertCoverage"}
-            className={`tp-decisions-tab-btn ${activeTab === "alertCoverage" ? "is-active is-amber" : ""}`}
-            onClick={() => setActiveTab("alertCoverage")}
-          >
-            <Clock size={14} />
-            <span>Cobertura de alerta 15–30 dias</span>
-            <span className="tp-tab-count-badge">
-              {replenishment.alertCoverage.length}
-            </span>
-          </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "alertCoverage"}
+              className={`tp-decisions-tab-btn ${activeTab === "alertCoverage" ? "is-active is-amber" : ""}`}
+              onClick={() => setActiveTab("alertCoverage")}
+            >
+              <Clock size={14} />
+              <span>Cobertura de alerta 15–30 dias</span>
+              <span className="tp-tab-count-badge">
+                {replenishment.alertCoverage.length}
+              </span>
+            </button>
+          </div>
+
+          {/* Campo de Busca por Produto / Código */}
+          <div className="tp-search-input-wrap tp-profit-search-wrap tp-decisions-search-wrap">
+            <Search size={14} className="tp-search-icon" />
+            <input
+              type="text"
+              placeholder="Buscar produto ou código..."
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="tp-input-search tp-profit-search-input"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                className="tp-search-clear-btn"
+                onClick={() => {
+                  setSearchTerm("");
+                  setCurrentPage(1);
+                }}
+                aria-label="Limpar busca"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -264,7 +310,9 @@ export function DecisionsReplenishmentTable({
             {paginatedItems.length === 0 ? (
               <tr>
                 <td colSpan={10} className="tp-table-empty">
-                  Nenhum produto encontrado nesta faixa de reposição para os filtros aplicados.
+                  {searchTerm.trim()
+                    ? "Nenhum produto encontrado para esta busca."
+                    : "Nenhum produto encontrado nesta faixa de reposição para os filtros aplicados."}
                 </td>
               </tr>
             ) : (

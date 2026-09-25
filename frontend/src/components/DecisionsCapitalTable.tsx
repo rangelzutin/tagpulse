@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { AlertTriangle, Boxes, ChevronLeft, ChevronRight, Layers } from "lucide-react";
+import { AlertTriangle, Boxes, ChevronLeft, ChevronRight, Layers, Search, X } from "lucide-react";
 import type {
   DecisionsCapitalGroups,
   DecisionsProductItem,
@@ -16,6 +16,7 @@ interface DecisionsCapitalTableProps {
   capitalOptimization: DecisionsCapitalGroups;
   windowDays: InventoryWindowDays;
   onFilterResetTrigger?: number;
+  initialSearchTerm?: string;
 }
 
 type CapitalTab = "inventoryWithoutSales" | "highCoverage" | "inactiveWithStock";
@@ -33,8 +34,10 @@ export function DecisionsCapitalTable({
   capitalOptimization,
   windowDays,
   onFilterResetTrigger,
+  initialSearchTerm = "",
 }: DecisionsCapitalTableProps) {
   const [activeTab, setActiveTab] = useState<CapitalTab>("inventoryWithoutSales");
+  const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
   const [sortField, setSortField] = useState<CapitalSortField>("capital");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [currentPage, setCurrentPage] = useState(1);
@@ -57,8 +60,21 @@ export function DecisionsCapitalTable({
 
   const currentList: DecisionsProductItem[] = capitalOptimization[activeTab] || [];
 
+  // Pipeline de busca textual
+  const filteredItems = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return currentList;
+
+    return currentList.filter((item) => {
+      const descMatch = item.description?.toLowerCase().includes(term) ?? false;
+      const codeMatch = item.code?.toLowerCase().includes(term) ?? false;
+      const idMatch = item.productSourceId.toLowerCase().includes(term);
+      return descMatch || codeMatch || idMatch;
+    });
+  }, [currentList, searchTerm]);
+
   const sortedItems = useMemo(() => {
-    return [...currentList].sort((a, b) => {
+    return [...filteredItems].sort((a, b) => {
       let cmp = 0;
       switch (sortField) {
         case "stock":
@@ -118,7 +134,7 @@ export function DecisionsCapitalTable({
         ) || a.productSourceId.localeCompare(b.productSourceId)
       );
     });
-  }, [currentList, sortField, sortDirection]);
+  }, [filteredItems, sortField, sortDirection]);
 
   const totalItems = sortedItems.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
@@ -142,48 +158,78 @@ export function DecisionsCapitalTable({
           </p>
         </div>
 
-        <div className="tp-decisions-tabs" role="tablist" aria-label="Abas de Capital">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "inventoryWithoutSales"}
-            className={`tp-decisions-tab-btn ${activeTab === "inventoryWithoutSales" ? "is-active is-amber" : ""}`}
-            onClick={() => setActiveTab("inventoryWithoutSales")}
-          >
-            <AlertTriangle size={14} />
-            <span>Sem saída na janela</span>
-            <span className="tp-tab-count-badge">
-              {capitalOptimization.inventoryWithoutSales.length}
-            </span>
-          </button>
+        <div className="tp-decisions-header-controls">
+          <div className="tp-decisions-tabs" role="tablist" aria-label="Abas de Capital">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "inventoryWithoutSales"}
+              className={`tp-decisions-tab-btn ${activeTab === "inventoryWithoutSales" ? "is-active is-amber" : ""}`}
+              onClick={() => setActiveTab("inventoryWithoutSales")}
+            >
+              <AlertTriangle size={14} />
+              <span>Sem saída na janela</span>
+              <span className="tp-tab-count-badge">
+                {capitalOptimization.inventoryWithoutSales.length}
+              </span>
+            </button>
 
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "highCoverage"}
-            className={`tp-decisions-tab-btn ${activeTab === "highCoverage" ? "is-active is-blue" : ""}`}
-            onClick={() => setActiveTab("highCoverage")}
-          >
-            <Layers size={14} />
-            <span>Cobertura &gt; 90 dias</span>
-            <span className="tp-tab-count-badge">
-              {capitalOptimization.highCoverage.length}
-            </span>
-          </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "highCoverage"}
+              className={`tp-decisions-tab-btn ${activeTab === "highCoverage" ? "is-active is-blue" : ""}`}
+              onClick={() => setActiveTab("highCoverage")}
+            >
+              <Layers size={14} />
+              <span>Cobertura &gt; 90 dias</span>
+              <span className="tp-tab-count-badge">
+                {capitalOptimization.highCoverage.length}
+              </span>
+            </button>
 
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "inactiveWithStock"}
-            className={`tp-decisions-tab-btn ${activeTab === "inactiveWithStock" ? "is-active is-dim" : ""}`}
-            onClick={() => setActiveTab("inactiveWithStock")}
-          >
-            <Boxes size={14} />
-            <span>Inativos com estoque</span>
-            <span className="tp-tab-count-badge">
-              {capitalOptimization.inactiveWithStock.length}
-            </span>
-          </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "inactiveWithStock"}
+              className={`tp-decisions-tab-btn ${activeTab === "inactiveWithStock" ? "is-active is-dim" : ""}`}
+              onClick={() => setActiveTab("inactiveWithStock")}
+            >
+              <Boxes size={14} />
+              <span>Inativos com estoque</span>
+              <span className="tp-tab-count-badge">
+                {capitalOptimization.inactiveWithStock.length}
+              </span>
+            </button>
+          </div>
+
+          {/* Campo de Busca por Produto / Código */}
+          <div className="tp-search-input-wrap tp-profit-search-wrap tp-decisions-search-wrap">
+            <Search size={14} className="tp-search-icon" />
+            <input
+              type="text"
+              placeholder="Buscar produto ou código..."
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="tp-input-search tp-profit-search-input"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                className="tp-search-clear-btn"
+                onClick={() => {
+                  setSearchTerm("");
+                  setCurrentPage(1);
+                }}
+                aria-label="Limpar busca"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -262,7 +308,9 @@ export function DecisionsCapitalTable({
             {paginatedItems.length === 0 ? (
               <tr>
                 <td colSpan={9} className="tp-table-empty">
-                  Nenhum produto encontrado nesta faixa de capital para os filtros aplicados.
+                  {searchTerm.trim()
+                    ? "Nenhum produto encontrado para esta busca."
+                    : "Nenhum produto encontrado nesta faixa de capital para os filtros aplicados."}
                 </td>
               </tr>
             ) : (
