@@ -5,6 +5,8 @@ import { DecisionsView } from "./DecisionsView";
 import { DecisionsKpiGrid } from "./DecisionsKpiGrid";
 import { DecisionsReplenishmentTable } from "./DecisionsReplenishmentTable";
 import { DecisionsCapitalTable } from "./DecisionsCapitalTable";
+import { Header } from "./Header";
+import { formatDateBr } from "../utils/formatters";
 import type { DecisionsOverviewResult } from "../api/bi";
 
 describe("DecisionsView & Components", () => {
@@ -214,7 +216,7 @@ describe("DecisionsView & Components", () => {
     expect(html).toContain("1.138,10");
   });
 
-  it("renders full DecisionsView in loaded state", () => {
+  it("renders full DecisionsView in loaded state without duplicate header", () => {
     const html = cleanHtml(
       renderToString(
         <DecisionsView
@@ -231,9 +233,41 @@ describe("DecisionsView & Components", () => {
       ),
     );
 
-    expect(html).toContain("Central de Decisões");
-    expect(html).toContain("20/09/2026");
+    // Deve eliminar o bloco redundante: título h1 e descrição
+    expect(html).not.toContain("tp-view-title");
+    expect(html).not.toContain("tp-view-description");
+    expect(html).not.toContain("<h1");
+    // Deve manter os controles de filtro e tabelas
+    expect(html).toContain("Janela Móvel");
+    expect(html).toContain("Categoria / Família");
     expect(html).toContain("Reposição — Onde Repor Primeiro");
     expect(html).toContain("Capital — Onde Evitar Compra");
+  });
+
+  it("renders unified Header for Decisões with title, subtitle, position badge and refresh button", () => {
+    const html = cleanHtml(
+      renderToString(
+        <Header
+          title="Decisões"
+          subtitle="Cruzamento operacional de vendas recentes, estoque atual e rentabilidade estimada"
+          badge={`Posição em ${formatDateBr(mockData.meta.asOfDate)}`}
+        >
+          <button
+            type="button"
+            className="tp-action-btn"
+            aria-label="Atualizar dados da Central de Decisões"
+          >
+            <span>Atualizar</span>
+          </button>
+        </Header>,
+      ),
+    );
+
+    expect(html).toContain("Decisões");
+    expect(html).toContain(
+      "Cruzamento operacional de vendas recentes, estoque atual e rentabilidade estimada",
+    );
+    expect(html).toContain("Posição em 20/09/2026");
+    expect(html).toContain("Atualizar");
   });
 });

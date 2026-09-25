@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { AlertCircle, RefreshCw, SlidersHorizontal } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import type {
   CategoryTreeNode,
   DecisionsOverviewResult,
@@ -10,7 +10,6 @@ import { DecisionsReplenishmentTable } from "./DecisionsReplenishmentTable";
 import { DecisionsCapitalTable } from "./DecisionsCapitalTable";
 import { InventoryCategoryTreeSelector } from "./InventoryCategoryTreeSelector";
 import { InventoryWindowSelector } from "./InventoryWindowSelector";
-import { formatDateBr } from "../utils/formatters";
 
 interface DecisionsViewProps {
   data: DecisionsOverviewResult | null;
@@ -49,67 +48,27 @@ export function DecisionsView({
   const handleAction = onRefresh ?? onRetry;
 
   return (
-    <div className="tp-content-area" aria-label="Central de Decisões">
-      {/* Top Controls Header */}
-      <header className="tp-view-header">
-        <div className="tp-view-header-main">
-          <div className="tp-view-title-group">
-            <div className="tp-view-icon-badge tp-badge-emerald">
-              <SlidersHorizontal size={20} />
-            </div>
-            <div>
-              <h1 className="tp-view-title">Central de Decisões</h1>
-              <p className="tp-view-description">
-                Decisões operacionais de compras e capital integrando vendas recentes, estoque atual e rentabilidade estimada ao custo atual
-              </p>
-            </div>
-          </div>
-
-          <div className="tp-view-actions">
-            {data?.meta.asOfDate && (
-              <div className="tp-asof-badge" title="Data de corte operacional">
-                <span className="tp-asof-label">Posição de Estoque:</span>
-                <span className="tp-asof-date">{formatDateBr(data.meta.asOfDate)}</span>
-              </div>
-            )}
-
-            {handleAction && (
-              <button
-                type="button"
-                className={`tp-action-btn ${isRefreshing ? "is-loading" : ""}`}
-                onClick={handleAction}
-                disabled={isLoading || isRefreshing}
-                title="Atualizar dados"
-                aria-label="Atualizar dados da Central de Decisões"
-              >
-                <RefreshCw size={15} className={isRefreshing ? "tp-spin" : ""} />
-                <span>Atualizar</span>
-              </button>
-            )}
-          </div>
+    <div className="tp-content-area" aria-label="Decisões">
+      {/* Filter Toolbar: Window selector & Category selector */}
+      <div className="tp-decisions-filter-toolbar">
+        <div className="tp-filter-group-item">
+          <span className="tp-filter-label">Janela Móvel:</span>
+          <InventoryWindowSelector
+            value={windowDays}
+            onChange={onSelectWindowDays}
+            disabled={isLoading || isRefreshing}
+          />
         </div>
 
-        {/* Filter Toolbar: Window selector & Category selector */}
-        <div className="tp-decisions-filter-toolbar">
-          <div className="tp-filter-group-item">
-            <span className="tp-filter-label">Janela Móvel:</span>
-            <InventoryWindowSelector
-              value={windowDays}
-              onChange={onSelectWindowDays}
-              disabled={isLoading || isRefreshing}
-            />
-          </div>
-
-          <div className="tp-filter-group-item tp-category-filter-item">
-            <span className="tp-filter-label">Categoria / Família:</span>
-            <InventoryCategoryTreeSelector
-              categories={categoryTree}
-              selectedCategorySourceId={selectedCategorySourceId}
-              onSelectCategorySourceId={onSelectCategorySourceId}
-            />
-          </div>
+        <div className="tp-filter-group-item tp-category-filter-item">
+          <span className="tp-filter-label">Categoria / Família:</span>
+          <InventoryCategoryTreeSelector
+            categories={categoryTree}
+            selectedCategorySourceId={selectedCategorySourceId}
+            onSelectCategorySourceId={onSelectCategorySourceId}
+          />
         </div>
-      </header>
+      </div>
 
       {/* Loading state */}
       {isLoading && (

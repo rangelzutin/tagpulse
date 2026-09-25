@@ -713,6 +713,14 @@ export function App() {
     );
   };
 
+  const handleRefreshDecisions = () => {
+    void loadDecisionsOverview(
+      decisionsWindowDays,
+      decisionsSelectedCategorySourceId,
+      Boolean(decisionsData),
+    );
+  };
+
   const handleOpenSegmentDrawer = (
     segment: CustomerSegmentType,
     rateContext?: RateContextData | null,
@@ -798,7 +806,19 @@ export function App() {
               onChange={handleInventoryWindowChange}
               disabled={isInventoryLoading || isInventoryRefreshing}
             />
-          ) : activeNav === "decisions" ? null : (
+          ) : activeNav === "decisions" ? (
+            <button
+              type="button"
+              className={`tp-action-btn ${isDecisionsRefreshing ? "is-loading" : ""}`}
+              onClick={handleRefreshDecisions}
+              disabled={isDecisionsLoading || isDecisionsRefreshing}
+              title="Atualizar dados"
+              aria-label="Atualizar dados da Central de Decisões"
+            >
+              <RefreshCw size={14} className={isDecisionsRefreshing ? "tp-spin" : ""} />
+              <span>Atualizar</span>
+            </button>
+          ) : (
             <PeriodFilter
               initialFrom={currentPeriod.from}
               initialTo={currentPeriod.to}
@@ -846,6 +866,7 @@ export function App() {
             isRefreshing={isDecisionsRefreshing}
             error={decisionsError}
             onRetry={handleRetryDecisions}
+            onRefresh={handleRefreshDecisions}
             windowDays={decisionsWindowDays}
             onSelectWindowDays={handleDecisionsWindowChange}
             selectedCategorySourceId={decisionsSelectedCategorySourceId}
