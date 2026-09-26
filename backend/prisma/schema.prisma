@@ -44,8 +44,12 @@ model TagPlusConnection {
   productSyncRuns ProductSyncRun[]
   products        Product[]
   sales           Sale[]
-  categories      Category[]
-  tagPlusSyncRuns TagPlusSyncRun[]
+  categories           Category[]
+  tagPlusSyncRuns      TagPlusSyncRun[]
+  financialBudgetPlans FinancialBudgetPlan[]
+  bankAccounts         BankAccount[]
+  paymentMethods       PaymentMethod[]
+  departments          Department[]
 
   @@unique([companyId, name])
   @@index([companyId])
@@ -424,4 +428,82 @@ model Category {
   @@unique([connectionId, sourceId])
   @@index([connectionId, parentSourceId])
   @@map("categories")
+}
+
+model FinancialBudgetPlan {
+  id                      String                @id @default(uuid()) @db.Uuid
+  connectionId            String                @map("connection_id") @db.Uuid
+  sourceId                String                @map("source_id")
+  parentSourceId          String?               @map("parent_source_id")
+  type                    String?               @map("type")
+  description             String                @map("description")
+  position                String?               @map("position")
+  isProtected             Boolean               @default(false) @map("is_protected")
+  sourceDreClassification Json?                 @map("source_dre_classification")
+  sourcePresent           Boolean               @default(true) @map("source_present")
+  noLongerObservedAt      DateTime?             @map("no_longer_observed_at")
+  lastSeenAt              DateTime              @map("last_seen_at")
+  createdAt               DateTime              @default(now()) @map("created_at")
+  updatedAt               DateTime              @updatedAt @map("updated_at")
+
+  connection              TagPlusConnection     @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  parent                  FinancialBudgetPlan?  @relation("BudgetPlanHierarchy", fields: [connectionId, parentSourceId], references: [connectionId, sourceId])
+  children                FinancialBudgetPlan[] @relation("BudgetPlanHierarchy")
+
+  @@unique([connectionId, sourceId])
+  @@index([connectionId, parentSourceId])
+  @@map("financial_budget_plans")
+}
+
+model BankAccount {
+  id                 String            @id @default(uuid()) @db.Uuid
+  connectionId       String            @map("connection_id") @db.Uuid
+  sourceId           String            @map("source_id")
+  description        String            @map("description")
+  rawDetails         Json?             @map("raw_details")
+  sourcePresent      Boolean           @default(true) @map("source_present")
+  noLongerObservedAt DateTime?         @map("no_longer_observed_at")
+  lastSeenAt         DateTime          @map("last_seen_at")
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
+
+  connection         TagPlusConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, sourceId])
+  @@map("bank_accounts")
+}
+
+model PaymentMethod {
+  id                 String            @id @default(uuid()) @db.Uuid
+  connectionId       String            @map("connection_id") @db.Uuid
+  sourceId           String            @map("source_id")
+  description        String            @map("description")
+  sourceActive       Boolean           @default(true) @map("source_active")
+  sourcePresent      Boolean           @default(true) @map("source_present")
+  noLongerObservedAt DateTime?         @map("no_longer_observed_at")
+  lastSeenAt         DateTime          @map("last_seen_at")
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
+
+  connection         TagPlusConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, sourceId])
+  @@map("payment_methods")
+}
+
+model Department {
+  id                 String            @id @default(uuid()) @db.Uuid
+  connectionId       String            @map("connection_id") @db.Uuid
+  sourceId           String            @map("source_id")
+  description        String            @map("description")
+  sourcePresent      Boolean           @default(true) @map("source_present")
+  noLongerObservedAt DateTime?         @map("no_longer_observed_at")
+  lastSeenAt         DateTime          @map("last_seen_at")
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
+
+  connection         TagPlusConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, sourceId])
+  @@map("departments")
 }
