@@ -46,10 +46,12 @@ model TagPlusConnection {
   sales           Sale[]
   categories           Category[]
   tagPlusSyncRuns      TagPlusSyncRun[]
-  financialBudgetPlans FinancialBudgetPlan[]
-  bankAccounts         BankAccount[]
-  paymentMethods       PaymentMethod[]
-  departments          Department[]
+  financialBudgetPlans     FinancialBudgetPlan[]
+  bankAccounts             BankAccount[]
+  paymentMethods           PaymentMethod[]
+  departments              Department[]
+  financialRecords         FinancialRecord[]
+  financialRecordSyncItems FinancialRecordSyncItem[]
 
   @@unique([companyId, name])
   @@index([companyId])
@@ -506,4 +508,99 @@ model Department {
 
   @@unique([connectionId, sourceId])
   @@map("departments")
+}
+
+enum FinancialRecordType {
+  ENTRADA
+  SAIDA
+}
+
+enum FinancialSyncItemStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  NOT_FOUND
+}
+
+model FinancialRecord {
+  id                               String              @id @default(uuid()) @db.Uuid
+  connectionId                     String              @map("connection_id") @db.Uuid
+  sourceId                         String              @map("source_id")
+
+  type                             FinancialRecordType
+  isConfirmed                      Boolean             @map("is_confirmed")
+  isTransfer                       Boolean             @map("is_transfer")
+
+  description                      String?             @map("description")
+  documentNumber                   String?             @map("document_number")
+  linkedMovementNumber             String?             @map("linked_movement_number")
+
+  dueDate                          DateTime            @map("due_date")
+  confirmationDate                 DateTime?           @map("confirmation_date")
+  sourceCompetenceDate             DateTime?           @map("source_competence_date")
+  postingDate                      DateTime?           @map("posting_date")
+  sourceUpdatedAt                  DateTime?           @map("source_updated_at")
+
+  originalAmount                   Decimal             @map("original_amount") @db.Decimal(12, 4)
+  grossAmount                      Decimal?            @map("gross_amount") @db.Decimal(12, 4)
+  paidAmount                       Decimal?            @map("paid_amount") @db.Decimal(12, 4)
+  totalAmount                      Decimal?            @map("total_amount") @db.Decimal(12, 4)
+  discountAmount                   Decimal?            @map("discount_amount") @db.Decimal(12, 4)
+  surchargeAmount                  Decimal?            @map("surcharge_amount") @db.Decimal(12, 4)
+  lateInterestAmount               Decimal?            @map("late_interest_amount") @db.Decimal(12, 4)
+  dailyInterestRate                Decimal?            @map("daily_interest_rate") @db.Decimal(12, 4)
+
+  installmentNumber                Int?                @map("installment_number")
+  installmentCount                 Int?                @map("installment_count")
+
+  budgetPlanSourceId               String?             @map("budget_plan_source_id")
+  bankAccountSourceId              String?             @map("bank_account_source_id")
+  paymentMethodSourceId            String?             @map("payment_method_source_id")
+  departmentSourceId               String?             @map("department_source_id")
+
+  entitySourceId                   String?             @map("entity_source_id")
+  entityType                       String?             @map("entity_type")
+  entityName                       String?             @map("entity_name")
+
+  linkedInvoiceInstallmentSourceId String?             @map("linked_invoice_installment_source_id")
+
+  sourcePayload                    Json?               @map("source_payload")
+
+  sourcePresent                    Boolean             @default(true) @map("source_present")
+  noLongerObservedAt               DateTime?           @map("no_longer_observed_at")
+  lastSeenAt                       DateTime            @map("last_seen_at")
+  createdAt                        DateTime            @default(now()) @map("created_at")
+  updatedAt                        DateTime            @updatedAt @map("updated_at")
+
+  connection                       TagPlusConnection   @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, sourceId])
+  @@index([connectionId, type, isConfirmed, dueDate])
+  @@index([connectionId, isConfirmed, confirmationDate])
+  @@index([connectionId, budgetPlanSourceId])
+  @@index([connectionId, entitySourceId])
+  @@index([connectionId, sourcePresent])
+  @@map("financial_records")
+}
+
+model FinancialRecordSyncItem {
+  id             String                  @id @default(uuid()) @db.Uuid
+  connectionId   String                  @map("connection_id") @db.Uuid
+  sourceId       String                  @map("source_id")
+  status         FinancialSyncItemStatus @default(PENDING)
+  attemptCount   Int                     @default(0) @map("attempt_count")
+  lastError      String?                 @map("last_error")
+  lastHttpStatus Int?                    @map("last_http_status")
+  lastAttemptAt  DateTime?               @map("last_attempt_at")
+  completedAt    DateTime?               @map("completed_at")
+  catalogSeenAt  DateTime?               @map("catalog_seen_at")
+  createdAt      DateTime                @default(now()) @map("created_at")
+  updatedAt      DateTime                @updatedAt @map("updated_at")
+
+  connection     TagPlusConnection       @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, sourceId])
+  @@index([connectionId, status])
+  @@map("financial_record_sync_items")
 }

@@ -185,6 +185,90 @@ export async function exchangeAuthorizationCode(
   }
 }
 
+export async function refreshAccessToken(
+  config: Pick<
+    TagPlusOAuthConfig,
+    "baseUrl" | "clientId" | "clientSecret"
+  >,
+  refreshToken: string,
+  options: { fetch?: Fetch; timeoutMs?: number } = {},
+): Promise<TagPlusTokens> {
+  const controller = new AbortController();
+  const timeout = setTimeout(
+    () => controller.abort(),
+    options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+  );
+  const tokenUrl = new URL("oauth2/token", ensureTrailingSlash(config.baseUrl));
+  const endpoint = `${tokenUrl.origin}${tokenUrl.pathname}`;
+  const startedAt = performance.now();
+  const body = new URLSearchParams({
+    grant_type: "refresh_token",
+    refresh_token: refreshToken,
+    client_id: config.clientId,
+    client_secret: config.clientSecret,
+  });
+
+  try {
+    const response = await (options.fetch ?? globalThis.fetch)(tokenUrl, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body,
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new TagPlusOAuthError(
+        `TagPlus token refresh failed with HTTP ${response.status}`,
+        {
+          stage: "token_exchange",
+          endpoint,
+          category: "http_error",
+          httpStatus: response.status,
+          durationMs: Math.round(performance.now() - startedAt),
+        },
+      );
+    }
+
+    let payload: unknown;
+    try {
+      payload = await response.json();
+    } catch {
+      throw new TagPlusOAuthError("TagPlus token response was not valid JSON", {
+        stage: "token_response_parsing",
+        endpoint,
+        category: "invalid_json",
+        httpStatus: response.status,
+        durationMs: Math.round(performance.now() - startedAt),
+      });
+    }
+    return parseTokenResponse(payload, {
+      endpoint,
+      httpStatus: response.status,
+      durationMs: Math.round(performance.now() - startedAt),
+    });
+  } catch (error: unknown) {
+    if (controller.signal.aborted) {
+      throw new TagPlusOAuthTimeoutError({
+        stage: "token_exchange",
+        endpoint,
+        category: "timeout",
+        durationMs: Math.round(performance.now() - startedAt),
+      });
+    }
+    if (error instanceof TagPlusOAuthError) throw error;
+    throw new TagPlusOAuthError("TagPlus token refresh failed", {
+      stage: "token_exchange",
+      endpoint,
+      category: "network_error",
+      durationMs: Math.round(performance.now() - startedAt),
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function parseTokenResponse(
   value: unknown,
   context: { endpoint: string; httpStatus: number; durationMs: number },

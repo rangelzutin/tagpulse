@@ -17,7 +17,10 @@ export interface TagPlusResponse<T> {
 }
 
 export class TagPlusHttpError extends Error {
-  constructor(public readonly status: number) {
+  constructor(
+    public readonly status: number,
+    public readonly headers?: Headers,
+  ) {
     super(`TagPlus request failed with HTTP ${status}`);
     this.name = "TagPlusHttpError";
   }
@@ -84,7 +87,7 @@ export function createTagPlusClient(
         });
 
         if (!response.ok) {
-          throw new TagPlusHttpError(response.status);
+          throw new TagPlusHttpError(response.status, response.headers);
         }
 
         try {

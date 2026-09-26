@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createAuthorizationUrl,
   exchangeAuthorizationCode,
+  refreshAccessToken,
   TagPlusOAuthError,
   TagPlusOAuthTimeoutError,
 } from "../src/integrations/tagplus/oauth.js";
@@ -107,6 +108,53 @@ describe("TagPlus OAuth", () => {
           scopePresent: false,
         },
       },
+    });
+  });
+
+  describe("refreshAccessToken", () => {
+    it("successfully refreshes token using refresh_token grant", async () => {
+      const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            access_token: "new-access-token",
+            refresh_token: "new-refresh-token",
+            expires_in: 7200,
+          }),
+          { status: 200 },
+        ),
+      );
+
+      const tokens = await refreshAccessToken(config, "existing-refresh-token", {
+        fetch: fetchMock,
+      });
+
+      expect(tokens).toEqual({
+        accessToken: "new-access-token",
+        refreshToken: "new-refresh-token",
+        expiresIn: 7200,
+      });
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const callArgs = fetchMock.mock.calls[0];
+      const requestBody = callArgs[1]?.body?.toString();
+      expect(requestBody).toContain("grant_type=refresh_token");
+      expect(requestBody).toContain("refresh_token=existing-refresh-token");
+    });
+
+    it("throws TagPlusOAuthError when refresh request fails with HTTP error", async () => {
+      const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+        new Response("unauthorized", { status: 401 }),
+      );
+
+      await expect(
+        refreshAccessToken(config, "expired-token", { fetch: fetchMock }),
+      ).rejects.toMatchObject({
+        name: TagPlusOAuthError.name,
+        evidence: {
+          httpStatus: 401,
+          category: "http_error",
+        },
+      });
     });
   });
 });
