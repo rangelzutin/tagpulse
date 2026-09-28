@@ -13,15 +13,17 @@ export interface WorkerProgress {
   notFound: number;
   lastSourceId: string;
   action: "COMPLETED" | "FAILED" | "NOT_FOUND";
+  recordAction?: "inserted" | "updated" | "unchanged" | undefined;
 }
 
 export interface WorkerOptions {
-  limit?: number;
-  specificSourceId?: string;
-  rateLimitDelayMs?: number; // default 2150ms (~28 req/min)
-  maxRetries?: number; // default 3 for 5xx/network
-  staleMinutes?: number; // default 15
-  onProgress?: (progress: WorkerProgress) => void;
+  limit?: number | undefined;
+  specificSourceId?: string | undefined;
+  candidateSourceIds?: string[] | undefined;
+  rateLimitDelayMs?: number | undefined; // default 2150ms (~28 req/min)
+  maxRetries?: number | undefined; // default 3 for 5xx/network
+  staleMinutes?: number | undefined; // default 15
+  onProgress?: ((progress: WorkerProgress) => void) | undefined;
 }
 
 export interface WorkerSummary {
@@ -30,18 +32,21 @@ export interface WorkerSummary {
   failed: number;
   notFound: number;
   elapsedMs: number;
+  inserted: number;
+  updated: number;
+  unchanged: number;
 }
 
 export interface FinancialRecordWorkerDeps {
   prisma: PrismaClient;
   repository: FinancialRecordRepository;
   getClient: () => TagPlusClient;
-  updateClientToken?: (newToken: string) => void;
-  refreshToken?: () => Promise<string | null>;
+  updateClientToken?: ((newToken: string) => void) | undefined;
+  refreshToken?: (() => Promise<string | null>) | undefined;
 }
 
 export interface FinancialRecordWorker {
-  processQueue(connectionId: string, options?: WorkerOptions): Promise<WorkerSummary>;
+  processQueue(connectionId: string, options?: WorkerOptions | undefined): Promise<WorkerSummary>;
 }
 
 export function createFinancialRecordWorker(
@@ -64,16 +69,38 @@ export function createFinancialRecordWorker(
       let completed = 0;
       let failed = 0;
       let notFound = 0;
+      let inserted = 0;
+      let updated = 0;
+      let unchanged = 0;
+
+      const candidateQueue = options.candidateSourceIds
+        ? [...options.candidateSourceIds]
+        : null;
+      let candidateIndex = 0;
 
       while (processed < limit) {
-        // 1. Claim next pending item (or target specific sourceId)
-        const item = await repository.claimNextPendingItem(connectionId, {
-          specificSourceId: options.specificSourceId,
-          staleMinutes,
-        });
+        let item: { sourceId: string; attemptCount: number } | null = null;
+
+        if (candidateQueue) {
+          if (candidateIndex >= candidateQueue.length) {
+            break;
+          }
+          const nextCandidateId = candidateQueue[candidateIndex++];
+          item = await repository.claimNextPendingItem(connectionId, {
+            specificSourceId: nextCandidateId,
+            staleMinutes,
+          });
+        } else {
+          item = await repository.claimNextPendingItem(connectionId, {
+            specificSourceId: options.specificSourceId,
+            staleMinutes,
+          });
+        }
 
         if (!item) {
-          // No more pending items
+          if (candidateQueue) {
+            continue;
+          }
           break;
         }
 
@@ -93,10 +120,15 @@ export function createFinancialRecordWorker(
 
             // Persist record & checkpoint in a short, atomic Prisma transaction
             const now = new Date();
+            let saveResult: { action: "inserted" | "updated" | "unchanged"; id: string } | undefined;
             await prisma.$transaction(async (tx) => {
-              await repository.saveFinancialRecordWithTx(tx, connectionId, normalized, now);
+              saveResult = await repository.saveFinancialRecordWithTx(tx, connectionId, normalized, now);
               await repository.markItemCompletedWithTx(tx, connectionId, sourceId, now);
             });
+
+            if (saveResult?.action === "inserted") inserted++;
+            else if (saveResult?.action === "updated") updated++;
+            else if (saveResult?.action === "unchanged") unchanged++;
 
             completed++;
             processed++;
@@ -110,6 +142,7 @@ export function createFinancialRecordWorker(
                 notFound,
                 lastSourceId: sourceId,
                 action: "COMPLETED",
+                recordAction: saveResult?.action,
               });
             }
           } catch (error: unknown) {
@@ -226,6 +259,9 @@ export function createFinancialRecordWorker(
         failed,
         notFound,
         elapsedMs,
+        inserted,
+        updated,
+        unchanged,
       };
     },
   };

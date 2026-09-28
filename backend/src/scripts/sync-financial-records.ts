@@ -8,6 +8,7 @@ import { ensureTagPlusConnection } from "./ensure-tagplus-connection.js";
 import { createFinancialRecordRepository } from "../modules/financial/financial-record-repository.js";
 import { createFinancialCatalogService } from "../modules/financial/financial-catalog-service.js";
 import { createFinancialRecordWorker } from "../modules/financial/financial-record-worker.js";
+import { runIncrementalSync } from "../modules/financial/financial-incremental-sync.js";
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -16,25 +17,31 @@ function parseArgs() {
   for (const arg of args) {
     if (arg.startsWith("--")) {
       const [key, value] = arg.slice(2).split("=");
-      options[key] = value ?? "true";
+      if (key) {
+        options[key] = value ?? "true";
+      }
     }
   }
 
   const mode = options.mode || "status";
   const limit = options.limit ? Number.parseInt(options.limit, 10) : undefined;
   const sourceId = options["source-id"] || options.sourceId;
+  const lookbackDaysRaw = options["lookback-days"] || options.lookbackDays;
+  const lookbackDays = lookbackDaysRaw ? Number.parseInt(lookbackDaysRaw, 10) : 30;
+  const since = options.since;
+  const dryRun = options["dry-run"] === "true" || options.dryRun === "true";
 
-  return { mode, limit, sourceId };
+  return { mode, limit, sourceId, lookbackDays, since, dryRun };
 }
 
 async function main() {
-  const { mode, limit, sourceId } = parseArgs();
+  const { mode, limit, sourceId, lookbackDays, since, dryRun } = parseArgs();
   const env = loadEnv();
   const prisma = new PrismaClient();
 
   try {
     const connection = await ensureTagPlusConnection(prisma);
-    console.log(`Connection resolved: ${connection.name} (id: ${connection.id})`);
+    console.log(`Connection resolved: id: ${connection.id}`);
 
     const tokenStore = createTagPlusOAuthTokenStore();
     const currentTokens = tokenStore.get();
@@ -162,8 +169,8 @@ async function main() {
       });
 
       const summary = await worker.processQueue(connection.id, {
-        limit,
-        specificSourceId: sourceId,
+        ...(limit !== undefined ? { limit } : {}),
+        ...(sourceId ? { specificSourceId: sourceId } : {}),
         onProgress: ({ processed, completed, failed, notFound, lastSourceId, action }) => {
           console.log(
             `  [${action}] ID: ${lastSourceId} | processed: ${processed} (ok: ${completed}, fail: ${failed}, 404: ${notFound})`,
@@ -180,8 +187,80 @@ async function main() {
       return;
     }
 
+    if (mode === "incremental") {
+      console.log("\n=== INCREMENTAL FINANCIAL SYNC ===");
+      if (dryRun) {
+        console.log("Modo: DRY RUN (somente descoberta e deduplicação, nenhuma alteração)");
+      }
+
+      const worker = createFinancialRecordWorker({
+        prisma,
+        repository,
+        getClient,
+        updateClientToken,
+        refreshToken: refreshTokenHandler,
+      });
+
+      const report = await runIncrementalSync({
+        prisma,
+        repository,
+        worker,
+        getClient,
+        connectionId: connection.id,
+        lookbackDays,
+        ...(since ? { since } : {}),
+        dryRun,
+        ...(limit !== undefined ? { limit } : {}),
+        refreshToken: refreshTokenHandler,
+        updateClientToken,
+        onProgress: ({ processed, completed, failed, notFound, lastSourceId, action, recordAction }) => {
+          const detailTag = recordAction ? ` (${recordAction})` : "";
+          console.log(
+            `  [${action}${detailTag}] ID: ${lastSourceId} | processed: ${processed} (completed: ${completed}, failed: ${failed}, 404: ${notFound})`,
+          );
+        },
+      });
+
+      console.log("\n==================================================");
+      console.log("Incremental Financial Sync");
+      console.log("==================================================");
+      console.log(`Since: ${report.sinceDate}`);
+      if (report.lookbackDays !== undefined) {
+        console.log(`Lookback days: ${report.lookbackDays}`);
+      }
+      console.log("");
+      console.log(`Recent candidates: ${report.candidates.recentCount}`);
+      console.log(`Open candidates: ${report.candidates.openCount}`);
+      console.log(`Undated candidates: ${report.candidates.undatedCount}`);
+      console.log(`Unique candidates: ${report.candidates.uniqueCount}`);
+      console.log(`Overlap deduplicated: ${report.candidates.overlapDeduplicated}`);
+
+      if (report.dryRun) {
+        console.log("\n[DRY RUN] Nenhuma alteração foi realizada.");
+        console.log(`Duration: ${(report.durationMs / 1000).toFixed(2)}s`);
+        return;
+      }
+
+      const ws = report.workerSummary!;
+      console.log("");
+      console.log(`Processed: ${ws.processed}`);
+      console.log(`Completed: ${ws.completed}`);
+      console.log(`Failed: ${ws.failed}`);
+      console.log(`Not found: ${ws.notFound}`);
+      console.log("");
+      console.log(`New FinancialRecords: ${ws.inserted}`);
+      console.log(`Updated FinancialRecords: ${ws.updated}`);
+      console.log(`Unchanged FinancialRecords: ${ws.unchanged}`);
+      console.log("");
+      console.log(`Duration: ${(report.durationMs / 1000).toFixed(2)}s`);
+      if (report.averageDetailRateMs) {
+        console.log(`Average detail rate: ${report.averageDetailRateMs} ms/record`);
+      }
+      return;
+    }
+
     console.error(`Modo desconhecido: ${mode}`);
-    console.log("Opções válidas: --mode=catalog | --mode=backfill | --mode=status | --mode=retry-failed");
+    console.log("Opções válidas: --mode=incremental | --mode=catalog | --mode=backfill | --mode=status | --mode=retry-failed");
   } finally {
     await prisma.$disconnect();
   }

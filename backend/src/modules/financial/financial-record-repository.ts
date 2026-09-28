@@ -12,6 +12,12 @@ export interface CatalogUpsertResult {
   alreadyKnown: number;
 }
 
+export interface IncrementalCandidatesPrepResult {
+  total: number;
+  newlyCreated: number;
+  refreshed: number;
+}
+
 export interface FinancialSyncStats {
   syncItems: {
     total: number;
@@ -56,9 +62,18 @@ export interface FinancialRecordRepository {
     catalogSeenAt?: Date,
   ): Promise<CatalogUpsertResult>;
 
+  prepareIncrementalCandidates(
+    connectionId: string,
+    candidateSourceIds: string[],
+  ): Promise<IncrementalCandidatesPrepResult>;
+
   claimNextPendingItem(
     connectionId: string,
-    options?: { specificSourceId?: string; staleMinutes?: number; now?: Date },
+    options?: {
+      specificSourceId?: string | undefined;
+      staleMinutes?: number | undefined;
+      now?: Date | undefined;
+    } | undefined,
   ): Promise<{ sourceId: string; attemptCount: number } | null>;
 
   markItemCompleted(
@@ -369,6 +384,63 @@ export function createFinancialRecordRepository(
         total: uniqueIds.length,
         newlyDiscovered,
         alreadyKnown,
+      };
+    },
+
+    async prepareIncrementalCandidates(connectionId, candidateSourceIds) {
+      const uniqueIds = Array.from(new Set(candidateSourceIds.map((id) => String(id).trim()))).filter(Boolean);
+      let newlyCreated = 0;
+      let refreshed = 0;
+
+      const BATCH_SIZE = 500;
+      for (let i = 0; i < uniqueIds.length; i += BATCH_SIZE) {
+        const batch = uniqueIds.slice(i, i + BATCH_SIZE);
+
+        const existingItems = await prisma.financialRecordSyncItem.findMany({
+          where: {
+            connectionId,
+            sourceId: { in: batch },
+          },
+          select: { sourceId: true },
+        });
+
+        const existingSet = new Set(existingItems.map((item) => item.sourceId));
+        const newIds = batch.filter((id) => !existingSet.has(id));
+        const knownIds = batch.filter((id) => existingSet.has(id));
+
+        if (newIds.length > 0) {
+          await prisma.financialRecordSyncItem.createMany({
+            data: newIds.map((sourceId) => ({
+              connectionId,
+              sourceId,
+              status: "PENDING",
+              attemptCount: 0,
+              catalogSeenAt: null,
+            })),
+            skipDuplicates: true,
+          });
+          newlyCreated += newIds.length;
+        }
+
+        if (knownIds.length > 0) {
+          // Re-queue existing item for processing without altering catalogSeenAt, attemptCount, lastAttemptAt, lastError, lastHttpStatus
+          await prisma.financialRecordSyncItem.updateMany({
+            where: {
+              connectionId,
+              sourceId: { in: knownIds },
+            },
+            data: {
+              status: "PENDING",
+            },
+          });
+          refreshed += knownIds.length;
+        }
+      }
+
+      return {
+        total: uniqueIds.length,
+        newlyCreated,
+        refreshed,
       };
     },
 
