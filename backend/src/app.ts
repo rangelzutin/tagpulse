@@ -15,10 +15,12 @@ import {
 } from "./modules/sync/index.js";
 import {
   registerFinancialOperationalRoutes,
+  registerFinancialSyncRoutes,
   createFinancialOperationalService,
   createPrismaFinancialOperationalRepository,
   type FinancialOperationalService,
   type FinancialOperationalRepository,
+  type FinancialSyncOrchestrator,
 } from "./modules/financial/index.js";
 import type { PrismaClient } from "@prisma/client";
 
@@ -29,6 +31,7 @@ export interface BuildAppOptions {
   tagPlusOAuth?: RegisterTagPlusOAuthOptions;
   biRepository?: BiRepository;
   tagPlusSyncOrchestrator?: TagPlusSyncOrchestrator;
+  financialSyncOrchestrator?: FinancialSyncOrchestrator;
   financialService?: FinancialOperationalService;
   financialRepository?: FinancialOperationalRepository;
   prisma?: PrismaClient;
@@ -63,6 +66,10 @@ export async function buildApp(
 
   if (options.tagPlusSyncOrchestrator) {
     registerTagPlusSyncRoutes(app, options.tagPlusSyncOrchestrator);
+  }
+
+  if (options.financialSyncOrchestrator) {
+    registerFinancialSyncRoutes(app, options.financialSyncOrchestrator);
   }
 
   if (options.financialService) {

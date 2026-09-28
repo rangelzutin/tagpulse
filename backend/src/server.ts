@@ -15,6 +15,7 @@ import {
   createTagPlusSyncOrchestrator,
   createTagPlusSyncRepository,
 } from "./modules/sync/index.js";
+import { createFinancialSyncOrchestrator } from "./modules/financial/index.js";
 
 const env = loadEnv();
 const tokenStore = createTagPlusOAuthTokenStore();
@@ -115,11 +116,24 @@ const tagPlusSyncOrchestrator = createTagPlusSyncOrchestrator({
   },
 });
 
+// Orquestrador Sync Financeiro
+const financialSyncOrchestrator = createFinancialSyncOrchestrator({
+  prisma,
+  tokenStore,
+  env: {
+    baseUrl: env.TAGPLUS_BASE_URL,
+    clientId: env.TAGPLUS_CLIENT_ID,
+    clientSecret: env.TAGPLUS_CLIENT_SECRET,
+    accessToken: env.TAGPLUS_ACCESS_TOKEN,
+  },
+});
+
 const app = await buildApp({
   databaseHealth: createDatabaseHealthChecker(prisma),
   frontendUrl: env.FRONTEND_URL,
   biRepository,
   tagPlusSyncOrchestrator,
+  financialSyncOrchestrator,
   prisma,
   tagPlusOAuth: {
     config: {

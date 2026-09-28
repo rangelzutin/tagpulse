@@ -8,3 +8,6 @@ export * from "./financial-record-worker.js";
 export * from "./financial-catalog-service.js";
 export * from "./financial-reference-repository.js";
 export * from "./financial-reference-sync.js";
+export * from "./financial-incremental-sync.js";
+export * from "./financial-sync-orchestrator.js";
+export * from "./financial-sync-routes.js";

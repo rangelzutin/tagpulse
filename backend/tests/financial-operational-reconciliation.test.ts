@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { prisma } from "../src/database/prisma.js";
 import {
+  calculateEffectiveCashAmount,
   createFinancialOperationalService,
   createPrismaFinancialOperationalRepository,
 } from "../src/modules/financial/index.js";
@@ -12,22 +13,36 @@ describe("Financial Operational Layer — Production Database Reconciliation", (
   });
 
   it("reconciles Receivables overview against real PostgreSQL production database", async () => {
+    // Independent baseline query from database
+    const aggregate = await prisma.financialRecord.aggregate({
+      where: {
+        type: "ENTRADA",
+        isConfirmed: false,
+        sourcePresent: true,
+        isTransfer: false,
+      },
+      _count: { id: true },
+      _sum: { totalAmount: true },
+    });
+    const expectedCount = aggregate._count.id;
+    const expectedTotal = Number(aggregate._sum.totalAmount?.toFixed(2) ?? "0");
+
     const result = await service.getReceivablesOverview("2026-09-27");
     expect(result.success).toBe(true);
     const data = result.data!;
 
-    // Total open receivables must reconcile to baseline
+    // Reconcile to independent database query
     expect(data.type).toBe("ENTRADA");
-    expect(data.openCount).toBe(60);
-    expect(data.openTotal).toBe(55184.88);
+    expect(data.openCount).toBe(expectedCount);
+    expect(data.openTotal).toBe(expectedTotal);
 
     // Overdue + DueToday + Future must sum to open
-    expect(data.overdueCount + data.dueTodayCount + data.futureCount).toBe(60);
+    expect(data.overdueCount + data.dueTodayCount + data.futureCount).toBe(expectedCount);
     expect(
       Number(
         (data.overdueTotal + data.dueTodayTotal + data.futureTotal).toFixed(2),
       ),
-    ).toBe(55184.88);
+    ).toBe(expectedTotal);
 
     // Aging buckets must sum to overdue count and total
     const agingSum =
@@ -45,20 +60,34 @@ describe("Financial Operational Layer — Production Database Reconciliation", (
   });
 
   it("reconciles Payables overview against real PostgreSQL production database", async () => {
+    // Independent baseline query from database
+    const aggregate = await prisma.financialRecord.aggregate({
+      where: {
+        type: "SAIDA",
+        isConfirmed: false,
+        sourcePresent: true,
+        isTransfer: false,
+      },
+      _count: { id: true },
+      _sum: { totalAmount: true },
+    });
+    const expectedCount = aggregate._count.id;
+    const expectedTotal = Number(aggregate._sum.totalAmount?.toFixed(2) ?? "0");
+
     const result = await service.getPayablesOverview("2026-09-27");
     expect(result.success).toBe(true);
     const data = result.data!;
 
     expect(data.type).toBe("SAIDA");
-    expect(data.openCount).toBe(32);
-    expect(data.openTotal).toBe(9440.93);
+    expect(data.openCount).toBe(expectedCount);
+    expect(data.openTotal).toBe(expectedTotal);
 
-    expect(data.overdueCount + data.dueTodayCount + data.futureCount).toBe(32);
+    expect(data.overdueCount + data.dueTodayCount + data.futureCount).toBe(expectedCount);
     expect(
       Number(
         (data.overdueTotal + data.dueTodayTotal + data.futureTotal).toFixed(2),
       ),
-    ).toBe(9440.93);
+    ).toBe(expectedTotal);
 
     const agingSum =
       data.aging.d1_30.total +
@@ -75,29 +104,97 @@ describe("Financial Operational Layer — Production Database Reconciliation", (
   });
 
   it("reconciles Cash Flow totals and Undated Cash against real PostgreSQL database", async () => {
+    // Independent reference extraction from database
+    const [datedRows, undatedRows] = await Promise.all([
+      prisma.financialRecord.findMany({
+        where: {
+          isConfirmed: true,
+          isTransfer: false,
+          sourcePresent: true,
+          confirmationDate: { not: null },
+        },
+        select: {
+          type: true,
+          isConfirmed: true,
+          paidAmount: true,
+          totalAmount: true,
+        },
+      }),
+      prisma.financialRecord.findMany({
+        where: {
+          isConfirmed: true,
+          isTransfer: false,
+          sourcePresent: true,
+          confirmationDate: null,
+        },
+        select: {
+          type: true,
+          isConfirmed: true,
+          paidAmount: true,
+          totalAmount: true,
+        },
+      }),
+    ]);
+
+    const expectedDatedCount = datedRows.length;
+    let expectedInflowCount = 0;
+    let expectedOutflowCount = 0;
+    let expectedInflows = 0;
+    let expectedOutflows = 0;
+
+    for (const r of datedRows) {
+      const amount = Number(calculateEffectiveCashAmount(r).toFixed(2));
+      if (r.type === "ENTRADA") {
+        expectedInflowCount++;
+        expectedInflows += amount;
+      } else if (r.type === "SAIDA") {
+        expectedOutflowCount++;
+        expectedOutflows += amount;
+      }
+    }
+    expectedInflows = Number(expectedInflows.toFixed(2));
+    expectedOutflows = Number(expectedOutflows.toFixed(2));
+    const expectedNet = Number((expectedInflows - expectedOutflows).toFixed(2));
+
+    let expectedUndatedInflows = 0;
+    let expectedUndatedOutflows = 0;
+    for (const r of undatedRows) {
+      const amount = Number(calculateEffectiveCashAmount(r).toFixed(2));
+      if (r.type === "ENTRADA") {
+        expectedUndatedInflows += amount;
+      } else if (r.type === "SAIDA") {
+        expectedUndatedOutflows += amount;
+      }
+    }
+    expectedUndatedInflows = Number(expectedUndatedInflows.toFixed(2));
+    expectedUndatedOutflows = Number(expectedUndatedOutflows.toFixed(2));
+    const expectedUndatedNet = Number(
+      (expectedUndatedInflows - expectedUndatedOutflows).toFixed(2),
+    );
+
     const result = await service.getCashFlowOverview({ granularity: "month" });
     expect(result.success).toBe(true);
     const data = result.data!;
 
     // Dated confirmed cash metrics
-    expect(data.totals.totalCount).toBe(10280);
-    expect(data.totals.inflowCount).toBe(6422);
-    expect(data.totals.outflowCount).toBe(3858);
-    expect(data.totals.inflows).toBe(5365376.56);
-    expect(data.totals.outflows).toBe(5763126.7);
-    expect(data.totals.netCashFlow).toBe(-397750.14);
+    expect(data.totals.totalCount).toBe(expectedDatedCount);
+    expect(data.totals.inflowCount).toBe(expectedInflowCount);
+    expect(data.totals.outflowCount).toBe(expectedOutflowCount);
+    expect(data.totals.inflows).toBe(expectedInflows);
+    expect(data.totals.outflows).toBe(expectedOutflows);
+    expect(data.totals.netCashFlow).toBe(expectedNet);
 
-    // Undated confirmed cash metrics (5 records, all ENTRADA, R$ 3.476,61)
-    expect(data.undated.undatedConfirmedCount).toBe(5);
-    expect(data.undated.undatedConfirmedInflows).toBe(3476.61);
-    expect(data.undated.undatedConfirmedOutflows).toBe(0.0);
-    expect(data.undated.undatedConfirmedNet).toBe(3476.61);
+    // Undated confirmed cash metrics
+    expect(data.undated.undatedConfirmedCount).toBe(undatedRows.length);
+    expect(data.undated.undatedConfirmedInflows).toBe(expectedUndatedInflows);
+    expect(data.undated.undatedConfirmedOutflows).toBe(expectedUndatedOutflows);
+    expect(data.undated.undatedConfirmedNet).toBe(expectedUndatedNet);
 
-    // Total confirmed records: 10280 dated + 5 undated = 10285
+    // Invariant: Total confirmed records
     expect(data.totals.totalCount + data.undated.undatedConfirmedCount).toBe(
-      10285,
+      expectedDatedCount + undatedRows.length,
     );
-    // Total confirmed cash: 5365376.56 + 5763126.70 + 3476.61 = 11131979.87
+    // Invariant: Total confirmed cash
     const totalConfirmedCash = Number(
       (
         data.totals.inflows +
@@ -105,20 +202,50 @@ describe("Financial Operational Layer — Production Database Reconciliation", (
         data.undated.undatedConfirmedInflows
       ).toFixed(2),
     );
-    expect(totalConfirmedCash).toBe(11131979.87);
+    const expectedTotalCash = Number(
+      (expectedInflows + expectedOutflows + expectedUndatedInflows).toFixed(2),
+    );
+    expect(totalConfirmedCash).toBe(expectedTotalCash);
   });
 
   it("reconciles undated confirmed cash audit endpoint against real PostgreSQL database", async () => {
+    const undatedRows = await prisma.financialRecord.findMany({
+      where: {
+        isConfirmed: true,
+        isTransfer: false,
+        sourcePresent: true,
+        confirmationDate: null,
+      },
+      select: {
+        sourceId: true,
+        type: true,
+        isConfirmed: true,
+        paidAmount: true,
+        totalAmount: true,
+      },
+      orderBy: { sourceId: "asc" },
+    });
+
+    const expectedUndatedCount = undatedRows.length;
+    let expectedUndatedInflows = 0;
+    for (const r of undatedRows) {
+      if (r.type === "ENTRADA") {
+        expectedUndatedInflows += Number(calculateEffectiveCashAmount(r).toFixed(2));
+      }
+    }
+    expectedUndatedInflows = Number(expectedUndatedInflows.toFixed(2));
+    const expectedSourceIds = undatedRows.map((r) => r.sourceId).sort();
+
     const result = await service.getUndatedConfirmedCash();
     expect(result.success).toBe(true);
     const data = result.data!;
 
-    expect(data.summary.undatedConfirmedCount).toBe(5);
-    expect(data.summary.undatedConfirmedInflows).toBe(3476.61);
-    expect(data.records).toHaveLength(5);
+    expect(data.summary.undatedConfirmedCount).toBe(expectedUndatedCount);
+    expect(data.summary.undatedConfirmedInflows).toBe(expectedUndatedInflows);
+    expect(data.records).toHaveLength(expectedUndatedCount);
 
     const sourceIds = data.records.map((r) => r.sourceId).sort();
-    expect(sourceIds).toEqual(["11191", "11265", "11289", "11309", "11368"]);
+    expect(sourceIds).toEqual(expectedSourceIds);
     for (const record of data.records) {
       expect(record.type).toBe("ENTRADA");
       expect(record.effectiveCashAmount).toBeGreaterThan(0);
@@ -126,6 +253,18 @@ describe("Financial Operational Layer — Production Database Reconciliation", (
   });
 
   it("supports pagination and search on real receivables list", async () => {
+    const aggregate = await prisma.financialRecord.aggregate({
+      where: {
+        type: "ENTRADA",
+        isConfirmed: false,
+        sourcePresent: true,
+        isTransfer: false,
+      },
+      _count: { id: true },
+    });
+    const expectedTotal = aggregate._count.id;
+    const expectedPages = Math.ceil(expectedTotal / 10);
+
     const result = await service.getReceivablesList({
       status: "OPEN",
       referenceDate: "2026-09-27",
@@ -133,12 +272,24 @@ describe("Financial Operational Layer — Production Database Reconciliation", (
       pageSize: 10,
     });
     expect(result.success).toBe(true);
-    expect(result.data!.items).toHaveLength(10);
-    expect(result.data!.total).toBe(60);
-    expect(result.data!.totalPages).toBe(6);
+    expect(result.data!.items).toHaveLength(Math.min(10, expectedTotal));
+    expect(result.data!.total).toBe(expectedTotal);
+    expect(result.data!.totalPages).toBe(expectedPages);
   });
 
   it("supports pagination and search on real payables list", async () => {
+    const aggregate = await prisma.financialRecord.aggregate({
+      where: {
+        type: "SAIDA",
+        isConfirmed: false,
+        sourcePresent: true,
+        isTransfer: false,
+      },
+      _count: { id: true },
+    });
+    const expectedTotal = aggregate._count.id;
+    const expectedPages = Math.ceil(expectedTotal / 10);
+
     const result = await service.getPayablesList({
       status: "OPEN",
       referenceDate: "2026-09-27",
@@ -146,8 +297,8 @@ describe("Financial Operational Layer — Production Database Reconciliation", (
       pageSize: 10,
     });
     expect(result.success).toBe(true);
-    expect(result.data!.items).toHaveLength(10);
-    expect(result.data!.total).toBe(32);
-    expect(result.data!.totalPages).toBe(4);
+    expect(result.data!.items).toHaveLength(Math.min(10, expectedTotal));
+    expect(result.data!.total).toBe(expectedTotal);
+    expect(result.data!.totalPages).toBe(expectedPages);
   });
 });

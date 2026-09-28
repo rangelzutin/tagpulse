@@ -54,6 +54,7 @@ export interface RunIncrementalSyncOptions {
   limit?: number | undefined;
   rateLimitDelayMs?: number | undefined;
   pageDelayMs?: number | undefined;
+  onCandidatesDiscovered?: ((candidates: IncrementalCandidateResult) => void) | undefined;
   onProgress?: ((progress: WorkerProgress) => void) | undefined;
   refreshToken?: (() => Promise<string | null>) | undefined;
   updateClientToken?: ((newToken: string) => void) | undefined;
@@ -267,6 +268,8 @@ export async function runIncrementalSync(
     refreshToken: options.refreshToken,
     updateClientToken: options.updateClientToken,
   });
+
+  options.onCandidatesDiscovered?.(candidates);
 
   if (dryRun) {
     const durationMs = Math.round(performance.now() - startTime);
