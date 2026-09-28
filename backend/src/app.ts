@@ -13,6 +13,14 @@ import {
   registerTagPlusSyncRoutes,
   type TagPlusSyncOrchestrator,
 } from "./modules/sync/index.js";
+import {
+  registerFinancialOperationalRoutes,
+  createFinancialOperationalService,
+  createPrismaFinancialOperationalRepository,
+  type FinancialOperationalService,
+  type FinancialOperationalRepository,
+} from "./modules/financial/index.js";
+import type { PrismaClient } from "@prisma/client";
 
 export interface BuildAppOptions {
   databaseHealth: DatabaseHealthChecker;
@@ -21,6 +29,9 @@ export interface BuildAppOptions {
   tagPlusOAuth?: RegisterTagPlusOAuthOptions;
   biRepository?: BiRepository;
   tagPlusSyncOrchestrator?: TagPlusSyncOrchestrator;
+  financialService?: FinancialOperationalService;
+  financialRepository?: FinancialOperationalRepository;
+  prisma?: PrismaClient;
 }
 
 export async function buildApp(
@@ -52,6 +63,21 @@ export async function buildApp(
 
   if (options.tagPlusSyncOrchestrator) {
     registerTagPlusSyncRoutes(app, options.tagPlusSyncOrchestrator);
+  }
+
+  if (options.financialService) {
+    registerFinancialOperationalRoutes(app, options.financialService);
+  } else if (options.financialRepository) {
+    registerFinancialOperationalRoutes(
+      app,
+      createFinancialOperationalService(options.financialRepository),
+    );
+  } else if (options.prisma) {
+    const repo = createPrismaFinancialOperationalRepository(options.prisma);
+    registerFinancialOperationalRoutes(
+      app,
+      createFinancialOperationalService(repo),
+    );
   }
 
   app.get("/health/database", async (_request, reply) => {

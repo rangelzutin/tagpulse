@@ -120,6 +120,7 @@ const app = await buildApp({
   frontendUrl: env.FRONTEND_URL,
   biRepository,
   tagPlusSyncOrchestrator,
+  prisma,
   tagPlusOAuth: {
     config: {
       authUrl: env.TAGPLUS_AUTH_URL,
