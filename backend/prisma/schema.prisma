@@ -52,6 +52,8 @@ model TagPlusConnection {
   departments              Department[]
   financialRecords         FinancialRecord[]
   financialRecordSyncItems FinancialRecordSyncItem[]
+  stockAdjustments         StockAdjustment[]
+  stockAdjustmentSyncItems StockAdjustmentSyncItem[]
 
   @@unique([companyId, name])
   @@index([companyId])
@@ -574,6 +576,7 @@ model FinancialRecord {
   updatedAt                        DateTime            @updatedAt @map("updated_at")
 
   connection                       TagPlusConnection   @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  stockAdjustmentFinancialLinks    StockAdjustmentFinancialLink[]
 
   @@unique([connectionId, sourceId])
   @@index([connectionId, type, isConfirmed, dueDate])
@@ -603,4 +606,145 @@ model FinancialRecordSyncItem {
   @@unique([connectionId, sourceId])
   @@index([connectionId, status])
   @@map("financial_record_sync_items")
+}
+
+enum StockAdjustmentSyncItemStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  NOT_FOUND
+}
+
+model StockAdjustmentSyncItem {
+  id             String                        @id @default(uuid()) @db.Uuid
+  connectionId   String                        @map("connection_id") @db.Uuid
+  sourceId       String                        @map("source_id")
+  status         StockAdjustmentSyncItemStatus @default(PENDING)
+  attemptCount   Int                           @default(0) @map("attempt_count")
+  lastError      String?                       @map("last_error")
+  lastHttpStatus Int?                          @map("last_http_status")
+  lastAttemptAt  DateTime?                     @map("last_attempt_at")
+  completedAt    DateTime?                     @map("completed_at")
+  catalogSeenAt  DateTime?                     @map("catalog_seen_at")
+  createdAt      DateTime                      @default(now()) @map("created_at")
+  updatedAt      DateTime                      @updatedAt @map("updated_at")
+
+  connection     TagPlusConnection             @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, sourceId])
+  @@index([connectionId, status])
+  @@map("stock_adjustment_sync_items")
+}
+
+model StockAdjustment {
+  id                 String                         @id @default(uuid()) @db.Uuid
+  connectionId       String                         @map("connection_id") @db.Uuid
+  sourceId           String                         @map("source_id")
+
+  number             String?                        @map("number")
+  externalCode       String?                        @map("external_code")
+  type               String                         @map("type")
+  status             String?                        @map("status")
+
+  entitySourceId     String?                        @map("entity_source_id")
+  entityName         String?                        @map("entity_name")
+  entityCpf          String?                        @map("entity_cpf")
+  entityCnpj         String?                        @map("entity_cnpj")
+
+  sourceCreatedAt    DateTime                       @map("source_created_at")
+  sourceUpdatedAt    DateTime?                      @map("source_updated_at")
+  confirmationDate   DateTime?                      @map("confirmation_date")
+
+  notes              String?                        @map("notes")
+
+  employeeSourceId   String?                        @map("employee_source_id")
+  employeeName       String?                        @map("employee_name")
+
+  freightAmount      Decimal                        @default(0) @map("freight_amount") @db.Decimal(12, 4)
+  otherAmount        Decimal                        @default(0) @map("other_amount") @db.Decimal(12, 4)
+  totalAmount        Decimal                        @default(0) @map("total_amount") @db.Decimal(12, 4)
+  hasInvoice         Boolean                        @default(false) @map("has_invoice")
+
+  sourcePayload      Json?                          @map("source_payload")
+
+  sourcePresent      Boolean                        @default(true) @map("source_present")
+  noLongerObservedAt DateTime?                      @map("no_longer_observed_at")
+  lastSeenAt         DateTime                       @map("last_seen_at")
+  createdAt          DateTime                       @default(now()) @map("created_at")
+  updatedAt          DateTime                       @updatedAt @map("updated_at")
+
+  connection         TagPlusConnection              @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  items              StockAdjustmentItem[]
+  financialLinks     StockAdjustmentFinancialLink[]
+
+  @@unique([connectionId, sourceId])
+  @@index([connectionId, type])
+  @@index([connectionId, number])
+  @@index([connectionId, confirmationDate])
+  @@index([connectionId, entitySourceId])
+  @@index([connectionId, sourcePresent])
+  @@map("stock_adjustments")
+}
+
+model StockAdjustmentItem {
+  id                  String          @id @default(uuid()) @db.Uuid
+  stockAdjustmentId   String          @map("stock_adjustment_id") @db.Uuid
+  sourceItemId        String          @map("source_item_id")
+  itemNumber          Int             @map("item_number")
+
+  productSourceId     String?         @map("product_source_id")
+  productCode         String?         @map("product_code")
+  productDescription  String?         @map("product_description")
+
+  quantity            Decimal         @map("quantity") @db.Decimal(12, 4)
+  outputUnit          String?         @map("output_unit")
+
+  unitAmount          Decimal         @map("unit_amount") @db.Decimal(12, 4)
+  surchargeAmount     Decimal         @default(0) @map("surcharge_amount") @db.Decimal(12, 4)
+  discountAmount      Decimal         @default(0) @map("discount_amount") @db.Decimal(12, 4)
+  subtotalAmount      Decimal         @map("subtotal_amount") @db.Decimal(12, 4)
+
+  cfop                String?         @map("cfop")
+  details             String?         @map("details")
+  unitType            String?         @map("unit_type")
+  remainingUnit       String?         @map("remaining_unit")
+
+  categorySourceId    String?         @map("category_source_id")
+  categoryDescription String?         @map("category_description")
+
+  createdAt           DateTime        @default(now()) @map("created_at")
+  updatedAt           DateTime        @updatedAt @map("updated_at")
+
+  stockAdjustment     StockAdjustment @relation(fields: [stockAdjustmentId], references: [id], onDelete: Cascade)
+
+  @@unique([stockAdjustmentId, sourceItemId])
+  @@index([stockAdjustmentId])
+  @@index([productSourceId])
+  @@map("stock_adjustment_items")
+}
+
+model StockAdjustmentFinancialLink {
+  id                      String           @id @default(uuid()) @db.Uuid
+  stockAdjustmentId       String           @map("stock_adjustment_id") @db.Uuid
+  financialRecordId       String?          @map("financial_record_id") @db.Uuid
+  financialRecordSourceId String           @map("financial_record_source_id")
+
+  invoiceNumber           String?          @map("invoice_number")
+  installmentNumber       Int?             @map("installment_number")
+
+  firstSeenAt             DateTime         @default(now()) @map("first_seen_at")
+  lastSeenAt              DateTime         @map("last_seen_at")
+  sourcePresent           Boolean          @default(true) @map("source_present")
+  createdAt               DateTime         @default(now()) @map("created_at")
+  updatedAt               DateTime         @updatedAt @map("updated_at")
+
+  stockAdjustment         StockAdjustment  @relation(fields: [stockAdjustmentId], references: [id], onDelete: Cascade)
+  financialRecord         FinancialRecord? @relation(fields: [financialRecordId], references: [id], onDelete: SetNull)
+
+  @@unique([stockAdjustmentId, financialRecordSourceId])
+  @@index([stockAdjustmentId])
+  @@index([financialRecordSourceId])
+  @@index([financialRecordId])
+  @@map("stock_adjustment_financial_links")
 }
