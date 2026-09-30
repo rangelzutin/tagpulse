@@ -36,6 +36,7 @@ import { InventoryView } from "./components/InventoryView";
 import { ProfitabilityView } from "./components/ProfitabilityView";
 import { DecisionsView } from "./components/DecisionsView";
 import { InventoryWindowSelector } from "./components/InventoryWindowSelector";
+import { FinancialView } from "./components/financial/FinancialView";
 import type { CustomerRecencyBucket, CustomerSegmentType } from "./api/bi";
 import type { RateContextData } from "./components/CustomerSegmentView";
 import { AlertCircle, RefreshCw, Users } from "lucide-react";
@@ -43,7 +44,7 @@ import { getDefaultPeriod, formatDateBr } from "./utils/formatters";
 
 export function App() {
   const [activeNav, setActiveNav] = useState<
-    "commercial" | "products" | "inventory" | "profitability" | "decisions"
+    "commercial" | "products" | "inventory" | "profitability" | "decisions" | "financial"
   >("commercial");
   const [periodMode, setPeriodMode] = useState<PeriodMode>("range");
   const [dataRange, setDataRange] = useState<BiDataRangeResult | null>(null);
@@ -418,7 +419,7 @@ export function App() {
   };
 
   const handleSelectNav = (
-    nav: "commercial" | "products" | "inventory" | "profitability" | "decisions",
+    nav: "commercial" | "products" | "inventory" | "profitability" | "decisions" | "financial",
   ) => {
     setActiveNav(nav);
     if (nav === "products") {
@@ -762,75 +763,79 @@ export function App() {
       onSyncSuccess={handleSyncSuccess}
     >
       <main className="tp-dashboard-main">
-        {/* Header with integrated Period Filter or Inventory Window Selector */}
-        <Header
-          title={
-            activeNav === "inventory"
-              ? "Estoque & Giro"
-              : activeNav === "products"
-                ? "Produtos"
-                : activeNav === "profitability"
-                  ? "Rentabilidade"
-                  : activeNav === "decisions"
-                    ? "Decisões"
-                    : "Performance Comercial"
-          }
-          subtitle={
-            activeNav === "inventory"
-              ? "Estoque atual cruzado com a velocidade recente de saída"
-              : activeNav === "products"
-                ? "Mix, volume e desempenho dos produtos realizados no período"
-                : activeNav === "profitability"
-                  ? "Rentabilidade estimada ao custo atual de catálogo TagPlus"
-                  : activeNav === "decisions"
-                    ? "Cruzamento operacional de vendas recentes, estoque atual e rentabilidade estimada"
-                    : "Análise operacional e comercial da Nineclouds com base nas vendas realizadas e no comportamento da base de clientes."
-          }
-          badge={
-            activeNav === "decisions" && decisionsData?.meta.asOfDate
-              ? `Posição em ${formatDateBr(decisionsData.meta.asOfDate)}`
-              : activeNav === "inventory" && inventoryData?.asOfDate
-                ? `Posição em ${formatDateBr(inventoryData.asOfDate)}`
-                : undefined
-          }
-          isUpdating={
-            isUpdating ||
-            isInventoryRefreshing ||
-            isProfitabilityRefreshing ||
-            isDecisionsRefreshing
-          }
-        >
-          {activeNav === "inventory" ? (
-            <InventoryWindowSelector
-              value={inventoryWindowDays}
-              onChange={handleInventoryWindowChange}
-              disabled={isInventoryLoading || isInventoryRefreshing}
-            />
-          ) : activeNav === "decisions" ? (
-            <button
-              type="button"
-              className={`tp-action-btn ${isDecisionsRefreshing ? "is-loading" : ""}`}
-              onClick={handleRefreshDecisions}
-              disabled={isDecisionsLoading || isDecisionsRefreshing}
-              title="Atualizar dados"
-              aria-label="Atualizar dados da Central de Decisões"
+        {activeNav === "financial" ? (
+          <FinancialView onSyncSuccessGlobal={handleSyncSuccess} />
+        ) : (
+          <>
+            {/* Header with integrated Period Filter or Inventory Window Selector */}
+            <Header
+              title={
+                activeNav === "inventory"
+                  ? "Estoque & Giro"
+                  : activeNav === "products"
+                    ? "Produtos"
+                    : activeNav === "profitability"
+                      ? "Rentabilidade"
+                      : activeNav === "decisions"
+                        ? "Decisões"
+                        : "Performance Comercial"
+              }
+              subtitle={
+                activeNav === "inventory"
+                  ? "Estoque atual cruzado com a velocidade recente de saída"
+                  : activeNav === "products"
+                    ? "Mix, volume e desempenho dos produtos realizados no período"
+                    : activeNav === "profitability"
+                      ? "Rentabilidade estimada ao custo atual de catálogo TagPlus"
+                      : activeNav === "decisions"
+                        ? "Cruzamento operacional de vendas recentes, estoque atual e rentabilidade estimada"
+                        : "Análise operacional e comercial da Nineclouds com base nas vendas realizadas e no comportamento da base de clientes."
+              }
+              badge={
+                activeNav === "decisions" && decisionsData?.meta.asOfDate
+                  ? `Posição em ${formatDateBr(decisionsData.meta.asOfDate)}`
+                  : activeNav === "inventory" && inventoryData?.asOfDate
+                    ? `Posição em ${formatDateBr(inventoryData.asOfDate)}`
+                    : undefined
+              }
+              isUpdating={
+                isUpdating ||
+                isInventoryRefreshing ||
+                isProfitabilityRefreshing ||
+                isDecisionsRefreshing
+              }
             >
-              <RefreshCw size={14} className={isDecisionsRefreshing ? "tp-spin" : ""} />
-              <span>Atualizar</span>
-            </button>
-          ) : (
-            <PeriodFilter
-              initialFrom={currentPeriod.from}
-              initialTo={currentPeriod.to}
-              periodMode={periodMode}
-              minDate={dataRange?.firstRealizedDate}
-              isLoading={isAnyLoading}
-              onApply={handleApplyFilter}
-            />
-          )}
-        </Header>
+              {activeNav === "inventory" ? (
+                <InventoryWindowSelector
+                  value={inventoryWindowDays}
+                  onChange={handleInventoryWindowChange}
+                  disabled={isInventoryLoading || isInventoryRefreshing}
+                />
+              ) : activeNav === "decisions" ? (
+                <button
+                  type="button"
+                  className={`tp-action-btn ${isDecisionsRefreshing ? "is-loading" : ""}`}
+                  onClick={handleRefreshDecisions}
+                  disabled={isDecisionsLoading || isDecisionsRefreshing}
+                  title="Atualizar dados"
+                  aria-label="Atualizar dados da Central de Decisões"
+                >
+                  <RefreshCw size={14} className={isDecisionsRefreshing ? "tp-spin" : ""} />
+                  <span>Atualizar</span>
+                </button>
+              ) : (
+                <PeriodFilter
+                  initialFrom={currentPeriod.from}
+                  initialTo={currentPeriod.to}
+                  periodMode={periodMode}
+                  minDate={dataRange?.firstRealizedDate}
+                  isLoading={isAnyLoading}
+                  onApply={handleApplyFilter}
+                />
+              )}
+            </Header>
 
-        {activeNav === "inventory" ? (
+            {activeNav === "inventory" ? (
           <InventoryView
             data={inventoryData}
             isLoading={isInventoryLoading}
@@ -1069,7 +1074,9 @@ export function App() {
             </section>
           </>
         )}
-      </main>
+        </>
+      )}
+    </main>
 
       {/* Unified Customer Segment & Detail Drawer */}
       <CustomerSegmentDrawer

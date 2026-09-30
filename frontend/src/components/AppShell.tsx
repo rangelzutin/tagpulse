@@ -9,15 +9,16 @@ import {
   RefreshCw,
   TrendingUp,
   SlidersHorizontal,
+  CircleDollarSign,
 } from "lucide-react";
 import { SyncModal } from "./SyncModal";
 import { fetchTagPlusSyncStatus } from "../api/sync";
 
 interface AppShellProps {
   children: ReactNode;
-  activeNav?: "commercial" | "products" | "inventory" | "profitability" | "decisions";
+  activeNav?: "commercial" | "products" | "inventory" | "profitability" | "decisions" | "financial";
   onSelectNav?: (
-    nav: "commercial" | "products" | "inventory" | "profitability" | "decisions",
+    nav: "commercial" | "products" | "inventory" | "profitability" | "decisions" | "financial",
   ) => void;
   onSyncSuccess?: () => void;
 }
@@ -194,6 +195,20 @@ export function AppShell({
                 >
                   <SlidersHorizontal size={17} className="tp-nav-icon" />
                   <span className="tp-nav-text">Decisões</span>
+                </button>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  className={`tp-nav-item ${activeNav === "financial" ? "is-active" : ""}`}
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    onSelectNav?.("financial");
+                    scrollToSection("topo");
+                  }}
+                >
+                  <CircleDollarSign size={17} className="tp-nav-icon" />
+                  <span className="tp-nav-text">Financeiro</span>
                 </button>
               </li>
             </ul>
