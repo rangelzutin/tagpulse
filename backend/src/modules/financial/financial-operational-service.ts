@@ -274,6 +274,8 @@ export function createFinancialOperationalService(
           repository.findExcludedNonCashStockAdjustmentSummary({
             fromDate,
             toExclusiveDate,
+            from: fromStr ?? undefined,
+            to: toStr ?? undefined,
           }),
         ]);
 

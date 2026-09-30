@@ -54,6 +54,8 @@ export interface FinancialOperationalRepository {
   findExcludedNonCashStockAdjustmentSummary(options?: {
     fromDate?: Date | undefined;
     toExclusiveDate?: Date | undefined;
+    from?: string | undefined;
+    to?: string | undefined;
   }): Promise<ExcludedNonCashStockAdjustmentsSummary>;
 
   findBudgetPlanMap(sourceIds: string[]): Promise<Map<string, string>>;
@@ -395,10 +397,13 @@ export function createPrismaFinancialOperationalRepository(
         isConfirmed: true,
         isTransfer: false,
         sourcePresent: true,
-        stockAdjustmentFinancialLinks: {
-          none: {
-            stockAdjustment: {
-              type: "S",
+        NOT: {
+          type: "SAIDA",
+          stockAdjustmentFinancialLinks: {
+            some: {
+              stockAdjustment: {
+                type: "S",
+              },
             },
           },
         },
@@ -435,10 +440,13 @@ export function createPrismaFinancialOperationalRepository(
           confirmationDate: null,
           isTransfer: false,
           sourcePresent: true,
-          stockAdjustmentFinancialLinks: {
-            none: {
-              stockAdjustment: {
-                type: "S",
+          NOT: {
+            type: "SAIDA",
+            stockAdjustmentFinancialLinks: {
+              some: {
+                stockAdjustment: {
+                  type: "S",
+                },
               },
             },
           },
@@ -473,8 +481,11 @@ export function createPrismaFinancialOperationalRepository(
     async findExcludedNonCashStockAdjustmentSummary(options?: {
       fromDate?: Date | undefined;
       toExclusiveDate?: Date | undefined;
+      from?: string | undefined;
+      to?: string | undefined;
     }): Promise<ExcludedNonCashStockAdjustmentsSummary> {
       const where: Prisma.FinancialRecordWhereInput = {
+        type: "SAIDA",
         isConfirmed: true,
         isTransfer: false,
         sourcePresent: true,
@@ -487,7 +498,12 @@ export function createPrismaFinancialOperationalRepository(
         },
       };
 
-      if (options?.fromDate || options?.toExclusiveDate) {
+      if (options?.from || options?.to) {
+        const dateFilter = buildDateFilter(options.from, options.to);
+        if (dateFilter) {
+          where.confirmationDate = dateFilter;
+        }
+      } else if (options?.fromDate || options?.toExclusiveDate) {
         where.confirmationDate = {
           ...(options.fromDate ? { gte: options.fromDate } : {}),
           ...(options.toExclusiveDate ? { lt: options.toExclusiveDate } : {}),

@@ -20,7 +20,7 @@ export class FinancialDataAnomalyError extends Error {
 }
 
 export interface CashEligibilityInput {
-  type?: FinancialRecordType;
+  type?: FinancialRecordType | string;
   isConfirmed: boolean;
   isTransfer?: boolean;
   sourcePresent?: boolean;
@@ -31,16 +31,19 @@ export interface CashEligibilityInput {
  * Derives the canonical cash classification of a FinancialRecord.
  *
  * Rules:
- * - A record with a deterministic link to a StockAdjustment of type 'S' (saída de estoque)
- *   is classified as NON_CASH_STOCK_ADJUSTMENT_OUTFLOW.
+ * - A record with FinancialRecord.type = "SAIDA" (or "S") AND a deterministic link
+ *   to a StockAdjustment of type 'S' (saída de estoque) is classified as
+ *   NON_CASH_STOCK_ADJUSTMENT_OUTFLOW.
  *   These records were created historically in the ERP to value inventory withdrawals
  *   and do not represent real monetary disbursements.
- * - All other operational records are classified as CASH.
+ * - All other operational records (including ENTRADA records, even if linked to a StockAdjustment)
+ *   are classified as CASH.
  */
 export function classifyFinancialRecordCash(
-  record: { hasStockAdjustmentOutflowLink?: boolean },
+  record: { type?: FinancialRecordType | string; hasStockAdjustmentOutflowLink?: boolean },
 ): FinancialRecordCashClassification {
-  if (record.hasStockAdjustmentOutflowLink === true) {
+  const isSaida = record.type === "SAIDA" || record.type === "S";
+  if (isSaida && record.hasStockAdjustmentOutflowLink === true) {
     return "NON_CASH_STOCK_ADJUSTMENT_OUTFLOW";
   }
   return "CASH";

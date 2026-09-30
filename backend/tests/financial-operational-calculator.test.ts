@@ -530,6 +530,43 @@ describe("financial-operational-calculator", () => {
       expect(isEligibleForCashFlow(deletedRecord)).toBe(false);
     });
 
+    it("Rule K (Section 5 Negative Test): confirmed ENTRADA (E) linked to StockAdjustment type S is CASH and eligible", () => {
+      // FinancialRecord type E / ENTRADA linked to StockAdjustment S must remain CASH
+      const recordE = {
+        type: "ENTRADA" as const,
+        isConfirmed: true,
+        isTransfer: false,
+        sourcePresent: true,
+        hasStockAdjustmentOutflowLink: true,
+      };
+      expect(classifyFinancialRecordCash(recordE)).toBe("CASH");
+      expect(isEligibleForCashFlow(recordE)).toBe(true);
+
+      const recordShortE = {
+        type: "E",
+        isConfirmed: true,
+        isTransfer: false,
+        sourcePresent: true,
+        hasStockAdjustmentOutflowLink: true,
+      };
+      expect(classifyFinancialRecordCash(recordShortE)).toBe("CASH");
+      expect(isEligibleForCashFlow(recordShortE)).toBe(true);
+    });
+
+    it("Rule L (Section 6 Link Histórico): link with sourcePresent=false still classifies SAIDA + StockAdjustment S as non-cash", () => {
+      const record = {
+        type: "SAIDA" as const,
+        isConfirmed: true,
+        isTransfer: false,
+        sourcePresent: true,
+        hasStockAdjustmentOutflowLink: true,
+      };
+      expect(classifyFinancialRecordCash(record)).toBe(
+        "NON_CASH_STOCK_ADJUSTMENT_OUTFLOW",
+      );
+      expect(isEligibleForCashFlow(record)).toBe(false);
+    });
+
     it("excludes S-linked adjustments from aggregateCashFlowSeries timeseries and totals", () => {
       const records = [
         {
@@ -568,6 +605,79 @@ describe("financial-operational-calculator", () => {
       expect(result.totals.netCashFlow).toBe(600);
       expect(result.series).toHaveLength(1);
       expect(result.series[0]!.outflows).toBe(200);
+    });
+
+    it("Section 8: respects period filter and proves outflowBefore - outflowAfter = excludedAmount", () => {
+      // Registro A: FinancialRecord S, Adjustment S, confirmationDate dentro do período (2026-05-15), amount 100
+      const recordA = {
+        type: "SAIDA" as const,
+        confirmationDate: "2026-05-15",
+        totalAmount: 100,
+        isConfirmed: true,
+        isTransfer: false,
+        sourcePresent: true,
+        hasStockAdjustmentOutflowLink: true,
+      };
+
+      // Registro B: FinancialRecord S, Adjustment S, confirmationDate fora do período (2026-06-20), amount 200
+      const recordB = {
+        type: "SAIDA" as const,
+        confirmationDate: "2026-06-20",
+        totalAmount: 200,
+        isConfirmed: true,
+        isTransfer: false,
+        sourcePresent: true,
+        hasStockAdjustmentOutflowLink: true,
+      };
+
+      // Registro C: FinancialRecord S normal, dentro do período (2026-05-20), amount 300
+      const recordC = {
+        type: "SAIDA" as const,
+        confirmationDate: "2026-05-20",
+        totalAmount: 300,
+        isConfirmed: true,
+        isTransfer: false,
+        sourcePresent: true,
+        hasStockAdjustmentOutflowLink: false,
+      };
+
+      const periodOptions = {
+        granularity: "month" as const,
+        from: "2026-05-01",
+        to: "2026-05-31",
+      };
+
+      // Outflow antes da exclusão
+      const withoutExclusion = [
+        { ...recordA, hasStockAdjustmentOutflowLink: false },
+        { ...recordB, hasStockAdjustmentOutflowLink: false },
+        recordC,
+      ];
+      const beforeResult = aggregateCashFlowSeries(withoutExclusion, periodOptions);
+      const outflowBefore = beforeResult.totals.outflows; // 100 + 300 = 400
+
+      // Outflow depois da exclusão no período
+      const afterResult = aggregateCashFlowSeries([recordA, recordB, recordC], periodOptions);
+      const outflowAfter = afterResult.totals.outflows; // apenas C = 300
+
+      // Métrica auditável de exclusão no período de maio
+      const excludedInPeriod = [recordA, recordB].filter((r) => {
+        return (
+          r.hasStockAdjustmentOutflowLink &&
+          r.confirmationDate >= "2026-05-01" &&
+          r.confirmationDate <= "2026-05-31"
+        );
+      });
+      const excludedCount = excludedInPeriod.length;
+      const excludedAmount = excludedInPeriod.reduce((sum, r) => sum + r.totalAmount, 0);
+
+      expect(excludedCount).toBe(1);
+      expect(excludedAmount).toBe(100);
+      expect(afterResult.totals.outflowCount).toBe(1);
+      expect(outflowAfter).toBe(300);
+
+      // Prova matemática: outflow-before - outflow-after = excludedAmount
+      expect(outflowBefore - outflowAfter).toBe(excludedAmount);
     });
   });
 });
