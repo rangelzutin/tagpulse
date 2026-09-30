@@ -6,9 +6,11 @@ import {
   aggregateUndatedConfirmedCash,
   calculateAgingBucket,
   calculateEffectiveCashAmount,
+  classifyFinancialRecordCash,
   deriveDueDateStatus,
   deriveOperationalStatus,
   FinancialDataAnomalyError,
+  isEligibleForCashFlow,
   toCivilDateString,
 } from "../src/modules/financial/financial-operational-calculator.js";
 
@@ -351,6 +353,221 @@ describe("financial-operational-calculator", () => {
       expect(daily.series[0]!.netCashFlow).toBe(60.0);
       expect(daily.series[1]!.period).toBe("2026-03-02");
       expect(daily.series[1]!.netCashFlow).toBe(250.0);
+    });
+  });
+
+  describe("Fase 5J: Canonical Cash Classification & Eligibility (Rules A-J)", () => {
+    it("Rule A: confirmed SAIDA normal without adjustment link is CASH and eligible", () => {
+      const record = {
+        type: "SAIDA" as const,
+        isConfirmed: true,
+        isTransfer: false,
+        sourcePresent: true,
+        hasStockAdjustmentOutflowLink: false,
+      };
+      expect(classifyFinancialRecordCash(record)).toBe("CASH");
+      expect(isEligibleForCashFlow(record)).toBe(true);
+    });
+
+    it("Rule B: confirmed SAIDA linked to StockAdjustment type S is NON_CASH_STOCK_ADJUSTMENT_OUTFLOW and ineligible", () => {
+      const record = {
+        type: "SAIDA" as const,
+        isConfirmed: true,
+        isTransfer: false,
+        sourcePresent: true,
+        hasStockAdjustmentOutflowLink: true,
+      };
+      expect(classifyFinancialRecordCash(record)).toBe(
+        "NON_CASH_STOCK_ADJUSTMENT_OUTFLOW",
+      );
+      expect(isEligibleForCashFlow(record)).toBe(false);
+    });
+
+    it("Rule C (Critical Negative Test): confirmed SAIDA linked to StockAdjustment C/E/D is CASH and eligible", () => {
+      // Linked to C (Compra) - should NOT have outflow link flag
+      const recordC = {
+        type: "SAIDA" as const,
+        isConfirmed: true,
+        isTransfer: false,
+        sourcePresent: true,
+        hasStockAdjustmentOutflowLink: false,
+      };
+      expect(classifyFinancialRecordCash(recordC)).toBe("CASH");
+      expect(isEligibleForCashFlow(recordC)).toBe(true);
+
+      // Linked to E (Entrada) - should NOT have outflow link flag
+      const recordE = {
+        type: "ENTRADA" as const,
+        isConfirmed: true,
+        isTransfer: false,
+        sourcePresent: true,
+        hasStockAdjustmentOutflowLink: false,
+      };
+      expect(classifyFinancialRecordCash(recordE)).toBe("CASH");
+      expect(isEligibleForCashFlow(recordE)).toBe(true);
+
+      // Linked to D (Devolução) - should NOT have outflow link flag
+      const recordD = {
+        type: "SAIDA" as const,
+        isConfirmed: true,
+        isTransfer: false,
+        sourcePresent: true,
+        hasStockAdjustmentOutflowLink: false,
+      };
+      expect(classifyFinancialRecordCash(recordD)).toBe("CASH");
+      expect(isEligibleForCashFlow(recordD)).toBe(true);
+    });
+
+    it("Rule D: direct Atleta payment without adjustment link is CASH and eligible", () => {
+      const directAtleta = {
+        type: "SAIDA" as const,
+        isConfirmed: true,
+        isTransfer: false,
+        sourcePresent: true,
+        hasStockAdjustmentOutflowLink: false,
+      };
+      expect(classifyFinancialRecordCash(directAtleta)).toBe("CASH");
+      expect(isEligibleForCashFlow(directAtleta)).toBe(true);
+    });
+
+    it("Rule E: direct Marketing payment without adjustment link is CASH and eligible", () => {
+      const directMarketing = {
+        type: "SAIDA" as const,
+        isConfirmed: true,
+        isTransfer: false,
+        sourcePresent: true,
+        hasStockAdjustmentOutflowLink: false,
+      };
+      expect(classifyFinancialRecordCash(directMarketing)).toBe("CASH");
+      expect(isEligibleForCashFlow(directMarketing)).toBe(true);
+    });
+
+    it("Rule F: linked S with paidAmount > 0 is still NON_CASH_STOCK_ADJUSTMENT_OUTFLOW and ineligible", () => {
+      const record = {
+        type: "SAIDA" as const,
+        isConfirmed: true,
+        isTransfer: false,
+        sourcePresent: true,
+        hasStockAdjustmentOutflowLink: true,
+        paidAmount: 500,
+      };
+      expect(classifyFinancialRecordCash(record)).toBe(
+        "NON_CASH_STOCK_ADJUSTMENT_OUTFLOW",
+      );
+      expect(isEligibleForCashFlow(record)).toBe(false);
+    });
+
+    it("Rule G: linked S with confirmationDate=null is ineligible and excluded from undated cash", () => {
+      const records = [
+        {
+          type: "SAIDA" as const,
+          confirmationDate: null,
+          paidAmount: 0,
+          totalAmount: 500,
+          isConfirmed: true,
+          isTransfer: false,
+          sourcePresent: true,
+          hasStockAdjustmentOutflowLink: true,
+        },
+        {
+          type: "ENTRADA" as const,
+          confirmationDate: null,
+          paidAmount: 0,
+          totalAmount: 100,
+          isConfirmed: true,
+          isTransfer: false,
+          sourcePresent: true,
+          hasStockAdjustmentOutflowLink: false,
+        },
+      ];
+
+      const undated = aggregateUndatedConfirmedCash(records);
+      expect(undated.undatedConfirmedCount).toBe(1);
+      expect(undated.undatedConfirmedInflows).toBe(100);
+      expect(undated.undatedConfirmedOutflows).toBe(0);
+    });
+
+    it("Rule H: unconfirmed linked S is ineligible for two distinct reasons (unconfirmed and non-cash)", () => {
+      const record = {
+        type: "SAIDA" as const,
+        isConfirmed: false,
+        isTransfer: false,
+        sourcePresent: true,
+        hasStockAdjustmentOutflowLink: true,
+      };
+      expect(isEligibleForCashFlow(record)).toBe(false);
+      expect(calculateEffectiveCashAmount(record).toNumber()).toBe(0);
+    });
+
+    it("Rule I: transfer records remain excluded regardless of adjustment link status", () => {
+      const transferLinked = {
+        type: "SAIDA" as const,
+        isConfirmed: true,
+        isTransfer: true,
+        sourcePresent: true,
+        hasStockAdjustmentOutflowLink: true,
+      };
+      expect(isEligibleForCashFlow(transferLinked)).toBe(false);
+
+      const transferUnlinked = {
+        type: "SAIDA" as const,
+        isConfirmed: true,
+        isTransfer: true,
+        sourcePresent: true,
+        hasStockAdjustmentOutflowLink: false,
+      };
+      expect(isEligibleForCashFlow(transferUnlinked)).toBe(false);
+    });
+
+    it("Rule J: sourcePresent=false remains excluded from cash flow", () => {
+      const deletedRecord = {
+        type: "SAIDA" as const,
+        isConfirmed: true,
+        isTransfer: false,
+        sourcePresent: false,
+        hasStockAdjustmentOutflowLink: false,
+      };
+      expect(isEligibleForCashFlow(deletedRecord)).toBe(false);
+    });
+
+    it("excludes S-linked adjustments from aggregateCashFlowSeries timeseries and totals", () => {
+      const records = [
+        {
+          type: "SAIDA" as const,
+          confirmationDate: "2026-04-10",
+          totalAmount: 1000,
+          isConfirmed: true,
+          isTransfer: false,
+          sourcePresent: true,
+          hasStockAdjustmentOutflowLink: true, // Non-cash S-adjustment
+        },
+        {
+          type: "SAIDA" as const,
+          confirmationDate: "2026-04-10",
+          totalAmount: 200,
+          isConfirmed: true,
+          isTransfer: false,
+          sourcePresent: true,
+          hasStockAdjustmentOutflowLink: false, // Normal cash outflow
+        },
+        {
+          type: "ENTRADA" as const,
+          confirmationDate: "2026-04-12",
+          totalAmount: 800,
+          isConfirmed: true,
+          isTransfer: false,
+          sourcePresent: true,
+          hasStockAdjustmentOutflowLink: false,
+        },
+      ];
+
+      const result = aggregateCashFlowSeries(records, { granularity: "month" });
+      expect(result.totals.outflowCount).toBe(1);
+      expect(result.totals.outflows).toBe(200);
+      expect(result.totals.inflows).toBe(800);
+      expect(result.totals.netCashFlow).toBe(600);
+      expect(result.series).toHaveLength(1);
+      expect(result.series[0]!.outflows).toBe(200);
     });
   });
 });

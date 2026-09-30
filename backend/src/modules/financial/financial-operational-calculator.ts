@@ -3,6 +3,7 @@ import type {
   AgingSummary,
   CashFlowTimeseriesPoint,
   DueDateStatus,
+  FinancialRecordCashClassification,
   FinancialRecordOperationalStatus,
   OperationalSummaryResponse,
   UndatedConfirmedCashSummary,
@@ -16,6 +17,54 @@ export class FinancialDataAnomalyError extends Error {
     super(message);
     this.name = "FinancialDataAnomalyError";
   }
+}
+
+export interface CashEligibilityInput {
+  type?: FinancialRecordType;
+  isConfirmed: boolean;
+  isTransfer?: boolean;
+  sourcePresent?: boolean;
+  hasStockAdjustmentOutflowLink?: boolean;
+}
+
+/**
+ * Derives the canonical cash classification of a FinancialRecord.
+ *
+ * Rules:
+ * - A record with a deterministic link to a StockAdjustment of type 'S' (saída de estoque)
+ *   is classified as NON_CASH_STOCK_ADJUSTMENT_OUTFLOW.
+ *   These records were created historically in the ERP to value inventory withdrawals
+ *   and do not represent real monetary disbursements.
+ * - All other operational records are classified as CASH.
+ */
+export function classifyFinancialRecordCash(
+  record: { hasStockAdjustmentOutflowLink?: boolean },
+): FinancialRecordCashClassification {
+  if (record.hasStockAdjustmentOutflowLink === true) {
+    return "NON_CASH_STOCK_ADJUSTMENT_OUTFLOW";
+  }
+  return "CASH";
+}
+
+/**
+ * Pure function determining whether a FinancialRecord is eligible for Cash Flow.
+ *
+ * Rules:
+ * 1. Must have sourcePresent !== false
+ * 2. Must not be a transfer (isTransfer !== true)
+ * 3. Must be confirmed (isConfirmed === true)
+ * 4. Must NOT be classified as NON_CASH_STOCK_ADJUSTMENT_OUTFLOW
+ */
+export function isEligibleForCashFlow(
+  record: CashEligibilityInput,
+): boolean {
+  if (record.sourcePresent === false) return false;
+  if (record.isTransfer === true) return false;
+  if (!record.isConfirmed) return false;
+  if (classifyFinancialRecordCash(record) === "NON_CASH_STOCK_ADJUSTMENT_OUTFLOW") {
+    return false;
+  }
+  return true;
 }
 
 export interface EffectiveCashInput {
@@ -244,6 +293,7 @@ export interface CashFlowRecordInput {
   isTransfer?: boolean;
   sourcePresent?: boolean;
   sourceId?: string;
+  hasStockAdjustmentOutflowLink?: boolean;
 }
 
 export interface AggregateCashFlowOptions {
@@ -289,9 +339,7 @@ export function aggregateCashFlowSeries(
   let totalOutflowCount = 0;
 
   for (const record of records) {
-    if (!record.isConfirmed) continue;
-    if (record.isTransfer === true) continue;
-    if (record.sourcePresent === false) continue;
+    if (!isEligibleForCashFlow(record)) continue;
     if (record.confirmationDate == null) continue; // Undated excluded from timeseries
 
     const dateStr = toCivilDateString(record.confirmationDate);
@@ -369,9 +417,7 @@ export function aggregateUndatedConfirmedCash(
   let outflows = new Prisma.Decimal(0);
 
   for (const record of records) {
-    if (!record.isConfirmed) continue;
-    if (record.isTransfer === true) continue;
-    if (record.sourcePresent === false) continue;
+    if (!isEligibleForCashFlow(record)) continue;
     if (record.confirmationDate != null) continue;
 
     count++;

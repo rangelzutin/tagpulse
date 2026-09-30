@@ -1,5 +1,6 @@
-import type { Prisma, FinancialRecordType, PrismaClient } from "@prisma/client";
+import { Prisma, type FinancialRecordType, type PrismaClient } from "@prisma/client";
 import type {
+  ExcludedNonCashStockAdjustmentsSummary,
   FinancialListQueryParams,
   PaginatedResult,
   PayablesListItem,
@@ -44,11 +45,16 @@ export interface FinancialOperationalRepository {
   ): Promise<PaginatedResult<PayablesListItem>>;
 
   findConfirmedCashRecords(options?: {
-    fromDate?: Date;
-    toExclusiveDate?: Date;
+    fromDate?: Date | undefined;
+    toExclusiveDate?: Date | undefined;
   }): Promise<ConfirmedCashDbRecord[]>;
 
   findUndatedConfirmedCashRecords(): Promise<UndatedConfirmedCashRecordItem[]>;
+
+  findExcludedNonCashStockAdjustmentSummary(options?: {
+    fromDate?: Date | undefined;
+    toExclusiveDate?: Date | undefined;
+  }): Promise<ExcludedNonCashStockAdjustmentsSummary>;
 
   findBudgetPlanMap(sourceIds: string[]): Promise<Map<string, string>>;
 }
@@ -389,6 +395,13 @@ export function createPrismaFinancialOperationalRepository(
         isConfirmed: true,
         isTransfer: false,
         sourcePresent: true,
+        stockAdjustmentFinancialLinks: {
+          none: {
+            stockAdjustment: {
+              type: "S",
+            },
+          },
+        },
       };
 
       if (options?.fromDate || options?.toExclusiveDate) {
@@ -422,6 +435,13 @@ export function createPrismaFinancialOperationalRepository(
           confirmationDate: null,
           isTransfer: false,
           sourcePresent: true,
+          stockAdjustmentFinancialLinks: {
+            none: {
+              stockAdjustment: {
+                type: "S",
+              },
+            },
+          },
         },
         select: {
           sourceId: true,
@@ -448,6 +468,50 @@ export function createPrismaFinancialOperationalRepository(
         effectiveCashAmount: Number(calculateEffectiveCashAmount(row).toFixed(2)),
         paidAmount: row.paidAmount != null ? Number(row.paidAmount) : null,
       }));
+    },
+
+    async findExcludedNonCashStockAdjustmentSummary(options?: {
+      fromDate?: Date | undefined;
+      toExclusiveDate?: Date | undefined;
+    }): Promise<ExcludedNonCashStockAdjustmentsSummary> {
+      const where: Prisma.FinancialRecordWhereInput = {
+        isConfirmed: true,
+        isTransfer: false,
+        sourcePresent: true,
+        stockAdjustmentFinancialLinks: {
+          some: {
+            stockAdjustment: {
+              type: "S",
+            },
+          },
+        },
+      };
+
+      if (options?.fromDate || options?.toExclusiveDate) {
+        where.confirmationDate = {
+          ...(options.fromDate ? { gte: options.fromDate } : {}),
+          ...(options.toExclusiveDate ? { lt: options.toExclusiveDate } : {}),
+        };
+      }
+
+      const rows = await prisma.financialRecord.findMany({
+        where,
+        select: {
+          paidAmount: true,
+          totalAmount: true,
+          isConfirmed: true,
+        },
+      });
+
+      let totalAmount = new Prisma.Decimal(0);
+      for (const row of rows) {
+        totalAmount = totalAmount.plus(calculateEffectiveCashAmount(row));
+      }
+
+      return {
+        count: rows.length,
+        amount: Number(totalAmount.toFixed(2)),
+      };
     },
 
     async findBudgetPlanMap(sourceIds: string[]): Promise<Map<string, string>> {

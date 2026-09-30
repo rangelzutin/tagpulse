@@ -105,13 +105,20 @@ describe("Financial Operational Layer — Production Database Reconciliation", (
 
   it("reconciles Cash Flow totals and Undated Cash against real PostgreSQL database", async () => {
     // Independent reference extraction from database
-    const [datedRows, undatedRows] = await Promise.all([
+    const [datedRows, undatedRows, excludedRows] = await Promise.all([
       prisma.financialRecord.findMany({
         where: {
           isConfirmed: true,
           isTransfer: false,
           sourcePresent: true,
           confirmationDate: { not: null },
+          stockAdjustmentFinancialLinks: {
+            none: {
+              stockAdjustment: {
+                type: "S",
+              },
+            },
+          },
         },
         select: {
           type: true,
@@ -126,12 +133,38 @@ describe("Financial Operational Layer — Production Database Reconciliation", (
           isTransfer: false,
           sourcePresent: true,
           confirmationDate: null,
+          stockAdjustmentFinancialLinks: {
+            none: {
+              stockAdjustment: {
+                type: "S",
+              },
+            },
+          },
         },
         select: {
           type: true,
           isConfirmed: true,
           paidAmount: true,
           totalAmount: true,
+        },
+      }),
+      prisma.financialRecord.findMany({
+        where: {
+          isConfirmed: true,
+          isTransfer: false,
+          sourcePresent: true,
+          stockAdjustmentFinancialLinks: {
+            some: {
+              stockAdjustment: {
+                type: "S",
+              },
+            },
+          },
+        },
+        select: {
+          paidAmount: true,
+          totalAmount: true,
+          isConfirmed: true,
         },
       }),
     ]);
@@ -172,6 +205,12 @@ describe("Financial Operational Layer — Production Database Reconciliation", (
       (expectedUndatedInflows - expectedUndatedOutflows).toFixed(2),
     );
 
+    let expectedExcludedAmount = 0;
+    for (const r of excludedRows) {
+      expectedExcludedAmount += Number(calculateEffectiveCashAmount(r).toFixed(2));
+    }
+    expectedExcludedAmount = Number(expectedExcludedAmount.toFixed(2));
+
     const result = await service.getCashFlowOverview({ granularity: "month" });
     expect(result.success).toBe(true);
     const data = result.data!;
@@ -189,6 +228,10 @@ describe("Financial Operational Layer — Production Database Reconciliation", (
     expect(data.undated.undatedConfirmedInflows).toBe(expectedUndatedInflows);
     expect(data.undated.undatedConfirmedOutflows).toBe(expectedUndatedOutflows);
     expect(data.undated.undatedConfirmedNet).toBe(expectedUndatedNet);
+
+    // Excluded non-cash adjustments auditability metrics
+    expect(data.excludedNonCashStockAdjustments.count).toBe(excludedRows.length);
+    expect(data.excludedNonCashStockAdjustments.amount).toBe(expectedExcludedAmount);
 
     // Invariant: Total confirmed records
     expect(data.totals.totalCount + data.undated.undatedConfirmedCount).toBe(
@@ -215,6 +258,13 @@ describe("Financial Operational Layer — Production Database Reconciliation", (
         isTransfer: false,
         sourcePresent: true,
         confirmationDate: null,
+        stockAdjustmentFinancialLinks: {
+          none: {
+            stockAdjustment: {
+              type: "S",
+            },
+          },
+        },
       },
       select: {
         sourceId: true,

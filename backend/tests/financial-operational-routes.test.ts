@@ -207,6 +207,10 @@ function createMockRepository(): FinancialOperationalRepository {
       ];
     },
 
+    async findExcludedNonCashStockAdjustmentSummary() {
+      return { count: 0, amount: 0 };
+    },
+
     async findBudgetPlanMap() {
       return new Map([["bp-materia-prima", "Matéria-prima"]]);
     },
@@ -387,6 +391,12 @@ describe("Financial Operational Routes — Contracts and Integration", () => {
         undatedConfirmedInflows: 770.0,
         undatedConfirmedOutflows: 0.0,
         undatedConfirmedNet: 770.0,
+      });
+
+      // Excluded non-cash adjustments summary
+      expect(data.excludedNonCashStockAdjustments).toEqual({
+        count: 0,
+        amount: 0,
       });
     });
 
