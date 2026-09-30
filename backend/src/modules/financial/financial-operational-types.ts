@@ -133,6 +133,15 @@ export interface UndatedConfirmedCashSummary {
   undatedConfirmedNet: number;
 }
 
+export type FinancialRecordCashClassification =
+  | "CASH"
+  | "NON_CASH_STOCK_ADJUSTMENT_OUTFLOW";
+
+export interface ExcludedNonCashStockAdjustmentsSummary {
+  count: number;
+  amount: number;
+}
+
 export interface CashFlowOverviewResponse {
   from: string | null;
   to: string | null;
@@ -147,6 +156,7 @@ export interface CashFlowOverviewResponse {
   };
   series: CashFlowTimeseriesPoint[];
   undated: UndatedConfirmedCashSummary;
+  excludedNonCashStockAdjustments: ExcludedNonCashStockAdjustmentsSummary;
 }
 
 export interface UndatedConfirmedCashRecordItem {

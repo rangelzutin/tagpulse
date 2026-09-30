@@ -207,6 +207,10 @@ function createMockRepository(): FinancialOperationalRepository {
       ];
     },
 
+    async findExcludedNonCashStockAdjustmentSummary() {
+      return { count: 0, amount: 0 };
+    },
+
     async findBudgetPlanMap() {
       return new Map([["bp-materia-prima", "Matéria-prima"]]);
     },
@@ -388,6 +392,12 @@ describe("Financial Operational Routes — Contracts and Integration", () => {
         undatedConfirmedOutflows: 0.0,
         undatedConfirmedNet: 770.0,
       });
+
+      // Excluded non-cash adjustments summary
+      expect(data.excludedNonCashStockAdjustments).toEqual({
+        count: 0,
+        amount: 0,
+      });
     });
 
     it("rejects invalid granularity with 400", async () => {
@@ -398,6 +408,64 @@ describe("Financial Operational Routes — Contracts and Integration", () => {
       });
       expect(res.statusCode).toBe(400);
       expect(res.json().message).toContain("granularity");
+    });
+
+    it("respects period filter for cash flow series and passes period to excludedNonCashStockAdjustmentSummary", async () => {
+      let capturedOptions: Record<string, unknown> | undefined;
+      const customRepo: FinancialOperationalRepository = {
+        ...createMockRepository(),
+        async findConfirmedCashRecords() {
+          return [
+            // Registro C: dentro do período (2026-05-10), amount 300
+            {
+              sourceId: "reg-c",
+              type: "SAIDA",
+              confirmationDate: new Date("2026-05-10T00:00:00Z"),
+              paidAmount: new Prisma.Decimal("300.00"),
+              totalAmount: new Prisma.Decimal("300.00"),
+              isConfirmed: true,
+              isTransfer: false,
+              sourcePresent: true,
+            },
+            // Fora do período (2026-06-15)
+            {
+              sourceId: "reg-out",
+              type: "SAIDA",
+              confirmationDate: new Date("2026-06-15T00:00:00Z"),
+              paidAmount: new Prisma.Decimal("200.00"),
+              totalAmount: new Prisma.Decimal("200.00"),
+              isConfirmed: true,
+              isTransfer: false,
+              sourcePresent: true,
+            },
+          ];
+        },
+        async findExcludedNonCashStockAdjustmentSummary(options) {
+          capturedOptions = options;
+          if (options?.from === "2026-05-01" && options?.to === "2026-05-31") {
+            return { count: 1, amount: 100 };
+          }
+          return { count: 2, amount: 300 };
+        },
+      };
+
+      const customService = createFinancialOperationalService(customRepo);
+      const app = await createTestApp(customService);
+      const res = await app.inject({
+        method: "GET",
+        url: "/financial/cash-flow/overview?from=2026-05-01&to=2026-05-31&granularity=month",
+      });
+
+      expect(res.statusCode).toBe(200);
+      const data = res.json();
+      expect(capturedOptions?.from).toBe("2026-05-01");
+      expect(capturedOptions?.to).toBe("2026-05-31");
+      expect(data.totals.outflows).toBe(300);
+      expect(data.totals.outflowCount).toBe(1);
+      expect(data.excludedNonCashStockAdjustments).toEqual({
+        count: 1,
+        amount: 100,
+      });
     });
   });
 

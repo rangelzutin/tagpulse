@@ -258,7 +258,26 @@ export function createFinancialOperationalService(
           }
         }
 
-        const records = await repository.findConfirmedCashRecords();
+        let fromDate: Date | undefined;
+        let toExclusiveDate: Date | undefined;
+
+        if (fromStr) {
+          fromDate = new Date(`${fromStr}T00:00:00.000Z`);
+        }
+        if (toStr) {
+          const toDate = new Date(`${toStr}T00:00:00.000Z`);
+          toExclusiveDate = new Date(toDate.getTime() + 86400000);
+        }
+
+        const [records, excludedSummary] = await Promise.all([
+          repository.findConfirmedCashRecords(),
+          repository.findExcludedNonCashStockAdjustmentSummary({
+            fromDate,
+            toExclusiveDate,
+            from: fromStr ?? undefined,
+            to: toStr ?? undefined,
+          }),
+        ]);
 
         const { totals, series } = aggregateCashFlowSeries(records, {
           granularity,
@@ -277,6 +296,7 @@ export function createFinancialOperationalService(
             totals,
             series,
             undated,
+            excludedNonCashStockAdjustments: excludedSummary,
           },
         };
       } catch (err: unknown) {

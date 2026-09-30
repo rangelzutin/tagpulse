@@ -105,13 +105,23 @@ describe("Financial Operational Layer — Production Database Reconciliation", (
 
   it("reconciles Cash Flow totals and Undated Cash against real PostgreSQL database", async () => {
     // Independent reference extraction from database
-    const [datedRows, undatedRows] = await Promise.all([
+    const [datedRows, undatedRows, excludedRows] = await Promise.all([
       prisma.financialRecord.findMany({
         where: {
           isConfirmed: true,
           isTransfer: false,
           sourcePresent: true,
           confirmationDate: { not: null },
+          NOT: {
+            type: "SAIDA",
+            stockAdjustmentFinancialLinks: {
+              some: {
+                stockAdjustment: {
+                  type: "S",
+                },
+              },
+            },
+          },
         },
         select: {
           type: true,
@@ -126,12 +136,42 @@ describe("Financial Operational Layer — Production Database Reconciliation", (
           isTransfer: false,
           sourcePresent: true,
           confirmationDate: null,
+          NOT: {
+            type: "SAIDA",
+            stockAdjustmentFinancialLinks: {
+              some: {
+                stockAdjustment: {
+                  type: "S",
+                },
+              },
+            },
+          },
         },
         select: {
           type: true,
           isConfirmed: true,
           paidAmount: true,
           totalAmount: true,
+        },
+      }),
+      prisma.financialRecord.findMany({
+        where: {
+          type: "SAIDA",
+          isConfirmed: true,
+          isTransfer: false,
+          sourcePresent: true,
+          stockAdjustmentFinancialLinks: {
+            some: {
+              stockAdjustment: {
+                type: "S",
+              },
+            },
+          },
+        },
+        select: {
+          paidAmount: true,
+          totalAmount: true,
+          isConfirmed: true,
         },
       }),
     ]);
@@ -172,6 +212,12 @@ describe("Financial Operational Layer — Production Database Reconciliation", (
       (expectedUndatedInflows - expectedUndatedOutflows).toFixed(2),
     );
 
+    let expectedExcludedAmount = 0;
+    for (const r of excludedRows) {
+      expectedExcludedAmount += Number(calculateEffectiveCashAmount(r).toFixed(2));
+    }
+    expectedExcludedAmount = Number(expectedExcludedAmount.toFixed(2));
+
     const result = await service.getCashFlowOverview({ granularity: "month" });
     expect(result.success).toBe(true);
     const data = result.data!;
@@ -189,6 +235,10 @@ describe("Financial Operational Layer — Production Database Reconciliation", (
     expect(data.undated.undatedConfirmedInflows).toBe(expectedUndatedInflows);
     expect(data.undated.undatedConfirmedOutflows).toBe(expectedUndatedOutflows);
     expect(data.undated.undatedConfirmedNet).toBe(expectedUndatedNet);
+
+    // Excluded non-cash adjustments auditability metrics
+    expect(data.excludedNonCashStockAdjustments.count).toBe(excludedRows.length);
+    expect(data.excludedNonCashStockAdjustments.amount).toBe(expectedExcludedAmount);
 
     // Invariant: Total confirmed records
     expect(data.totals.totalCount + data.undated.undatedConfirmedCount).toBe(
@@ -215,6 +265,16 @@ describe("Financial Operational Layer — Production Database Reconciliation", (
         isTransfer: false,
         sourcePresent: true,
         confirmationDate: null,
+        NOT: {
+          type: "SAIDA",
+          stockAdjustmentFinancialLinks: {
+            some: {
+              stockAdjustment: {
+                type: "S",
+              },
+            },
+          },
+        },
       },
       select: {
         sourceId: true,
@@ -250,6 +310,96 @@ describe("Financial Operational Layer — Production Database Reconciliation", (
       expect(record.type).toBe("ENTRADA");
       expect(record.effectiveCashAmount).toBeGreaterThan(0);
     }
+  });
+
+  it("reconciles cash flow overview and excludedNonCashStockAdjustments for a specific filtered period (2025)", async () => {
+    const fromStr = "2025-01-01";
+    const toStr = "2025-12-31";
+    const fromDate = new Date("2025-01-01T00:00:00.000Z");
+    const toExclusiveDate = new Date("2026-01-01T00:00:00.000Z");
+
+    const [periodDatedRows, periodExcludedRows] = await Promise.all([
+      prisma.financialRecord.findMany({
+        where: {
+          isConfirmed: true,
+          isTransfer: false,
+          sourcePresent: true,
+          confirmationDate: {
+            gte: fromDate,
+            lt: toExclusiveDate,
+          },
+          NOT: {
+            type: "SAIDA",
+            stockAdjustmentFinancialLinks: {
+              some: {
+                stockAdjustment: {
+                  type: "S",
+                },
+              },
+            },
+          },
+        },
+        select: {
+          type: true,
+          isConfirmed: true,
+          paidAmount: true,
+          totalAmount: true,
+        },
+      }),
+      prisma.financialRecord.findMany({
+        where: {
+          type: "SAIDA",
+          isConfirmed: true,
+          isTransfer: false,
+          sourcePresent: true,
+          confirmationDate: {
+            gte: fromDate,
+            lt: toExclusiveDate,
+          },
+          stockAdjustmentFinancialLinks: {
+            some: {
+              stockAdjustment: {
+                type: "S",
+              },
+            },
+          },
+        },
+        select: {
+          paidAmount: true,
+          totalAmount: true,
+          isConfirmed: true,
+        },
+      }),
+    ]);
+
+    let expectedInflows = 0;
+    let expectedOutflows = 0;
+    for (const r of periodDatedRows) {
+      const amt = Number(calculateEffectiveCashAmount(r).toFixed(2));
+      if (r.type === "ENTRADA") expectedInflows += amt;
+      else if (r.type === "SAIDA") expectedOutflows += amt;
+    }
+    expectedInflows = Number(expectedInflows.toFixed(2));
+    expectedOutflows = Number(expectedOutflows.toFixed(2));
+
+    let expectedExcludedAmount = 0;
+    for (const r of periodExcludedRows) {
+      expectedExcludedAmount += Number(calculateEffectiveCashAmount(r).toFixed(2));
+    }
+    expectedExcludedAmount = Number(expectedExcludedAmount.toFixed(2));
+
+    const result = await service.getCashFlowOverview({
+      from: fromStr,
+      to: toStr,
+      granularity: "month",
+    });
+    expect(result.success).toBe(true);
+    const data = result.data!;
+
+    expect(data.totals.inflows).toBe(expectedInflows);
+    expect(data.totals.outflows).toBe(expectedOutflows);
+    expect(data.excludedNonCashStockAdjustments.count).toBe(periodExcludedRows.length);
+    expect(data.excludedNonCashStockAdjustments.amount).toBe(expectedExcludedAmount);
   });
 
   it("supports pagination and search on real receivables list", async () => {
