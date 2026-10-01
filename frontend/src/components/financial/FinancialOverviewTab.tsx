@@ -16,7 +16,7 @@ import type {
   CashFlowOverviewResponse,
   UndatedConfirmedCashResponse,
 } from "../../api/financial";
-import { formatCurrency, formatNumber, formatDateBr } from "../../utils/formatters";
+import { formatCurrency, formatNumber, formatDateBr, getDefaultPeriod } from "../../utils/formatters";
 import { UndatedCashModal } from "./UndatedCashModal";
 
 interface FinancialOverviewTabProps {
@@ -95,6 +95,11 @@ export function FinancialOverviewTab({
   const undatedConfirmed = cashFlowData?.undated ?? undatedData?.summary;
   const hasUndatedConfirmed = Boolean(undatedConfirmed && undatedConfirmed.undatedConfirmedCount > 0);
 
+  const defaultPeriod = getDefaultPeriod();
+  const cfFrom = cashFlowData?.from ?? defaultPeriod.from;
+  const cfTo = cashFlowData?.to ?? defaultPeriod.to;
+  const cashFlowPeriodHint = `${formatDateBr(cfFrom)} a ${formatDateBr(cfTo)} · ${cfFrom.slice(0, 4)} YTD`;
+
   return (
     <div className="tp-financial-overview-content">
       {/* ========================================================
@@ -112,7 +117,7 @@ export function FinancialOverviewTab({
               </strong>{" "}
               <span>
                 Existem <strong>{formatNumber(undatedConfirmed.undatedConfirmedCount)}</strong> lançamentos
-                marcados como confirmados no ERP sem data registrada (Saldo:{" "}
+                marcados como confirmados sem data de confirmação fornecida pela API TagPlus (Saldo:{" "}
                 <strong>{formatCurrency(undatedConfirmed.undatedConfirmedNet)}</strong>).
               </span>
             </div>
@@ -258,7 +263,7 @@ export function FinancialOverviewTab({
                 </span>
               </div>
               <div className="tp-kpi-period-hint">
-                01/01/2026 a 30/09/2026 · 2026 YTD
+                {cashFlowPeriodHint}
               </div>
             </div>
           </article>

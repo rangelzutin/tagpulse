@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { X, CalendarOff } from "lucide-react";
 import type { UndatedConfirmedCashResponse } from "../../api/financial";
-import { formatCurrency, formatDateBr } from "../../utils/formatters";
+import { formatCurrency, formatDateBr, formatNumber } from "../../utils/formatters";
 
 interface UndatedCashModalProps {
   isOpen: boolean;
@@ -34,26 +34,32 @@ export function UndatedCashModal({
   const summary = data?.summary;
 
   return (
-    <div className="tp-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="undated-modal-title">
+    <div
+      className="tp-modal-overlay tp-undated-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="undated-modal-title"
+    >
       <div className="tp-modal-backdrop" onClick={onClose} aria-hidden="true" />
-      <div className="tp-modal-content tp-undated-modal-container" ref={modalRef}>
-        <div className="tp-modal-header">
-          <div className="tp-modal-title-wrap">
-            <div className="tp-modal-icon-badge tp-badge-amber">
-              <CalendarOff size={18} />
+      <div className="tp-undated-modal" ref={modalRef}>
+        {/* Integrated Header */}
+        <div className="tp-undated-modal-header">
+          <div className="tp-undated-modal-header-left">
+            <div className="tp-undated-modal-icon-badge" aria-hidden="true">
+              <CalendarOff size={16} />
             </div>
-            <div>
-              <h2 id="undated-modal-title" className="tp-modal-title">
-                Lançamentos Confirmados Sem Data
+            <div className="tp-undated-modal-titles">
+              <h2 id="undated-modal-title" className="tp-undated-modal-title">
+                Confirmados sem data de confirmação
               </h2>
-              <p className="tp-modal-subtitle">
-                Títulos marcados como pagos/confirmados no TagPlus, mas sem data de baixa preenchida.
+              <p className="tp-undated-modal-subtitle">
+                Lançamentos financeiros confirmados sem data de confirmação disponível.
               </p>
             </div>
           </div>
           <button
             type="button"
-            className="tp-modal-close-btn"
+            className="tp-undated-modal-close"
             onClick={onClose}
             aria-label="Fechar modal"
           >
@@ -61,28 +67,26 @@ export function UndatedCashModal({
           </button>
         </div>
 
-        {/* Summary Banner */}
+        {/* 3-Indicator Summary */}
         {summary && (
-          <div className="tp-undated-summary-banner">
-            <div className="tp-undated-stat-item">
-              <span className="tp-stat-label">Total de títulos:</span>
-              <span className="tp-stat-val">{summary.undatedConfirmedCount}</span>
+          <div className="tp-undated-modal-summary">
+            <div className="tp-undated-summary-card">
+              <span className="tp-undated-summary-label">Títulos</span>
+              <span className="tp-undated-summary-val">
+                {formatNumber(summary.undatedConfirmedCount)}
+              </span>
             </div>
-            <div className="tp-undated-stat-item">
-              <span className="tp-stat-label">Entradas confirmadas:</span>
-              <span className="tp-stat-val tp-value-emerald">
+            <div className="tp-undated-summary-card">
+              <span className="tp-undated-summary-label">Entradas</span>
+              <span className="tp-undated-summary-val tp-value-emerald">
                 {formatCurrency(summary.undatedConfirmedInflows)}
               </span>
             </div>
-            <div className="tp-undated-stat-item">
-              <span className="tp-stat-label">Saídas confirmadas:</span>
-              <span className="tp-stat-val tp-value-rose">
-                {formatCurrency(summary.undatedConfirmedOutflows)}
+            <div className="tp-undated-summary-card">
+              <span className="tp-undated-summary-label">
+                {summary.undatedConfirmedOutflows > 0 ? "Saldo sem data" : "Saídas / Saldo sem data"}
               </span>
-            </div>
-            <div className="tp-undated-stat-item">
-              <span className="tp-stat-label">Saldo sem data:</span>
-              <span className="tp-stat-val tp-value-cyan">
+              <span className="tp-undated-summary-val tp-value-cyan">
                 {formatCurrency(summary.undatedConfirmedNet)}
               </span>
             </div>
@@ -90,7 +94,7 @@ export function UndatedCashModal({
         )}
 
         {/* Content Table / State */}
-        <div className="tp-undated-table-container">
+        <div className="tp-undated-modal-body">
           {isLoading ? (
             <div className="tp-loading-state" role="status">
               <div className="tp-spinner" />
@@ -101,52 +105,65 @@ export function UndatedCashModal({
               <p className="tp-empty-text">Nenhum lançamento confirmado sem data encontrado.</p>
             </div>
           ) : (
-            <table className="tp-table tp-table-compact">
-              <thead>
-                <tr>
-                  <th className="tp-th tp-th-left">Tipo</th>
-                  <th className="tp-th tp-th-left">Entidade / Cliente</th>
-                  <th className="tp-th tp-th-left">Descrição / Doc</th>
-                  <th className="tp-th tp-th-center">Vencimento</th>
-                  <th className="tp-th tp-th-right">Valor Caixa</th>
-                </tr>
-              </thead>
-              <tbody>
-                {records.map((item) => (
-                  <tr key={item.sourceId} className="tp-table-row">
-                    <td className="tp-td tp-td-left">
-                      <span
-                        className={`tp-badge-subtle ${
-                          item.type === "ENTRADA" ? "is-emerald" : "is-rose"
-                        }`}
-                      >
-                        {item.type === "ENTRADA" ? "Entrada" : "Saída"}
-                      </span>
-                    </td>
-                    <td className="tp-td tp-td-left tp-font-medium">
-                      {item.entityName || "Não identificada"}
-                    </td>
-                    <td className="tp-td tp-td-left tp-text-muted">
-                      <span>{item.description || "Sem descrição"}</span>
-                      {item.documentNumber && (
-                        <span className="tp-doc-pill">Doc: {item.documentNumber}</span>
-                      )}
-                    </td>
-                    <td className="tp-td tp-td-center tp-font-mono">
-                      {item.dueDate ? formatDateBr(item.dueDate) : "—"}
-                    </td>
-                    <td className="tp-td tp-td-right tp-font-mono tp-font-medium">
-                      {formatCurrency(item.effectiveCashAmount)}
-                    </td>
+            <div className="tp-undated-table-wrap">
+              <table className="tp-undated-table">
+                <thead>
+                  <tr>
+                    <th className="tp-undated-th tp-col-type">Tipo</th>
+                    <th className="tp-undated-th tp-col-entity">Entidade / Cliente</th>
+                    <th className="tp-undated-th tp-col-desc">Descrição / Documento</th>
+                    <th className="tp-undated-th tp-col-due">Vencimento</th>
+                    <th className="tp-undated-th tp-col-val">Valor</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {records.map((item) => (
+                    <tr key={item.sourceId} className="tp-undated-row">
+                      <td className="tp-undated-td tp-col-type">
+                        <span
+                          className={`tp-badge-subtle ${
+                            item.type === "ENTRADA" ? "is-emerald" : "is-rose"
+                          }`}
+                        >
+                          {item.type === "ENTRADA" ? "Entrada" : "Saída"}
+                        </span>
+                      </td>
+                      <td
+                        className="tp-undated-td tp-col-entity tp-entity-cell"
+                        title={item.entityName || "Não identificada"}
+                      >
+                        {item.entityName || "Não identificada"}
+                      </td>
+                      <td className="tp-undated-td tp-col-desc">
+                        <div className="tp-desc-flex">
+                          <span
+                            className="tp-desc-text"
+                            title={item.description || "Sem descrição"}
+                          >
+                            {item.description || "Sem descrição"}
+                          </span>
+                          {item.documentNumber && (
+                            <span className="tp-doc-pill">Doc: {item.documentNumber}</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="tp-undated-td tp-col-due tp-font-mono">
+                        {item.dueDate ? formatDateBr(item.dueDate) : "—"}
+                      </td>
+                      <td className="tp-undated-td tp-col-val tp-font-mono tp-font-medium tp-val-right">
+                        {formatCurrency(item.effectiveCashAmount)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
 
-        <div className="tp-modal-footer">
-          <button type="button" className="tp-action-btn" onClick={onClose}>
+        {/* Footer */}
+        <div className="tp-undated-modal-footer">
+          <button type="button" className="tp-undated-btn-close" onClick={onClose}>
             Fechar
           </button>
         </div>

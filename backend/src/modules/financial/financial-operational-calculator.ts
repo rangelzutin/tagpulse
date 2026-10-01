@@ -1,6 +1,7 @@
 import { Prisma, type FinancialRecordType } from "@prisma/client";
 import type {
   AgingSummary,
+  BankReconciliationSummary,
   CashFlowTimeseriesPoint,
   DueDateStatus,
   FinancialRecordCashClassification,
@@ -19,8 +20,359 @@ export class FinancialDataAnomalyError extends Error {
   }
 }
 
-export interface CashEligibilityInput {
+export interface BancoInterClassifierRecordInput {
   type?: FinancialRecordType | string;
+  paymentMethodSourceId?: string | null;
+  bankAccountSourceId?: string | null;
+  installmentNumber?: number | null;
+  installmentCount?: number | null;
+  documentNumber?: string | null;
+  linkedInvoiceInstallmentSourceId?: string | null;
+  description?: string | null;
+  sourcePayload?: any;
+}
+
+/**
+ * Pure function determining whether a record is an auxiliary Banco Inter reconciliation event.
+ *
+ * Conservative composite signature:
+ * - type = ENTRADA (or "E")
+ * - paymentMethodSourceId = "24" (Boleto Banco Inter)
+ * - bankAccountSourceId = "8" (Banco Inter)
+ * - installmentNumber = 0 or null
+ * - installmentCount = 0 or null
+ * - documentNumber is null or empty/whitespace
+ * - linkedInvoiceInstallmentSourceId is null
+ * - description starts with "Pagamento confirmado via Banco Inter"
+ * - payload boleto present (if sourcePayload is provided, boleto array/object must not be empty)
+ *
+ * Normal commercial titles are NEVER classified as auxiliary events.
+ */
+export function isBancoInterReconciliationEvent(
+  record: BancoInterClassifierRecordInput,
+): boolean {
+  const isEntrada = record.type === "ENTRADA" || record.type === "E";
+  if (!isEntrada) return false;
+  if (record.paymentMethodSourceId !== "24") return false;
+  if (record.bankAccountSourceId !== "8") return false;
+  if (record.installmentNumber != null && record.installmentNumber > 0) return false;
+  if (record.installmentCount != null && record.installmentCount > 0) return false;
+  if (record.documentNumber != null && record.documentNumber.trim() !== "") return false;
+  if (record.linkedInvoiceInstallmentSourceId != null) return false;
+
+  const desc = record.description || "";
+  if (!desc.startsWith("Pagamento confirmado via Banco Inter")) return false;
+
+  if (record.sourcePayload != null) {
+    const payload = record.sourcePayload;
+    if (typeof payload === "object") {
+      const boleto = payload.boleto;
+      if (boleto === undefined || boleto === null) return false;
+      if (Array.isArray(boleto) && boleto.length === 0) return false;
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Extracts the effective collected bank amount from a Banco Inter reconciliation event.
+ *
+ * Preference:
+ * 1. boleto.valor_cobrado valid
+ * 2. event.totalAmount valid
+ * Validates consistency between both. Logs warning if they diverge.
+ */
+export function extractBancoInterEventAmount(event: {
+  totalAmount?: Prisma.Decimal | number | string | null;
+  paidAmount?: Prisma.Decimal | number | string | null;
+  sourcePayload?: any;
+  sourceId?: string;
+}): Prisma.Decimal {
+  let boletoAmount: Prisma.Decimal | null = null;
+  const payload = event.sourcePayload;
+  if (payload && typeof payload === "object") {
+    let boletoItem: any = null;
+    if (Array.isArray(payload.boleto) && payload.boleto.length > 0) {
+      boletoItem = payload.boleto[0];
+    } else if (payload.boleto && typeof payload.boleto === "object") {
+      boletoItem = payload.boleto;
+    }
+    if (boletoItem && boletoItem.valor_cobrado != null && boletoItem.valor_cobrado !== "") {
+      const num = Number(boletoItem.valor_cobrado);
+      if (!isNaN(num) && num > 0) {
+        boletoAmount = new Prisma.Decimal(boletoItem.valor_cobrado);
+      }
+    }
+  }
+
+  let eventAmount: Prisma.Decimal | null = null;
+  if (event.totalAmount != null && event.totalAmount !== "") {
+    eventAmount = new Prisma.Decimal(event.totalAmount);
+  } else if (event.paidAmount != null && event.paidAmount !== "") {
+    eventAmount = new Prisma.Decimal(event.paidAmount);
+  }
+
+  if (boletoAmount !== null && eventAmount !== null) {
+    if (!boletoAmount.equals(eventAmount)) {
+      console.warn(
+        `[BancoInterReconciliation] Anomaly: boleto.valor_cobrado (${boletoAmount.toString()}) diverges from event amount (${eventAmount.toString()}) for sourceId ${event.sourceId ?? "unknown"}`,
+      );
+    }
+    return boletoAmount;
+  }
+
+  if (boletoAmount !== null) return boletoAmount;
+  if (eventAmount !== null) return eventAmount;
+
+  throw new FinancialDataAnomalyError(
+    `Banco Inter event ${event.sourceId ?? "unknown"} has no valid valor_cobrado or totalAmount`,
+    { sourceId: event.sourceId },
+  );
+}
+
+export type ReconciliationMatchStatus =
+  | "MATCH_UNIQUE"
+  | "MATCH_AMBIGUOUS"
+  | "NO_MATCH";
+
+export interface BancoInterMatchResult<T> {
+  status: ReconciliationMatchStatus;
+  matchedTitle?: T | undefined;
+  candidatesCount: number;
+}
+
+/**
+ * Pure function to match a Banco Inter auxiliary event against candidate commercial titles.
+ *
+ * Match only when exactly ONE candidate meets:
+ * - type = ENTRADA
+ * - same entitySourceId
+ * - same dueDate civil (YYYY-MM-DD)
+ * - same paymentMethodSourceId
+ * - same bankAccountSourceId
+ * - documentNumber is present and non-empty
+ * - installmentNumber > 0
+ * - is NOT a Banco Inter auxiliary event itself
+ *
+ * Never silently chooses the first candidate.
+ */
+export function findBancoInterMatchedTitle<
+  T extends CashFlowRecordInput,
+>(
+  event: {
+    entitySourceId?: string | null | undefined;
+    dueDate: Date | string;
+    paymentMethodSourceId?: string | null | undefined;
+    bankAccountSourceId?: string | null | undefined;
+  },
+  candidates: T[],
+): BancoInterMatchResult<T> {
+  const eventDueCivil = toCivilDateString(event.dueDate);
+
+  const matched = candidates.filter((candidate) => {
+    const isEntrada = candidate.type === "ENTRADA" || (candidate.type as string) === "E";
+    if (!isEntrada) return false;
+
+    if (!candidate.entitySourceId || candidate.entitySourceId !== event.entitySourceId) {
+      return false;
+    }
+
+    if (!candidate.dueDate || toCivilDateString(candidate.dueDate) !== eventDueCivil) {
+      return false;
+    }
+
+    if (
+      event.paymentMethodSourceId &&
+      candidate.paymentMethodSourceId !== event.paymentMethodSourceId
+    ) {
+      return false;
+    }
+
+    if (
+      event.bankAccountSourceId &&
+      candidate.bankAccountSourceId !== event.bankAccountSourceId
+    ) {
+      return false;
+    }
+
+    if (!candidate.documentNumber || candidate.documentNumber.trim() === "") {
+      return false;
+    }
+
+    if (candidate.installmentNumber == null || candidate.installmentNumber <= 0) {
+      return false;
+    }
+
+    if (isBancoInterReconciliationEvent(candidate)) {
+      return false;
+    }
+
+    return true;
+  });
+
+  const first = matched[0];
+  if (matched.length === 1 && first !== undefined) {
+    return {
+      status: "MATCH_UNIQUE",
+      matchedTitle: first,
+      candidatesCount: 1,
+    };
+  }
+
+  if (matched.length > 1) {
+    return {
+      status: "MATCH_AMBIGUOUS",
+      candidatesCount: matched.length,
+    };
+  }
+
+  return {
+    status: "NO_MATCH",
+    candidatesCount: 0,
+  };
+}
+
+export interface ReconciledTitleMatch {
+  titleSourceId: string;
+  eventSourceId: string;
+  bankAmount: Prisma.Decimal;
+  titleCanonicalAmount: Prisma.Decimal;
+  bankDelta: Prisma.Decimal;
+}
+
+export interface BancoInterReconciliationExecutionResult {
+  reconciledTitleMap: Map<string, ReconciledTitleMatch>;
+  matchedEventCount: number;
+  reconciledAmount: Prisma.Decimal;
+  nominalTitleAmount: Prisma.Decimal;
+  deltaAmount: Prisma.Decimal;
+  ambiguousCount: number;
+  unmatchedCount: number;
+}
+
+/**
+ * Reconciles Banco Inter auxiliary events against candidate commercial titles in memory.
+ * Uses a composite key index for O(N) performance instead of O(N^2).
+ */
+export function reconcileBancoInterEvents<
+  T extends CashFlowRecordInput,
+>(records: T[]): BancoInterReconciliationExecutionResult {
+  const bankEvents: T[] = [];
+  // Composite key map: entitySourceId|dueCivil|paymentMethod|bankAccount -> T[]
+  const candidateIndex = new Map<string, T[]>();
+
+  for (const record of records) {
+    if (isBancoInterReconciliationEvent(record)) {
+      bankEvents.push(record);
+    } else {
+      const isEntrada = record.type === "ENTRADA" || (record.type as string) === "E";
+      if (
+        isEntrada &&
+        record.documentNumber &&
+        record.documentNumber.trim() !== "" &&
+        record.installmentNumber != null &&
+        record.installmentNumber > 0 &&
+        record.dueDate != null
+      ) {
+        const dueCivil = toCivilDateString(record.dueDate);
+        const key = `${record.entitySourceId ?? ""}|${dueCivil}|${record.paymentMethodSourceId ?? ""}|${record.bankAccountSourceId ?? ""}`;
+        let list = candidateIndex.get(key);
+        if (!list) {
+          list = [];
+          candidateIndex.set(key, list);
+        }
+        list.push(record);
+      }
+    }
+  }
+
+  const reconciledTitleMap = new Map<string, ReconciledTitleMatch>();
+  let matchedEventCount = 0;
+  let reconciledAmount = new Prisma.Decimal(0);
+  let nominalTitleAmount = new Prisma.Decimal(0);
+  let deltaAmount = new Prisma.Decimal(0);
+  let ambiguousCount = 0;
+  let unmatchedCount = 0;
+
+  for (const event of bankEvents) {
+    if (event.dueDate == null) {
+      unmatchedCount++;
+      continue;
+    }
+    const dueCivil = toCivilDateString(event.dueDate);
+    const key = `${event.entitySourceId ?? ""}|${dueCivil}|${event.paymentMethodSourceId ?? ""}|${event.bankAccountSourceId ?? ""}`;
+    const candidates = candidateIndex.get(key) ?? [];
+
+    const matchResult = findBancoInterMatchedTitle(
+      {
+        entitySourceId: event.entitySourceId,
+        dueDate: event.dueDate,
+        paymentMethodSourceId: event.paymentMethodSourceId,
+        bankAccountSourceId: event.bankAccountSourceId,
+      },
+      candidates,
+    );
+
+    if (matchResult.status === "MATCH_UNIQUE" && matchResult.matchedTitle) {
+      const matched = matchResult.matchedTitle;
+      const titleSourceId = matched.sourceId;
+
+      if (!titleSourceId) {
+        unmatchedCount++;
+        continue;
+      }
+
+      // Detect collision: if title already matched by another event, treat as ambiguous
+      if (reconciledTitleMap.has(titleSourceId)) {
+        console.warn(
+          `[BancoInterReconciliation] Conflict: title ${titleSourceId} already matched; marking ambiguous`,
+        );
+        ambiguousCount++;
+        continue;
+      }
+
+      const bankAmount = extractBancoInterEventAmount(event);
+      const titleCanonicalAmount = calculateEffectiveCashAmount(matched);
+      const bankDelta = bankAmount.minus(titleCanonicalAmount);
+
+      reconciledTitleMap.set(titleSourceId, {
+        titleSourceId,
+        eventSourceId: event.sourceId ?? "unknown",
+        bankAmount,
+        titleCanonicalAmount,
+        bankDelta,
+      });
+
+      matchedEventCount++;
+      reconciledAmount = reconciledAmount.plus(bankAmount);
+      nominalTitleAmount = nominalTitleAmount.plus(titleCanonicalAmount);
+      deltaAmount = deltaAmount.plus(bankDelta);
+    } else if (matchResult.status === "MATCH_AMBIGUOUS") {
+      ambiguousCount++;
+      console.warn(
+        `[BancoInterReconciliation] Ambiguous match for event ${event.sourceId ?? "unknown"} (${matchResult.candidatesCount} candidates)`,
+      );
+    } else {
+      unmatchedCount++;
+      console.warn(
+        `[BancoInterReconciliation] No match found for event ${event.sourceId ?? "unknown"}`,
+      );
+    }
+  }
+
+  return {
+    reconciledTitleMap,
+    matchedEventCount,
+    reconciledAmount,
+    nominalTitleAmount,
+    deltaAmount,
+    ambiguousCount,
+    unmatchedCount,
+  };
+}
+
+export interface CashEligibilityInput extends BancoInterClassifierRecordInput {
   isConfirmed: boolean;
   isTransfer?: boolean;
   sourcePresent?: boolean;
@@ -56,7 +408,8 @@ export function classifyFinancialRecordCash(
  * 1. Must have sourcePresent !== false
  * 2. Must not be a transfer (isTransfer !== true)
  * 3. Must be confirmed (isConfirmed === true)
- * 4. Must NOT be classified as NON_CASH_STOCK_ADJUSTMENT_OUTFLOW
+ * 4. Must NOT be an auxiliary Banco Inter reconciliation event (structural protection)
+ * 5. Must NOT be classified as NON_CASH_STOCK_ADJUSTMENT_OUTFLOW
  */
 export function isEligibleForCashFlow(
   record: CashEligibilityInput,
@@ -64,6 +417,7 @@ export function isEligibleForCashFlow(
   if (record.sourcePresent === false) return false;
   if (record.isTransfer === true) return false;
   if (!record.isConfirmed) return false;
+  if (isBancoInterReconciliationEvent(record)) return false;
   if (classifyFinancialRecordCash(record) === "NON_CASH_STOCK_ADJUSTMENT_OUTFLOW") {
     return false;
   }
@@ -192,7 +546,7 @@ export function calculateAgingBucket(
   return "d90_plus";
 }
 
-export interface OperationalSummaryInputRecord {
+export interface OperationalSummaryInputRecord extends BancoInterClassifierRecordInput {
   dueDate: Date | string;
   totalAmount: Prisma.Decimal | number | string | null;
   isConfirmed: boolean;
@@ -226,6 +580,9 @@ export function aggregateOperationalSummary(
 
   for (const record of records) {
     if (record.isConfirmed) {
+      continue;
+    }
+    if (isBancoInterReconciliationEvent(record)) {
       continue;
     }
 
@@ -287,7 +644,8 @@ export function aggregateOperationalSummary(
   };
 }
 
-export interface CashFlowRecordInput {
+export interface CashFlowRecordInput extends BancoInterClassifierRecordInput {
+  sourceId?: string;
   type: FinancialRecordType;
   confirmationDate: Date | string | null;
   paidAmount?: Prisma.Decimal | number | string | null;
@@ -295,8 +653,9 @@ export interface CashFlowRecordInput {
   isConfirmed: boolean;
   isTransfer?: boolean;
   sourcePresent?: boolean;
-  sourceId?: string;
   hasStockAdjustmentOutflowLink?: boolean;
+  dueDate?: Date | string;
+  entitySourceId?: string | null;
 }
 
 export interface AggregateCashFlowOptions {
@@ -308,6 +667,7 @@ export interface AggregateCashFlowOptions {
 /**
  * Aggregates realized cash flow timeseries and totals for dated confirmed records.
  * UNDATED records are explicitly excluded from the timeseries.
+ * Auxiliary Banco Inter events are reconciled with commercial titles and NEVER enter the timeseries directly.
  */
 export function aggregateCashFlowSeries(
   records: CashFlowRecordInput[],
@@ -322,10 +682,15 @@ export function aggregateCashFlowSeries(
     totalCount: number;
   };
   series: CashFlowTimeseriesPoint[];
+  bankReconciliation: BankReconciliationSummary;
 } {
   const granularity = options.granularity ?? "month";
   const fromStr = options.from?.trim() || null;
   const toStr = options.to?.trim() || null;
+
+  // Reconcile Banco Inter events across the records universe
+  const reconciliation = reconcileBancoInterEvents(records);
+  const { reconciledTitleMap } = reconciliation;
 
   interface PeriodAccumulator {
     inflows: Prisma.Decimal;
@@ -342,6 +707,8 @@ export function aggregateCashFlowSeries(
   let totalOutflowCount = 0;
 
   for (const record of records) {
+    // Structural protection: auxiliary Banco Inter events NEVER directly enter timeseries
+    if (isBancoInterReconciliationEvent(record)) continue;
     if (!isEligibleForCashFlow(record)) continue;
     if (record.confirmationDate == null) continue; // Undated excluded from timeseries
 
@@ -352,7 +719,13 @@ export function aggregateCashFlowSeries(
     const periodKey =
       granularity === "month" ? dateStr.slice(0, 7) : dateStr;
 
-    const effectiveAmount = calculateEffectiveCashAmount(record);
+    // Use bank reconciled amount if commercial title was matched
+    let effectiveAmount: Prisma.Decimal;
+    if (record.sourceId && reconciledTitleMap.has(record.sourceId)) {
+      effectiveAmount = reconciledTitleMap.get(record.sourceId)!.bankAmount;
+    } else {
+      effectiveAmount = calculateEffectiveCashAmount(record);
+    }
 
     let periodAcc = periodMap.get(periodKey);
     if (!periodAcc) {
@@ -406,11 +779,20 @@ export function aggregateCashFlowSeries(
       totalCount: totalInflowCount + totalOutflowCount,
     },
     series,
+    bankReconciliation: {
+      matchedEventCount: reconciliation.matchedEventCount,
+      reconciledAmount: Number(reconciliation.reconciledAmount.toFixed(2)),
+      nominalTitleAmount: Number(reconciliation.nominalTitleAmount.toFixed(2)),
+      deltaAmount: Number(reconciliation.deltaAmount.toFixed(2)),
+      ambiguousCount: reconciliation.ambiguousCount,
+      unmatchedCount: reconciliation.unmatchedCount,
+    },
   };
 }
 
 /**
  * Aggregates undated confirmed cash summary (isConfirmed=true, confirmationDate=null).
+ * Auxiliary Banco Inter events are excluded from undated confirmed cash.
  */
 export function aggregateUndatedConfirmedCash(
   records: CashFlowRecordInput[],
@@ -420,6 +802,7 @@ export function aggregateUndatedConfirmedCash(
   let outflows = new Prisma.Decimal(0);
 
   for (const record of records) {
+    if (isBancoInterReconciliationEvent(record)) continue;
     if (!isEligibleForCashFlow(record)) continue;
     if (record.confirmationDate != null) continue;
 

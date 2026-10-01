@@ -400,7 +400,7 @@ describe("Phase 5K: Financial Module Frontend Tests (A through M)", () => {
       />,
     );
 
-    expect(html).toContain("Lançamentos Confirmados Sem Data");
+    expect(html).toContain("Confirmados sem data de confirmação");
     expect(html).toContain("Cliente Exemplo");
     expect(html).toContain("Venda Balcão");
     expect(html).toContain("Doc:");
@@ -426,7 +426,7 @@ describe("Phase 5K: Financial Module Frontend Tests (A through M)", () => {
       <FinancialCashFlowTab initialOverview={mockCashFlowOverview} />,
     );
     expect(html).toContain(
-      "Esses lançamentos não entram no gráfico por período porque não possuem data de confirmação registrada.",
+      "não entram no gráfico temporal porque não possuem data de confirmação fornecida pela API.",
     );
     expect(html).not.toContain("competência de liquidação");
   });

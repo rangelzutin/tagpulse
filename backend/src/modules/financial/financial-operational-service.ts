@@ -279,7 +279,7 @@ export function createFinancialOperationalService(
           }),
         ]);
 
-        const { totals, series } = aggregateCashFlowSeries(records, {
+        const { totals, series, bankReconciliation } = aggregateCashFlowSeries(records, {
           granularity,
           from: fromStr,
           to: toStr,
@@ -297,6 +297,7 @@ export function createFinancialOperationalService(
             series,
             undated,
             excludedNonCashStockAdjustments: excludedSummary,
+            bankReconciliation,
           },
         };
       } catch (err: unknown) {

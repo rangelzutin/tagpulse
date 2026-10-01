@@ -102,9 +102,14 @@ function CustomCashFlowTooltip({ active, payload }: CustomTooltipProps) {
 export function FinancialCashFlowTab({
   initialOverview,
 }: FinancialCashFlowTabProps) {
-  const [currentPeriod, setCurrentPeriod] = useState(() => getDefaultPeriod());
+  const [currentPeriod, setCurrentPeriod] = useState(() => {
+    if (initialOverview?.from && initialOverview?.to) {
+      return { from: initialOverview.from, to: initialOverview.to };
+    }
+    return getDefaultPeriod();
+  });
   const [periodMode, setPeriodMode] = useState<PeriodMode>("range");
-  const [granularity, setGranularity] = useState<"month" | "day">("month");
+  const [granularity, setGranularity] = useState<"month" | "day">(() => initialOverview?.granularity ?? "month");
 
   // Only use initialOverview if it actually matches currentPeriod and granularity
   const isInitialMatching = Boolean(
@@ -253,9 +258,9 @@ export function FinancialCashFlowTab({
               </strong>{" "}
               <span>
                 Existem <strong>{formatNumber(undatedSummary.undatedConfirmedCount)}</strong> lançamentos
-                confirmados sem data no ERP (Saldo:{" "}
+                marcados como confirmados sem data de confirmação fornecida pela API TagPlus (Saldo:{" "}
                 <strong>{formatCurrency(undatedSummary.undatedConfirmedNet)}</strong>). Esses lançamentos não
-                entram no gráfico por período porque não possuem data de confirmação registrada.
+                entram no gráfico temporal porque não possuem data de confirmação fornecida pela API.
               </span>
             </div>
           </div>

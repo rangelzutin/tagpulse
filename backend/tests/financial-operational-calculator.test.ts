@@ -9,8 +9,12 @@ import {
   classifyFinancialRecordCash,
   deriveDueDateStatus,
   deriveOperationalStatus,
+  extractBancoInterEventAmount,
+  findBancoInterMatchedTitle,
   FinancialDataAnomalyError,
+  isBancoInterReconciliationEvent,
   isEligibleForCashFlow,
+  reconcileBancoInterEvents,
   toCivilDateString,
 } from "../src/modules/financial/financial-operational-calculator.js";
 
@@ -678,6 +682,227 @@ describe("financial-operational-calculator", () => {
 
       // Prova matemática: outflow-before - outflow-after = excludedAmount
       expect(outflowBefore - outflowAfter).toBe(excludedAmount);
+    });
+  });
+
+  describe("Fase 5K: Reconciliação Banco Inter x Título Comercial (Seção 16)", () => {
+    function makeBancoInterEvent(overrides: Record<string, any> = {}) {
+      return {
+        sourceId: "11191",
+        type: "ENTRADA" as const,
+        description: "Pagamento confirmado via Banco Inter - 04/08/2026 05:17:30",
+        documentNumber: null,
+        entitySourceId: "4776",
+        dueDate: "2026-07-29",
+        confirmationDate: null,
+        totalAmount: 583.12,
+        paidAmount: 583.12,
+        isConfirmed: true,
+        isTransfer: false,
+        sourcePresent: true,
+        installmentNumber: 0,
+        installmentCount: 0,
+        paymentMethodSourceId: "24",
+        bankAccountSourceId: "8",
+        linkedInvoiceInstallmentSourceId: null,
+        sourcePayload: {
+          boleto: [
+            {
+              id: 11191,
+              valor_cobrado: 583.12,
+              valor_pago: 583.12,
+              status: "PAGO",
+            },
+          ],
+        },
+        ...overrides,
+      };
+    }
+
+    function makeCommercialTitle(overrides: Record<string, any> = {}) {
+      return {
+        sourceId: "11061",
+        type: "ENTRADA" as const,
+        description: "Venda NF-e 2830 parc 1",
+        documentNumber: "2830001",
+        entitySourceId: "4776",
+        dueDate: "2026-07-29",
+        confirmationDate: "2026-08-06",
+        totalAmount: 570.0,
+        paidAmount: 570.0,
+        isConfirmed: true,
+        isTransfer: false,
+        sourcePresent: true,
+        installmentNumber: 1,
+        installmentCount: 3,
+        paymentMethodSourceId: "24",
+        bankAccountSourceId: "8",
+        linkedInvoiceInstallmentSourceId: null,
+        sourcePayload: null,
+        ...overrides,
+      };
+    }
+
+    it("A. Evento Banco com MATCH_UNIQUE: evento não entra diretamente, título entra uma vez, cashAmount=evento, cashDate=título", () => {
+      const event = makeBancoInterEvent({ totalAmount: 583.12 });
+      const title = makeCommercialTitle({ totalAmount: 570.0, confirmationDate: "2026-08-06" });
+
+      const records = [event, title];
+
+      const result = aggregateCashFlowSeries(records, { granularity: "month" });
+
+      expect(result.totals.inflowCount).toBe(1);
+      expect(result.totals.totalCount).toBe(1);
+      expect(result.totals.inflows).toBe(583.12);
+      expect(result.totals.netCashFlow).toBe(583.12);
+
+      expect(result.series).toHaveLength(1);
+      expect(result.series[0].period).toBe("2026-08");
+      expect(result.series[0].inflows).toBe(583.12);
+      expect(result.series[0].inflowCount).toBe(1);
+
+      expect(result.bankReconciliation.matchedEventCount).toBe(1);
+      expect(result.bankReconciliation.reconciledAmount).toBe(583.12);
+      expect(result.bankReconciliation.nominalTitleAmount).toBe(570.0);
+      expect(result.bankReconciliation.deltaAmount).toBe(13.12);
+      expect(result.bankReconciliation.ambiguousCount).toBe(0);
+      expect(result.bankReconciliation.unmatchedCount).toBe(0);
+    });
+
+    it("B. Evento recebe confirmationDate no futuro: continua NÃO entrando separadamente e sem duplicidade", () => {
+      const eventWithFutureDate = makeBancoInterEvent({
+        confirmationDate: "2026-08-04",
+      });
+      const title = makeCommercialTitle({
+        totalAmount: 570.0,
+        confirmationDate: "2026-08-06",
+      });
+
+      const records = [eventWithFutureDate, title];
+      const result = aggregateCashFlowSeries(records, { granularity: "month" });
+
+      expect(result.totals.inflowCount).toBe(1);
+      expect(result.totals.inflows).toBe(583.12);
+      expect(result.series[0].period).toBe("2026-08");
+      expect(result.series[0].inflowCount).toBe(1);
+    });
+
+    it("C. MATCH_AMBIGUOUS: evento não entra e não sobrescreve título arbitrariamente", () => {
+      const event = makeBancoInterEvent({ totalAmount: 583.12 });
+      const title1 = makeCommercialTitle({
+        sourceId: "11061",
+        documentNumber: "2830001",
+        totalAmount: 570.0,
+        confirmationDate: "2026-08-06",
+      });
+      const title2 = makeCommercialTitle({
+        sourceId: "11062-dup",
+        documentNumber: "2830002",
+        totalAmount: 570.0,
+        confirmationDate: "2026-08-06",
+      });
+
+      const records = [event, title1, title2];
+      const result = aggregateCashFlowSeries(records, { granularity: "month" });
+
+      expect(result.totals.inflowCount).toBe(2);
+      expect(result.totals.inflows).toBe(1140.0);
+      expect(result.bankReconciliation.ambiguousCount).toBe(1);
+      expect(result.bankReconciliation.matchedEventCount).toBe(0);
+    });
+
+    it("D. NO_MATCH: evento não entra automaticamente", () => {
+      const event = makeBancoInterEvent({ entitySourceId: "99999" });
+      const unrelatedTitle = makeCommercialTitle({ entitySourceId: "11111" });
+
+      const records = [event, unrelatedTitle];
+      const result = aggregateCashFlowSeries(records, { granularity: "month" });
+
+      expect(result.totals.inflowCount).toBe(1);
+      expect(result.totals.inflows).toBe(570.0);
+      expect(result.bankReconciliation.unmatchedCount).toBe(1);
+      expect(result.bankReconciliation.matchedEventCount).toBe(0);
+    });
+
+    it("E. título Banco Inter sem evento: comportamento atual preservado", () => {
+      const normalTitle = makeCommercialTitle({ totalAmount: 570.0, paidAmount: 570.0 });
+      const result = aggregateCashFlowSeries([normalTitle], { granularity: "month" });
+
+      expect(result.totals.inflowCount).toBe(1);
+      expect(result.totals.inflows).toBe(570.0);
+      expect(result.bankReconciliation.matchedEventCount).toBe(0);
+    });
+
+    it("F. delta zero: valor permanece igual", () => {
+      const event = makeBancoInterEvent({
+        sourceId: "11265",
+        totalAmount: 770.0,
+        sourcePayload: {
+          boleto: [{ valor_cobrado: 770.0, status: "PAGO" }],
+        },
+      });
+      const title = makeCommercialTitle({
+        sourceId: "11026",
+        totalAmount: 770.0,
+        paidAmount: 770.0,
+        confirmationDate: "2026-08-22",
+      });
+
+      const result = aggregateCashFlowSeries([event, title], { granularity: "month" });
+
+      expect(result.totals.inflowCount).toBe(1);
+      expect(result.totals.inflows).toBe(770.0);
+      expect(result.bankReconciliation.matchedEventCount).toBe(1);
+      expect(result.bankReconciliation.deltaAmount).toBe(0.0);
+    });
+
+    it("G. AR: eventos auxiliares não aparecem no resumo de Contas a Receber", () => {
+      const event = makeBancoInterEvent({ isConfirmed: false });
+      const title = makeCommercialTitle({ isConfirmed: false, dueDate: "2026-09-30" });
+
+      const records = [event, title];
+      const summary = aggregateOperationalSummary(records, "2026-09-27");
+
+      expect(summary.openCount).toBe(1);
+      expect(summary.openTotal).toBe(570.0);
+    });
+
+    it("H. undated: eventos auxiliares não aparecem em undated confirmed cash", () => {
+      const event1 = makeBancoInterEvent({ sourceId: "11191", totalAmount: 583.12, confirmationDate: null });
+      const event2 = makeBancoInterEvent({ sourceId: "11309", totalAmount: 583.12, confirmationDate: null });
+      const normalConfirmedDated = makeCommercialTitle({ confirmationDate: "2026-08-06" });
+
+      const records = [event1, event2, normalConfirmedDated];
+      const undated = aggregateUndatedConfirmedCash(records);
+
+      expect(undated.undatedConfirmedCount).toBe(0);
+      expect(undated.undatedConfirmedInflows).toBe(0);
+      expect(undated.undatedConfirmedNet).toBe(0);
+    });
+
+    it("I. stock-adjustment noncash: regra 5J intacta", () => {
+      const stockAdj = {
+        type: "SAIDA" as const,
+        confirmationDate: "2026-08-10",
+        totalAmount: 485.0,
+        paidAmount: 485.0,
+        isConfirmed: true,
+        isTransfer: false,
+        sourcePresent: true,
+        hasStockAdjustmentOutflowLink: true,
+      };
+      const title = makeCommercialTitle({ confirmationDate: "2026-08-06", totalAmount: 570.0 });
+      const bankEvent = makeBancoInterEvent({ totalAmount: 583.12 });
+
+      const result = aggregateCashFlowSeries([stockAdj, title, bankEvent], {
+        granularity: "month",
+      });
+
+      expect(result.totals.outflowCount).toBe(0);
+      expect(result.totals.outflows).toBe(0);
+      expect(result.totals.inflowCount).toBe(1);
+      expect(result.totals.inflows).toBe(583.12);
+      expect(result.totals.netCashFlow).toBe(583.12);
     });
   });
 });
