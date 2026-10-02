@@ -1,6 +1,7 @@
 import { Prisma, type FinancialRecordType, type PrismaClient } from "@prisma/client";
 import type {
   ExcludedNonCashStockAdjustmentsSummary,
+  FinancialBudgetPlanItem,
   FinancialListQueryParams,
   PaginatedResult,
   PayablesListItem,
@@ -52,6 +53,11 @@ export interface ConfirmedCashDbRecord {
 export interface FinancialOperationalRepository {
   findOpenRecordsForSummary(
     type: FinancialRecordType,
+    filters?: {
+      budgetPlanSourceId?: string;
+      dueFrom?: string;
+      dueTo?: string;
+    },
   ): Promise<OperationalSummaryDbRecord[]>;
 
   findReceivablesList(
@@ -79,6 +85,7 @@ export interface FinancialOperationalRepository {
   }): Promise<ExcludedNonCashStockAdjustmentsSummary>;
 
   findBudgetPlanMap(sourceIds: string[]): Promise<Map<string, string>>;
+  findAllActiveBudgetPlans(): Promise<FinancialBudgetPlanItem[]>;
 }
 
 export function createPrismaFinancialOperationalRepository(
@@ -184,13 +191,23 @@ export function createPrismaFinancialOperationalRepository(
   return {
     async findOpenRecordsForSummary(
       type: FinancialRecordType,
+      filters?: {
+        budgetPlanSourceId?: string;
+        dueFrom?: string;
+        dueTo?: string;
+      },
     ): Promise<OperationalSummaryDbRecord[]> {
+      const dueDateWhere = buildDateFilter(filters?.dueFrom, filters?.dueTo);
       const rows = await prisma.financialRecord.findMany({
         where: {
           type,
           isTransfer: false,
           sourcePresent: true,
           isConfirmed: false,
+          ...(filters?.budgetPlanSourceId
+            ? { budgetPlanSourceId: filters.budgetPlanSourceId }
+            : {}),
+          ...(dueDateWhere ? { dueDate: dueDateWhere } : {}),
         },
         select: {
           dueDate: true,
@@ -219,10 +236,9 @@ export function createPrismaFinancialOperationalRepository(
       const skip = (page - 1) * pageSize;
 
       const statusWhere = buildStatusWhere(params.status, referenceDate);
-      const dueDateWhere = buildDateFilter(
-        params.dueDateFrom,
-        params.dueDateTo,
-      );
+      const dueFrom = params.dueFrom ?? params.dueDateFrom;
+      const dueTo = params.dueTo ?? params.dueDateTo;
+      const dueDateWhere = buildDateFilter(dueFrom, dueTo);
       const confirmationDateWhere = buildDateFilter(
         params.confirmationDateFrom,
         params.confirmationDateTo,
@@ -319,10 +335,9 @@ export function createPrismaFinancialOperationalRepository(
       const skip = (page - 1) * pageSize;
 
       const statusWhere = buildStatusWhere(params.status, referenceDate);
-      const dueDateWhere = buildDateFilter(
-        params.dueDateFrom,
-        params.dueDateTo,
-      );
+      const dueFrom = params.dueFrom ?? params.dueDateFrom;
+      const dueTo = params.dueTo ?? params.dueDateTo;
+      const dueDateWhere = buildDateFilter(dueFrom, dueTo);
       const confirmationDateWhere = buildDateFilter(
         params.confirmationDateFrom,
         params.confirmationDateTo,
@@ -334,6 +349,9 @@ export function createPrismaFinancialOperationalRepository(
         isTransfer: false,
         sourcePresent: true,
         ...statusWhere,
+        ...(params.budgetPlanSourceId
+          ? { budgetPlanSourceId: params.budgetPlanSourceId }
+          : {}),
         ...(dueDateWhere ? { dueDate: dueDateWhere } : {}),
         ...(confirmationDateWhere ? { confirmationDate: confirmationDateWhere } : {}),
         ...(searchOR ? { OR: searchOR } : {}),
@@ -594,6 +612,15 @@ export function createPrismaFinancialOperationalRepository(
         map.set(p.sourceId, p.description);
       }
       return map;
+    },
+
+    async findAllActiveBudgetPlans(): Promise<FinancialBudgetPlanItem[]> {
+      const rows = await prisma.financialBudgetPlan.findMany({
+        where: { sourcePresent: true },
+        select: { sourceId: true, description: true },
+        orderBy: { description: "asc" },
+      });
+      return rows;
     },
   };
 }

@@ -40,6 +40,10 @@ import { UndatedCashModal } from "./UndatedCashModal";
 
 interface FinancialCashFlowTabProps {
   initialOverview?: CashFlowOverviewResponse | null;
+  currentPeriod?: { from: string; to: string };
+  periodMode?: PeriodMode;
+  onApplyFilter?: (from: string, to: string, mode: PeriodMode) => void;
+  showPeriodFilter?: boolean;
 }
 
 interface CashFlowChartItem {
@@ -101,15 +105,37 @@ function CustomCashFlowTooltip({ active, payload }: CustomTooltipProps) {
 
 export function FinancialCashFlowTab({
   initialOverview,
+  currentPeriod: currentPeriodProp,
+  periodMode: periodModeProp,
+  onApplyFilter: onApplyFilterProp,
+  showPeriodFilter = true,
 }: FinancialCashFlowTabProps) {
-  const [currentPeriod, setCurrentPeriod] = useState(() => {
+  const [internalPeriod, setInternalPeriod] = useState(() => {
+    if (currentPeriodProp) return currentPeriodProp;
     if (initialOverview?.from && initialOverview?.to) {
       return { from: initialOverview.from, to: initialOverview.to };
     }
     return getDefaultPeriod();
   });
-  const [periodMode, setPeriodMode] = useState<PeriodMode>("range");
+  const [internalPeriodMode, setInternalPeriodMode] = useState<PeriodMode>(
+    periodModeProp ?? "range",
+  );
   const [granularity, setGranularity] = useState<"month" | "day">(() => initialOverview?.granularity ?? "month");
+
+  useEffect(() => {
+    if (currentPeriodProp) {
+      setInternalPeriod(currentPeriodProp);
+    }
+  }, [currentPeriodProp?.from, currentPeriodProp?.to]);
+
+  useEffect(() => {
+    if (periodModeProp) {
+      setInternalPeriodMode(periodModeProp);
+    }
+  }, [periodModeProp]);
+
+  const currentPeriod = currentPeriodProp ?? internalPeriod;
+  const periodMode = periodModeProp ?? internalPeriodMode;
 
   // Only use initialOverview if it actually matches currentPeriod and granularity
   const isInitialMatching = Boolean(
@@ -165,8 +191,12 @@ export function FinancialCashFlowTab({
   }, [currentPeriod.from, currentPeriod.to, granularity, loadCashFlow]);
 
   const handleApplyFilter = (from: string, to: string, mode: PeriodMode) => {
-    setPeriodMode(mode);
-    setCurrentPeriod({ from, to });
+    if (onApplyFilterProp) {
+      onApplyFilterProp(from, to, mode);
+    } else {
+      setInternalPeriodMode(mode);
+      setInternalPeriod({ from, to });
+    }
   };
 
   const handleGranularityChange = (newGran: "month" | "day") => {
@@ -232,15 +262,17 @@ export function FinancialCashFlowTab({
           </div>
         </div>
 
-        <div className="tp-cashflow-period-wrap">
-          <PeriodFilter
-            initialFrom={currentPeriod.from}
-            initialTo={currentPeriod.to}
-            periodMode={periodMode}
-            isLoading={isLoading}
-            onApply={handleApplyFilter}
-          />
-        </div>
+        {showPeriodFilter && (
+          <div className="tp-cashflow-period-wrap">
+            <PeriodFilter
+              initialFrom={currentPeriod.from}
+              initialTo={currentPeriod.to}
+              periodMode={periodMode}
+              isLoading={isLoading}
+              onApply={handleApplyFilter}
+            />
+          </div>
+        )}
       </div>
 
       {/* ========================================================

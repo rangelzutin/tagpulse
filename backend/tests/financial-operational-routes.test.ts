@@ -214,6 +214,10 @@ function createMockRepository(): FinancialOperationalRepository {
     async findBudgetPlanMap() {
       return new Map([["bp-materia-prima", "Matéria-prima"]]);
     },
+
+    async findAllActiveBudgetPlans() {
+      return [{ sourceId: "bp-materia-prima", description: "Matéria-prima" }];
+    },
   };
 }
 
@@ -360,6 +364,35 @@ describe("Financial Operational Routes — Contracts and Integration", () => {
       expect(item.departmentSourceId).toBe("dept-fabrica");
       expect(item.paymentMethodSourceId).toBe("pm-boleto");
       expect(item.installments).toEqual({ number: 1, count: 1 });
+    });
+
+    it("accepts budgetPlanSourceId and dueFrom/dueTo filters", async () => {
+      const app = await createTestApp();
+      const res = await app.inject({
+        method: "GET",
+        url: "/financial/payables?budgetPlanSourceId=bp-materia-prima&dueFrom=2026-09-01&dueTo=2026-09-30",
+      });
+
+      expect(res.statusCode).toBe(200);
+      const data = res.json();
+      expect(data.items).toHaveLength(1);
+    });
+  });
+
+  describe("GET /financial/budget-plans", () => {
+    it("returns 200 with list of active budget plans", async () => {
+      const app = await createTestApp();
+      const res = await app.inject({
+        method: "GET",
+        url: "/financial/budget-plans",
+      });
+
+      expect(res.statusCode).toBe(200);
+      const data = res.json();
+      expect(Array.isArray(data)).toBe(true);
+      expect(data).toHaveLength(1);
+      expect(data[0].sourceId).toBe("bp-materia-prima");
+      expect(data[0].description).toBe("Matéria-prima");
     });
   });
 

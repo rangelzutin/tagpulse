@@ -95,12 +95,29 @@ export interface PaginatedResult<T> {
   totalPages: number;
 }
 
+export interface FinancialBudgetPlanItem {
+  sourceId: string;
+  description: string;
+}
+
+export interface FinancialOverviewQueryParams {
+  referenceDate?: string;
+  dueFrom?: string;
+  dueTo?: string;
+  dueDateFrom?: string;
+  dueDateTo?: string;
+  budgetPlanSourceId?: string;
+}
+
 export interface FinancialListQueryParams {
   status?: FinancialListStatusFilter;
   search?: string;
   referenceDate?: string;
+  dueFrom?: string;
+  dueTo?: string;
   dueDateFrom?: string;
   dueDateTo?: string;
+  budgetPlanSourceId?: string;
   confirmationDateFrom?: string;
   confirmationDateTo?: string;
   page?: number | string;
@@ -247,10 +264,14 @@ function buildFinancialUrl(
 }
 
 export async function fetchReceivablesOverview(
-  referenceDate?: string,
+  query?: string | FinancialOverviewQueryParams,
 ): Promise<ReceivablesOverviewResponse> {
+  const params: FinancialOverviewQueryParams =
+    typeof query === "string" ? { referenceDate: query } : (query ?? {});
   const url = buildFinancialUrl("/financial/receivables/overview", {
-    referenceDate,
+    referenceDate: params.referenceDate,
+    dueFrom: params.dueFrom ?? params.dueDateFrom,
+    dueTo: params.dueTo ?? params.dueDateTo,
   });
 
   let response: Response;
@@ -279,8 +300,8 @@ export async function fetchReceivablesList(
     status: params.status,
     search: params.search,
     referenceDate: params.referenceDate,
-    dueDateFrom: params.dueDateFrom,
-    dueDateTo: params.dueDateTo,
+    dueFrom: params.dueFrom ?? params.dueDateFrom,
+    dueTo: params.dueTo ?? params.dueDateTo,
     confirmationDateFrom: params.confirmationDateFrom,
     confirmationDateTo: params.confirmationDateTo,
     page: params.page,
@@ -308,10 +329,15 @@ export async function fetchReceivablesList(
 }
 
 export async function fetchPayablesOverview(
-  referenceDate?: string,
+  query?: string | FinancialOverviewQueryParams,
 ): Promise<PayablesOverviewResponse> {
+  const params: FinancialOverviewQueryParams =
+    typeof query === "string" ? { referenceDate: query } : (query ?? {});
   const url = buildFinancialUrl("/financial/payables/overview", {
-    referenceDate,
+    referenceDate: params.referenceDate,
+    dueFrom: params.dueFrom ?? params.dueDateFrom,
+    dueTo: params.dueTo ?? params.dueDateTo,
+    budgetPlanSourceId: params.budgetPlanSourceId,
   });
 
   let response: Response;
@@ -340,8 +366,9 @@ export async function fetchPayablesList(
     status: params.status,
     search: params.search,
     referenceDate: params.referenceDate,
-    dueDateFrom: params.dueDateFrom,
-    dueDateTo: params.dueDateTo,
+    dueFrom: params.dueFrom ?? params.dueDateFrom,
+    dueTo: params.dueTo ?? params.dueDateTo,
+    budgetPlanSourceId: params.budgetPlanSourceId,
     confirmationDateFrom: params.confirmationDateFrom,
     confirmationDateTo: params.confirmationDateTo,
     page: params.page,
@@ -366,6 +393,28 @@ export async function fetchPayablesList(
   }
 
   return (await response.json()) as PaginatedResult<PayablesListItem>;
+}
+
+export async function fetchBudgetPlans(): Promise<FinancialBudgetPlanItem[]> {
+  const url = buildFinancialUrl("/financial/budget-plans");
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      headers: { Accept: "application/json" },
+    });
+  } catch (err: unknown) {
+    const details = err instanceof Error ? err.message : String(err);
+    console.error(`[financial API] Connection failure at ${url}:`, err);
+    throw new Error(`Não foi possível conectar ao servidor para listar planos orçamentários: ${details}`);
+  }
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({}));
+    throw new Error(errorBody.message || "Erro ao consultar planos orçamentários.");
+  }
+
+  return (await response.json()) as FinancialBudgetPlanItem[];
 }
 
 export async function fetchCashFlowOverview(query?: {
