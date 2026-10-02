@@ -1,6 +1,8 @@
 import type {
   CashFlowOverviewResponse,
+  FinancialBudgetPlanItem,
   FinancialListQueryParams,
+  FinancialOverviewQueryParams,
   PaginatedResult,
   PayablesListItem,
   PayablesOverviewResponse,
@@ -46,7 +48,7 @@ function isValidCivilDate(value: string): boolean {
 
 export interface FinancialOperationalService {
   getReceivablesOverview(
-    referenceDate?: string,
+    query?: string | FinancialOverviewQueryParams,
   ): Promise<ServiceResult<ReceivablesOverviewResponse>>;
 
   getReceivablesList(
@@ -54,12 +56,14 @@ export interface FinancialOperationalService {
   ): Promise<ServiceResult<PaginatedResult<ReceivablesListItem>>>;
 
   getPayablesOverview(
-    referenceDate?: string,
+    query?: string | FinancialOverviewQueryParams,
   ): Promise<ServiceResult<PayablesOverviewResponse>>;
 
   getPayablesList(
     params: FinancialListQueryParams,
   ): Promise<ServiceResult<PaginatedResult<PayablesListItem>>>;
+
+  getBudgetPlans(): Promise<ServiceResult<FinancialBudgetPlanItem[]>>;
 
   getCashFlowOverview(query?: {
     from?: string;
@@ -89,19 +93,29 @@ export function createFinancialOperationalService(
 
   return {
     async getReceivablesOverview(
-      referenceDate?: string,
+      query?: string | FinancialOverviewQueryParams,
     ): Promise<ServiceResult<ReceivablesOverviewResponse>> {
       try {
-        const refDate = resolveReferenceDate(referenceDate);
-        if (referenceDate && !isValidCivilDate(referenceDate.trim())) {
+        const params: FinancialOverviewQueryParams =
+          typeof query === "string" ? { referenceDate: query } : (query ?? {});
+        const refDate = resolveReferenceDate(params.referenceDate);
+        if (
+          params.referenceDate &&
+          !isValidCivilDate(params.referenceDate.trim())
+        ) {
           return {
             success: false,
             error: "Data de referência inválida. Use o formato YYYY-MM-DD.",
           };
         }
 
-        const openRecords =
-          await repository.findOpenRecordsForSummary("ENTRADA");
+        const dueFrom = params.dueFrom ?? params.dueDateFrom;
+        const dueTo = params.dueTo ?? params.dueDateTo;
+
+        const openRecords = await repository.findOpenRecordsForSummary("ENTRADA", {
+          dueFrom,
+          dueTo,
+        });
         const summary = aggregateOperationalSummary(openRecords, refDate);
 
         return {
@@ -154,18 +168,30 @@ export function createFinancialOperationalService(
     },
 
     async getPayablesOverview(
-      referenceDate?: string,
+      query?: string | FinancialOverviewQueryParams,
     ): Promise<ServiceResult<PayablesOverviewResponse>> {
       try {
-        const refDate = resolveReferenceDate(referenceDate);
-        if (referenceDate && !isValidCivilDate(referenceDate.trim())) {
+        const params: FinancialOverviewQueryParams =
+          typeof query === "string" ? { referenceDate: query } : (query ?? {});
+        const refDate = resolveReferenceDate(params.referenceDate);
+        if (
+          params.referenceDate &&
+          !isValidCivilDate(params.referenceDate.trim())
+        ) {
           return {
             success: false,
             error: "Data de referência inválida. Use o formato YYYY-MM-DD.",
           };
         }
 
-        const openRecords = await repository.findOpenRecordsForSummary("SAIDA");
+        const dueFrom = params.dueFrom ?? params.dueDateFrom;
+        const dueTo = params.dueTo ?? params.dueDateTo;
+
+        const openRecords = await repository.findOpenRecordsForSummary("SAIDA", {
+          budgetPlanSourceId: params.budgetPlanSourceId,
+          dueFrom,
+          dueTo,
+        });
         const summary = aggregateOperationalSummary(openRecords, refDate);
 
         return {
@@ -182,6 +208,22 @@ export function createFinancialOperationalService(
             err instanceof Error
               ? err.message
               : "Erro ao gerar resumo de contas a pagar.",
+        };
+      }
+    },
+
+    async getBudgetPlans(): Promise<ServiceResult<FinancialBudgetPlanItem[]>> {
+      try {
+        const data = await repository.findAllActiveBudgetPlans();
+        return {
+          success: true,
+          data,
+        };
+      } catch (err: unknown) {
+        return {
+          success: false,
+          error:
+            err instanceof Error ? err.message : "Erro ao listar planos orçamentários.",
         };
       }
     },

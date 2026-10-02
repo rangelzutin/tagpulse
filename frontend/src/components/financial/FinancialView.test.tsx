@@ -569,5 +569,141 @@ describe("Phase 5K: Financial Module Frontend Tests (A through M)", () => {
     );
     expect(htmlDataCashFlow).not.toContain("tp-state-error");
   });
+
+  // S. Post-5K AR/AP: Humanization of Names and Descriptions with Tooltip Traceability
+  describe("S. AR/AP Humanization and Traceability (Post-5K Visual Polish)", () => {
+    it("renders humanized entity names, concise descriptions, and preserves original values in title tooltips (AR)", () => {
+      const mockReceivablesList = {
+        items: [
+          {
+            id: 101,
+            entityName: "BLEND SHOP LTDA",
+            description: "Lançamento referente à Nota Fiscal Eletrônica de número 2751, cliente BLEND SHOP LTDA",
+            documentNumber: "000002751003",
+            installmentNumber: 3,
+            installmentCount: 3,
+            dueDate: "2026-10-15",
+            originalAmount: 1250.0,
+            remainingAmount: 1250.0,
+            status: "ABERTO",
+            delayDays: 0,
+            category: "Vendas",
+            account: "Itaú",
+          },
+        ],
+        totalCount: 1,
+        page: 1,
+        pageSize: 25,
+        totalPages: 1,
+      };
+
+      const html = renderToString(
+        <FinancialReceivablesTab initialList={mockReceivablesList as any} />,
+      );
+
+      // Humanized entity name displayed
+      expect(html).toContain("Blend Shop Ltda");
+      // Original uppercase entity name preserved in title for traceability
+      expect(html).toContain('title="BLEND SHOP LTDA"');
+
+      // Humanized concise description displayed (without repeating client)
+      expect(html).toContain("NF-e 2751");
+      // Original repetitive description preserved in title
+      expect(html).toContain('title="Lançamento referente à Nota Fiscal Eletrônica de número 2751, cliente BLEND SHOP LTDA"');
+
+      // Document and installment displayed cleanly in doc row
+      expect(html).toMatch(/Doc:\s*(<!-- -->)?\s*000002751003/);
+      expect(html).toContain("3/3");
+    });
+
+    it("renders humanized entity names, concise descriptions, and preserves original values in title tooltips (AP)", () => {
+      const mockPayablesList = {
+        items: [
+          {
+            id: 202,
+            entityName: "JOOMPRO",
+            description: "Lançamento referente à Ajuste de Estoque de número 701, fornecedor JOOMPRO",
+            documentNumber: "1",
+            installmentNumber: 1,
+            installmentCount: 10,
+            dueDate: "2026-10-20",
+            totalAmount: 485.0,
+            remainingAmount: 485.0,
+            status: "ABERTO",
+            delayDays: 0,
+            category: "Estoque",
+            account: "Bradesco",
+            budgetPlanDescription: "Compras",
+          },
+        ],
+        totalCount: 1,
+        page: 1,
+        pageSize: 25,
+        totalPages: 1,
+      };
+
+      const html = renderToString(
+        <FinancialPayablesTab initialList={mockPayablesList as any} />,
+      );
+
+      // Column order verification: Restored order in thead (Fornecedor -> Descrição -> Plano Orçamentário)
+      const theadHtml = html.substring(html.indexOf("<thead"), html.indexOf("</thead>"));
+      const idxSupplierHeader = theadHtml.indexOf("Fornecedor / Entidade");
+      const idxDescHeader = theadHtml.indexOf("Descrição / Documento");
+      const idxBudgetHeader = theadHtml.indexOf("Plano Orçamentário");
+      expect(idxSupplierHeader).toBeGreaterThan(-1);
+      expect(idxDescHeader).toBeGreaterThan(-1);
+      expect(idxBudgetHeader).toBeGreaterThan(-1);
+      expect(idxSupplierHeader).toBeLessThan(idxDescHeader);
+      expect(idxDescHeader).toBeLessThan(idxBudgetHeader);
+
+      // Budget plan discrete badge rendered in 3rd column
+      expect(html).toContain("tp-budget-plan-label");
+      expect(html).toContain("Compras");
+
+      // Filter bar elements present: Month navigator & Budget plan select
+      expect(html).toContain("tp-month-navigator");
+      expect(html).toContain("tp-budget-plan-select");
+      expect(html).toContain("Plano: Todos");
+
+      // Humanized entity name displayed
+      expect(html).toContain("Joompro");
+      // Original entity name preserved in title
+      expect(html).toContain('title="JOOMPRO"');
+
+      // Concise description displayed
+      expect(html).toContain("Ajuste de estoque 701");
+      // Original technical description preserved in title
+      expect(html).toContain('title="Lançamento referente à Ajuste de Estoque de número 701, fornecedor JOOMPRO"');
+
+      // Document and installment
+      expect(html).toMatch(/Doc:\s*(<!-- -->)?\s*1/);
+      expect(html).toContain("1/10");
+    });
+
+    it("Post-5K: AR/AP filters and referenceDate integration (Tests A, B, F, G, H)", () => {
+      // 1. Receivables tab renders month navigator without budget plan select
+      const htmlRec = renderToString(
+        <FinancialReceivablesTab referenceDate="2026-10-02" />,
+      );
+      expect(htmlRec).toContain("tp-month-navigator");
+      expect(htmlRec).not.toContain("tp-budget-plan-select");
+      expect(htmlRec).toContain("Cliente / Entidade");
+
+      // 2. Payables tab renders both month navigator and budget plan select
+      const htmlPay = renderToString(
+        <FinancialPayablesTab referenceDate="2026-10-02" />,
+      );
+      expect(htmlPay).toContain("tp-month-navigator");
+      expect(htmlPay).toContain("tp-budget-plan-select");
+
+      // 3. FinancialView passes referenceDate and minDate to components
+      const htmlView = renderToString(
+        <FinancialView minDate="2015-05-05" />,
+      );
+      expect(htmlView).toContain("Financeiro");
+      expect(htmlView).toContain("tp-period-trigger");
+    });
+  });
 });
 

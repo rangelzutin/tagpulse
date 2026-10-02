@@ -1,6 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import type { FinancialOperationalService } from "./financial-operational-service.js";
-import type { FinancialListQueryParams } from "./financial-operational-types.js";
+import type {
+  FinancialListQueryParams,
+  FinancialOverviewQueryParams,
+} from "./financial-operational-types.js";
 
 export function registerFinancialOperationalRoutes(
   app: FastifyInstance,
@@ -8,8 +11,8 @@ export function registerFinancialOperationalRoutes(
 ): void {
   // 1. Contas a Receber — Overview
   app.get("/financial/receivables/overview", async (request, reply) => {
-    const query = (request.query ?? {}) as { referenceDate?: string };
-    const result = await service.getReceivablesOverview(query.referenceDate);
+    const query = (request.query ?? {}) as FinancialOverviewQueryParams;
+    const result = await service.getReceivablesOverview(query);
 
     if (!result.success) {
       return reply.code(400).send({
@@ -38,8 +41,35 @@ export function registerFinancialOperationalRoutes(
 
   // 3. Contas a Pagar — Overview
   app.get("/financial/payables/overview", async (request, reply) => {
-    const query = (request.query ?? {}) as { referenceDate?: string };
-    const result = await service.getPayablesOverview(query.referenceDate);
+    const query = (request.query ?? {}) as FinancialOverviewQueryParams;
+    const result = await service.getPayablesOverview(query);
+
+    if (!result.success) {
+      return reply.code(400).send({
+        status: "error",
+        message: result.error,
+      });
+    }
+
+    return reply.code(200).send(result.data);
+  });
+
+  // 3b. Planos Orçamentários
+  app.get("/financial/budget-plans", async (_request, reply) => {
+    const result = await service.getBudgetPlans();
+
+    if (!result.success) {
+      return reply.code(400).send({
+        status: "error",
+        message: result.error,
+      });
+    }
+
+    return reply.code(200).send(result.data);
+  });
+
+  app.get("/financial/payables/budget-plans", async (_request, reply) => {
+    const result = await service.getBudgetPlans();
 
     if (!result.success) {
       return reply.code(400).send({

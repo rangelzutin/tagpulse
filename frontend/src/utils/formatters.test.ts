@@ -18,6 +18,8 @@ import {
   formatDateBr,
   formatChannelLabel,
   getPeriodPresets,
+  formatFinancialEntityName,
+  formatFinancialDescription,
 } from "./formatters";
 
 
@@ -391,6 +393,65 @@ describe("formatters utils", () => {
 
     it("preserves unknown values as fallback", () => {
       expect(formatChannelLabel("OUTRO_CANAL")).toBe("OUTRO_CANAL");
+    });
+  });
+
+  describe("formatFinancialEntityName", () => {
+    it("A. converts full uppercase entity names into humanized Title Case with preserved acronyms and Ltda", () => {
+      expect(formatFinancialEntityName("BLEND SHOP LTDA")).toBe("Blend Shop Ltda");
+      expect(formatFinancialEntityName("ADIANTE SKATE SHOP LTDA")).toBe("Adiante Skate Shop Ltda");
+      expect(formatFinancialEntityName("NICOLE CASSIA GODOY DA SILVA")).toBe("Nicole Cassia Godoy da Silva");
+      expect(formatFinancialEntityName("RODRIGO FIORENTINO FAGUNDES")).toBe("Rodrigo Fiorentino Fagundes");
+      expect(
+        formatFinancialEntityName("NINECLOUDS - COMERCIO DE SKATE E EQUIPAMENTOS LTDA - ME"),
+      ).toBe("Nineclouds - Comercio de Skate e Equipamentos Ltda - ME");
+    });
+
+    it("preserves mixed-case names and brands without alteration", () => {
+      expect(formatFinancialEntityName("RTE Rodonaves")).toBe("RTE Rodonaves");
+      expect(formatFinancialEntityName("Braspress")).toBe("Braspress");
+      expect(formatFinancialEntityName("Elektro")).toBe("Elektro");
+    });
+
+    it("handles empty or null values gracefully", () => {
+      expect(formatFinancialEntityName(null)).toBe("Não informado");
+      expect(formatFinancialEntityName(undefined)).toBe("Não informado");
+      expect(formatFinancialEntityName("")).toBe("Não informado");
+      expect(formatFinancialEntityName("   ")).toBe("Não informado");
+    });
+  });
+
+  describe("formatFinancialDescription", () => {
+    it("B. formats repetitive NF-e technical description to concise tag without repeating entity", () => {
+      const input = "Lançamento referente à Nota Fiscal Eletrônica de número 2751, cliente BLEND SHOP LTDA";
+      expect(formatFinancialDescription(input)).toBe("NF-e 2751");
+    });
+
+    it("C. formats repetitive Venda Simples description to concise tag without repeating entity", () => {
+      const input = "Lançamento referente à Venda Simples de número 658, cliente JOAO RICARDO DA CRUZ FLORI 31260664880";
+      expect(formatFinancialDescription(input)).toBe("Venda Simples 658");
+    });
+
+    it("D. formats repetitive Ajuste de Estoque description to concise tag without repeating entity", () => {
+      const input = "Lançamento referente à Ajuste de Estoque de número 701, fornecedor JOOMPRO";
+      expect(formatFinancialDescription(input)).toBe("Ajuste de estoque 701");
+
+      const inputWithoutEntity = "Lançamento referente ao Ajuste de Estoque de número 76";
+      expect(formatFinancialDescription(inputWithoutEntity)).toBe("Ajuste de estoque 76");
+    });
+
+    it("E. preserves free descriptions without arbitrary truncation or modification", () => {
+      expect(formatFinancialDescription("SKATE DAY - DC CUP - CB SKATESHOP")).toBe("SKATE DAY - DC CUP - CB SKATESHOP");
+      expect(formatFinancialDescription("RTE Rodonaves")).toBe("RTE Rodonaves");
+      expect(formatFinancialDescription("Braspress")).toBe("Braspress");
+      expect(formatFinancialDescription("Elektro")).toBe("Elektro");
+      expect(formatFinancialDescription("GATO - 2/10")).toBe("GATO - 2/10");
+    });
+
+    it("handles empty or null descriptions safely", () => {
+      expect(formatFinancialDescription(null)).toBe("Sem descrição");
+      expect(formatFinancialDescription(undefined)).toBe("Sem descrição");
+      expect(formatFinancialDescription("")).toBe("Sem descrição");
     });
   });
 });

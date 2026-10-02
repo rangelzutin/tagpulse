@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Search,
   ChevronLeft,
@@ -15,10 +15,25 @@ import {
   type FinancialListStatusFilter,
   type PaginatedResult,
 } from "../../api/financial";
-import { formatCurrency, formatNumber, formatDateBr } from "../../utils/formatters";
+import {
+  formatCurrency,
+  formatNumber,
+  formatDateBr,
+  formatFinancialEntityName,
+  formatFinancialDescription,
+} from "../../utils/formatters";
+import type { PeriodMode } from "../PeriodFilter";
+import {
+  FinancialMonthNavigator,
+  calculateEffectiveDueRange,
+  type SelectedMonthRange,
+} from "./FinancialMonthNavigator";
 
 interface FinancialReceivablesTabProps {
   initialOverview?: ReceivablesOverviewResponse | null;
+  initialList?: PaginatedResult<ReceivablesListItem> | null;
+  referenceDate?: string;
+  periodMode?: PeriodMode;
 }
 
 const STATUS_FILTERS: { value: FinancialListStatusFilter; label: string }[] = [
@@ -32,12 +47,17 @@ const STATUS_FILTERS: { value: FinancialListStatusFilter; label: string }[] = [
 
 export function FinancialReceivablesTab({
   initialOverview,
+  initialList,
+  referenceDate,
+  periodMode,
 }: FinancialReceivablesTabProps) {
   const [overview, setOverview] = useState<ReceivablesOverviewResponse | null>(
     initialOverview ?? null,
   );
-  const [listData, setListData] = useState<PaginatedResult<ReceivablesListItem> | null>(null);
-  const [isLoadingList, setIsLoadingList] = useState(true);
+  const [listData, setListData] = useState<PaginatedResult<ReceivablesListItem> | null>(
+    initialList ?? null,
+  );
+  const [isLoadingList, setIsLoadingList] = useState(initialList ? false : true);
   const [error, setError] = useState<string | null>(null);
 
   // Filters state
@@ -48,28 +68,52 @@ export function FinancialReceivablesTab({
   const [pageSize, setPageSize] = useState(25);
   const [sort, setSort] = useState<"dueDate_asc" | "dueDate_desc" | "totalAmount_desc" | "totalAmount_asc">("dueDate_asc");
 
-  // Load Overview if not passed
+  // Month navigation filter state
+  const [selectedMonth, setSelectedMonth] = useState<SelectedMonthRange | null>(null);
+
+  // Load Overview
   const loadOverview = useCallback(async () => {
+    const effective = calculateEffectiveDueRange(
+      selectedMonth,
+      periodMode,
+      referenceDate,
+    );
+
     try {
-      const res = await fetchReceivablesOverview();
+      const res = await fetchReceivablesOverview({
+        referenceDate,
+        dueFrom: effective.dueFrom,
+        dueTo: effective.dueTo,
+      });
       setOverview(res);
     } catch (err) {
       console.error(err);
     }
-  }, []);
+  }, [referenceDate, periodMode, selectedMonth]);
+
+  const isInitialMount = useRef(true);
 
   useEffect(() => {
-    if (!initialOverview) {
-      void loadOverview();
-    } else {
-      setOverview(initialOverview);
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      if (!initialOverview) {
+        void loadOverview();
+      }
+      return;
     }
-  }, [initialOverview, loadOverview]);
+    void loadOverview();
+  }, [loadOverview, initialOverview]);
 
   // Load Paginated List
   const loadList = useCallback(async () => {
     setIsLoadingList(true);
     setError(null);
+
+    const effective = calculateEffectiveDueRange(
+      selectedMonth,
+      periodMode,
+      referenceDate,
+    );
 
     try {
       const res = await fetchReceivablesList({
@@ -78,6 +122,9 @@ export function FinancialReceivablesTab({
         page,
         pageSize,
         sort,
+        referenceDate,
+        dueFrom: effective.dueFrom,
+        dueTo: effective.dueTo,
       });
       setListData(res);
     } catch (err: unknown) {
@@ -86,7 +133,7 @@ export function FinancialReceivablesTab({
     } finally {
       setIsLoadingList(false);
     }
-  }, [statusFilter, appliedSearch, page, pageSize, sort]);
+  }, [statusFilter, appliedSearch, page, pageSize, sort, referenceDate, periodMode, selectedMonth]);
 
   useEffect(() => {
     void loadList();
@@ -107,6 +154,11 @@ export function FinancialReceivablesTab({
 
   const handleStatusChange = (val: FinancialListStatusFilter) => {
     setStatusFilter(val);
+    setPage(1);
+  };
+
+  const handleMonthChange = (range: SelectedMonthRange | null) => {
+    setSelectedMonth(range);
     setPage(1);
   };
 
@@ -158,7 +210,7 @@ export function FinancialReceivablesTab({
       )}
 
       {/* ========================================================
-          2. FILTER BAR (STATUS PILLS + SEARCH + SORT)
+          2. FILTER BAR (STATUS PILLS + MONTH + SEARCH)
           ======================================================== */}
       <div className="tp-table-controls-bar">
         {/* Status Pills */}
@@ -177,36 +229,44 @@ export function FinancialReceivablesTab({
           ))}
         </div>
 
-        {/* Right side: Search form */}
-        <form onSubmit={handleSearchSubmit} className="tp-table-search-form">
-          <div className="tp-search-input-wrap">
-            <Search size={14} className="tp-search-icon" />
-            <input
-              type="text"
-              placeholder="Buscar cliente ou documento..."
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              className="tp-table-search-input"
-              aria-label="Buscar títulos a receber"
-            />
-            {searchInput && (
-              <button
-                type="button"
-                className="tp-search-clear-btn"
-                onClick={handleClearSearch}
-                aria-label="Limpar busca"
-              >
-                <X size={12} />
-              </button>
-            )}
-          </div>
-          <button type="submit" className="tp-action-btn tp-btn-sm">
-            Buscar
-          </button>
-        </form>
+        {/* Right side: Month Navigator + Search Form */}
+        <div className="tp-table-controls-actions">
+          <FinancialMonthNavigator
+            selectedMonth={selectedMonth}
+            onChange={handleMonthChange}
+            referenceDate={referenceDate}
+            maxDate={periodMode === "allUpTo" ? referenceDate : undefined}
+          />
+
+          <form onSubmit={handleSearchSubmit} className="tp-table-search-form">
+            <div className="tp-search-input-wrap">
+              <Search size={14} className="tp-search-icon" />
+              <input
+                type="text"
+                placeholder="Buscar cliente ou documento..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                className="tp-table-search-input"
+                aria-label="Buscar títulos a receber"
+              />
+              {searchInput && (
+                <button
+                  type="button"
+                  className="tp-search-clear-btn"
+                  onClick={handleClearSearch}
+                  aria-label="Limpar busca"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+            <button type="submit" className="tp-action-btn tp-btn-sm">
+              Buscar
+            </button>
+          </form>
+        </div>
       </div>
 
-      {/* ========================================================
       {/* ========================================================
           3. ERROR STATE (EXCLUSIVE)
           ======================================================== */}
@@ -275,7 +335,7 @@ export function FinancialReceivablesTab({
                       </span>
                     </button>
                   </th>
-                  <th className="tp-th tp-th-right" style={{ width: "12%", minWidth: "100px" }}>
+                  <th className="tp-th tp-th-right" style={{ width: "14%", minWidth: "100px" }}>
                     <button
                       type="button"
                       className="tp-th-sort-btn"
@@ -290,10 +350,10 @@ export function FinancialReceivablesTab({
                       </span>
                     </button>
                   </th>
-                  <th className="tp-th tp-th-center" style={{ width: "8%", minWidth: "80px" }}>
+                  <th className="tp-th tp-th-center" style={{ width: "7%", minWidth: "80px" }}>
                     Situação
                   </th>
-                  <th className="tp-th tp-th-center" style={{ width: "8%", minWidth: "80px" }}>
+                  <th className="tp-th tp-th-center" style={{ width: "7%", minWidth: "80px" }}>
                     Confirmação
                   </th>
                 </tr>
@@ -304,7 +364,7 @@ export function FinancialReceivablesTab({
                   [1, 2, 3, 4, 5].map((idx) => (
                     <tr key={idx} className="tp-table-row tp-table-skeleton-row">
                       <td className="tp-td"><div className="tp-skeleton-line tp-skeleton-long" /></td>
-                      <td className="tp-td"><div className="tp-skeleton-line tp-skeleton-medium" /></td>
+                      <td className="tp-td"><div className="tp-skeleton-line tp-skeleton-long" /></td>
                       <td className="tp-td tp-td-center"><div className="tp-skeleton-line tp-skeleton-short" /></td>
                       <td className="tp-td tp-td-right"><div className="tp-skeleton-line tp-skeleton-short" /></td>
                       <td className="tp-td tp-td-center"><div className="tp-skeleton-line tp-skeleton-short" /></td>
@@ -312,7 +372,7 @@ export function FinancialReceivablesTab({
                     </tr>
                   ))
                 ) : (
-                  items.map((item) => {
+                  items.map((item, idx) => {
                     const isOverdue = item.status === "OVERDUE";
                     const isDueToday = item.status === "DUE_TODAY";
                     const isFuture = item.status === "FUTURE";
@@ -320,23 +380,33 @@ export function FinancialReceivablesTab({
 
                     const installmentLabel =
                       item.installmentNumber && item.installmentCount
-                        ? ` (${item.installmentNumber}/${item.installmentCount})`
+                        ? `${item.installmentNumber}/${item.installmentCount}`
                         : "";
 
+                    const formattedEntity = formatFinancialEntityName(item.entityName);
+                    const formattedDesc = formatFinancialDescription(item.description);
+
                     return (
-                      <tr key={item.sourceId} className="tp-table-row">
-                        <td className="tp-td tp-td-left tp-font-medium">
-                          {item.entityName || "Não informado"}
+                      <tr key={item.sourceId || (item as { id?: number | string }).id || idx} className="tp-table-row">
+                        <td
+                          className="tp-td tp-td-left tp-font-medium"
+                          title={item.entityName || undefined}
+                        >
+                          {formattedEntity}
                         </td>
                         <td className="tp-td tp-td-left tp-text-secondary">
                           <div className="tp-td-desc-clamp" title={item.description || undefined}>
-                            <span>{item.description || "Sem descrição"}</span>
-                            {installmentLabel && (
-                              <span className="tp-installment-tag">{installmentLabel}</span>
-                            )}
+                            <span>{formattedDesc}</span>
                           </div>
-                          {item.documentNumber && (
-                            <span className="tp-doc-pill">Doc: {item.documentNumber}</span>
+                          {(item.documentNumber || installmentLabel) && (
+                            <div className="tp-doc-row">
+                              {item.documentNumber && (
+                                <span className="tp-doc-pill">Doc: {item.documentNumber}</span>
+                              )}
+                              {installmentLabel && (
+                                <span className="tp-installment-tag">{installmentLabel}</span>
+                              )}
+                            </div>
                           )}
                         </td>
                         <td className="tp-td tp-td-center tp-font-mono">
@@ -367,18 +437,22 @@ export function FinancialReceivablesTab({
               ======================================================== */}
           <div className="tp-pagination-bar">
             <div className="tp-pagination-info">
-              Exibindo{" "}
-              <span className="tp-font-medium">
-                {totalRecords === 0
-                  ? 0
-                  : `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, totalRecords)}`}
-              </span>{" "}
-              de <span className="tp-font-medium">{formatNumber(totalRecords)}</span> títulos
+              <span>
+                Mostrando{" "}
+                <strong className="tp-font-mono">
+                  {totalRecords === 0 ? 0 : (page - 1) * pageSize + 1}
+                </strong>{" "}
+                a{" "}
+                <strong className="tp-font-mono">
+                  {Math.min(page * pageSize, totalRecords)}
+                </strong>{" "}
+                de <strong className="tp-font-mono">{formatNumber(totalRecords)}</strong> títulos
+              </span>
             </div>
 
             <div className="tp-pagination-controls">
-              <div className="tp-page-size-selector">
-                <span className="tp-page-size-label">Por página:</span>
+              <div className="tp-page-size-wrap">
+                <span className="tp-text-muted">Itens por página:</span>
                 <select
                   value={pageSize}
                   onChange={(e) => {
@@ -391,30 +465,29 @@ export function FinancialReceivablesTab({
                   <option value={10}>10</option>
                   <option value={25}>25</option>
                   <option value={50}>50</option>
+                  <option value={100}>100</option>
                 </select>
               </div>
 
               <div className="tp-pagination-nav">
                 <button
                   type="button"
-                  className="tp-pagination-btn"
-                  disabled={page <= 1 || isLoadingList}
+                  className="tp-page-btn"
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1 || isLoadingList}
                   aria-label="Página anterior"
-                  title="Página anterior"
                 >
                   <ChevronLeft size={16} />
                 </button>
-                <span className="tp-page-indicator">
-                  Página {page} de {totalPages}
+                <span className="tp-page-current">
+                  Página <strong>{page}</strong> de <strong>{totalPages}</strong>
                 </span>
                 <button
                   type="button"
-                  className="tp-pagination-btn"
-                  disabled={page >= totalPages || isLoadingList}
+                  className="tp-page-btn"
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages || isLoadingList}
                   aria-label="Próxima página"
-                  title="Próxima página"
                 >
                   <ChevronRight size={16} />
                 </button>

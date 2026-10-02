@@ -17,6 +17,7 @@ import {
 } from "../../api/financial";
 import { getDefaultPeriod } from "../../utils/formatters";
 import { Header } from "../Header";
+import { PeriodFilter, type PeriodMode } from "../PeriodFilter";
 import { FinancialSyncControl } from "./FinancialSyncControl";
 import { FinancialOverviewTab } from "./FinancialOverviewTab";
 import { FinancialReceivablesTab } from "./FinancialReceivablesTab";
@@ -27,9 +28,10 @@ export type FinancialSubTab = "overview" | "receivables" | "payables" | "cash-fl
 
 interface FinancialViewProps {
   onSyncSuccessGlobal?: () => void;
+  minDate?: string | null;
 }
 
-export function FinancialView({ onSyncSuccessGlobal }: FinancialViewProps) {
+export function FinancialView({ onSyncSuccessGlobal, minDate }: FinancialViewProps) {
   const [activeTab, setActiveTab] = useState<FinancialSubTab>("overview");
 
   // Overview data states
@@ -42,11 +44,14 @@ export function FinancialView({ onSyncSuccessGlobal }: FinancialViewProps) {
   const [undatedConfirmed, setUndatedConfirmed] =
     useState<UndatedConfirmedCashResponse | null>(null);
 
+  const [currentPeriod, setCurrentPeriod] = useState(() => getDefaultPeriod());
+  const [periodMode, setPeriodMode] = useState<PeriodMode>("range");
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [overviewError, setOverviewError] = useState<string | null>(null);
 
   const isMountedRef = useRef(true);
+  const effectiveMinDate = minDate ?? "2015-05-05";
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -55,7 +60,12 @@ export function FinancialView({ onSyncSuccessGlobal }: FinancialViewProps) {
     };
   }, []);
 
-  const loadFinancialOverviewData = useCallback(async (isBackground = false) => {
+  const loadFinancialOverviewData = useCallback(async (
+    isBackground = false,
+    from?: string,
+    to?: string,
+    mode?: PeriodMode,
+  ) => {
     if (!isBackground) {
       setIsLoading(true);
     } else {
@@ -64,13 +74,21 @@ export function FinancialView({ onSyncSuccessGlobal }: FinancialViewProps) {
     setOverviewError(null);
 
     try {
-      const defaultPeriod = getDefaultPeriod();
+      const activeMode = mode ?? periodMode;
+      const activeFrom = from ?? currentPeriod.from;
+      const activeTo = to ?? currentPeriod.to;
       const [recRes, payRes, cfRes, undRes] = await Promise.allSettled([
-        fetchReceivablesOverview(),
-        fetchPayablesOverview(),
+        fetchReceivablesOverview({
+          referenceDate: activeTo,
+          dueTo: activeMode === "allUpTo" ? activeTo : undefined,
+        }),
+        fetchPayablesOverview({
+          referenceDate: activeTo,
+          dueTo: activeMode === "allUpTo" ? activeTo : undefined,
+        }),
         fetchCashFlowOverview({
-          from: defaultPeriod.from,
-          to: defaultPeriod.to,
+          from: activeMode === "allUpTo" ? undefined : activeFrom,
+          to: activeTo,
           granularity: "month",
         }),
         fetchUndatedConfirmedCash(),
@@ -114,7 +132,7 @@ export function FinancialView({ onSyncSuccessGlobal }: FinancialViewProps) {
         setIsRefreshing(false);
       }
     }
-  }, []);
+  }, [currentPeriod.from, currentPeriod.to, periodMode]);
 
   useEffect(() => {
     void loadFinancialOverviewData();
@@ -125,15 +143,31 @@ export function FinancialView({ onSyncSuccessGlobal }: FinancialViewProps) {
     onSyncSuccessGlobal?.();
   }, [loadFinancialOverviewData, onSyncSuccessGlobal]);
 
+  const handleApplyFilter = useCallback((from: string, to: string, mode: PeriodMode) => {
+    setCurrentPeriod({ from, to });
+    setPeriodMode(mode);
+    void loadFinancialOverviewData(true, from, to, mode);
+  }, [loadFinancialOverviewData]);
+
   return (
     <div className="tp-financial-module" aria-label="Módulo Financeiro">
-      {/* Header with Title, Subtitle, Sync Status & Trigger */}
+      {/* Header with Title, Subtitle, Sync Status & Trigger, and Date Range Picker */}
       <Header
         title="Financeiro"
         subtitle="Contas a receber, contas a pagar e fluxo de caixa operacional."
         isUpdating={isRefreshing}
       >
-        <FinancialSyncControl onSyncSuccess={handleSyncSuccess} />
+        <div className="tp-financial-header-actions">
+          <FinancialSyncControl onSyncSuccess={handleSyncSuccess} />
+          <PeriodFilter
+            initialFrom={currentPeriod.from}
+            initialTo={currentPeriod.to}
+            periodMode={periodMode}
+            minDate={effectiveMinDate}
+            isLoading={isLoading}
+            onApply={handleApplyFilter}
+          />
+        </div>
       </Header>
 
       {/* Persistent Subnavigation Tabs */}
@@ -234,7 +268,11 @@ export function FinancialView({ onSyncSuccessGlobal }: FinancialViewProps) {
             aria-labelledby="tab-financial-receivables"
             className="tp-financial-tab-panel"
           >
-            <FinancialReceivablesTab initialOverview={receivablesOverview} />
+            <FinancialReceivablesTab
+              initialOverview={receivablesOverview}
+              referenceDate={currentPeriod.to}
+              periodMode={periodMode}
+            />
           </section>
         )}
 
@@ -245,7 +283,11 @@ export function FinancialView({ onSyncSuccessGlobal }: FinancialViewProps) {
             aria-labelledby="tab-financial-payables"
             className="tp-financial-tab-panel"
           >
-            <FinancialPayablesTab initialOverview={payablesOverview} />
+            <FinancialPayablesTab
+              initialOverview={payablesOverview}
+              referenceDate={currentPeriod.to}
+              periodMode={periodMode}
+            />
           </section>
         )}
 
@@ -256,7 +298,13 @@ export function FinancialView({ onSyncSuccessGlobal }: FinancialViewProps) {
             aria-labelledby="tab-financial-cash-flow"
             className="tp-financial-tab-panel"
           >
-            <FinancialCashFlowTab initialOverview={cashFlowOverview} />
+            <FinancialCashFlowTab
+              initialOverview={cashFlowOverview}
+              currentPeriod={currentPeriod}
+              periodMode={periodMode}
+              onApplyFilter={handleApplyFilter}
+              showPeriodFilter={false}
+            />
           </section>
         )}
       </div>

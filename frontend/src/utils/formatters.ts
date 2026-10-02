@@ -516,3 +516,127 @@ export function formatChannelLabel(channel?: string | null): string {
       return channel;
   }
 }
+
+const FINANCIAL_PREPOSITIONS = new Set(["de", "da", "do", "das", "dos", "e"]);
+const FINANCIAL_PRESERVED_ACRONYMS = new Set([
+  "ME",
+  "EPP",
+  "MEI",
+  "CNPJ",
+  "CPF",
+  "NF",
+  "NF-E",
+  "NF-e",
+  "PIX",
+  "CB",
+  "DC",
+  "S/A",
+  "SA",
+  "S.A.",
+  "EIRELI",
+]);
+
+/**
+ * Humanizes uppercase financial entity names into readable Title Case,
+ * preserving known acronyms (ME, EPP, CNPJ, etc.) and converting "LTDA" to "Ltda".
+ * Leaves mixed-case names intact.
+ */
+export function formatFinancialEntityName(name?: string | null): string {
+  if (!name || typeof name !== "string") {
+    return "Não informado";
+  }
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return "Não informado";
+  }
+
+  // Verifica se o texto tem letras e se TODAS as letras são maiúsculas
+  const letters = trimmed.replace(/[^\p{L}]/gu, "");
+  if (!letters || letters !== letters.toUpperCase()) {
+    // Já possui caracteres minúsculos (ex: "RTE Rodonaves", "Braspress") -> preserva original
+    return trimmed;
+  }
+
+  // Se veio integralmente em UPPERCASE, converter para casing humano legível
+  const tokens = trimmed.split(/(\s+|-|\/)/);
+  let hasEncounteredFirstWord = false;
+
+  return tokens
+    .map((token) => {
+      // Se for apenas delimitador ou espaço em branco
+      if (/^(\s+|-|\/)$/.test(token)) {
+        return token;
+      }
+
+      const upper = token.toUpperCase();
+
+      // Regra de negócio: LTDA -> Ltda
+      if (upper === "LTDA") {
+        hasEncounteredFirstWord = true;
+        return "Ltda";
+      }
+
+      // Siglas conhecidas preservadas em maiúsculas (ME, EPP, CPF, CNPJ, etc.)
+      if (FINANCIAL_PRESERVED_ACRONYMS.has(upper)) {
+        hasEncounteredFirstWord = true;
+        return upper;
+      }
+
+      const lower = token.toLowerCase();
+
+      // Preposições e conjunções em minúsculas (desde que não seja a primeira palavra)
+      if (hasEncounteredFirstWord && FINANCIAL_PREPOSITIONS.has(lower)) {
+        return lower;
+      }
+
+      hasEncounteredFirstWord = true;
+
+      // Title case padrão
+      return token.charAt(0).toUpperCase() + token.slice(1).toLowerCase();
+    })
+    .join("");
+}
+
+/**
+ * Summarizes repetitive ERP technical descriptions into concise, readable tags.
+ * - "Lançamento referente à Nota Fiscal Eletrônica de número 2751, cliente X" -> "NF-e 2751"
+ * - "Lançamento referente à Venda Simples de número 658, cliente X" -> "Venda Simples 658"
+ * - "Lançamento referente à Ajuste de Estoque de número 701, fornecedor X" -> "Ajuste de estoque 701"
+ * Free descriptions that do not match technical patterns are preserved intact.
+ */
+export function formatFinancialDescription(description?: string | null): string {
+  if (!description || typeof description !== "string") {
+    return "Sem descrição";
+  }
+  const trimmed = description.trim();
+  if (!trimmed) {
+    return "Sem descrição";
+  }
+
+  // 1. NF-e
+  const nfeMatch = trimmed.match(
+    /^Lançamento\s+referente\s+(?:[aàá]|ao)\s+Nota\s+Fiscal(?:\s+Eletr[oô]nica)?\s+de\s+n[uú]mero\s*([A-Za-z0-9\-_./]+)(?:,\s*(?:cliente|fornecedor)\b.*)?$/i,
+  );
+  if (nfeMatch && nfeMatch[1]) {
+    return `NF-e ${nfeMatch[1]}`;
+  }
+
+  // 2. Venda Simples
+  const vendaMatch = trimmed.match(
+    /^Lançamento\s+referente\s+(?:[aàá]|ao)\s+Venda\s+Simples\s+de\s+n[uú]mero\s*([A-Za-z0-9\-_./]+)(?:,\s*(?:cliente|fornecedor)\b.*)?$/i,
+  );
+  if (vendaMatch && vendaMatch[1]) {
+    return `Venda Simples ${vendaMatch[1]}`;
+  }
+
+  // 3. Ajuste de Estoque
+  const estoqueMatch = trimmed.match(
+    /^Lançamento\s+referente\s+(?:[aàá]|ao)\s+Ajuste\s+de\s+Estoque\s+de\s+n[uú]mero\s*([A-Za-z0-9\-_./]+)(?:,\s*(?:cliente|fornecedor)\b.*)?$/i,
+  );
+  if (estoqueMatch && estoqueMatch[1]) {
+    return `Ajuste de estoque ${estoqueMatch[1]}`;
+  }
+
+  // 4. Descrições livres preservadas
+  return trimmed;
+}

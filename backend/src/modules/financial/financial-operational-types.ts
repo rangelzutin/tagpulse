@@ -97,12 +97,29 @@ export interface PaginatedResult<T> {
   totalPages: number;
 }
 
+export interface FinancialBudgetPlanItem {
+  sourceId: string;
+  description: string;
+}
+
+export interface FinancialOverviewQueryParams {
+  referenceDate?: string;
+  dueFrom?: string;
+  dueTo?: string;
+  dueDateFrom?: string;
+  dueDateTo?: string;
+  budgetPlanSourceId?: string;
+}
+
 export interface FinancialListQueryParams {
   status?: FinancialListStatusFilter;
   search?: string;
   referenceDate?: string;
+  dueFrom?: string;
+  dueTo?: string;
   dueDateFrom?: string;
   dueDateTo?: string;
+  budgetPlanSourceId?: string;
   confirmationDateFrom?: string;
   confirmationDateTo?: string;
   page?: number | string;

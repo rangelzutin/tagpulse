@@ -764,7 +764,10 @@ export function App() {
     >
       <main className="tp-dashboard-main">
         {activeNav === "financial" ? (
-          <FinancialView onSyncSuccessGlobal={handleSyncSuccess} />
+          <FinancialView
+            onSyncSuccessGlobal={handleSyncSuccess}
+            minDate={dataRange?.firstRealizedDate}
+          />
         ) : (
           <>
             {/* Header with integrated Period Filter or Inventory Window Selector */}
