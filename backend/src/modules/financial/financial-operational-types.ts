@@ -142,6 +142,15 @@ export interface ExcludedNonCashStockAdjustmentsSummary {
   amount: number;
 }
 
+export interface BankReconciliationSummary {
+  matchedEventCount: number;
+  reconciledAmount: number;
+  nominalTitleAmount: number;
+  deltaAmount: number;
+  ambiguousCount: number;
+  unmatchedCount: number;
+}
+
 export interface CashFlowOverviewResponse {
   from: string | null;
   to: string | null;
@@ -157,6 +166,7 @@ export interface CashFlowOverviewResponse {
   series: CashFlowTimeseriesPoint[];
   undated: UndatedConfirmedCashSummary;
   excludedNonCashStockAdjustments: ExcludedNonCashStockAdjustmentsSummary;
+  bankReconciliation?: BankReconciliationSummary;
 }
 
 export interface UndatedConfirmedCashRecordItem {

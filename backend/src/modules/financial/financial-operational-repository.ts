@@ -10,12 +10,22 @@ import type {
 import {
   calculateEffectiveCashAmount,
   deriveOperationalStatus,
+  isBancoInterReconciliationEvent,
 } from "./financial-operational-calculator.js";
 
 export interface OperationalSummaryDbRecord {
   dueDate: Date;
   totalAmount: Prisma.Decimal | null;
   isConfirmed: boolean;
+  type?: FinancialRecordType;
+  paymentMethodSourceId?: string | null;
+  bankAccountSourceId?: string | null;
+  installmentNumber?: number | null;
+  installmentCount?: number | null;
+  documentNumber?: string | null;
+  linkedInvoiceInstallmentSourceId?: string | null;
+  description?: string | null;
+  sourcePayload?: any;
 }
 
 export interface ConfirmedCashDbRecord {
@@ -27,6 +37,16 @@ export interface ConfirmedCashDbRecord {
   isConfirmed: boolean;
   isTransfer: boolean;
   sourcePresent: boolean;
+  description?: string | null;
+  documentNumber?: string | null;
+  dueDate?: Date;
+  entitySourceId?: string | null;
+  paymentMethodSourceId?: string | null;
+  bankAccountSourceId?: string | null;
+  installmentNumber?: number | null;
+  installmentCount?: number | null;
+  linkedInvoiceInstallmentSourceId?: string | null;
+  sourcePayload?: Prisma.JsonValue | null;
 }
 
 export interface FinancialOperationalRepository {
@@ -176,9 +196,18 @@ export function createPrismaFinancialOperationalRepository(
           dueDate: true,
           totalAmount: true,
           isConfirmed: true,
+          type: true,
+          paymentMethodSourceId: true,
+          bankAccountSourceId: true,
+          installmentNumber: true,
+          installmentCount: true,
+          documentNumber: true,
+          linkedInvoiceInstallmentSourceId: true,
+          description: true,
+          sourcePayload: true,
         },
       });
-      return rows;
+      return rows.filter((r) => !isBancoInterReconciliationEvent(r));
     },
 
     async findReceivablesList(
@@ -216,6 +245,7 @@ export function createPrismaFinancialOperationalRepository(
           where,
           select: {
             sourceId: true,
+            type: true,
             description: true,
             documentNumber: true,
             entitySourceId: true,
@@ -228,7 +258,10 @@ export function createPrismaFinancialOperationalRepository(
             installmentNumber: true,
             installmentCount: true,
             paymentMethodSourceId: true,
+            bankAccountSourceId: true,
+            linkedInvoiceInstallmentSourceId: true,
             budgetPlanSourceId: true,
+            sourcePayload: true,
           },
           orderBy: buildOrderBy(params.sort),
           skip,
@@ -236,7 +269,9 @@ export function createPrismaFinancialOperationalRepository(
         }),
       ]);
 
-      const items: ReceivablesListItem[] = rows.map((row) => {
+      const items: ReceivablesListItem[] = rows
+        .filter((row) => !isBancoInterReconciliationEvent(row))
+        .map((row) => {
         let effCash: number | null = null;
         if (row.isConfirmed) {
           try {
@@ -427,6 +462,16 @@ export function createPrismaFinancialOperationalRepository(
           isConfirmed: true,
           isTransfer: true,
           sourcePresent: true,
+          description: true,
+          documentNumber: true,
+          dueDate: true,
+          entitySourceId: true,
+          paymentMethodSourceId: true,
+          bankAccountSourceId: true,
+          installmentNumber: true,
+          installmentCount: true,
+          linkedInvoiceInstallmentSourceId: true,
+          sourcePayload: true,
         },
       });
     },
@@ -461,21 +506,29 @@ export function createPrismaFinancialOperationalRepository(
           totalAmount: true,
           paidAmount: true,
           isConfirmed: true,
+          paymentMethodSourceId: true,
+          bankAccountSourceId: true,
+          installmentNumber: true,
+          installmentCount: true,
+          linkedInvoiceInstallmentSourceId: true,
+          sourcePayload: true,
         },
         orderBy: { dueDate: "asc" },
       });
 
-      return rows.map((row) => ({
-        sourceId: row.sourceId,
-        type: row.type,
-        description: row.description,
-        documentNumber: row.documentNumber,
-        entityName: row.entityName,
-        dueDate: row.dueDate.toISOString().slice(0, 10),
-        totalAmount: Number(Number(row.totalAmount ?? 0).toFixed(2)),
-        effectiveCashAmount: Number(calculateEffectiveCashAmount(row).toFixed(2)),
-        paidAmount: row.paidAmount != null ? Number(row.paidAmount) : null,
-      }));
+      return rows
+        .filter((row) => !isBancoInterReconciliationEvent(row))
+        .map((row) => ({
+          sourceId: row.sourceId,
+          type: row.type,
+          description: row.description,
+          documentNumber: row.documentNumber,
+          entityName: row.entityName,
+          dueDate: row.dueDate.toISOString().slice(0, 10),
+          totalAmount: Number(Number(row.totalAmount ?? 0).toFixed(2)),
+          effectiveCashAmount: Number(calculateEffectiveCashAmount(row).toFixed(2)),
+          paidAmount: row.paidAmount != null ? Number(row.paidAmount) : null,
+        }));
     },
 
     async findExcludedNonCashStockAdjustmentSummary(options?: {
