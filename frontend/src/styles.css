@@ -7918,11 +7918,41 @@ body {
 }
 
 /* Aging Section */
+.tp-financial-aging-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--tp-space-base);
+  align-items: stretch;
+}
+
+@media (max-width: 992px) {
+  .tp-financial-aging-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
+
 .tp-aging-card {
   padding: 18px 22px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.tp-aging-card .tp-card-subtitle {
+  min-height: 2.4em;
+}
+
+.tp-aging-card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .tp-aging-buckets-list {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -7986,11 +8016,12 @@ body {
 }
 
 .tp-aging-bucket-summary {
+  margin-top: auto;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding-top: 10px;
-  margin-top: 6px;
   border-top: 1px dashed var(--tp-border-subtle);
   font-size: 0.75rem;
 }

@@ -305,7 +305,7 @@ export function FinancialOverviewTab({
           3. COMPOSIÇÃO DE AGING & DETALHES OPERACIONAIS
           ======================================================== */}
       <section className="tp-financial-aging-section" aria-label="Aging de Títulos em Aberto">
-        <div className="tp-split-grid">
+        <div className="tp-financial-aging-grid">
           {/* Coluna 1: Contas a Receber Aging */}
           <div className="tp-card tp-aging-card">
             <div className="tp-card-header">
@@ -328,76 +328,78 @@ export function FinancialOverviewTab({
               distribuição dos títulos por faixa de vencimento.
             </p>
 
-            {receivablesData ? (
-              <div className="tp-aging-buckets-list">
-                <div className="tp-aging-bucket-item is-warning">
-                  <div className="tp-bucket-info">
-                    <span className="tp-bucket-name">Vencidos (1–30 dias)</span>
-                    <span className="tp-bucket-count">
-                      {formatNumber(receivablesData.aging.d1_30.count)} títulos
+            <div className="tp-aging-card-body">
+              {receivablesData ? (
+                <div className="tp-aging-buckets-list">
+                  <div className="tp-aging-bucket-item is-warning">
+                    <div className="tp-bucket-info">
+                      <span className="tp-bucket-name">Vencidos (1–30 dias)</span>
+                      <span className="tp-bucket-count">
+                        {formatNumber(receivablesData.aging.d1_30.count)} títulos
+                      </span>
+                    </div>
+                    <span className="tp-bucket-amount">
+                      {formatCurrency(receivablesData.aging.d1_30.total)}
                     </span>
                   </div>
-                  <span className="tp-bucket-amount">
-                    {formatCurrency(receivablesData.aging.d1_30.total)}
-                  </span>
-                </div>
 
-                <div className="tp-aging-bucket-item is-alert">
-                  <div className="tp-bucket-info">
-                    <span className="tp-bucket-name">Vencidos (31–60 dias)</span>
-                    <span className="tp-bucket-count">
-                      {formatNumber(receivablesData.aging.d31_60.count)} títulos
+                  <div className="tp-aging-bucket-item is-alert">
+                    <div className="tp-bucket-info">
+                      <span className="tp-bucket-name">Vencidos (31–60 dias)</span>
+                      <span className="tp-bucket-count">
+                        {formatNumber(receivablesData.aging.d31_60.count)} títulos
+                      </span>
+                    </div>
+                    <span className="tp-bucket-amount">
+                      {formatCurrency(receivablesData.aging.d31_60.total)}
                     </span>
                   </div>
-                  <span className="tp-bucket-amount">
-                    {formatCurrency(receivablesData.aging.d31_60.total)}
-                  </span>
-                </div>
 
-                <div className="tp-aging-bucket-item is-critical">
-                  <div className="tp-bucket-info">
-                    <span className="tp-bucket-name">Vencidos (61–90 dias)</span>
-                    <span className="tp-bucket-count">
-                      {formatNumber(receivablesData.aging.d61_90.count)} títulos
+                  <div className="tp-aging-bucket-item is-critical">
+                    <div className="tp-bucket-info">
+                      <span className="tp-bucket-name">Vencidos (61–90 dias)</span>
+                      <span className="tp-bucket-count">
+                        {formatNumber(receivablesData.aging.d61_90.count)} títulos
+                      </span>
+                    </div>
+                    <span className="tp-bucket-amount">
+                      {formatCurrency(receivablesData.aging.d61_90.total)}
                     </span>
                   </div>
-                  <span className="tp-bucket-amount">
-                    {formatCurrency(receivablesData.aging.d61_90.total)}
-                  </span>
-                </div>
 
-                <div className="tp-aging-bucket-item is-severe">
-                  <div className="tp-bucket-info">
-                    <span className="tp-bucket-name">Vencidos (+90 dias)</span>
-                    <span className="tp-bucket-count">
-                      {formatNumber(receivablesData.aging.d90_plus.count)} títulos
+                  <div className="tp-aging-bucket-item is-severe">
+                    <div className="tp-bucket-info">
+                      <span className="tp-bucket-name">Vencidos (+90 dias)</span>
+                      <span className="tp-bucket-count">
+                        {formatNumber(receivablesData.aging.d90_plus.count)} títulos
+                      </span>
+                    </div>
+                    <span className="tp-bucket-amount">
+                      {formatCurrency(receivablesData.aging.d90_plus.total)}
                     </span>
                   </div>
-                  <span className="tp-bucket-amount">
-                    {formatCurrency(receivablesData.aging.d90_plus.total)}
-                  </span>
-                </div>
 
-                <div className="tp-aging-bucket-summary">
-                  <div className="tp-aging-sub-stat">
-                    <span className="tp-label">Vencem hoje:</span>
-                    <span className="tp-val">
-                      {formatNumber(receivablesData.dueTodayCount)} ({formatCurrency(receivablesData.dueTodayTotal)})
-                    </span>
-                  </div>
-                  <div className="tp-aging-sub-stat">
-                    <span className="tp-label">A vencer futuro:</span>
-                    <span className="tp-val">
-                      {formatNumber(receivablesData.futureCount)} ({formatCurrency(receivablesData.futureTotal)})
-                    </span>
+                  <div className="tp-aging-bucket-summary">
+                    <div className="tp-aging-sub-stat">
+                      <span className="tp-label">Vencem hoje:</span>
+                      <span className="tp-val">
+                        {formatNumber(receivablesData.dueTodayCount)} ({formatCurrency(receivablesData.dueTodayTotal)})
+                      </span>
+                    </div>
+                    <div className="tp-aging-sub-stat">
+                      <span className="tp-label">A vencer futuro:</span>
+                      <span className="tp-val">
+                        {formatNumber(receivablesData.futureCount)} ({formatCurrency(receivablesData.futureTotal)})
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ) : (
-              <div className="tp-empty-state-card">
-                <p className="tp-empty-text">Sem dados de contas a receber.</p>
-              </div>
-            )}
+              ) : (
+                <div className="tp-empty-state-card">
+                  <p className="tp-empty-text">Sem dados de contas a receber.</p>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Coluna 2: Contas a Pagar Aging */}
@@ -422,76 +424,78 @@ export function FinancialOverviewTab({
               obrigações em aberto por faixa de vencimento.
             </p>
 
-            {payablesData ? (
-              <div className="tp-aging-buckets-list">
-                <div className="tp-aging-bucket-item is-warning">
-                  <div className="tp-bucket-info">
-                    <span className="tp-bucket-name">Vencidos (1–30 dias)</span>
-                    <span className="tp-bucket-count">
-                      {formatNumber(payablesData.aging.d1_30.count)} títulos
+            <div className="tp-aging-card-body">
+              {payablesData ? (
+                <div className="tp-aging-buckets-list">
+                  <div className="tp-aging-bucket-item is-warning">
+                    <div className="tp-bucket-info">
+                      <span className="tp-bucket-name">Vencidos (1–30 dias)</span>
+                      <span className="tp-bucket-count">
+                        {formatNumber(payablesData.aging.d1_30.count)} títulos
+                      </span>
+                    </div>
+                    <span className="tp-bucket-amount">
+                      {formatCurrency(payablesData.aging.d1_30.total)}
                     </span>
                   </div>
-                  <span className="tp-bucket-amount">
-                    {formatCurrency(payablesData.aging.d1_30.total)}
-                  </span>
-                </div>
 
-                <div className="tp-aging-bucket-item is-alert">
-                  <div className="tp-bucket-info">
-                    <span className="tp-bucket-name">Vencidos (31–60 dias)</span>
-                    <span className="tp-bucket-count">
-                      {formatNumber(payablesData.aging.d31_60.count)} títulos
+                  <div className="tp-aging-bucket-item is-alert">
+                    <div className="tp-bucket-info">
+                      <span className="tp-bucket-name">Vencidos (31–60 dias)</span>
+                      <span className="tp-bucket-count">
+                        {formatNumber(payablesData.aging.d31_60.count)} títulos
+                      </span>
+                    </div>
+                    <span className="tp-bucket-amount">
+                      {formatCurrency(payablesData.aging.d31_60.total)}
                     </span>
                   </div>
-                  <span className="tp-bucket-amount">
-                    {formatCurrency(payablesData.aging.d31_60.total)}
-                  </span>
-                </div>
 
-                <div className="tp-aging-bucket-item is-critical">
-                  <div className="tp-bucket-info">
-                    <span className="tp-bucket-name">Vencidos (61–90 dias)</span>
-                    <span className="tp-bucket-count">
-                      {formatNumber(payablesData.aging.d61_90.count)} títulos
+                  <div className="tp-aging-bucket-item is-critical">
+                    <div className="tp-bucket-info">
+                      <span className="tp-bucket-name">Vencidos (61–90 dias)</span>
+                      <span className="tp-bucket-count">
+                        {formatNumber(payablesData.aging.d61_90.count)} títulos
+                      </span>
+                    </div>
+                    <span className="tp-bucket-amount">
+                      {formatCurrency(payablesData.aging.d61_90.total)}
                     </span>
                   </div>
-                  <span className="tp-bucket-amount">
-                    {formatCurrency(payablesData.aging.d61_90.total)}
-                  </span>
-                </div>
 
-                <div className="tp-aging-bucket-item is-severe">
-                  <div className="tp-bucket-info">
-                    <span className="tp-bucket-name">Vencidos (+90 dias)</span>
-                    <span className="tp-bucket-count">
-                      {formatNumber(payablesData.aging.d90_plus.count)} títulos
+                  <div className="tp-aging-bucket-item is-severe">
+                    <div className="tp-bucket-info">
+                      <span className="tp-bucket-name">Vencidos (+90 dias)</span>
+                      <span className="tp-bucket-count">
+                        {formatNumber(payablesData.aging.d90_plus.count)} títulos
+                      </span>
+                    </div>
+                    <span className="tp-bucket-amount">
+                      {formatCurrency(payablesData.aging.d90_plus.total)}
                     </span>
                   </div>
-                  <span className="tp-bucket-amount">
-                    {formatCurrency(payablesData.aging.d90_plus.total)}
-                  </span>
-                </div>
 
-                <div className="tp-aging-bucket-summary">
-                  <div className="tp-aging-sub-stat">
-                    <span className="tp-label">Vencem hoje:</span>
-                    <span className="tp-val">
-                      {formatNumber(payablesData.dueTodayCount)} ({formatCurrency(payablesData.dueTodayTotal)})
-                    </span>
-                  </div>
-                  <div className="tp-aging-sub-stat">
-                    <span className="tp-label">A vencer futuro:</span>
-                    <span className="tp-val">
-                      {formatNumber(payablesData.futureCount)} ({formatCurrency(payablesData.futureTotal)})
-                    </span>
+                  <div className="tp-aging-bucket-summary">
+                    <div className="tp-aging-sub-stat">
+                      <span className="tp-label">Vencem hoje:</span>
+                      <span className="tp-val">
+                        {formatNumber(payablesData.dueTodayCount)} ({formatCurrency(payablesData.dueTodayTotal)})
+                      </span>
+                    </div>
+                    <div className="tp-aging-sub-stat">
+                      <span className="tp-label">A vencer futuro:</span>
+                      <span className="tp-val">
+                        {formatNumber(payablesData.futureCount)} ({formatCurrency(payablesData.futureTotal)})
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ) : (
-              <div className="tp-empty-state-card">
-                <p className="tp-empty-text">Sem dados de contas a pagar.</p>
-              </div>
-            )}
+              ) : (
+                <div className="tp-empty-state-card">
+                  <p className="tp-empty-text">Sem dados de contas a pagar.</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </section>
