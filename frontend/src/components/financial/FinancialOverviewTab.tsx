@@ -16,7 +16,14 @@ import type {
   CashFlowOverviewResponse,
   UndatedConfirmedCashResponse,
 } from "../../api/financial";
-import { formatCurrency, formatNumber, formatDateBr, getDefaultPeriod } from "../../utils/formatters";
+import {
+  formatCurrency,
+  formatNumber,
+  formatDateBr,
+  getDefaultPeriod,
+  formatFinancialPeriodHint,
+  type PeriodMode,
+} from "../../utils/formatters";
 import { UndatedCashModal } from "./UndatedCashModal";
 
 interface FinancialOverviewTabProps {
@@ -26,6 +33,8 @@ interface FinancialOverviewTabProps {
   undatedData: UndatedConfirmedCashResponse | null;
   isLoading: boolean;
   error: string | null;
+  periodMode?: PeriodMode;
+  currentPeriod?: { from: string; to: string };
   onRetry: () => void;
   onSelectTab: (tab: "receivables" | "payables" | "cash-flow") => void;
 }
@@ -37,6 +46,8 @@ export function FinancialOverviewTab({
   undatedData,
   isLoading,
   error,
+  periodMode = "range",
+  currentPeriod,
   onRetry,
   onSelectTab,
 }: FinancialOverviewTabProps) {
@@ -96,9 +107,13 @@ export function FinancialOverviewTab({
   const hasUndatedConfirmed = Boolean(undatedConfirmed && undatedConfirmed.undatedConfirmedCount > 0);
 
   const defaultPeriod = getDefaultPeriod();
-  const cfFrom = cashFlowData?.from ?? defaultPeriod.from;
-  const cfTo = cashFlowData?.to ?? defaultPeriod.to;
-  const cashFlowPeriodHint = `${formatDateBr(cfFrom)} a ${formatDateBr(cfTo)} · ${cfFrom.slice(0, 4)} YTD`;
+  const cfFrom = cashFlowData?.from ?? currentPeriod?.from ?? defaultPeriod.from;
+  const cfTo = cashFlowData?.to ?? currentPeriod?.to ?? defaultPeriod.to;
+  const cashFlowPeriodHint = formatFinancialPeriodHint({
+    from: cfFrom,
+    to: cfTo,
+    periodMode,
+  });
 
   return (
     <div className="tp-financial-overview-content">

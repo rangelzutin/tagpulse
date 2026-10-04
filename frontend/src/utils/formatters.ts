@@ -13,11 +13,13 @@ export function getDefaultPeriod(now: Date = new Date()): { from: string; to: st
   };
 }
 
+export type PeriodMode = "range" | "allUpTo";
+
 export interface PeriodPreset {
   label: string;
   from: string;
   to: string;
-  mode: "range" | "allUpTo";
+  mode: PeriodMode;
 }
 
 export function getPeriodPresets(
@@ -499,6 +501,36 @@ export function formatDateBr(isoDate?: string | null): string {
   const parts = isoDate.slice(0, 10).split("-");
   if (parts.length !== 3) return isoDate;
   return `${parts[2]}/${parts[1]}/${parts[0]}`;
+}
+
+export interface FormatFinancialPeriodHintOptions {
+  from?: string | null;
+  to?: string | null;
+  periodMode?: PeriodMode;
+}
+
+export function formatFinancialPeriodHint(options: FormatFinancialPeriodHintOptions): string {
+  const { from, to, periodMode } = options;
+
+  if (periodMode === "allUpTo" || (!periodMode && from === null && Boolean(to))) {
+    return `Tudo até ${formatDateBr(to)}`;
+  }
+
+  const defaultPeriod = getDefaultPeriod();
+  const effectiveFrom = from || defaultPeriod.from;
+  const effectiveTo = to || defaultPeriod.to;
+  const fromFormatted = formatDateBr(effectiveFrom);
+  const toFormatted = formatDateBr(effectiveTo);
+
+  const isYtd =
+    effectiveFrom.endsWith("-01-01") &&
+    effectiveFrom.slice(0, 4) === effectiveTo.slice(0, 4);
+
+  if (isYtd) {
+    return `${fromFormatted} a ${toFormatted} · ${effectiveFrom.slice(0, 4)} YTD`;
+  }
+
+  return `${fromFormatted} a ${toFormatted}`;
 }
 
 export function formatChannelLabel(channel?: string | null): string {

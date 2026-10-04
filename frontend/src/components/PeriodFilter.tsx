@@ -10,10 +10,11 @@ import {
   parseDisplayDate,
   validateManualPeriodInput,
   getPeriodPresets,
+  type PeriodMode,
 } from "../utils/formatters";
 import "react-day-picker/style.css";
 
-export type PeriodMode = "range" | "allUpTo";
+export type { PeriodMode };
 
 interface PeriodFilterProps {
   initialFrom: string;

@@ -185,6 +185,87 @@ describe("Phase 5K: Financial Module Frontend Tests (A through M)", () => {
     expect(html).not.toContain("Margem líquida");
   });
 
+  // B.1. Semântica do período "Tudo até" (mode = allUpTo)
+  it("B.1. renders 'Tudo até 31/12/2025' on Overview tab without YTD or artificial start date when mode is allUpTo", () => {
+    const allUpToCashFlow: CashFlowOverviewResponse = {
+      ...mockCashFlowOverview,
+      from: null,
+      to: "2025-12-31",
+    };
+
+    const html = renderToString(
+      <FinancialOverviewTab
+        receivablesData={mockReceivablesOverview}
+        payablesData={mockPayablesOverview}
+        cashFlowData={allUpToCashFlow}
+        undatedData={mockUndatedData}
+        isLoading={false}
+        error={null}
+        periodMode="allUpTo"
+        currentPeriod={{ from: "2015-05-05", to: "2025-12-31" }}
+        onRetry={vi.fn()}
+        onSelectTab={vi.fn()}
+      />,
+    );
+
+    // 1. allUpTo + to=2025-12-31 => "Tudo até 31/12/2025"
+    expect(html).toContain("Tudo até 31/12/2025");
+    // 2. allUpTo => NÃO contém "YTD"
+    expect(html).not.toContain("YTD");
+    // 3. allUpTo => NÃO contém "01/01/2026"
+    expect(html).not.toContain("01/01/2026");
+    expect(html).not.toContain("01/01/2026 a 31/12/2025");
+  });
+
+  // B.2. Semântica do período YTD
+  it("B.2. renders YTD period hint correctly with start date and YTD badge text", () => {
+    const html = renderToString(
+      <FinancialOverviewTab
+        receivablesData={mockReceivablesOverview}
+        payablesData={mockPayablesOverview}
+        cashFlowData={mockCashFlowOverview}
+        undatedData={mockUndatedData}
+        isLoading={false}
+        error={null}
+        periodMode="range"
+        currentPeriod={{ from: "2026-01-01", to: "2026-09-30" }}
+        onRetry={vi.fn()}
+        onSelectTab={vi.fn()}
+      />,
+    );
+
+    // 4. YTD continua exibindo corretamente o texto atual
+    expect(html).toContain("01/01/2026 a 30/09/2026 · 2026 YTD");
+  });
+
+  // B.3. Semântica de período customizado
+  it("B.3. renders custom period hint without YTD label", () => {
+    const customCashFlow: CashFlowOverviewResponse = {
+      ...mockCashFlowOverview,
+      from: "2026-09-01",
+      to: "2026-09-30",
+    };
+
+    const html = renderToString(
+      <FinancialOverviewTab
+        receivablesData={mockReceivablesOverview}
+        payablesData={mockPayablesOverview}
+        cashFlowData={customCashFlow}
+        undatedData={mockUndatedData}
+        isLoading={false}
+        error={null}
+        periodMode="range"
+        currentPeriod={{ from: "2026-09-01", to: "2026-09-30" }}
+        onRetry={vi.fn()}
+        onSelectTab={vi.fn()}
+      />,
+    );
+
+    // 5. período customizado continua funcionando
+    expect(html).toContain("01/09/2026 a 30/09/2026");
+    expect(html).not.toContain("YTD");
+  });
+
   // C. empty state AR
   it("C. renders empty state for Receivables when list has no records", () => {
     const html = renderToString(

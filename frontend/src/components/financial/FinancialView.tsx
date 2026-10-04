@@ -255,6 +255,8 @@ export function FinancialView({ onSyncSuccessGlobal, minDate }: FinancialViewPro
               undatedData={undatedConfirmed}
               isLoading={isLoading}
               error={overviewError}
+              periodMode={periodMode}
+              currentPeriod={currentPeriod}
               onRetry={() => void loadFinancialOverviewData(false)}
               onSelectTab={(tab) => setActiveTab(tab)}
             />

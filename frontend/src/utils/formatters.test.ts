@@ -20,6 +20,7 @@ import {
   getPeriodPresets,
   formatFinancialEntityName,
   formatFinancialDescription,
+  formatFinancialPeriodHint,
 } from "./formatters";
 
 
@@ -452,6 +453,63 @@ describe("formatters utils", () => {
       expect(formatFinancialDescription(null)).toBe("Sem descrição");
       expect(formatFinancialDescription(undefined)).toBe("Sem descrição");
       expect(formatFinancialDescription("")).toBe("Sem descrição");
+    });
+  });
+
+  describe("formatFinancialPeriodHint", () => {
+    it("1. allUpTo + to=2025-12-31 => 'Tudo até 31/12/2025'", () => {
+      const hint = formatFinancialPeriodHint({
+        to: "2025-12-31",
+        periodMode: "allUpTo",
+      });
+      expect(hint).toBe("Tudo até 31/12/2025");
+    });
+
+    it("2. allUpTo => NÃO contém 'YTD'", () => {
+      const hint = formatFinancialPeriodHint({
+        from: null,
+        to: "2025-12-31",
+        periodMode: "allUpTo",
+      });
+      expect(hint).not.toContain("YTD");
+    });
+
+    it("3. allUpTo => NÃO contém '01/01/2026' nem data inicial artificial", () => {
+      const hint = formatFinancialPeriodHint({
+        from: null,
+        to: "2025-12-31",
+        periodMode: "allUpTo",
+      });
+      expect(hint).not.toContain("01/01/2026");
+      expect(hint).not.toContain(" a ");
+      expect(hint).toBe("Tudo até 31/12/2025");
+    });
+
+    it("4. YTD continua exibindo corretamente o texto atual", () => {
+      const hint = formatFinancialPeriodHint({
+        from: "2026-01-01",
+        to: "2026-10-04",
+        periodMode: "range",
+      });
+      expect(hint).toBe("01/01/2026 a 04/10/2026 · 2026 YTD");
+    });
+
+    it("5. período customizado continua funcionando sem YTD", () => {
+      const hint = formatFinancialPeriodHint({
+        from: "2026-09-01",
+        to: "2026-09-30",
+        periodMode: "range",
+      });
+      expect(hint).toBe("01/09/2026 a 30/09/2026");
+      expect(hint).not.toContain("YTD");
+    });
+
+    it("handles fallback if periodMode is allUpTo but to is null", () => {
+      const hint = formatFinancialPeriodHint({
+        to: null,
+        periodMode: "allUpTo",
+      });
+      expect(hint).toBe("Tudo até —");
     });
   });
 });
