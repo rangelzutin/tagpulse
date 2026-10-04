@@ -430,24 +430,47 @@ export function createStockAdjustmentRepository(
       const staleMinutes = options.staleMinutes ?? 15;
       const staleThreshold = new Date(now.getTime() - staleMinutes * 60 * 1000);
 
-      const whereClause: Prisma.StockAdjustmentSyncItemWhereInput = options.specificSourceId
-        ? {
-            connectionId,
-            sourceId: options.specificSourceId,
-          }
-        : {
-            connectionId,
-            OR: [
-              { status: "PENDING" },
-              {
-                status: "PROCESSING",
-                updatedAt: { lt: staleThreshold },
-              },
-            ],
-          };
+      // Targeted claim: if a specific sourceId is requested, claim it regardless of current status
+      // (allowing explicit re-processing of COMPLETED items)
+      if (options.specificSourceId) {
+        const item = await prisma.stockAdjustmentSyncItem.findUnique({
+          where: {
+            connectionId_sourceId: {
+              connectionId,
+              sourceId: options.specificSourceId,
+            },
+          },
+        });
 
+        if (!item) return null;
+
+        await prisma.stockAdjustmentSyncItem.update({
+          where: { id: item.id },
+          data: {
+            status: "PROCESSING",
+            attemptCount: { increment: 1 },
+            lastAttemptAt: now,
+          },
+        });
+
+        return {
+          sourceId: item.sourceId,
+          attemptCount: item.attemptCount + 1,
+        };
+      }
+
+      // Generic claim: only PENDING or stale PROCESSING
       const candidate = await prisma.stockAdjustmentSyncItem.findFirst({
-        where: whereClause,
+        where: {
+          connectionId,
+          OR: [
+            { status: "PENDING" },
+            {
+              status: "PROCESSING",
+              updatedAt: { lt: staleThreshold },
+            },
+          ],
+        },
         orderBy: [{ attemptCount: "asc" }, { createdAt: "asc" }],
         select: { id: true, sourceId: true, attemptCount: true },
       });

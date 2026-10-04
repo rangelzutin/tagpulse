@@ -239,6 +239,11 @@ export function createStockAdjustmentWorker(
           }
         }
 
+        // If specific sourceId was requested, stop after this single item
+        if (options.specificSourceId) {
+          break;
+        }
+
         // Inter-request rate limit delay
         if (processed < limit && rateLimitDelayMs > 0) {
           await new Promise((resolve) => setTimeout(resolve, rateLimitDelayMs));
