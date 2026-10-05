@@ -11,3 +11,4 @@ export * from "./financial-reference-sync.js";
 export * from "./financial-incremental-sync.js";
 export * from "./financial-sync-orchestrator.js";
 export * from "./financial-sync-routes.js";
+export * from "./production-financial-sync.js";

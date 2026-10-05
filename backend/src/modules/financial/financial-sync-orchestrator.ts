@@ -8,7 +8,12 @@ import {
   type TagPlusOAuthTokenStore,
 } from "../../integrations/tagplus/oauth-token-store.js";
 import { refreshAccessToken } from "../../integrations/tagplus/oauth.js";
-import { TagPlusOAuthRequiredError } from "../sync/tagplus-sync-orchestrator.js";
+import { TagPlusOAuthRequiredError, defaultGlobalSyncLockService } from "../sync/tagplus-sync-orchestrator.js";
+import {
+  type SyncLockHandle,
+  type SyncLockService,
+  SyncLockConflictError,
+} from "../sync/sync-lock-service.js";
 import {
   createFinancialRecordRepository,
   type FinancialRecordRepository,
@@ -107,6 +112,7 @@ export interface FinancialSyncOrchestratorDependencies {
   targetConnectionId?: string | undefined;
   now?: (() => Date) | undefined;
   runIncrementalSyncFn?: typeof runIncrementalSync | undefined;
+  syncLockService?: SyncLockService | undefined;
   env?: {
     baseUrl?: string | undefined;
     clientId?: string | undefined;
@@ -128,6 +134,7 @@ export function createFinancialSyncOrchestrator(
 
   let isRunning = false;
   let startedAtDate: Date | null = null;
+  let activeLockHandle: SyncLockHandle | null = null;
 
   let state: FinancialSyncStatusResponse = {
     status: "IDLE",
@@ -377,6 +384,8 @@ export function createFinancialSyncOrchestrator(
     } finally {
       isRunning = false;
       startedAtDate = null;
+      activeLockHandle?.release();
+      activeLockHandle = null;
     }
   }
 
@@ -385,8 +394,32 @@ export function createFinancialSyncOrchestrator(
       // 1. Validação de parâmetros ANTES de qualquer alteração de estado
       const { sinceDate, resolvedLookbackDays } = validateParams(params);
 
+      const targetConnId = dependencies.targetConnectionId ?? "8e1d662c-c9f3-4fee-9618-bb984573fa2a";
+      const lockService = dependencies.syncLockService ?? defaultGlobalSyncLockService;
+
+      // Aquisição da trava compartilhada única (bloqueia concorrência com global sync e financial sync)
+      let lockHandle: SyncLockHandle;
+      try {
+        lockHandle = lockService.acquire({
+          type: "FINANCIAL_INCREMENTAL",
+          connectionId: targetConnId,
+          details: { lookbackDays: resolvedLookbackDays, since: sinceDate },
+        });
+      } catch (err) {
+        if (err instanceof SyncLockConflictError) {
+          throw new FinancialSyncAlreadyRunningError({
+            status: "RUNNING",
+            startedAt: err.activeLock.startedAt.toISOString(),
+            since: sinceDate,
+            lookbackDays: resolvedLookbackDays ?? null,
+          });
+        }
+        throw err;
+      }
+
       // 2. Aquisição SÍNCRONA da trava em memória ANTES de qualquer await
       if (isRunning) {
+        lockHandle.release();
         throw new FinancialSyncAlreadyRunningError({
           status: "RUNNING",
           startedAt: state.startedAt ?? nowFn().toISOString(),
@@ -394,6 +427,8 @@ export function createFinancialSyncOrchestrator(
           lookbackDays: state.lookbackDays,
         });
       }
+
+      activeLockHandle = lockHandle;
       isRunning = true;
 
       const startedAt = nowFn();
@@ -418,6 +453,8 @@ export function createFinancialSyncOrchestrator(
       } catch (initErr) {
         isRunning = false;
         startedAtDate = null;
+        activeLockHandle?.release();
+        activeLockHandle = null;
         throw initErr;
       }
 

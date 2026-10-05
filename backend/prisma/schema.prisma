@@ -380,6 +380,7 @@ enum TagPlusSyncStage {
   CUSTOMERS
   PRODUCTS
   SALES
+  FINANCIAL
   COMPLETED
   FAILED
 }

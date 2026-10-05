@@ -54,9 +54,9 @@ export interface FinancialOperationalRepository {
   findOpenRecordsForSummary(
     type: FinancialRecordType,
     filters?: {
-      budgetPlanSourceId?: string;
-      dueFrom?: string;
-      dueTo?: string;
+      budgetPlanSourceId?: string | undefined;
+      dueFrom?: string | undefined;
+      dueTo?: string | undefined;
     },
   ): Promise<OperationalSummaryDbRecord[]>;
 

@@ -8,6 +8,15 @@ import {
 } from "../../integrations/tagplus/tagplus-date-formatter.js";
 import { NINECLOUDS_CONNECTION_ID } from "../sales/production-sales-sync.js";
 import type { TagPlusSyncRepository } from "./tagplus-sync-repository.js";
+import {
+  createSyncLockService,
+  type SyncLockHandle,
+  type SyncLockService,
+  SyncLockConflictError,
+} from "./sync-lock-service.js";
+import type { FinancialRunnerLike } from "../financial/production-financial-sync.js";
+
+export const defaultGlobalSyncLockService = createSyncLockService();
 
 export class TagPlusSyncAlreadyRunningError extends Error {
   constructor(
@@ -79,6 +88,7 @@ export interface TagPlusSyncStatusResponse {
     customers: SyncStepProgress;
     products: SyncStepProgress;
     sales: SyncStepProgress;
+    financial: SyncStepProgress;
   };
   lastCompletedSync: Date | null;
   lastCompletedIncrementalSync?: Date | null;
@@ -176,6 +186,8 @@ export interface TagPlusSyncOrchestratorDependencies {
   customerRunner: CustomerRunnerLike;
   productRunner: ProductRunnerLike;
   salesRunner: SalesRunnerLike;
+  financialRunner?: FinancialRunnerLike | undefined;
+  syncLockService?: SyncLockService | undefined;
   targetConnectionId?: string;
   now?: () => Date;
   isLocalEnvironment?: boolean;
@@ -192,11 +204,13 @@ export function createTagPlusSyncOrchestrator(
   let runStartedAt: Date | null = null;
   let activeWindowSince: Date | null = null;
   let activeWindowUntil: Date | null = null;
+  let activeLockHandle: SyncLockHandle | null = null;
   let inMemoryStages: {
     categories: SyncStepProgress;
     customers: SyncStepProgress;
     products: SyncStepProgress;
     sales: SyncStepProgress;
+    financial: SyncStepProgress;
   } = resetStages();
 
   const now = dependencies.now ?? (() => new Date());
@@ -207,6 +221,7 @@ export function createTagPlusSyncOrchestrator(
       customers: { status: "WAITING" },
       products: { status: "WAITING" },
       sales: { status: "WAITING" },
+      financial: { status: "WAITING" },
     };
   }
 
@@ -352,6 +367,23 @@ export function createTagPlusSyncOrchestrator(
         // Invalidation callback failure should not abort sync completion
       }
 
+      // 4. Financial (Stage 5)
+      if (dependencies.financialRunner) {
+        currentStage = TagPlusSyncStage.FINANCIAL;
+        inMemoryStages.financial = { status: "RUNNING" };
+        await dependencies.syncRepository.updateStage(run.id, TagPlusSyncStage.FINANCIAL);
+
+        const financialResult = await dependencies.financialRunner.run(connectionId, {
+          mode: run.mode,
+          window: runnerOptions.window,
+        });
+        stageSummaries.financial = financialResult;
+        inMemoryStages.financial = {
+          status: "COMPLETED",
+          summary: financialResult as unknown as Record<string, unknown>,
+        };
+      }
+
       // Conclusão total - Summary normalizado para JSON válido (ISO strings em datas)
       const completedAt = now();
       currentStage = TagPlusSyncStage.COMPLETED;
@@ -382,6 +414,8 @@ export function createTagPlusSyncOrchestrator(
         inMemoryStages.products = { status: "FAILED", error: stageErrorMessage };
       } else if (currentStage === TagPlusSyncStage.SALES) {
         inMemoryStages.sales = { status: "FAILED", error: stageErrorMessage };
+      } else if (currentStage === TagPlusSyncStage.FINANCIAL) {
+        inMemoryStages.financial = { status: "FAILED", error: stageErrorMessage };
       }
 
       await dependencies.syncRepository.failRun(
@@ -397,6 +431,8 @@ export function createTagPlusSyncOrchestrator(
       activeWindowSince = null;
       activeWindowUntil = null;
       runStartedAt = null;
+      activeLockHandle?.release();
+      activeLockHandle = null;
     }
   }
 
@@ -506,10 +542,32 @@ export function createTagPlusSyncOrchestrator(
       windowUntil?: Date | null;
     }> {
       const mode = options?.mode ?? TagPlusSyncMode.INCREMENTAL;
+      const targetId = dependencies.targetConnectionId ?? NINECLOUDS_CONNECTION_ID;
+      const lockService = dependencies.syncLockService ?? defaultGlobalSyncLockService;
 
-      // 1. Aquisição SÍNCRONA da trava em memória ANTES de qualquer await
-      // Bloqueia qualquer concorrência antes de haver yield no event loop
+      // 1. Aquisição da trava compartilhada única (bloqueia concorrência entre global sync e financial sync)
+      let lockHandle: SyncLockHandle;
+      try {
+        lockHandle = lockService.acquire({
+          type: "GLOBAL_SYNC",
+          connectionId: targetId,
+          details: { mode },
+        });
+      } catch (err) {
+        if (err instanceof SyncLockConflictError) {
+          throw new TagPlusSyncAlreadyRunningError({
+            runId: activeRunId ?? err.activeLock.runId ?? "in-flight",
+            mode: activeMode,
+            status: TagPlusSyncStatus.RUNNING,
+            currentStage,
+            startedAt: runStartedAt ?? err.activeLock.startedAt,
+          });
+        }
+        throw err;
+      }
+
       if (isRunning) {
+        lockHandle.release();
         throw new TagPlusSyncAlreadyRunningError({
           runId: activeRunId ?? "in-flight",
           mode: activeMode,
@@ -518,11 +576,13 @@ export function createTagPlusSyncOrchestrator(
           startedAt: runStartedAt ?? now(),
         });
       }
+
+      activeLockHandle = lockHandle;
       isRunning = true;
       activeMode = mode;
       const startedAt = now();
       runStartedAt = startedAt;
-      currentStage = TagPlusSyncStage.CUSTOMERS;
+      currentStage = TagPlusSyncStage.CATEGORIES;
 
       let connectionId: string;
       try {
@@ -532,6 +592,8 @@ export function createTagPlusSyncOrchestrator(
         isRunning = false;
         runStartedAt = null;
         activeMode = TagPlusSyncMode.INCREMENTAL;
+        activeLockHandle?.release();
+        activeLockHandle = null;
         throw preflightErr;
       }
 
@@ -576,6 +638,8 @@ export function createTagPlusSyncOrchestrator(
         isRunning = false;
         runStartedAt = null;
         activeMode = TagPlusSyncMode.INCREMENTAL;
+        activeLockHandle?.release();
+        activeLockHandle = null;
         throw watermarkErr;
       }
 
@@ -599,6 +663,8 @@ export function createTagPlusSyncOrchestrator(
         activeMode = TagPlusSyncMode.INCREMENTAL;
         activeWindowSince = null;
         activeWindowUntil = null;
+        activeLockHandle?.release();
+        activeLockHandle = null;
         throw err;
       }
 
@@ -680,6 +746,9 @@ export function createTagPlusSyncOrchestrator(
           sales: sum.sales
             ? { status: "COMPLETED", summary: sum.sales as Record<string, unknown> }
             : { status: latestRun.errorStage === TagPlusSyncStage.SALES ? "FAILED" : "WAITING" },
+          financial: sum.financial
+            ? { status: "COMPLETED", summary: sum.financial as Record<string, unknown> }
+            : { status: latestRun.errorStage === TagPlusSyncStage.FINANCIAL ? "FAILED" : "WAITING" },
         };
       }
 

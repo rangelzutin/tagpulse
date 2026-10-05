@@ -14,8 +14,12 @@ import { createProductionSalesSyncRunner } from "./modules/sales/production-sale
 import {
   createTagPlusSyncOrchestrator,
   createTagPlusSyncRepository,
+  createSyncLockService,
 } from "./modules/sync/index.js";
-import { createFinancialSyncOrchestrator } from "./modules/financial/index.js";
+import {
+  createFinancialSyncOrchestrator,
+  createProductionFinancialSyncRunner,
+} from "./modules/financial/index.js";
 
 const env = loadEnv();
 const tokenStore = createTagPlusOAuthTokenStore();
@@ -101,6 +105,21 @@ function isNgrokCallbackUrl(urlStr: string): boolean {
 // Repositório BI
 const biRepository = createBiRepository(prisma);
 
+// Trava compartilhada para sincronizações (Global e Financeira)
+const syncLockService = createSyncLockService();
+
+// Runner Financeiro de Produção (Incremental Financeiro + Scan Leve de Stock Adjustments + JIT)
+const financialRunner = createProductionFinancialSyncRunner({
+  prisma,
+  tokenStore,
+  env: {
+    baseUrl: env.TAGPLUS_BASE_URL,
+    clientId: env.TAGPLUS_CLIENT_ID,
+    clientSecret: env.TAGPLUS_CLIENT_SECRET,
+    accessToken: env.TAGPLUS_ACCESS_TOKEN,
+  },
+});
+
 // Orquestrador TagPlus
 const tagPlusSyncOrchestrator = createTagPlusSyncOrchestrator({
   prisma,
@@ -110,16 +129,19 @@ const tagPlusSyncOrchestrator = createTagPlusSyncOrchestrator({
   customerRunner,
   productRunner,
   salesRunner,
+  financialRunner,
+  syncLockService,
   isLocalEnvironment: isNgrokCallbackUrl(env.TAGPLUS_CALLBACK_URL),
   onSalesSyncCompleted: () => {
     biRepository.invalidateHistoricalLastPhysicalSalesCache?.();
   },
 });
 
-// Orquestrador Sync Financeiro
+// Orquestrador Sync Financeiro (preservado como controle isolado com trava compartilhada)
 const financialSyncOrchestrator = createFinancialSyncOrchestrator({
   prisma,
   tokenStore,
+  syncLockService,
   env: {
     baseUrl: env.TAGPLUS_BASE_URL,
     clientId: env.TAGPLUS_CLIENT_ID,

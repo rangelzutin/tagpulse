@@ -22,7 +22,7 @@ export async function ensureTagPlusConnection(
       apiVersion: "2.0",
     },
     update: {},
-    select: { id: true, companyId: true, status: true, apiVersion: true },
+    select: { id: true, companyId: true, status: true, apiVersion: true, name: true },
   });
 }
 

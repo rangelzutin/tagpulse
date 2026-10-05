@@ -12,6 +12,7 @@ import {
   type ProductRunnerLike,
   type SalesRunnerLike,
 } from "../src/modules/sync/tagplus-sync-orchestrator.js";
+import { createSyncLockService } from "../src/modules/sync/sync-lock-service.js";
 import type { TagPlusSyncRepository } from "../src/modules/sync/tagplus-sync-repository.js";
 
 const TEST_CONNECTION_ID = "8e1d662c-c9f3-4fee-9618-bb984573fa2a";
@@ -211,6 +212,7 @@ function createHarness(options?: {
     customerRunner,
     productRunner,
     salesRunner,
+    syncLockService: createSyncLockService(),
     targetConnectionId: TEST_CONNECTION_ID,
     now: () => fixedNow,
     onSalesSyncCompleted: options?.onSalesSyncCompleted,

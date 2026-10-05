@@ -4,6 +4,8 @@ import {
   type TagPlusClient,
 } from "../../integrations/tagplus/tagplus-client.js";
 import { normalizeTagPlusStockAdjustment } from "../../integrations/tagplus/stock-adjustments/stock-adjustment-normalizer.js";
+import { normalizeTagPlusFinancialRecord } from "../../integrations/tagplus/financial/financial-record-normalizer.js";
+import type { FinancialRecordRepository } from "../financial/financial-record-repository.js";
 import type { StockAdjustmentRepository } from "./stock-adjustment-repository.js";
 
 export interface StockAdjustmentWorkerProgress {
@@ -35,6 +37,7 @@ export interface StockAdjustmentWorkerSummary {
   inserted: number;
   updated: number;
   unchanged: number;
+  jitResolvedCount: number;
 }
 
 export interface StockAdjustmentWorkerDeps {
@@ -43,6 +46,11 @@ export interface StockAdjustmentWorkerDeps {
   getClient: () => TagPlusClient;
   updateClientToken?: ((newToken: string) => void) | undefined;
   refreshToken?: (() => Promise<string | null>) | undefined;
+  financialRecordRepository?: FinancialRecordRepository | undefined;
+  resolveMissingFinancialRecord?: ((
+    connectionId: string,
+    sourceId: string,
+  ) => Promise<{ id: string } | null>) | undefined;
 }
 
 export interface StockAdjustmentWorker {
@@ -75,6 +83,7 @@ export function createStockAdjustmentWorker(
       let inserted = 0;
       let updated = 0;
       let unchanged = 0;
+      let jitResolvedCount = 0;
 
       const candidateQueue = options.candidateSourceIds
         ? [...options.candidateSourceIds]
@@ -121,11 +130,80 @@ export function createStockAdjustmentWorker(
             const normalized = normalizeTagPlusStockAdjustment(response.data as Record<string, unknown>);
 
             const now = new Date();
+
+            // Auto-resolução JIT de FinancialRecords ausentes referenciados por vínculos
+            if (
+              normalized.financialLinks.length > 0 &&
+              (deps.resolveMissingFinancialRecord || deps.financialRecordRepository)
+            ) {
+              for (const link of normalized.financialLinks) {
+                const existingFr = await prisma.financialRecord.findUnique({
+                  where: {
+                    connectionId_sourceId: {
+                      connectionId,
+                      sourceId: link.financialRecordSourceId,
+                    },
+                  },
+                  select: { id: true },
+                });
+
+                if (!existingFr) {
+                  let resolvedId: string | null = null;
+                  if (deps.resolveMissingFinancialRecord) {
+                    const res = await deps.resolveMissingFinancialRecord(
+                      connectionId,
+                      link.financialRecordSourceId,
+                    );
+                    resolvedId = res?.id ?? null;
+                  } else if (deps.financialRecordRepository) {
+                    const frRes = await client.get(`/financeiros/${link.financialRecordSourceId}`);
+                    if (!frRes?.data) {
+                      throw new Error(
+                        `JIT_RESOLUTION_NOT_FOUND: Lançamento financeiro ${link.financialRecordSourceId} não encontrado no TagPlus`,
+                      );
+                    }
+                    const normalizedFr = normalizeTagPlusFinancialRecord(
+                      frRes.data as Record<string, unknown>,
+                    );
+                    const savedFr = await deps.financialRecordRepository.saveFinancialRecord(
+                      connectionId,
+                      normalizedFr,
+                      now,
+                    );
+                    resolvedId = savedFr.id;
+                  }
+
+                  if (!resolvedId) {
+                    throw new Error(
+                      `JIT_RESOLUTION_FAILED: Lançamento financeiro ${link.financialRecordSourceId} referenciado pelo Ajuste ${sourceId} não pôde ser resolvido`,
+                    );
+                  }
+                  jitResolvedCount++;
+                }
+              }
+            }
+
             let saveResult: { action: "inserted" | "updated" | "unchanged"; id: string } | undefined;
             await prisma.$transaction(async (tx) => {
               saveResult = await repository.saveStockAdjustmentWithTx(tx, connectionId, normalized, now);
               await repository.markItemCompletedWithTx(tx, connectionId, sourceId, now);
             });
+
+            // Validação estrita: se resolução JIT estiver ativa, nenhum vínculo ativo pode ter financialRecordId nulo
+            if (deps.resolveMissingFinancialRecord || deps.financialRecordRepository) {
+              const brokenLinks = await prisma.stockAdjustmentFinancialLink.count({
+                where: {
+                  stockAdjustmentId: saveResult!.id,
+                  sourcePresent: true,
+                  financialRecordId: null,
+                },
+              });
+              if (brokenLinks > 0) {
+                throw new Error(
+                  `INCONSISTENT_FINANCIAL_LINK: Ajuste ${sourceId} possui ${brokenLinks} vínculo(s) com financialRecordId nulo`,
+                );
+              }
+            }
 
             if (saveResult?.action === "inserted") inserted++;
             else if (saveResult?.action === "updated") updated++;
@@ -259,6 +337,7 @@ export function createStockAdjustmentWorker(
         inserted,
         updated,
         unchanged,
+        jitResolvedCount,
       };
     },
   };
