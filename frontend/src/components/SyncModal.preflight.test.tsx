@@ -560,12 +560,13 @@ describe("SyncModal State Machine (Cenários Obrigatórios A–I)", () => {
     expect(state.stages.sales.status).toBe("WAITING");
   });
 
-  it("Cenário J: Modal renders 4 stages including 1. Categorias with correct badges and metrics", () => {
+  it("Cenário J: Modal renders 5 stages including 5. Financeiro with correct badges and metrics", () => {
     expect(IDLE_STAGES).toEqual({
       categories: { status: "WAITING" },
       customers: { status: "WAITING" },
       products: { status: "WAITING" },
       sales: { status: "WAITING" },
+      financial: { status: "WAITING" },
     });
 
     const html = renderToString(
@@ -576,6 +577,7 @@ describe("SyncModal State Machine (Cenários Obrigatórios A–I)", () => {
     expect(html).toContain("2. Clientes");
     expect(html).toContain("3. Produtos");
     expect(html).toContain("4. Vendas e Faturamento");
+    expect(html).toContain("5. Financeiro");
   });
 
   it("Cenário K: Category transitions through WAITING, RUNNING, COMPLETED, FAILED", () => {

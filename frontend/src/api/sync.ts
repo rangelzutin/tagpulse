@@ -5,6 +5,7 @@ export type TagPlusSyncStage =
   | "CUSTOMERS"
   | "PRODUCTS"
   | "SALES"
+  | "FINANCIAL"
   | "COMPLETED"
   | "FAILED";
 
@@ -47,6 +48,7 @@ export interface TagPlusSyncStatusResponse {
     customers: SyncStepProgress;
     products: SyncStepProgress;
     sales: SyncStepProgress;
+    financial?: SyncStepProgress;
   };
   lastCompletedSync: string | null;
   lastCompletedIncrementalSync?: string | null;

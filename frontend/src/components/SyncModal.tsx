@@ -9,6 +9,7 @@ import {
   Users,
   Package,
   ShoppingCart,
+  CircleDollarSign,
   Lock,
   Database,
 } from "lucide-react";
@@ -23,11 +24,49 @@ import {
   type TagPlusSyncStatusResponse,
 } from "../api/sync.js";
 
-export const IDLE_STAGES: TagPlusSyncStatusResponse["stages"] = {
+export function renderFinancialMetrics(summary?: Record<string, unknown>) {
+  if (!summary) return null;
+  const inc = (summary.incremental as Record<string, unknown> | undefined) ?? summary;
+  const candidatesObj = inc.candidates as Record<string, unknown> | undefined;
+
+  const analyzed = Number(
+    inc.processed ??
+    candidatesObj?.uniqueCount ??
+    candidatesObj?.recentCount ??
+    inc.candidates ??
+    inc.recordsFetched ??
+    0,
+  );
+  const inserted = Number(inc.inserted ?? inc.created ?? 0);
+  const updated = Number(inc.updated ?? 0);
+  const failed = Number(inc.failed ?? 0);
+
+  const parts: string[] = [];
+  if (analyzed > 0) parts.push(`${analyzed.toLocaleString()} analisados`);
+  if (inserted > 0) parts.push(`${inserted.toLocaleString()} novos`);
+  if (updated > 0) parts.push(`${updated.toLocaleString()} atualizados`);
+  if (failed > 0) parts.push(`${failed.toLocaleString()} com erro`);
+
+  if (parts.length === 0) return null;
+
+  return (
+    <div className="tp-sync-stage-metrics">
+      {parts.map((text, idx) => (
+        <span key={text} style={{ display: "inline-flex", alignItems: "center" }}>
+          {idx > 0 && <span className="tp-metric-sep">•</span>}
+          <span>{text}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+export const IDLE_STAGES: Required<TagPlusSyncStatusResponse["stages"]> = {
   categories: { status: "WAITING" },
   customers: { status: "WAITING" },
   products: { status: "WAITING" },
   sales: { status: "WAITING" },
+  financial: { status: "WAITING" },
 };
 
 export interface DerivedSyncModalState {
@@ -39,7 +78,7 @@ export interface DerivedSyncModalState {
   isAuthError: boolean;
   isPreflightBlocking: boolean;
   activeMode: TagPlusSyncMode;
-  stages: TagPlusSyncStatusResponse["stages"];
+  stages: Required<TagPlusSyncStatusResponse["stages"]>;
   primaryButtonLabel: "Sincronizar agora" | "Tentar Novamente";
   canStartSync: boolean;
 }
@@ -83,9 +122,12 @@ export function deriveSyncModalState(params: {
       ? (params.statusData?.activeRun?.mode ?? "INCREMENTAL")
       : "INCREMENTAL";
 
-  const stages =
+  const stages: Required<TagPlusSyncStatusResponse["stages"]> =
     (isTracked || isRunning)
-      ? (params.statusData?.stages ?? IDLE_STAGES)
+      ? {
+          ...IDLE_STAGES,
+          ...(params.statusData?.stages ?? {}),
+        }
       : IDLE_STAGES;
 
   const primaryButtonLabel = isSessionFailed
@@ -335,6 +377,7 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
           customers: { status: "WAITING" },
           products: { status: "WAITING" },
           sales: { status: "WAITING" },
+          financial: { status: "WAITING" },
         },
         lastCompletedSync: prev?.lastCompletedSync ?? null,
         lastCompletedIncrementalSync: prev?.lastCompletedIncrementalSync ?? null,
@@ -351,13 +394,16 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
           setAuthorizeUrl(resolveAuthorizeUrl(rawAuthorizeUrl));
         } else if (err.code === "TAGPLUS_INCREMENTAL_BASELINE_REQUIRED") {
           setBaselineRequired(true);
-        } else if (err.code === "TAGPLUS_SYNC_ALREADY_RUNNING") {
-          const runningId = err.details?.activeRun?.runId;
-          if (runningId) {
-            setCurrentSessionRunId(runningId);
-            currentSessionRunIdRef.current = runningId;
+        } else if (err.code === "TAGPLUS_SYNC_ALREADY_RUNNING" || err.statusCode === 409) {
+          const latest = await refreshStatus();
+          if (latest?.isRunning && latest.activeRun?.runId) {
+            setCurrentSessionRunId(latest.activeRun.runId);
+            currentSessionRunIdRef.current = latest.activeRun.runId;
+          } else {
+            setCurrentSessionRunId(null);
+            currentSessionRunIdRef.current = null;
+            setErrorMessage("Já existe uma sincronização em andamento.");
           }
-          await refreshStatus();
         } else {
           setErrorMessage(err.message);
         }
@@ -574,10 +620,14 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
         {(errorMessage || (isSessionFailed && !isAuthError)) &&
           !oauthRequired &&
           !baselineRequired && (
-            <div className="tp-sync-banner is-error">
+            <div className="tp-sync-banner is-error" data-testid="sync-error-banner">
               <AlertCircle size={18} className="tp-sync-banner-icon" />
               <div className="tp-sync-banner-text">
-                <strong>Falha na Sincronização</strong>
+                <strong>
+                  {errorMessage === "Já existe uma sincronização em andamento."
+                    ? "Sincronização em Andamento"
+                    : "Falha na Sincronização"}
+                </strong>
                 <p>
                   {errorMessage ||
                     statusData?.activeRun?.errorMessage ||
@@ -608,7 +658,7 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
         <div className="tp-sync-stages-list">
           {/* Etapa 1: Categorias */}
           <div
-            className={`tp-sync-stage-item is-${stages.categories?.status.toLowerCase() ?? "waiting"}`}
+            className={`tp-sync-stage-item is-${(stages.categories?.status ?? "waiting").toLowerCase()}`}
             data-testid="stage-categories"
           >
             <div className="tp-sync-stage-icon-wrap">
@@ -617,8 +667,8 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
             <div className="tp-sync-stage-info">
               <div className="tp-sync-stage-header">
                 <span className="tp-sync-stage-name">1. Categorias</span>
-                <span className={`tp-sync-stage-badge is-${stages.categories?.status.toLowerCase() ?? "waiting"}`}>
-                  {stages.categories?.status === "WAITING" && "Aguardando"}
+                <span className={`tp-sync-stage-badge is-${(stages.categories?.status ?? "waiting").toLowerCase()}`}>
+                  {(!stages.categories || stages.categories.status === "WAITING") && "Aguardando"}
                   {stages.categories?.status === "RUNNING" && "Sincronizando..."}
                   {stages.categories?.status === "COMPLETED" && "Concluído"}
                   {stages.categories?.status === "FAILED" && "Erro"}
@@ -646,21 +696,24 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
           </div>
 
           {/* Etapa 2: Clientes */}
-          <div className={`tp-sync-stage-item is-${stages.customers.status.toLowerCase()}`}>
+          <div
+            className={`tp-sync-stage-item is-${(stages.customers?.status ?? "waiting").toLowerCase()}`}
+            data-testid="stage-customers"
+          >
             <div className="tp-sync-stage-icon-wrap">
               <Users size={16} />
             </div>
             <div className="tp-sync-stage-info">
               <div className="tp-sync-stage-header">
                 <span className="tp-sync-stage-name">2. Clientes</span>
-                <span className={`tp-sync-stage-badge is-${stages.customers.status.toLowerCase()}`}>
-                  {stages.customers.status === "WAITING" && "Aguardando"}
-                  {stages.customers.status === "RUNNING" && "Sincronizando..."}
-                  {stages.customers.status === "COMPLETED" && "Concluído"}
-                  {stages.customers.status === "FAILED" && "Erro"}
+                <span className={`tp-sync-stage-badge is-${(stages.customers?.status ?? "waiting").toLowerCase()}`}>
+                  {(!stages.customers || stages.customers.status === "WAITING") && "Aguardando"}
+                  {stages.customers?.status === "RUNNING" && "Sincronizando..."}
+                  {stages.customers?.status === "COMPLETED" && "Concluído"}
+                  {stages.customers?.status === "FAILED" && "Erro"}
                 </span>
               </div>
-              {stages.customers.summary && (
+              {stages.customers?.summary && (
                 <div className="tp-sync-stage-metrics">
                   <span>
                     {(stages.customers.summary.recordsFetched as number)?.toLocaleString() ?? 0} registros analisados
@@ -675,28 +728,31 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
                   </span>
                 </div>
               )}
-              {stages.customers.error && (
+              {stages.customers?.error && (
                 <p className="tp-sync-stage-error">{stages.customers.error}</p>
               )}
             </div>
           </div>
 
           {/* Etapa 3: Produtos */}
-          <div className={`tp-sync-stage-item is-${stages.products.status.toLowerCase()}`}>
+          <div
+            className={`tp-sync-stage-item is-${(stages.products?.status ?? "waiting").toLowerCase()}`}
+            data-testid="stage-products"
+          >
             <div className="tp-sync-stage-icon-wrap">
               <Package size={16} />
             </div>
             <div className="tp-sync-stage-info">
               <div className="tp-sync-stage-header">
                 <span className="tp-sync-stage-name">3. Produtos</span>
-                <span className={`tp-sync-stage-badge is-${stages.products.status.toLowerCase()}`}>
-                  {stages.products.status === "WAITING" && "Aguardando"}
-                  {stages.products.status === "RUNNING" && "Sincronizando..."}
-                  {stages.products.status === "COMPLETED" && "Concluído"}
-                  {stages.products.status === "FAILED" && "Erro"}
+                <span className={`tp-sync-stage-badge is-${(stages.products?.status ?? "waiting").toLowerCase()}`}>
+                  {(!stages.products || stages.products.status === "WAITING") && "Aguardando"}
+                  {stages.products?.status === "RUNNING" && "Sincronizando..."}
+                  {stages.products?.status === "COMPLETED" && "Concluído"}
+                  {stages.products?.status === "FAILED" && "Erro"}
                 </span>
               </div>
-              {stages.products.summary && (
+              {stages.products?.summary && (
                 <div className="tp-sync-stage-metrics">
                   <span>
                     {(stages.products.summary.recordsFetched as number)?.toLocaleString() ?? 0} produtos analisados
@@ -711,28 +767,31 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
                   </span>
                 </div>
               )}
-              {stages.products.error && (
+              {stages.products?.error && (
                 <p className="tp-sync-stage-error">{stages.products.error}</p>
               )}
             </div>
           </div>
 
           {/* Etapa 4: Vendas e Faturamento */}
-          <div className={`tp-sync-stage-item is-${stages.sales.status.toLowerCase()}`}>
+          <div
+            className={`tp-sync-stage-item is-${(stages.sales?.status ?? "waiting").toLowerCase()}`}
+            data-testid="stage-sales"
+          >
             <div className="tp-sync-stage-icon-wrap">
               <ShoppingCart size={16} />
             </div>
             <div className="tp-sync-stage-info">
               <div className="tp-sync-stage-header">
                 <span className="tp-sync-stage-name">4. Vendas e Faturamento</span>
-                <span className={`tp-sync-stage-badge is-${stages.sales.status.toLowerCase()}`}>
-                  {stages.sales.status === "WAITING" && "Aguardando"}
-                  {stages.sales.status === "RUNNING" && "Sincronizando..."}
-                  {stages.sales.status === "COMPLETED" && "Concluído"}
-                  {stages.sales.status === "FAILED" && "Erro"}
+                <span className={`tp-sync-stage-badge is-${(stages.sales?.status ?? "waiting").toLowerCase()}`}>
+                  {(!stages.sales || stages.sales.status === "WAITING") && "Aguardando"}
+                  {stages.sales?.status === "RUNNING" && "Sincronizando..."}
+                  {stages.sales?.status === "COMPLETED" && "Concluído"}
+                  {stages.sales?.status === "FAILED" && "Erro"}
                 </span>
               </div>
-              {stages.sales.summary && (
+              {stages.sales?.summary && (
                 <div className="tp-sync-stage-metrics">
                   {(() => {
                     const sum = stages.sales.summary as {
@@ -750,8 +809,33 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
                   })()}
                 </div>
               )}
-              {stages.sales.error && (
+              {stages.sales?.error && (
                 <p className="tp-sync-stage-error">{stages.sales.error}</p>
+              )}
+            </div>
+          </div>
+
+          {/* Etapa 5: Financeiro */}
+          <div
+            className={`tp-sync-stage-item is-${(stages.financial?.status ?? "waiting").toLowerCase()}`}
+            data-testid="stage-financial"
+          >
+            <div className="tp-sync-stage-icon-wrap">
+              <CircleDollarSign size={16} />
+            </div>
+            <div className="tp-sync-stage-info">
+              <div className="tp-sync-stage-header">
+                <span className="tp-sync-stage-name">5. Financeiro</span>
+                <span className={`tp-sync-stage-badge is-${(stages.financial?.status ?? "waiting").toLowerCase()}`}>
+                  {(!stages.financial || stages.financial.status === "WAITING") && "Aguardando"}
+                  {stages.financial?.status === "RUNNING" && "Sincronizando..."}
+                  {stages.financial?.status === "COMPLETED" && "Concluído"}
+                  {stages.financial?.status === "FAILED" && "Erro"}
+                </span>
+              </div>
+              {renderFinancialMetrics(stages.financial?.summary)}
+              {stages.financial?.error && (
+                <p className="tp-sync-stage-error">{stages.financial.error}</p>
               )}
             </div>
           </div>
