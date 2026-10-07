@@ -86,8 +86,39 @@ export interface FinancialRunnerLike {
       mode?: TagPlusSyncMode | undefined;
       window?: { since: string; until: string } | undefined;
       lookbackDays?: number | undefined;
+      since?: string | undefined;
     },
   ): Promise<FinancialStageResult>;
+}
+
+/**
+ * Normaliza uma data explícita para o formato 'YYYY-MM-DD' respeitando o fuso 'America/Sao_Paulo'.
+ * - Se já estiver em 'YYYY-MM-DD', preserva a data civil.
+ * - Se contiver hora no formato local 'YYYY-MM-DD HH:mm:ss', extrai 'YYYY-MM-DD'.
+ * - Se for ISO string ou com timezone, formata a data civil correspondente em 'America/Sao_Paulo'.
+ * - Se for string arbitrária inválida, mantém a string original para que a validação estrita
+ *   de 'resolveSinceDate' dispare a rejeição esperada.
+ */
+export function normalizeExplicitSinceDate(since?: string): string | undefined {
+  if (!since) return undefined;
+  const trimmed = since.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+  const localMatch = trimmed.match(/^(\d{4}-\d{2}-\d{2})\s+\d{2}:\d{2}:\d{2}$/);
+  if (localMatch) {
+    return localMatch[1];
+  }
+  const parsed = new Date(trimmed);
+  if (!Number.isNaN(parsed.getTime())) {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Sao_Paulo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(parsed);
+  }
+  return trimmed;
 }
 
 export interface ProductionFinancialSyncRunnerDependencies {
@@ -202,6 +233,16 @@ export function createProductionFinancialSyncRunner(
       // ==============================================================
       // SUBPASSO A: FINANCEIRO INCREMENTAL
       // ==============================================================
+      // A regra de negócio aprovada para o Financeiro Incremental é:
+      // janela recente de 30 dias (lookbackDays) + títulos em aberto + confirmados sem data definida.
+      // O Financeiro NÃO deve herdar indevidamente a janela comercial reduzida do orquestrador global (options.window).
+      // Reutiliza o cálculo padrão do sincronizador financeiro (lookbackDays: 30 em America/Sao_Paulo).
+      // Se options.since for fornecido explicitamente para o financeiro, este é respeitado
+      // (normalizado para YYYY-MM-DD em America/Sao_Paulo).
+      const resolvedSince = options.since
+        ? normalizeExplicitSinceDate(options.since)
+        : undefined;
+
       const runSync = deps.runIncrementalSyncFn ?? runIncrementalSync;
       const incrementalReport = await runSync({
         prisma: deps.prisma,
@@ -210,7 +251,7 @@ export function createProductionFinancialSyncRunner(
         getClient,
         connectionId: connection.id,
         lookbackDays: options.lookbackDays ?? 30,
-        since: options.window?.since,
+        since: resolvedSince,
         refreshToken: refreshTokenHandler,
         updateClientToken,
       });
