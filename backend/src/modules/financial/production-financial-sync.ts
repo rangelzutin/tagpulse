@@ -243,6 +243,8 @@ export function createProductionFinancialSyncRunner(
         ? normalizeExplicitSinceDate(options.since)
         : undefined;
 
+      let discoveredCandidateIds: string[] = [];
+
       const runSync = deps.runIncrementalSyncFn ?? runIncrementalSync;
       const incrementalReport = await runSync({
         prisma: deps.prisma,
@@ -254,6 +256,9 @@ export function createProductionFinancialSyncRunner(
         since: resolvedSince,
         refreshToken: refreshTokenHandler,
         updateClientToken,
+        onCandidatesDiscovered: (c) => {
+          discoveredCandidateIds = c.uniqueCandidates;
+        },
       });
 
       if (incrementalReport.workerSummary && incrementalReport.workerSummary.failed > 0) {
@@ -262,24 +267,30 @@ export function createProductionFinancialSyncRunner(
         );
       }
 
-      // Identificar movimentos do tipo "AE" entre os candidatos processados
-      const candidateIds = incrementalReport.workerSummary
-        ? await deps.prisma.financialRecord.findMany({
-            where: {
-              connectionId: connection.id,
-              linkedMovementNumber: { startsWith: "AE" },
-            },
-            select: { linkedMovementNumber: true },
-          })
-        : [];
+      // Identificar movimentos do tipo "AE" EXCLUSIVAMENTE entre os candidatos processados nesta rodada
+      const candidateSourceIds =
+        incrementalReport.candidateSourceIds ?? discoveredCandidateIds;
 
-      const aeMovementNumbers = Array.from(
-        new Set(
-          candidateIds
-            .map((r) => r.linkedMovementNumber)
-            .filter((m): m is string => Boolean(m)),
-        ),
-      );
+      const aeMovementNumbers: string[] = [];
+
+      if (candidateSourceIds.length > 0 && incrementalReport.workerSummary) {
+        const candidateRecords = await deps.prisma.financialRecord.findMany({
+          where: {
+            connectionId: connection.id,
+            sourceId: { in: candidateSourceIds },
+            linkedMovementNumber: { startsWith: "AE" },
+          },
+          select: { linkedMovementNumber: true },
+        });
+
+        const uniqueAeNumbers = new Set<string>();
+        for (const r of candidateRecords) {
+          if (r.linkedMovementNumber) {
+            uniqueAeNumbers.add(r.linkedMovementNumber);
+          }
+        }
+        aeMovementNumbers.push(...uniqueAeNumbers);
+      }
 
       // ==============================================================
       // SUBPASSO B: STOCK ADJUSTMENTS LIGHTWEIGHT RECONCILIATION + JIT

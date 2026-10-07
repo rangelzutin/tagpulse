@@ -32,6 +32,7 @@ export interface IncrementalSyncReport {
     uniqueCount: number;
     overlapDeduplicated: number;
   };
+  candidateSourceIds?: string[] | undefined;
   prepResult?: {
     total: number;
     newlyCreated: number;
@@ -284,6 +285,7 @@ export async function runIncrementalSync(
         uniqueCount: candidates.uniqueCandidates.length,
         overlapDeduplicated: candidates.overlapDeduplicated,
       },
+      candidateSourceIds: candidates.uniqueCandidates,
       durationMs,
     };
   }
@@ -319,6 +321,7 @@ export async function runIncrementalSync(
       uniqueCount: candidates.uniqueCandidates.length,
       overlapDeduplicated: candidates.overlapDeduplicated,
     },
+    candidateSourceIds: candidates.uniqueCandidates,
     prepResult,
     workerSummary,
     durationMs,
