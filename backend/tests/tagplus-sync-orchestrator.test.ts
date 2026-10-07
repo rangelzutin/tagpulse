@@ -332,7 +332,7 @@ describe("TagPlusSyncOrchestrator", () => {
 
     expect(h.customerRunner.run).toHaveBeenCalledWith(
       TEST_CONNECTION_ID,
-      { mode: TagPlusSyncMode.FULL },
+      expect.objectContaining({ mode: TagPlusSyncMode.FULL }),
     );
   });
 

@@ -22,7 +22,42 @@ import {
   type TagPlusPreflightResponse,
   type TagPlusSyncMode,
   type TagPlusSyncStatusResponse,
+  type SyncStepProgressInfo,
 } from "../api/sync.js";
+
+export function renderStageProgress(progress?: SyncStepProgressInfo) {
+  if (!progress || progress.current === undefined) {
+    return null;
+  }
+  const current = Math.max(0, progress.current);
+  const label = progress.label || progress.substep;
+  const isDeterminate = typeof progress.total === "number";
+
+  let displayText: string;
+  let percent: number | undefined;
+
+  if (isDeterminate) {
+    const total = Math.max(0, progress.total as number);
+    percent = total > 0 ? Math.min(100, Math.round((current / total) * 100)) : 0;
+    displayText = `${label ? `${label} · ` : ""}${current} de ${total}`;
+  } else {
+    displayText = `${label ? `${label} · ` : ""}${current} processados`;
+  }
+
+  return (
+    <div className="tp-sync-stage-progress-box" data-testid="stage-progress">
+      <div className="tp-sync-stage-progress-track">
+        <div
+          className={`tp-sync-stage-progress-bar${isDeterminate ? "" : " is-indeterminate"}`}
+          style={isDeterminate ? { width: `${percent}%` } : undefined}
+        />
+      </div>
+      <div className="tp-sync-stage-progress-label">
+        <span>{displayText}</span>
+      </div>
+    </div>
+  );
+}
 
 export function renderFinancialMetrics(summary?: Record<string, unknown>) {
   if (!summary) return null;
@@ -63,6 +98,14 @@ export function renderFinancialMetrics(summary?: Record<string, unknown>) {
 
 export const IDLE_STAGES: Required<TagPlusSyncStatusResponse["stages"]> = {
   categories: { status: "WAITING" },
+  customers: { status: "WAITING" },
+  products: { status: "WAITING" },
+  sales: { status: "WAITING" },
+  financial: { status: "WAITING" },
+};
+
+export const STARTING_STAGES: Required<TagPlusSyncStatusResponse["stages"]> = {
+  categories: { status: "RUNNING" },
   customers: { status: "WAITING" },
   products: { status: "WAITING" },
   sales: { status: "WAITING" },
@@ -123,12 +166,14 @@ export function deriveSyncModalState(params: {
       : "INCREMENTAL";
 
   const stages: Required<TagPlusSyncStatusResponse["stages"]> =
-    (isTracked || isRunning)
-      ? {
-          ...IDLE_STAGES,
-          ...(params.statusData?.stages ?? {}),
-        }
-      : IDLE_STAGES;
+    params.isStarting
+      ? STARTING_STAGES
+      : (isTracked || isRunning)
+        ? {
+            ...IDLE_STAGES,
+            ...(params.statusData?.stages ?? {}),
+          }
+        : IDLE_STAGES;
 
   const primaryButtonLabel = isSessionFailed
     ? "Tentar Novamente"
@@ -344,12 +389,25 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
   }, [isOpen, refreshStatus, onSyncSuccess]);
 
   const handleStartSync = async (mode: TagPlusSyncMode = "INCREMENTAL") => {
+    // 1. Reset imediato da sessão anterior
+    setCurrentSessionRunId(null);
+    currentSessionRunIdRef.current = null;
     setIsStarting(true);
     setErrorMessage(null);
     setOauthRequired(false);
     setBaselineRequired(false);
     setAuthorizeUrl(null);
     hasNotifiedSuccessRef.current = false;
+
+    // 2. Reseta statusData local para evitar manter dados e stages verdes da execução anterior durante o POST
+    setStatusData((prev) => ({
+      isRunning: true,
+      activeRun: null,
+      stages: STARTING_STAGES,
+      lastCompletedSync: prev?.lastCompletedSync ?? null,
+      lastCompletedIncrementalSync: prev?.lastCompletedIncrementalSync ?? null,
+      lastCompletedFullSync: prev?.lastCompletedFullSync ?? null,
+    }));
 
     try {
       const result = await startTagPlusSync(mode);
@@ -372,13 +430,7 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
           windowSince: result.windowSince,
           windowUntil: result.windowUntil,
         },
-        stages: {
-          categories: { status: "RUNNING" },
-          customers: { status: "WAITING" },
-          products: { status: "WAITING" },
-          sales: { status: "WAITING" },
-          financial: { status: "WAITING" },
-        },
+        stages: STARTING_STAGES,
         lastCompletedSync: prev?.lastCompletedSync ?? null,
         lastCompletedIncrementalSync: prev?.lastCompletedIncrementalSync ?? null,
         lastCompletedFullSync: prev?.lastCompletedFullSync ?? null,
@@ -674,6 +726,7 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
                   {stages.categories?.status === "FAILED" && "Erro"}
                 </span>
               </div>
+              {stages.categories?.status === "RUNNING" && renderStageProgress(stages.categories?.progress)}
               {stages.categories?.summary && (
                 <div className="tp-sync-stage-metrics">
                   <span>
@@ -713,6 +766,7 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
                   {stages.customers?.status === "FAILED" && "Erro"}
                 </span>
               </div>
+              {stages.customers?.status === "RUNNING" && renderStageProgress(stages.customers?.progress)}
               {stages.customers?.summary && (
                 <div className="tp-sync-stage-metrics">
                   <span>
@@ -752,6 +806,7 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
                   {stages.products?.status === "FAILED" && "Erro"}
                 </span>
               </div>
+              {stages.products?.status === "RUNNING" && renderStageProgress(stages.products?.progress)}
               {stages.products?.summary && (
                 <div className="tp-sync-stage-metrics">
                   <span>
@@ -791,6 +846,7 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
                   {stages.sales?.status === "FAILED" && "Erro"}
                 </span>
               </div>
+              {stages.sales?.status === "RUNNING" && renderStageProgress(stages.sales?.progress)}
               {stages.sales?.summary && (
                 <div className="tp-sync-stage-metrics">
                   {(() => {
@@ -833,7 +889,8 @@ export function SyncModal({ isOpen, onClose, onSyncSuccess }: SyncModalProps) {
                   {stages.financial?.status === "FAILED" && "Erro"}
                 </span>
               </div>
-              {renderFinancialMetrics(stages.financial?.summary)}
+              {stages.financial?.status === "RUNNING" && renderStageProgress(stages.financial?.progress)}
+              {stages.financial?.status === "COMPLETED" && renderFinancialMetrics(stages.financial?.summary)}
               {stages.financial?.error && (
                 <p className="tp-sync-stage-error">{stages.financial.error}</p>
               )}

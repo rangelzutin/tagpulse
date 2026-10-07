@@ -35,6 +35,8 @@ export interface LightweightSyncOptions {
   rateLimitDelayMs?: number | undefined;
   now?: Date | undefined;
   onPageFetched?: ((page: number, count: number, totalSoFar: number) => void) | undefined;
+  onCandidatesDiscovered?: ((candidateIds: string[]) => void) | undefined;
+  onProgress?: ((progress: StockAdjustmentWorkerSummary | { processed: number; completed: number; failed: number }, total: number) => void) | undefined;
 }
 
 export interface LightweightSyncResult {
@@ -319,6 +321,7 @@ export function createStockAdjustmentSyncRunner(
       }
 
       const candidateIdList = Array.from(candidateIds);
+      options?.onCandidatesDiscovered?.(candidateIdList);
 
       // Processar candidatos (apenas a fração identificada, mantendo o scan leve)
       let workerSummary: StockAdjustmentWorkerSummary;
@@ -326,6 +329,9 @@ export function createStockAdjustmentSyncRunner(
         workerSummary = await worker.processQueue(connectionId, {
           candidateSourceIds: candidateIdList,
           rateLimitDelayMs,
+          onProgress: (p) => {
+            options?.onProgress?.(p, candidateIdList.length);
+          },
         });
 
         if (workerSummary.failed > 0) {

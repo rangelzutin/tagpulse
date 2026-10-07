@@ -9,9 +9,17 @@ export type TagPlusSyncStage =
   | "COMPLETED"
   | "FAILED";
 
+export interface SyncStepProgressInfo {
+  current: number;
+  total?: number;
+  substep?: string;
+  label?: string;
+}
+
 export interface SyncStepProgress {
   status: "WAITING" | "RUNNING" | "COMPLETED" | "FAILED";
   summary?: Record<string, unknown>;
+  progress?: SyncStepProgressInfo;
   error?: string;
 }
 

@@ -79,6 +79,12 @@ export interface CustomerSyncOptions {
     since: string;
     until: string;
   };
+  onProgress?: (progress: {
+    current: number;
+    total?: number;
+    substep?: string;
+    label?: string;
+  }) => void;
 }
 
 export function createCustomerFullSync(
@@ -197,6 +203,10 @@ export function createCustomerFullSync(
         counters.lastCompletedPage = page;
         await dependencies.syncRepository.updateProgress(run.id, {
           lastCompletedPage: page,
+        });
+        options?.onProgress?.({
+          current: counters.recordsFetched,
+          label: "Atualizando clientes",
         });
       }
     } catch (error: unknown) {

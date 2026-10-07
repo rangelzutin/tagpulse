@@ -79,6 +79,14 @@ export interface FinancialStageResult {
   elapsedMs: number;
 }
 
+export interface FinancialRunnerProgress {
+  current: number;
+  total: number;
+  substep: string;
+  label: string;
+  summary?: Record<string, unknown>;
+}
+
 export interface FinancialRunnerLike {
   run(
     connectionId: string,
@@ -87,6 +95,7 @@ export interface FinancialRunnerLike {
       window?: { since: string; until: string } | undefined;
       lookbackDays?: number | undefined;
       since?: string | undefined;
+      onProgress?: ((progress: FinancialRunnerProgress) => void) | undefined;
     },
   ): Promise<FinancialStageResult>;
 }
@@ -244,6 +253,9 @@ export function createProductionFinancialSyncRunner(
         : undefined;
 
       let discoveredCandidateIds: string[] = [];
+      let incrementalInserted = 0;
+      let incrementalUpdated = 0;
+      let incrementalUnchanged = 0;
 
       const runSync = deps.runIncrementalSyncFn ?? runIncrementalSync;
       const incrementalReport = await runSync({
@@ -258,6 +270,55 @@ export function createProductionFinancialSyncRunner(
         updateClientToken,
         onCandidatesDiscovered: (c) => {
           discoveredCandidateIds = c.uniqueCandidates;
+          options.onProgress?.({
+            current: 0,
+            total: discoveredCandidateIds.length,
+            substep: "Atualizando financeiro",
+            label: "Atualizando financeiro",
+            summary: {
+              incremental: {
+                processed: 0,
+                completed: 0,
+                failed: 0,
+                inserted: 0,
+                updated: 0,
+                unchanged: 0,
+                candidates: {
+                  uniqueCount: discoveredCandidateIds.length,
+                },
+              },
+            },
+          });
+        },
+        onProgress: (wp) => {
+          if (wp.recordAction === "inserted") incrementalInserted++;
+          else if (wp.recordAction === "updated") incrementalUpdated++;
+          else if (wp.recordAction === "unchanged") incrementalUnchanged++;
+
+          const total =
+            discoveredCandidateIds.length > 0
+              ? discoveredCandidateIds.length
+              : wp.processed;
+
+          options.onProgress?.({
+            current: wp.processed,
+            total,
+            substep: "Atualizando financeiro",
+            label: "Atualizando financeiro",
+            summary: {
+              incremental: {
+                processed: wp.processed,
+                completed: wp.completed,
+                failed: wp.failed,
+                inserted: incrementalInserted,
+                updated: incrementalUpdated,
+                unchanged: incrementalUnchanged,
+                candidates: {
+                  uniqueCount: total,
+                },
+              },
+            },
+          });
         },
       });
 
@@ -295,9 +356,34 @@ export function createProductionFinancialSyncRunner(
       // ==============================================================
       // SUBPASSO B: STOCK ADJUSTMENTS LIGHTWEIGHT RECONCILIATION + JIT
       // ==============================================================
+      options.onProgress?.({
+        current: 0,
+        total: 0,
+        substep: "Reconciliando ajustes",
+        label: "Reconciliando ajustes",
+      });
+
+      let adjustmentTotal = 0;
       const stockResult = await stockRunner.runLightweightSync(connection.id, {
         recentDays: options.lookbackDays ?? 30,
         aeMovementNumbers,
+        onCandidatesDiscovered: (ids) => {
+          adjustmentTotal = ids.length;
+          options.onProgress?.({
+            current: 0,
+            total: adjustmentTotal,
+            substep: "Reconciliando ajustes",
+            label: "Reconciliando ajustes",
+          });
+        },
+        onProgress: (p, total) => {
+          options.onProgress?.({
+            current: p.processed,
+            total,
+            substep: "Reconciliando ajustes",
+            label: "Reconciliando ajustes",
+          });
+        },
       });
 
       if (stockResult.workerSummary.failed > 0) {

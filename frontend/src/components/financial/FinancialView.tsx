@@ -18,7 +18,6 @@ import {
 import { getDefaultPeriod } from "../../utils/formatters";
 import { Header } from "../Header";
 import { PeriodFilter, type PeriodMode } from "../PeriodFilter";
-import { FinancialSyncControl } from "./FinancialSyncControl";
 import { FinancialOverviewTab } from "./FinancialOverviewTab";
 import { FinancialReceivablesTab } from "./FinancialReceivablesTab";
 import { FinancialPayablesTab } from "./FinancialPayablesTab";
@@ -138,11 +137,6 @@ export function FinancialView({ onSyncSuccessGlobal, minDate }: FinancialViewPro
     void loadFinancialOverviewData();
   }, [loadFinancialOverviewData]);
 
-  const handleSyncSuccess = useCallback(() => {
-    void loadFinancialOverviewData(true);
-    onSyncSuccessGlobal?.();
-  }, [loadFinancialOverviewData, onSyncSuccessGlobal]);
-
   const handleApplyFilter = useCallback((from: string, to: string, mode: PeriodMode) => {
     setCurrentPeriod({ from, to });
     setPeriodMode(mode);
@@ -158,7 +152,6 @@ export function FinancialView({ onSyncSuccessGlobal, minDate }: FinancialViewPro
         isUpdating={isRefreshing}
       >
         <div className="tp-financial-header-actions">
-          <FinancialSyncControl onSyncSuccess={handleSyncSuccess} />
           <PeriodFilter
             initialFrom={currentPeriod.from}
             initialTo={currentPeriod.to}

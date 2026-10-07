@@ -49,10 +49,18 @@ export class TagPlusIncrementalBaselineRequiredError extends Error {
   }
 }
 
+export interface SyncStepProgressInfo {
+  current: number;
+  total?: number | undefined;
+  substep?: string | undefined;
+  label?: string | undefined;
+}
+
 export interface SyncStepProgress {
   status: "WAITING" | "RUNNING" | "COMPLETED" | "FAILED";
-  summary?: Record<string, unknown>;
-  error?: string;
+  summary?: Record<string, unknown> | undefined;
+  progress?: SyncStepProgressInfo | undefined;
+  error?: string | undefined;
 }
 
 export type TagPlusPreflightStatus = "CONNECTED" | "AUTH_REQUIRED" | "ERROR";
@@ -103,6 +111,12 @@ export interface CategoryRunnerLike {
     options?: {
       mode?: TagPlusSyncMode;
       window?: { since: string; until: string };
+      onProgress?: (progress: {
+        current: number;
+        total?: number;
+        substep?: string;
+        label?: string;
+      }) => void;
     },
   ): Promise<{
     pagesFetched: number;
@@ -122,6 +136,12 @@ export interface CustomerRunnerLike {
     options?: {
       mode?: TagPlusSyncMode;
       window?: { since: string; until: string };
+      onProgress?: (progress: {
+        current: number;
+        total?: number;
+        substep?: string;
+        label?: string;
+      }) => void;
     },
   ): Promise<{
     pagesFetched: number;
@@ -140,6 +160,12 @@ export interface ProductRunnerLike {
     options?: {
       mode?: TagPlusSyncMode;
       window?: { since: string; until: string };
+      onProgress?: (progress: {
+        current: number;
+        total?: number;
+        substep?: string;
+        label?: string;
+      }) => void;
     },
   ): Promise<{
     pagesFetched: number;
@@ -158,6 +184,12 @@ export interface SalesRunnerLike {
     options?: {
       mode?: TagPlusSyncMode;
       window?: { since: string; until: string };
+      onProgress?: (progress: {
+        current: number;
+        total?: number;
+        substep?: string;
+        label?: string;
+      }) => void;
     },
   ): Promise<{
     pedidos: {
@@ -290,10 +322,29 @@ export function createTagPlusSyncOrchestrator(
     try {
       // 1. Categories
       currentStage = TagPlusSyncStage.CATEGORIES;
-      inMemoryStages.categories = { status: "RUNNING" };
+      inMemoryStages.categories = {
+        status: "RUNNING",
+        progress: {
+          current: 0,
+          label: "Atualizando categorias",
+        },
+      };
       await dependencies.syncRepository.updateStage(run.id, TagPlusSyncStage.CATEGORIES);
 
-      const categoryResult = await dependencies.categoryRunner.run(connectionId, runnerOptions);
+      const categoryResult = await dependencies.categoryRunner.run(connectionId, {
+        ...runnerOptions,
+        onProgress: (p) => {
+          inMemoryStages.categories = {
+            status: "RUNNING",
+            progress: {
+              current: p.current,
+              total: p.total,
+              substep: p.substep ?? p.label,
+              label: p.label ?? p.substep ?? "Atualizando categorias",
+            },
+          };
+        },
+      });
       stageSummaries.categories = {
         pagesFetched: categoryResult.pagesFetched,
         recordsFetched: categoryResult.recordsFetched,
@@ -309,10 +360,29 @@ export function createTagPlusSyncOrchestrator(
 
       // 2. Customers
       currentStage = TagPlusSyncStage.CUSTOMERS;
-      inMemoryStages.customers = { status: "RUNNING" };
+      inMemoryStages.customers = {
+        status: "RUNNING",
+        progress: {
+          current: 0,
+          label: "Atualizando clientes",
+        },
+      };
       await dependencies.syncRepository.updateStage(run.id, TagPlusSyncStage.CUSTOMERS);
 
-      const customerResult = await dependencies.customerRunner.run(connectionId, runnerOptions);
+      const customerResult = await dependencies.customerRunner.run(connectionId, {
+        ...runnerOptions,
+        onProgress: (p) => {
+          inMemoryStages.customers = {
+            status: "RUNNING",
+            progress: {
+              current: p.current,
+              total: p.total,
+              substep: p.substep ?? p.label,
+              label: p.label ?? p.substep ?? "Atualizando clientes",
+            },
+          };
+        },
+      });
       stageSummaries.customers = {
         pagesFetched: customerResult.pagesFetched,
         recordsFetched: customerResult.recordsFetched,
@@ -326,12 +396,31 @@ export function createTagPlusSyncOrchestrator(
         summary: stageSummaries.customers as Record<string, unknown>,
       };
 
-      // 2. Products
+      // 3. Products
       currentStage = TagPlusSyncStage.PRODUCTS;
-      inMemoryStages.products = { status: "RUNNING" };
+      inMemoryStages.products = {
+        status: "RUNNING",
+        progress: {
+          current: 0,
+          label: "Atualizando produtos",
+        },
+      };
       await dependencies.syncRepository.updateStage(run.id, TagPlusSyncStage.PRODUCTS);
 
-      const productResult = await dependencies.productRunner.run(connectionId, runnerOptions);
+      const productResult = await dependencies.productRunner.run(connectionId, {
+        ...runnerOptions,
+        onProgress: (p) => {
+          inMemoryStages.products = {
+            status: "RUNNING",
+            progress: {
+              current: p.current,
+              total: p.total,
+              substep: p.substep ?? p.label,
+              label: p.label ?? p.substep ?? "Atualizando produtos",
+            },
+          };
+        },
+      });
       stageSummaries.products = {
         pagesFetched: productResult.pagesFetched,
         recordsFetched: productResult.recordsFetched,
@@ -345,12 +434,32 @@ export function createTagPlusSyncOrchestrator(
         summary: stageSummaries.products as Record<string, unknown>,
       };
 
-      // 3. Sales
+      // 4. Sales
       currentStage = TagPlusSyncStage.SALES;
-      inMemoryStages.sales = { status: "RUNNING" };
+      inMemoryStages.sales = {
+        status: "RUNNING",
+        progress: {
+          current: 0,
+          substep: "Atualizando pedidos",
+          label: "Atualizando pedidos",
+        },
+      };
       await dependencies.syncRepository.updateStage(run.id, TagPlusSyncStage.SALES);
 
-      const salesResult = await dependencies.salesRunner.run(connectionId, runnerOptions);
+      const salesResult = await dependencies.salesRunner.run(connectionId, {
+        ...runnerOptions,
+        onProgress: (p) => {
+          inMemoryStages.sales = {
+            status: "RUNNING",
+            progress: {
+              current: p.current,
+              total: p.total,
+              substep: p.substep ?? p.label,
+              label: p.label ?? p.substep ?? "Atualizando pedidos",
+            },
+          };
+        },
+      });
       stageSummaries.sales = {
         pedidos: salesResult.pedidos,
         vendasSimples: salesResult.vendasSimples,
@@ -370,12 +479,38 @@ export function createTagPlusSyncOrchestrator(
       // 4. Financial (Stage 5)
       if (dependencies.financialRunner) {
         currentStage = TagPlusSyncStage.FINANCIAL;
-        inMemoryStages.financial = { status: "RUNNING" };
+        inMemoryStages.financial = {
+          status: "RUNNING",
+          progress: {
+            current: 0,
+            total: 0,
+            substep: "Atualizando financeiro",
+            label: "Atualizando financeiro",
+          },
+        };
         await dependencies.syncRepository.updateStage(run.id, TagPlusSyncStage.FINANCIAL);
 
         const financialResult = await dependencies.financialRunner.run(connectionId, {
           mode: run.mode,
           window: runnerOptions.window,
+          onProgress: (p: {
+            current: number;
+            total: number;
+            substep?: string;
+            label?: string;
+            summary?: Record<string, unknown>;
+          }) => {
+            inMemoryStages.financial = {
+              status: "RUNNING",
+              progress: {
+                current: p.current,
+                total: p.total,
+                substep: p.substep ?? p.label,
+                label: p.label ?? p.substep,
+              },
+              summary: p.summary ?? inMemoryStages.financial.summary,
+            };
+          },
         });
         stageSummaries.financial = financialResult;
         inMemoryStages.financial = {

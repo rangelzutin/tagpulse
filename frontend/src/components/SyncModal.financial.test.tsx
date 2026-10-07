@@ -5,6 +5,7 @@ import {
   SyncModal,
   deriveSyncModalState,
   renderFinancialMetrics,
+  renderStageProgress,
   IDLE_STAGES,
 } from "./SyncModal.js";
 import type { TagPlusSyncStatusResponse } from "../api/sync.js";
@@ -601,5 +602,318 @@ describe("SyncModal — 5ª Etapa Financeiro (Fase B)", () => {
       expect(state.stages.financial.error).toContain("FINANCIAL_INCREMENTAL_FAILED");
     });
   });
-});
 
+  describe("SyncModal — UX de Progresso e Reset de Nova Execução (Seção 9)", () => {
+    // 1. abrir modal sem execução ativa pode mostrar histórico apenas onde apropriado
+    it("1. Abrir modal sem execução ativa mantém stages IDLE (Aguardando) e histórico no rodapé", () => {
+      const state = deriveSyncModalState({
+        statusData: {
+          isRunning: false,
+          activeRun: {
+            runId: "historical-run-id",
+            mode: "INCREMENTAL",
+            status: "COMPLETED",
+            currentStage: "COMPLETED",
+            startedAt: "2026-10-05T10:00:00Z",
+            completedAt: "2026-10-05T10:13:00Z",
+            elapsedSeconds: 780,
+          },
+          stages: {
+            categories: { status: "COMPLETED" },
+            customers: { status: "COMPLETED" },
+            products: { status: "COMPLETED" },
+            sales: { status: "COMPLETED" },
+            financial: { status: "COMPLETED" },
+          },
+          lastCompletedSync: "2026-10-05T10:13:00Z",
+        },
+        currentSessionRunId: null, // Sem execução ativa rastreada nesta sessão
+        isStarting: false,
+        errorMessage: null,
+        oauthRequired: false,
+        preflightData: null,
+      });
+
+      expect(state.isRunning).toBe(false);
+      expect(state.isTracked).toBe(false);
+      expect(state.isCompleted).toBe(false);
+      // Stages devem ser IDLE_STAGES, e NÃO herdarem COMPLETED da execução histórica
+      expect(state.stages.categories.status).toBe("WAITING");
+      expect(state.stages.customers.status).toBe("WAITING");
+      expect(state.stages.products.status).toBe("WAITING");
+      expect(state.stages.sales.status).toBe("WAITING");
+      expect(state.stages.financial.status).toBe("WAITING");
+    });
+
+    // 2. clicar 'Sincronizar agora' limpa imediatamente stages verdes da execução anterior
+    it("2. Clicar 'Sincronizar agora' (isStarting = true) limpa imediatamente stages verdes anteriores", () => {
+      const state = deriveSyncModalState({
+        statusData: {
+          isRunning: false,
+          activeRun: {
+            runId: "prev-run-id",
+            mode: "INCREMENTAL",
+            status: "COMPLETED",
+            currentStage: "COMPLETED",
+            startedAt: "2026-10-05T10:00:00Z",
+            completedAt: "2026-10-05T10:13:00Z",
+            elapsedSeconds: 780,
+          },
+          stages: {
+            categories: { status: "COMPLETED" },
+            customers: { status: "COMPLETED" },
+            products: { status: "COMPLETED" },
+            sales: { status: "COMPLETED" },
+            financial: { status: "COMPLETED" },
+          },
+          lastCompletedSync: "2026-10-05T10:13:00Z",
+        },
+        currentSessionRunId: null,
+        isStarting: true, // Usuário acabou de clicar 'Sincronizar agora'
+        errorMessage: null,
+        oauthRequired: false,
+        preflightData: null,
+      });
+
+      // Nenhum card verde!
+      expect(state.stages.categories.status).toBe("RUNNING");
+      expect(state.stages.customers.status).toBe("WAITING");
+      expect(state.stages.products.status).toBe("WAITING");
+      expect(state.stages.sales.status).toBe("WAITING");
+      expect(state.stages.financial.status).toBe("WAITING");
+      expect(state.isCompleted).toBe(false);
+    });
+
+    // 3. nova execução começa com: Categorias ativa, demais WAITING
+    it("3. Nova execução começa com Categorias ativa e demais em WAITING", () => {
+      const state = deriveSyncModalState({
+        statusData: null,
+        currentSessionRunId: null,
+        isStarting: true,
+        errorMessage: null,
+        oauthRequired: false,
+        preflightData: null,
+      });
+
+      expect(state.stages.categories.status).toBe("RUNNING");
+      expect(state.stages.customers.status).toBe("WAITING");
+      expect(state.stages.products.status).toBe("WAITING");
+      expect(state.stages.sales.status).toBe("WAITING");
+      expect(state.stages.financial.status).toBe("WAITING");
+    });
+
+    // 4. resposta do POST com novo runId não reaproveita run anterior
+    it("4. Resposta do POST com novo runId anexa apenas ao novo run", () => {
+      const newRunId = "new-uuid-1234";
+      const state = deriveSyncModalState({
+        statusData: {
+          isRunning: true,
+          activeRun: {
+            runId: newRunId,
+            mode: "INCREMENTAL",
+            status: "RUNNING",
+            currentStage: "CATEGORIES",
+            startedAt: "2026-10-07T12:00:00Z",
+            elapsedSeconds: 1,
+          },
+          stages: {
+            categories: { status: "RUNNING" },
+            customers: { status: "WAITING" },
+            products: { status: "WAITING" },
+            sales: { status: "WAITING" },
+            financial: { status: "WAITING" },
+          },
+          lastCompletedSync: "2026-10-07T11:00:00Z",
+        },
+        currentSessionRunId: newRunId,
+        isStarting: false,
+        errorMessage: null,
+        oauthRequired: false,
+        preflightData: null,
+      });
+
+      expect(state.isTracked).toBe(true);
+      expect(state.isRunning).toBe(true);
+      expect(state.isCompleted).toBe(false);
+      expect(state.stages.categories.status).toBe("RUNNING");
+    });
+
+    // 5. polling do novo run atualiza normalmente os stages
+    it("5. Polling do novo run atualiza normalmente os stages", () => {
+      const runId = "running-run-uuid";
+      const polledState = deriveSyncModalState({
+        statusData: {
+          isRunning: true,
+          activeRun: {
+            runId,
+            mode: "INCREMENTAL",
+            status: "RUNNING",
+            currentStage: "FINANCIAL",
+            startedAt: "2026-10-07T12:00:00Z",
+            elapsedSeconds: 50,
+          },
+          stages: {
+            categories: { status: "COMPLETED" },
+            customers: { status: "COMPLETED" },
+            products: { status: "COMPLETED" },
+            sales: { status: "COMPLETED" },
+            financial: {
+              status: "RUNNING",
+              progress: {
+                current: 40,
+                total: 165,
+                label: "Atualizando financeiro",
+              },
+            },
+          },
+          lastCompletedSync: null,
+        },
+        currentSessionRunId: runId,
+        isStarting: false,
+        errorMessage: null,
+        oauthRequired: false,
+        preflightData: null,
+      });
+
+      expect(polledState.stages.categories.status).toBe("COMPLETED");
+      expect(polledState.stages.sales.status).toBe("COMPLETED");
+      expect(polledState.stages.financial.status).toBe("RUNNING");
+      expect(polledState.stages.financial.progress?.current).toBe(40);
+      expect(polledState.stages.financial.progress?.total).toBe(165);
+    });
+
+    // 6. FINANCIAL RUNNING com current/total renderiza barra
+    it("6. FINANCIAL RUNNING com current/total renderiza barra de progresso", () => {
+      const element = renderStageProgress({
+        current: 84,
+        total: 165,
+        label: "Atualizando financeiro",
+      });
+      const html = renderToString(element as React.ReactElement);
+
+      expect(html).toContain('data-testid="stage-progress"');
+      expect(html).toContain('tp-sync-stage-progress-track');
+      expect(html).toContain('tp-sync-stage-progress-bar');
+      expect(html).toContain('style="width:51%"');
+    });
+
+    // 7. progresso do financeiro mostra X de Y
+    it("7. Progresso do financeiro mostra X de Y", () => {
+      const element = renderStageProgress({
+        current: 84,
+        total: 165,
+        label: "Atualizando financeiro",
+      });
+      const html = renderToString(element as React.ReactElement);
+
+      expect(html).toContain("84 de 165");
+      expect(html).toContain("Atualizando financeiro · 84 de 165");
+    });
+
+    // 8. troca de subpasso financeiro altera o texto
+    it("8. Troca de subpasso financeiro altera o texto para 'Reconciliando ajustes · 5 de 12'", () => {
+      const element = renderStageProgress({
+        current: 5,
+        total: 12,
+        label: "Reconciliando ajustes",
+      });
+      const html = renderToString(element as React.ReactElement);
+
+      expect(html).toContain("Reconciliando ajustes · 5 de 12");
+      expect(html).toContain('style="width:42%"');
+    });
+
+    // 9. FINANCIAL COMPLETED remove estado RUNNING/barra corretamente
+    it("9. FINANCIAL COMPLETED remove estado RUNNING/barra e renderiza métricas finais", () => {
+      const state = deriveSyncModalState({
+        statusData: {
+          isRunning: false,
+          activeRun: {
+            runId: "completed-run-uuid",
+            mode: "INCREMENTAL",
+            status: "COMPLETED",
+            currentStage: "COMPLETED",
+            startedAt: "2026-10-07T12:00:00Z",
+            completedAt: "2026-10-07T12:12:00Z",
+            elapsedSeconds: 720,
+          },
+          stages: {
+            categories: { status: "COMPLETED" },
+            customers: { status: "COMPLETED" },
+            products: { status: "COMPLETED" },
+            sales: { status: "COMPLETED" },
+            financial: {
+              status: "COMPLETED",
+              summary: {
+                incremental: {
+                  processed: 165,
+                  inserted: 3,
+                  updated: 5,
+                },
+              },
+            },
+          },
+          lastCompletedSync: "2026-10-07T12:12:00Z",
+        },
+        currentSessionRunId: "completed-run-uuid",
+        isStarting: false,
+        errorMessage: null,
+        oauthRequired: false,
+        preflightData: null,
+      });
+
+      expect(state.stages.financial.status).toBe("COMPLETED");
+      expect(state.stages.financial.progress).toBeUndefined();
+
+      // Barra não é renderizada quando status é COMPLETED
+      const bar = renderStageProgress(state.stages.financial.progress);
+      expect(bar).toBeNull();
+
+      // Métricas finais são renderizadas
+      const metrics = renderFinancialMetrics(state.stages.financial.summary);
+      const metricsHtml = renderToString(metrics as React.ReactElement);
+      expect(metricsHtml).toContain("165 analisados");
+      expect(metricsHtml).toContain("3 novos");
+      expect(metricsHtml).toContain("5 atualizados");
+    });
+
+    // 10. progresso ausente continua renderizando sem erro
+    it("10. Progresso ausente continua renderizando sem erro (retorna null)", () => {
+      expect(renderStageProgress(undefined)).toBeNull();
+      expect(renderStageProgress({ current: 0, total: 0 })).not.toBeNull();
+    });
+
+    // 11. nenhum termo técnico interno aparece na UI
+    it("11. Nenhum termo técnico interno (JIT, StockAdjustmentFinancialLink, etc.) aparece na UI", () => {
+      const element1 = renderStageProgress({
+        current: 84,
+        total: 165,
+        label: "Atualizando financeiro",
+      });
+      const html1 = renderToString(element1 as React.ReactElement);
+
+      const element2 = renderStageProgress({
+        current: 5,
+        total: 12,
+        label: "Reconciliando ajustes",
+      });
+      const html2 = renderToString(element2 as React.ReactElement);
+
+      for (const html of [html1, html2]) {
+        expect(html).not.toContain("JIT");
+        expect(html).not.toContain("StockAdjustmentFinancialLink");
+        expect(html).not.toContain("NON_CASH_STOCK_ADJUSTMENT_OUTFLOW");
+        expect(html).not.toContain("sourceId");
+        expect(html).not.toContain("worker");
+      }
+    });
+
+    // 12. FinancialSyncControl permanece intacto
+    it("12. FinancialSyncControl permanece exportável e utilizável", async () => {
+      const { FinancialSyncControl } = await import("./financial/FinancialSyncControl.js");
+      expect(typeof FinancialSyncControl).toBe("function");
+      const html = renderToString(<FinancialSyncControl />);
+      expect(html).toBeDefined();
+    });
+  });
+});

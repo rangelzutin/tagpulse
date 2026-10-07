@@ -20,6 +20,12 @@ export interface CategoryFullSyncOptions {
   now?: () => Date;
   mode?: unknown;
   window?: { since: string; until: string };
+  onProgress?: (progress: {
+    current: number;
+    total?: number;
+    substep?: string;
+    label?: string;
+  }) => void;
 }
 
 export function createCategoryFullSync(input: {
@@ -51,6 +57,11 @@ export function createCategoryFullSync(input: {
           allNormalized.push(normalized);
         }
       }
+
+      options.onProgress?.({
+        current: allNormalized.length,
+        label: "Atualizando categorias",
+      });
 
       // Se a página retornou menos que o limite, não há mais páginas
       if (rawData.length < perPage) {

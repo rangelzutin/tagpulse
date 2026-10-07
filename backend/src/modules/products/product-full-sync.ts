@@ -75,6 +75,12 @@ export interface ProductSyncOptions {
     since: string;
     until: string;
   };
+  onProgress?: (progress: {
+    current: number;
+    total?: number;
+    substep?: string;
+    label?: string;
+  }) => void;
 }
 
 export function createProductFullSync(
@@ -226,6 +232,10 @@ export function createProductFullSync(
           recordsUpdated,
           recordsUnchanged,
           lastCompletedPage,
+        });
+        options?.onProgress?.({
+          current: recordsFetched,
+          label: "Atualizando produtos",
         });
       }
     } catch (error: unknown) {

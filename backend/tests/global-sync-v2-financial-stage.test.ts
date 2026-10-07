@@ -1003,5 +1003,154 @@ describe("Global Sync V2 — Stage FINANCIAL + Stock Adjustment Reconciliation",
     const calledWith684 = urlsCalled.some((u) => u === "/ajustes_estoque/684" || u.endsWith("/684"));
     expect(calledWith684).toBe(false);
   });
+
+  it("13. Orchestrator atualiza inMemoryStages.financial durante RUNNING e expõe progresso e summary intermediário", async () => {
+    let capturedOnProgress: ((p: any) => void) | undefined;
+    let finishFinancialPromise: (val: any) => void;
+    const financialRunningPromise = new Promise((resolve) => {
+      finishFinancialPromise = resolve;
+    });
+
+    const mockFinancialRunner: FinancialRunnerLike = {
+      run: vi.fn().mockImplementation(async (_connId: string, opts?: any) => {
+        capturedOnProgress = opts?.onProgress;
+
+        // Simula progresso intermediário Subpasso A
+        opts?.onProgress?.({
+          current: 84,
+          total: 165,
+          substep: "Atualizando financeiro",
+          label: "Atualizando financeiro",
+          summary: {
+            incremental: {
+              processed: 84,
+              completed: 84,
+              failed: 0,
+              inserted: 2,
+              updated: 3,
+              unchanged: 79,
+              candidates: { uniqueCount: 165 },
+            },
+          },
+        });
+
+        // Espera liberação
+        return financialRunningPromise;
+      }),
+    };
+
+    const setup = createTestSetup();
+    setup.syncRepository.completeRun.mockImplementation(async (id: string, completedAt: Date, summary: any) => {
+      setup.mockPrisma.tagPlusSyncRun.findFirst.mockResolvedValue({
+        id,
+        mode: TagPlusSyncMode.INCREMENTAL,
+        status: TagPlusSyncStatus.COMPLETED,
+        currentStage: TagPlusSyncStage.COMPLETED,
+        startedAt: new Date("2026-10-07T12:00:00Z"),
+        completedAt,
+        summary,
+      });
+    });
+
+    const orchestrator = createTagPlusSyncOrchestrator({
+      prisma: setup.mockPrisma,
+      syncRepository: setup.syncRepository,
+      tokenStore: setup.tokenStore,
+      categoryRunner: setup.categoryRunner,
+      customerRunner: setup.customerRunner,
+      productRunner: setup.productRunner,
+      salesRunner: setup.salesRunner,
+      financialRunner: mockFinancialRunner,
+      syncLockService: setup.syncLockService,
+      targetConnectionId: TEST_CONNECTION_ID,
+    });
+
+    // Inicia sync
+    const startResult = await orchestrator.startSync({ mode: TagPlusSyncMode.INCREMENTAL });
+    expect(startResult.status).toBe("RUNNING");
+
+    // Aguarda pipeline chegar na etapa FINANCIAL
+    for (let i = 0; i < 50; i++) {
+      if (capturedOnProgress) break;
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    expect(capturedOnProgress).toBeDefined();
+
+    // Consulta getStatus() durante RUNNING
+    const statusDuringRunning = await orchestrator.getStatus();
+    expect(statusDuringRunning.isRunning).toBe(true);
+    expect(statusDuringRunning.activeRun?.currentStage).toBe(TagPlusSyncStage.FINANCIAL);
+
+    // Verifica que o progresso e o summary in-memory estão presentes
+    const finStageRunning = statusDuringRunning.stages.financial;
+    expect(finStageRunning.status).toBe("RUNNING");
+    expect(finStageRunning.progress).toEqual({
+      current: 84,
+      total: 165,
+      substep: "Atualizando financeiro",
+      label: "Atualizando financeiro",
+    });
+    expect((finStageRunning.summary as any)?.incremental?.processed).toBe(84);
+
+    // Simula transição para Subpasso B no callback
+    capturedOnProgress?.({
+      current: 5,
+      total: 12,
+      substep: "Reconciliando ajustes",
+      label: "Reconciliando ajustes",
+    });
+
+    const statusSubstepB = await orchestrator.getStatus();
+    expect(statusSubstepB.stages.financial.progress).toEqual({
+      current: 5,
+      total: 12,
+      substep: "Reconciliando ajustes",
+      label: "Reconciliando ajustes",
+    });
+
+    // Finaliza o financial runner com resultado completo
+    finishFinancialPromise!({
+      incremental: {
+        processed: 165,
+        completed: 165,
+        failed: 0,
+        inserted: 3,
+        updated: 5,
+        unchanged: 157,
+        sinceDate: "2026-09-07",
+        candidates: { recentCount: 95, openCount: 97, undatedCount: 5, uniqueCount: 165, overlapDeduplicated: 32 },
+        aeMovementNumbersFound: ["AE - 677"],
+      },
+      stockAdjustments: {
+        processed: 12,
+        completed: 12,
+        failed: 0,
+        inserted: 0,
+        updated: 4,
+        unchanged: 8,
+        candidateCount: 12,
+        catalogDiscovered: 678,
+        recentEligibleCount: 9,
+        newlyDiscoveredCount: 0,
+        aeMovementMatchedCount: 6,
+        jitResolvedCount: 0,
+      },
+      elapsedMs: 760000,
+    });
+
+    // Aguarda conclusão da pipeline
+    for (let i = 0; i < 50; i++) {
+      const s = await orchestrator.getStatus();
+      if (!s.isRunning) break;
+      await new Promise((r) => setTimeout(r, 10));
+    }
+
+    const finalStatus = await orchestrator.getStatus();
+    expect(finalStatus.isRunning).toBe(false);
+    expect(finalStatus.stages.financial.status).toBe("COMPLETED");
+    expect(finalStatus.stages.financial.progress).toBeUndefined(); // sem barra após conclusão
+    expect((finalStatus.stages.financial.summary as any)?.incremental?.processed).toBe(165);
+    expect((finalStatus.stages.financial.summary as any)?.stockAdjustments?.processed).toBe(12);
+  });
 });
 

@@ -140,8 +140,8 @@ describe("Phase 5K: Financial Module Frontend Tests (A through M)", () => {
     expect(html).toContain("Visão Geral");
     expect(html).toContain("Contas a Receber");
     expect(html).toContain("Contas a Pagar");
-    expect(html).toContain("Fluxo de Caixa");
-    expect(html).toContain("Sincronizar financeiro");
+    expect(html).not.toContain("Sincronizar financeiro");
+    expect(html).toContain("tp-financial-header-actions");
   });
 
   // B. KPIs com dados

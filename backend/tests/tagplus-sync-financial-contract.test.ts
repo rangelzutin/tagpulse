@@ -1001,4 +1001,81 @@ describe("TagPlus Sync V2 — Hotfix de Performance — Escopo de Movimentos AE 
     expect(res.stockAdjustments.candidateCount).toBe(3);
     expect(res.stockAdjustments.processed).toBe(3);
   });
+
+  it("17. ProductionFinancialSyncRunner emite progresso intermediário via onProgress para Subpasso A e Subpasso B", async () => {
+    const progressEvents: any[] = [];
+    const mockIncrementalFn = vi.fn().mockImplementation(async (opts: any) => {
+      opts.onCandidatesDiscovered?.({ uniqueCandidates: ["101", "102", "103"] });
+      opts.onProgress?.({ processed: 1, completed: 1, failed: 0, notFound: 0, lastSourceId: "101", action: "COMPLETED", recordAction: "updated" });
+      opts.onProgress?.({ processed: 2, completed: 2, failed: 0, notFound: 0, lastSourceId: "102", action: "COMPLETED", recordAction: "inserted" });
+      opts.onProgress?.({ processed: 3, completed: 3, failed: 0, notFound: 0, lastSourceId: "103", action: "COMPLETED", recordAction: "unchanged" });
+      return {
+        sinceDate: "2026-09-07",
+        lookbackDays: 30,
+        candidates: { recentCount: 3, openCount: 0, undatedCount: 0, uniqueCount: 3, overlapDeduplicated: 0 },
+        candidateSourceIds: ["101", "102", "103"],
+        workerSummary: { processed: 3, completed: 3, failed: 0, notFound: 0, inserted: 1, updated: 1, unchanged: 1, elapsedMs: 100 },
+        elapsedMs: 150,
+      };
+    });
+
+    const mockStockRunner = {
+      runLightweightSync: vi.fn().mockImplementation(async (_connId: string, opts?: any) => {
+        opts?.onCandidatesDiscovered?.(["7001", "7002"]);
+        opts?.onProgress?.({ processed: 1, completed: 1, failed: 0, notFound: 0, inserted: 0, updated: 1, unchanged: 0, jitResolvedCount: 0, elapsedMs: 10 }, 2);
+        opts?.onProgress?.({ processed: 2, completed: 2, failed: 0, notFound: 0, inserted: 0, updated: 2, unchanged: 0, jitResolvedCount: 0, elapsedMs: 20 }, 2);
+        return {
+          candidateIds: ["7001", "7002"],
+          catalogDiscovered: 678,
+          newlyDiscoveredCount: 0,
+          recentEligibleCount: 0,
+          aeMovementMatchedCount: 2,
+          workerSummary: { processed: 2, completed: 2, failed: 0, notFound: 0, inserted: 0, updated: 2, unchanged: 0, jitResolvedCount: 0, elapsedMs: 50 },
+        };
+      }),
+    };
+
+    const runner = createProductionFinancialSyncRunner({
+      prisma: {
+        tagPlusConnection: { findUnique: vi.fn().mockResolvedValue({ id: TEST_CONNECTION_ID, apiVersion: "v2" }) },
+        financialRecord: { findMany: vi.fn().mockResolvedValue([]) },
+      } as any,
+      runIncrementalSyncFn: mockIncrementalFn,
+      stockAdjustmentRunner: mockStockRunner as any,
+      financialRepository: {} as any,
+      financialWorker: {} as any,
+    });
+
+    await runner.run(TEST_CONNECTION_ID, {
+      onProgress: (p) => {
+        progressEvents.push(p);
+      },
+    });
+
+    // Eventos foram gerados
+    expect(progressEvents.length).toBeGreaterThan(0);
+
+    // Subpasso A presente
+    const subAEvents = progressEvents.filter((e) => e.substep === "Atualizando financeiro");
+    expect(subAEvents.length).toBeGreaterThanOrEqual(3);
+    expect(subAEvents[0].label).toBe("Atualizando financeiro");
+    expect(subAEvents[subAEvents.length - 1].current).toBe(3);
+    expect(subAEvents[subAEvents.length - 1].total).toBe(3);
+
+    // Subpasso B presente
+    const subBEvents = progressEvents.filter((e) => e.substep === "Reconciliando ajustes");
+    expect(subBEvents.length).toBeGreaterThanOrEqual(2);
+    expect(subBEvents[0].label).toBe("Reconciliando ajustes");
+    expect(subBEvents[subBEvents.length - 1].current).toBe(2);
+    expect(subBEvents[subBEvents.length - 1].total).toBe(2);
+
+    // Sem termos técnicos expostos nos rótulos de progresso
+    for (const ev of progressEvents) {
+      expect(ev.substep).not.toContain("JIT");
+      expect(ev.substep).not.toContain("StockAdjustmentFinancialLink");
+      expect(ev.substep).not.toContain("NON_CASH_STOCK_ADJUSTMENT_OUTFLOW");
+      expect(ev.label).not.toContain("JIT");
+      expect(ev.label).not.toContain("StockAdjustmentFinancialLink");
+    }
+  });
 });

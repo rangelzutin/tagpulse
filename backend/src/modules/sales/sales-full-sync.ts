@@ -42,6 +42,12 @@ export interface SalesSyncOptions {
     since: string;
     until: string;
   };
+  onProgress?: (progress: {
+    current: number;
+    total?: number;
+    substep?: string;
+    label?: string;
+  }) => void;
 }
 
 export function createSalesFullSync(dependencies: SalesFullSyncDependencies) {
@@ -57,6 +63,19 @@ export function createSalesFullSync(dependencies: SalesFullSyncDependencies) {
     options?: SalesSyncOptions,
     afterExhaustion?: (observedSourceIds: Set<string>) => Promise<void>,
   ): Promise<ResourceSyncResult> {
+    const labelMap: Record<"pedidos" | "vendas_simples" | "nfes", string> = {
+      pedidos: "Atualizando pedidos",
+      vendas_simples: "Atualizando vendas simples",
+      nfes: "Atualizando NF-e",
+    };
+    const substepLabel = labelMap[resource];
+
+    options?.onProgress?.({
+      current: 0,
+      substep: substepLabel,
+      label: substepLabel,
+    });
+
     let page = 1;
     let pagesFetched = 0;
     let recordsFetched = 0;
@@ -91,6 +110,12 @@ export function createSalesFullSync(dependencies: SalesFullSyncDependencies) {
           seenSourceIds.add(sourceId);
         }
       }
+
+      options?.onProgress?.({
+        current: recordsFetched,
+        substep: substepLabel,
+        label: substepLabel,
+      });
 
       page += 1;
     }
