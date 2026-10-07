@@ -10,9 +10,13 @@ import {
   TrendingUp,
   SlidersHorizontal,
   CircleDollarSign,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { SyncModal } from "./SyncModal";
 import { fetchTagPlusSyncStatus } from "../api/sync";
+
+export const SIDEBAR_COLLAPSED_KEY = "tagpulse.sidebar.collapsed";
 
 interface AppShellProps {
   children: ReactNode;
@@ -30,6 +34,36 @@ export function AppShell({
   onSyncSuccess,
 }: AppShellProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        return window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true";
+      }
+      if (typeof localStorage !== "undefined") {
+        return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true";
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleCollapsed = useCallback(() => {
+    setIsCollapsed((prev) => {
+      const next = !prev;
+      try {
+        if (typeof window !== "undefined" && window.localStorage) {
+          window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(next));
+        } else if (typeof localStorage !== "undefined") {
+          localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(next));
+        }
+      } catch {
+        // ignora se localStorage não disponível
+      }
+      return next;
+    });
+  }, []);
+
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(
     () =>
       typeof window !== "undefined" &&
@@ -64,7 +98,7 @@ export function AppShell({
   };
 
   return (
-    <div className="tp-shell">
+    <div className={`tp-shell ${isCollapsed ? "is-collapsed" : ""}`}>
       {/* Mobile Top Bar */}
       <header className="tp-mobile-bar">
         <div className="tp-mobile-brand">
@@ -107,12 +141,12 @@ export function AppShell({
 
       {/* Fixed Sidebar */}
       <aside
-        className={`tp-sidebar ${isMobileMenuOpen ? "is-open" : ""}`}
+        className={`tp-sidebar ${isCollapsed ? "is-collapsed" : ""} ${isMobileMenuOpen ? "is-open" : ""}`}
         aria-label="Navegação Principal"
       >
         <div className="tp-sidebar-header">
           <div className="tp-brand-wrapper">
-            <div className="tp-brand-logo-icon">
+            <div className="tp-brand-logo-icon" title="TagPulse">
               <span className="tp-logo-dot" />
             </div>
             <div className="tp-brand-names">
@@ -120,6 +154,17 @@ export function AppShell({
               <span className="tp-brand-company">Nineclouds</span>
             </div>
           </div>
+          <button
+            type="button"
+            className="tp-sidebar-collapse-btn"
+            onClick={toggleCollapsed}
+            aria-label={isCollapsed ? "Expandir menu" : "Recolher menu"}
+            aria-expanded={!isCollapsed}
+            title={isCollapsed ? "Expandir menu" : "Recolher menu"}
+            data-tooltip={isCollapsed ? "Expandir menu" : "Recolher menu"}
+          >
+            {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+          </button>
         </div>
 
         <nav className="tp-sidebar-nav">
@@ -136,6 +181,9 @@ export function AppShell({
                     onSelectNav?.("commercial");
                     scrollToSection("topo");
                   }}
+                  aria-label="Performance Comercial"
+                  title={isCollapsed ? "Performance Comercial" : undefined}
+                  data-tooltip="Performance Comercial"
                 >
                   <BarChart3 size={17} className="tp-nav-icon" />
                   <span className="tp-nav-text">Performance Comercial</span>
@@ -150,6 +198,9 @@ export function AppShell({
                     onSelectNav?.("products");
                     scrollToSection("topo");
                   }}
+                  aria-label="Produtos"
+                  title={isCollapsed ? "Produtos" : undefined}
+                  data-tooltip="Produtos"
                 >
                   <Package size={17} className="tp-nav-icon" />
                   <span className="tp-nav-text">Produtos</span>
@@ -164,6 +215,9 @@ export function AppShell({
                     onSelectNav?.("inventory");
                     scrollToSection("topo");
                   }}
+                  aria-label="Estoque & Giro"
+                  title={isCollapsed ? "Estoque & Giro" : undefined}
+                  data-tooltip="Estoque & Giro"
                 >
                   <Boxes size={17} className="tp-nav-icon" />
                   <span className="tp-nav-text">Estoque &amp; Giro</span>
@@ -178,6 +232,9 @@ export function AppShell({
                     onSelectNav?.("profitability");
                     scrollToSection("topo");
                   }}
+                  aria-label="Rentabilidade"
+                  title={isCollapsed ? "Rentabilidade" : undefined}
+                  data-tooltip="Rentabilidade"
                 >
                   <TrendingUp size={17} className="tp-nav-icon" />
                   <span className="tp-nav-text">Rentabilidade</span>
@@ -192,6 +249,9 @@ export function AppShell({
                     onSelectNav?.("decisions");
                     scrollToSection("topo");
                   }}
+                  aria-label="Decisões"
+                  title={isCollapsed ? "Decisões" : undefined}
+                  data-tooltip="Decisões"
                 >
                   <SlidersHorizontal size={17} className="tp-nav-icon" />
                   <span className="tp-nav-text">Decisões</span>
@@ -206,6 +266,9 @@ export function AppShell({
                     onSelectNav?.("financial");
                     scrollToSection("topo");
                   }}
+                  aria-label="Financeiro"
+                  title={isCollapsed ? "Financeiro" : undefined}
+                  data-tooltip="Financeiro"
                 >
                   <CircleDollarSign size={17} className="tp-nav-icon" />
                   <span className="tp-nav-text">Financeiro</span>
@@ -219,7 +282,13 @@ export function AppShell({
             <span className="tp-nav-group-title">FUTURO</span>
             <ul className="tp-nav-list">
               <li>
-                <div className="tp-nav-item is-disabled">
+                <div
+                  className="tp-nav-item is-disabled"
+                  aria-label="Margem Histórica (Futuro)"
+                  title={isCollapsed ? "Margem Histórica (Futuro)" : undefined}
+                  data-tooltip="Margem Histórica (Futuro)"
+                  tabIndex={isCollapsed ? 0 : undefined}
+                >
                   <PieChart size={17} className="tp-nav-icon" />
                   <span className="tp-nav-text">Margem Histórica</span>
                   <span className="tp-badge-soon">Futuro</span>
@@ -238,9 +307,12 @@ export function AppShell({
               setIsMobileMenuOpen(false);
               setIsSyncModalOpen(true);
             }}
+            aria-label="Sincronizar Dados"
+            title={isCollapsed ? "Sincronizar Dados" : undefined}
+            data-tooltip="Sincronizar Dados"
           >
             <RefreshCw size={15} />
-            <span>Sincronizar Dados</span>
+            <span className="tp-sync-btn-text">Sincronizar Dados</span>
           </button>
           <div className="tp-sidebar-freshness">
             <span className="tp-freshness-label">Última sincronização:</span>
