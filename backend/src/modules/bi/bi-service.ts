@@ -3,7 +3,10 @@ import {
   calculateCustomerOverview,
   calculateSalesOverview,
 } from "./bi-calculator.js";
-import { calculateProductsOverview } from "./bi-products-calculator.js";
+import {
+  calculateProductsOverview,
+  type CatalogProductInfo,
+} from "./bi-products-calculator.js";
 import { calculateProfitabilityOverview } from "./bi-profitability-calculator.js";
 import {
   buildCustomerBehavioralMap,
@@ -257,10 +260,39 @@ export function createBiService(
         };
       }
 
-      const [movementData, sales, catalogSummary] = await Promise.all([
+      const [
+        movementData,
+        sales,
+        catalogSummary,
+        categoriesFlat,
+        activeStockProducts,
+      ] = await Promise.all([
         repository.findRealizedProductMovements(fromDate, toExclusiveDate),
         repository.findRealizedSales(fromDate, toExclusiveDate),
         repository.findCatalogProductSummary(),
+        repository.findFlatCategories
+          ? repository.findFlatCategories()
+          : Promise.resolve([]),
+        repository.findActiveCatalogProductsWithStock
+          ? repository.findActiveCatalogProductsWithStock()
+          : repository.findCatalogInventoryProducts
+            ? repository.findCatalogInventoryProducts().then((prods) =>
+                prods
+                  .filter((p) => p.active && (p.stockQuantity ?? 0) > 0)
+                  .map((p): CatalogProductInfo => ({
+                    id: p.id,
+                    sourceId: p.sourceId,
+                    code: p.code,
+                    description: p.description,
+                    categoryDescription: p.categoryDescription,
+                    categorySourceId: p.categorySourceId ?? null,
+                    active: p.active,
+                    stockQuantity: p.stockQuantity,
+                    retailSalePrice: p.retailSalePrice,
+                    effectiveCost: p.effectiveCost,
+                  })),
+              )
+            : Promise.resolve([] as CatalogProductInfo[]),
       ]);
 
       const commercialOverview = calculateSalesOverview(
@@ -296,6 +328,8 @@ export function createBiService(
           from: fromStr,
           to: toStr,
         },
+        categoriesFlat,
+        allActiveCatalogProductsWithStock: activeStockProducts,
       });
 
       return { success: true, data };

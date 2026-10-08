@@ -57,6 +57,7 @@ export interface BiRepository {
     productIds: string[],
     sourceProductIds: string[],
   ): Promise<Map<string, CatalogProductInfo>>;
+  findActiveCatalogProductsWithStock?(): Promise<CatalogProductInfo[]>;
   findCatalogInventoryProducts?(): Promise<CatalogInventoryProduct[]>;
   findHistoricalLastPhysicalSales?(
     toExclusive: Date,
@@ -510,6 +511,8 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
           code: true,
           description: true,
           categoryDescription: true,
+          categorySourceId: true,
+          active: true,
           stockQuantity: true,
           retailSalePrice: true,
           effectiveCost: true,
@@ -518,9 +521,13 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
 
       for (const p of products) {
         const info: CatalogProductInfo = {
+          id: p.id,
+          sourceId: p.sourceId,
           code: p.code,
           description: p.description,
           categoryDescription: p.categoryDescription,
+          categorySourceId: p.categorySourceId,
+          active: p.active,
           stockQuantity:
             p.stockQuantity !== null ? Number(p.stockQuantity) : null,
           retailSalePrice:
@@ -533,6 +540,53 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
       }
 
       return map;
+    },
+
+    async findActiveCatalogProductsWithStock(): Promise<CatalogProductInfo[]> {
+      const connection = await prisma.tagPlusConnection.findFirst({
+        where: { status: "ACTIVE" },
+        select: { id: true },
+      });
+
+      if (!connection) {
+        return [];
+      }
+
+      const products = await prisma.product.findMany({
+        where: {
+          connectionId: connection.id,
+          active: true,
+          stockQuantity: { gt: 0 },
+        },
+        select: {
+          id: true,
+          sourceId: true,
+          code: true,
+          description: true,
+          categoryDescription: true,
+          categorySourceId: true,
+          active: true,
+          stockQuantity: true,
+          retailSalePrice: true,
+          effectiveCost: true,
+        },
+      });
+
+      return products.map((p) => ({
+        id: p.id,
+        sourceId: p.sourceId,
+        code: p.code,
+        description: p.description,
+        categoryDescription: p.categoryDescription,
+        categorySourceId: p.categorySourceId,
+        active: p.active,
+        stockQuantity:
+          p.stockQuantity !== null ? Number(p.stockQuantity) : null,
+        retailSalePrice:
+          p.retailSalePrice !== null ? Number(p.retailSalePrice) : null,
+        effectiveCost:
+          p.effectiveCost !== null ? Number(p.effectiveCost) : null,
+      }));
     },
 
     async findCatalogInventoryProducts() {

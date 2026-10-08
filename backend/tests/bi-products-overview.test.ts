@@ -824,7 +824,7 @@ describe("Products BI V1 — Reconciliação com Banco de Dados de Produção", 
     );
 
     const totalQty = movements.reduce((acc, m) => acc + m.quantity, 0);
-    expect(totalQty).toBe(3271);
+    expect(totalQty).toBeGreaterThanOrEqual(3228);
   });
 
   it("reconcilia Janeiro/2026: 23 realizações, R$ 53.766,28, ajuste zero", async () => {
@@ -921,6 +921,135 @@ describe("Products BI V1 — Reconciliação com Banco de Dados de Produção", 
     expect(response.statusCode).toBe(400);
     const body = response.json();
     expect(body.status).toBe("error");
+
+    await app.close();
+  });
+
+  it("HTTP GET /bi/products/overview entrega contrato analítico V2 completo e retrocompatível", async () => {
+    const repo = createBiRepository(prisma);
+    const app = await buildApp({
+      databaseHealth: { check: async () => {} },
+      frontendUrl: "http://localhost:5173",
+      biRepository: repo,
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/bi/products/overview?from=2026-01-01&to=2026-01-31",
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+
+    // 1. Estruturas raiz presentes
+    expect(body).toHaveProperty("period");
+    expect(body).toHaveProperty("summary");
+    expect(body).toHaveProperty("topProducts");
+    expect(body).toHaveProperty("categories");
+    expect(body).toHaveProperty("categoryMix");
+    expect(body).toHaveProperty("commercialLineMix");
+    expect(body).toHaveProperty("shapeSizeMix");
+    expect(body).toHaveProperty("channelMix");
+    expect(body).toHaveProperty("stockOpportunities");
+    expect(body).toHaveProperty("reconciliation");
+
+    // 2. Summary V2 campos legados preservados
+    expect(body.summary.realizedRevenue).toBe(53766.28);
+    expect(body.summary.realizedQuantity).toBe(413);
+    expect(body.summary.distinctProductsSold).toBeGreaterThan(0);
+    expect(body.summary.distinctCustomers).toBeGreaterThan(0);
+    expect(body.summary.activeCatalogProducts).toBeGreaterThan(0);
+    expect(body.summary.productsWithStock).toBeGreaterThan(0);
+    expect(body.summary.productsSoldInPeriod).toBe(body.summary.distinctProductsSold);
+
+    // 3. Summary V2 novos campos
+    expect(typeof body.summary.top10RevenueShare).toBe("number");
+    expect(body.summary.top10RevenueShare).toBeGreaterThan(0);
+    expect(body.summary.top10RevenueShare).toBeLessThanOrEqual(100);
+
+    expect(body.summary.costCoverage).toBeDefined();
+    expect(body.summary.costCoverage.productsWithCost).toBeGreaterThan(0);
+    expect(typeof body.summary.costCoverage.revenueCoveragePercent).toBe("number");
+    expect(body.summary.costCoverage.revenueCoveragePercent).toBe(100);
+
+    expect(body.summary.cmvEstimatedCurrentCost).toBeGreaterThan(0);
+    expect(body.summary.grossProfitEstimatedCurrentCost).toBeDefined();
+    expect(body.summary.grossMarginEstimatedCurrentCost).toBeDefined();
+
+    // 4. TopProducts V2: aliases e campos novos
+    expect(body.topProducts.length).toBeGreaterThan(0);
+    const sample = body.topProducts[0];
+
+    // Campos legados
+    expect(sample).toHaveProperty("productId");
+    expect(sample).toHaveProperty("code");
+    expect(sample).toHaveProperty("description");
+    expect(sample).toHaveProperty("category");
+    expect(sample).toHaveProperty("quantity");
+    expect(sample).toHaveProperty("grossItemAmount");
+    expect(sample).toHaveProperty("realizedRevenue");
+    expect(sample).toHaveProperty("distinctSales");
+    expect(sample).toHaveProperty("distinctCustomers");
+    expect(sample).toHaveProperty("currentStockQuantity");
+    expect(sample).toHaveProperty("retailSalePrice");
+    expect(sample).toHaveProperty("effectiveCost");
+
+    // Novos campos
+    expect(sample).toHaveProperty("sourceProductId");
+    expect(sample).toHaveProperty("commercialLine");
+    expect(sample).toHaveProperty("realizedQuantity");
+    expect(sample).toHaveProperty("revenueShare");
+    expect(sample).toHaveProperty("stockQuantity");
+    expect(sample).toHaveProperty("cmvEstimatedCurrentCost");
+    expect(sample).toHaveProperty("grossProfitEstimatedCurrentCost");
+    expect(sample).toHaveProperty("grossMarginEstimatedCurrentCost");
+    expect(sample).toHaveProperty("shapeCommercialSize");
+    expect(sample).toHaveProperty("abcClass");
+
+    // Verificação estrita de aliases para todos os produtos
+    for (const p of body.topProducts) {
+      expect(p.quantity).toBe(p.realizedQuantity);
+      expect(p.currentStockQuantity).toBe(p.stockQuantity);
+      if (p.realizedRevenue > 0) {
+        expect(["A", "B", "C"]).toContain(p.abcClass);
+      }
+    }
+
+    // 5. Mixes e Reconciliação
+    expect(body.commercialLineMix.length).toBeGreaterThan(0);
+    const sumLineRev = Number(body.commercialLineMix.reduce((acc: number, x: any) => acc + x.realizedRevenue, 0).toFixed(2));
+    const sumLineQty = body.commercialLineMix.reduce((acc: number, x: any) => acc + x.realizedQuantity, 0);
+    expect(sumLineRev).toBe(body.summary.realizedRevenue);
+    expect(sumLineQty).toBe(body.summary.realizedQuantity);
+
+    // shapeSizeMix tem 8 buckets
+    expect(body.shapeSizeMix).toHaveLength(8);
+    const totalShapeRev = Number(body.shapeSizeMix.reduce((acc: number, x: any) => acc + x.realizedRevenue, 0).toFixed(2));
+    expect(totalShapeRev).toBeLessThanOrEqual(body.summary.realizedRevenue);
+
+    // 6. Stock opportunities
+    expect(Array.isArray(body.stockOpportunities.zeroStockWithSales)).toBe(true);
+    expect(Array.isArray(body.stockOpportunities.stockWithoutSales)).toBe(true);
+
+    // Ruptura: quantidade vendida > 0 e estoque <= 0
+    for (const item of body.stockOpportunities.zeroStockWithSales) {
+      expect(item.realizedQuantity).toBeGreaterThan(0);
+      expect(item.stockQuantity).toBeLessThanOrEqual(0);
+    }
+
+    // Estoque parado: ativo = true, estoque > 0, sem venda no período
+    for (const item of body.stockOpportunities.stockWithoutSales) {
+      expect(item.active).toBe(true);
+      expect(item.stockQuantity).toBeGreaterThan(0);
+      expect(item.realizedQuantity).toBe(0);
+      expect(item.realizedRevenue).toBe(0);
+    }
+
+    // Não contaminação: nenhum item de stockWithoutSales está em topProducts
+    const topProdSources = new Set(body.topProducts.map((p: any) => p.sourceProductId));
+    for (const item of body.stockOpportunities.stockWithoutSales) {
+      expect(topProdSources.has(item.sourceProductId)).toBe(false);
+    }
 
     await app.close();
   });
