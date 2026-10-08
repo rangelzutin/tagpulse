@@ -7,7 +7,7 @@ import {
 } from "../utils/formatters";
 
 interface ProductChannelMixCardProps {
-  channelMix: ProductChannelMixItem[];
+  channelMix?: ProductChannelMixItem[];
   totalRevenue: number;
 }
 
@@ -50,15 +50,15 @@ function getChannelConfig(channel: CommercialChannel) {
 }
 
 export function ProductChannelMixCard({
-  channelMix,
+  channelMix = [],
   totalRevenue,
 }: ProductChannelMixCardProps) {
   if (!channelMix || channelMix.length === 0) {
     return (
-      <section className="tp-card tp-channel-mix-card" aria-label="Mix por Canal">
+      <section className="tp-card tp-mix-card" aria-label="Mix por Canal">
         <div className="tp-card-header">
           <div>
-            <h3 className="tp-card-title">Mix por canal</h3>
+            <h3 className="tp-card-title">Mix por Canal</h3>
             <p className="tp-card-subtitle">
               Distribuição do faturamento e volume físico entre canais
             </p>
@@ -77,12 +77,12 @@ export function ProductChannelMixCard({
   );
 
   return (
-    <section className="tp-card tp-channel-mix-card" aria-label="Mix por Canal">
+    <section className="tp-card tp-mix-card" aria-label="Mix por Canal">
       <div className="tp-card-header">
         <div>
-          <h3 className="tp-card-title">Mix por canal</h3>
+          <h3 className="tp-card-title">Mix por Canal</h3>
           <p className="tp-card-subtitle">
-            Classificação homologada por perfil de cliente e natureza da negociação
+            Classificação por perfil de cliente e natureza da negociação
           </p>
         </div>
       </div>
@@ -92,9 +92,12 @@ export function ProductChannelMixCard({
           const config = getChannelConfig(item.channel);
           const Icon = config.icon;
           const share =
-            totalRevenue > 0
+            item.revenueShare ??
+            (totalRevenue > 0
               ? (item.realizedRevenue / totalRevenue) * 100
-              : 0;
+              : 0);
+
+          const qty = item.realizedQuantity ?? item.quantity;
 
           return (
             <div key={item.channel} className="tp-channel-item">
@@ -125,7 +128,7 @@ export function ProductChannelMixCard({
               </div>
 
               <div className="tp-channel-sub-info">
-                <span>{formatNumber(item.quantity)} un vendidas</span>
+                <span>{formatNumber(qty)} un vendidas</span>
                 <span className="tp-bullet">•</span>
                 <span>{formatNumber(item.distinctProducts)} SKUs distintos</span>
               </div>

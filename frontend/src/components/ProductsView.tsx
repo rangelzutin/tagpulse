@@ -1,11 +1,13 @@
 import { AlertCircle, RefreshCw } from "lucide-react";
 import type { ProductsOverviewResult } from "../api/bi";
 import { ProductKpiGrid } from "./ProductKpiGrid";
-import { CatalogContextCard } from "./CatalogContextCard";
 import { ProductReconciliationBanner } from "./ProductReconciliationBanner";
-import { TopProductsCard } from "./TopProductsCard";
+import { ProductCommercialLineMixCard } from "./ProductCommercialLineMixCard";
 import { ProductCategoryMixCard } from "./ProductCategoryMixCard";
+import { ProductShapeSizeMixCard } from "./ProductShapeSizeMixCard";
 import { ProductChannelMixCard } from "./ProductChannelMixCard";
+import { TopProductsCard } from "./TopProductsCard";
+import { ProductStockOpportunitiesCard } from "./ProductStockOpportunitiesCard";
 
 interface ProductsViewProps {
   data: ProductsOverviewResult | null;
@@ -65,25 +67,30 @@ export function ProductsView({
             ))}
           </div>
 
-          {/* Skeleton Context */}
-          <div className="tp-card tp-skeleton-card" style={{ height: 80 }}>
-            <div className="tp-skeleton-line tp-skeleton-short" />
+          {/* Skeleton Mix Grid */}
+          <div className="tp-products-mix-grid">
+            {[1, 2, 3, 4].map((idx) => (
+              <div key={idx} className="tp-card tp-skeleton-card" style={{ minHeight: 220 }}>
+                <div className="tp-skeleton-line tp-skeleton-short" />
+                <div className="tp-skeleton-line tp-skeleton-long" />
+              </div>
+            ))}
           </div>
 
-          {/* Skeleton Split */}
-          <div className="tp-products-split-grid">
-            <div className="tp-card tp-skeleton-card" style={{ minHeight: 400 }}>
-              <div className="tp-skeleton-line tp-skeleton-short" />
-              <div className="tp-skeleton-line tp-skeleton-chart-body" />
-            </div>
-            <div className="tp-products-side-col">
-              <div className="tp-card tp-skeleton-card" style={{ minHeight: 200 }}>
+          {/* Skeleton Ranking Table */}
+          <div className="tp-card tp-skeleton-card" style={{ minHeight: 380 }}>
+            <div className="tp-skeleton-line tp-skeleton-short" />
+            <div className="tp-skeleton-line tp-skeleton-chart-body" />
+          </div>
+
+          {/* Skeleton Opportunities Grid */}
+          <div className="tp-stock-opportunities-grid">
+            {[1, 2].map((idx) => (
+              <div key={idx} className="tp-card tp-skeleton-card" style={{ minHeight: 200 }}>
                 <div className="tp-skeleton-line tp-skeleton-short" />
+                <div className="tp-skeleton-line tp-skeleton-long" />
               </div>
-              <div className="tp-card tp-skeleton-card" style={{ minHeight: 180 }}>
-                <div className="tp-skeleton-line tp-skeleton-short" />
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </section>
@@ -94,7 +101,17 @@ export function ProductsView({
     return null;
   }
 
-  const { summary, topProducts, categories, channelMix, reconciliation } = data;
+  const {
+    summary,
+    topProducts,
+    categories,
+    categoryMix,
+    commercialLineMix,
+    shapeSizeMix,
+    channelMix,
+    stockOpportunities,
+    reconciliation,
+  } = data;
 
   return (
     <section
@@ -118,14 +135,35 @@ export function ProductsView({
       {/* Banner de Reconciliação (exibido apenas quando houver ajuste > 0) */}
       <ProductReconciliationBanner reconciliation={reconciliation} />
 
-      {/* 1. Primeira Linha — 4 KPIs */}
+      {/* BLOCO 1: KPIs Executivos + Contexto do Catálogo Integrado */}
       <ProductKpiGrid summary={summary} />
 
-      {/* 2. Bloco Contextual de Catálogo & Estoque */}
-      <CatalogContextCard summary={summary} />
+      {/* BLOCO 2: Diagnóstico do Mix (4 cards em grid responsivo) */}
+      <section className="tp-products-mix-section" aria-label="Diagnóstico do Mix de Produtos">
+        <div className="tp-products-mix-grid">
+          <ProductCommercialLineMixCard
+            commercialLineMix={commercialLineMix}
+            totalRevenue={summary.realizedRevenue}
+          />
 
-      {/* 3. Seção Principal: Mais Vendidos (Largura Total) */}
-      <section className="tp-products-full-section" aria-label="Ranking de Produtos">
+          <ProductCategoryMixCard
+            categories={categoryMix ?? categories}
+            totalRevenue={summary.realizedRevenue}
+          />
+
+          <ProductShapeSizeMixCard
+            shapeSizeMix={shapeSizeMix}
+          />
+
+          <ProductChannelMixCard
+            channelMix={channelMix}
+            totalRevenue={summary.realizedRevenue}
+          />
+        </div>
+      </section>
+
+      {/* BLOCO 3: Ranking Analítico de Produtos (Largura Total com filtros locais) */}
+      <section className="tp-products-ranking-section" aria-label="Ranking Analítico de Produtos">
         <TopProductsCard
           products={topProducts}
           totalRevenue={summary.realizedRevenue}
@@ -133,18 +171,14 @@ export function ProductsView({
         />
       </section>
 
-      {/* 4. Seção Complementar: Mix por Categoria e Mix por Canal lado a lado */}
-      <div className="tp-products-complementary-grid">
-        <ProductCategoryMixCard
-          categories={categories}
-          totalRevenue={summary.realizedRevenue}
-        />
-
-        <ProductChannelMixCard
-          channelMix={channelMix}
-          totalRevenue={summary.realizedRevenue}
-        />
-      </div>
+      {/* BLOCO 4: Oportunidades de Estoque (2 cards lado a lado) */}
+      {stockOpportunities && (
+        <section className="tp-products-opportunities-section" aria-label="Oportunidades de Estoque">
+          <ProductStockOpportunitiesCard
+            opportunities={stockOpportunities}
+          />
+        </section>
+      )}
     </section>
   );
 }

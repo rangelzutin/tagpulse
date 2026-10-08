@@ -515,8 +515,28 @@ export async function fetchCustomerSales(
 }
 
 // ============================================================================
-// PRODUTOS BI (V1)
+// PRODUTOS BI (V1 & V2)
 // ============================================================================
+
+export type ShapeCommercialSize =
+  | "7.7"
+  | "7.8"
+  | "8.0"
+  | "8.1"
+  | "8.2"
+  | "8.5"
+  | "OTHER"
+  | "UNCLASSIFIED";
+
+export type AbcClass = "A" | "B" | "C";
+
+export interface ProductCostCoverage {
+  productsWithCost: number;
+  productsWithoutCost: number;
+  realizedRevenueWithCost: number;
+  realizedRevenueWithoutCost: number;
+  revenueCoveragePercent: number | null;
+}
 
 export interface ProductsOverviewSummary {
   realizedRevenue: number;
@@ -526,29 +546,67 @@ export interface ProductsOverviewSummary {
   activeCatalogProducts: number;
   productsWithStock: number;
   productsSoldInPeriod: number;
+  cmvEstimatedCurrentCost: number | null;
+  grossProfitEstimatedCurrentCost: number | null;
+  grossMarginEstimatedCurrentCost: number | null;
+  top10RevenueShare: number;
+  costCoverage: ProductCostCoverage;
 }
 
 export interface TopProductItem {
   productId: string | null;
+  sourceProductId?: string;
   code: string | null;
   description: string | null;
   category: string;
+  commercialLine?: string;
   quantity: number;
+  realizedQuantity?: number;
   grossItemAmount: number;
   realizedRevenue: number;
+  revenueShare?: number;
   distinctSales: number;
   distinctCustomers: number;
   currentStockQuantity: number | null;
+  stockQuantity?: number | null;
   retailSalePrice: number | null;
   effectiveCost: number | null;
+  cmvEstimatedCurrentCost?: number | null;
+  grossProfitEstimatedCurrentCost?: number | null;
+  grossMarginEstimatedCurrentCost?: number | null;
+  shapeCommercialSize?: ShapeCommercialSize | null;
+  abcClass?: AbcClass | null;
+}
+
+export interface ProductMixItem {
+  label: string;
+  realizedRevenue: number;
+  realizedQuantity: number;
+  revenueShare: number;
+  quantityShare: number;
+  distinctProducts: number;
+}
+
+export interface ShapeSizeMixItem {
+  size: ShapeCommercialSize;
+  label: string;
+  realizedRevenue: number;
+  realizedQuantity: number;
+  revenueShare: number;
+  quantityShare: number;
+  distinctProducts: number;
 }
 
 export interface ProductCategoryItem {
   category: string;
+  label?: string;
   quantity: number;
+  realizedQuantity?: number;
   realizedRevenue: number;
   distinctProducts: number;
   shareOfRevenue: number;
+  revenueShare?: number;
+  quantityShare?: number;
 }
 
 export type CommercialChannel =
@@ -559,9 +617,32 @@ export type CommercialChannel =
 
 export interface ProductChannelMixItem {
   channel: CommercialChannel;
+  label?: string;
   quantity: number;
+  realizedQuantity?: number;
   realizedRevenue: number;
   distinctProducts: number;
+  revenueShare?: number;
+  quantityShare?: number;
+}
+
+export interface ProductStockOpportunityItem {
+  productId: string | null;
+  sourceProductId: string;
+  code: string | null;
+  description: string | null;
+  category: string;
+  commercialLine: string;
+  active: boolean;
+  stockQuantity: number;
+  realizedQuantity: number;
+  realizedRevenue: number;
+  effectiveCost: number | null;
+}
+
+export interface ProductStockOpportunities {
+  zeroStockWithSales: ProductStockOpportunityItem[];
+  stockWithoutSales: ProductStockOpportunityItem[];
 }
 
 export interface ProductAdjustmentItem {
@@ -587,7 +668,11 @@ export interface ProductsOverviewResult {
   summary: ProductsOverviewSummary;
   topProducts: TopProductItem[];
   categories: ProductCategoryItem[];
+  categoryMix?: ProductCategoryItem[];
+  commercialLineMix?: ProductMixItem[];
+  shapeSizeMix?: ShapeSizeMixItem[];
   channelMix: ProductChannelMixItem[];
+  stockOpportunities?: ProductStockOpportunities;
   reconciliation: ProductReconciliation;
 }
 

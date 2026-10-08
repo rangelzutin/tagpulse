@@ -16,6 +16,17 @@ describe("Products BI Frontend — API Client & Logic", () => {
       activeCatalogProducts: 300,
       productsWithStock: 250,
       productsSoldInPeriod: 88,
+      cmvEstimatedCurrentCost: 26883.14,
+      grossProfitEstimatedCurrentCost: 26883.14,
+      grossMarginEstimatedCurrentCost: 50.0,
+      top10RevenueShare: 42.5,
+      costCoverage: {
+        productsWithCost: 88,
+        productsWithoutCost: 0,
+        realizedRevenueWithCost: 53766.28,
+        realizedRevenueWithoutCost: 0,
+        revenueCoveragePercent: 100.0,
+      },
     },
     topProducts: [
       {

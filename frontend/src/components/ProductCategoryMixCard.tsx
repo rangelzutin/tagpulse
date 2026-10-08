@@ -8,24 +8,24 @@ import {
 } from "../utils/formatters";
 
 interface ProductCategoryMixCardProps {
-  categories: ProductCategoryItem[];
+  categories?: ProductCategoryItem[];
   totalRevenue: number;
 }
 
 const DEFAULT_VISIBLE_CATEGORIES = 8;
 
 export function ProductCategoryMixCard({
-  categories,
+  categories = [],
   totalRevenue,
 }: ProductCategoryMixCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   if (!categories || categories.length === 0) {
     return (
-      <section className="tp-card tp-category-mix-card" aria-label="Mix por Categoria">
+      <section className="tp-card tp-mix-card" aria-label="Mix por Categoria">
         <div className="tp-card-header">
           <div>
-            <h3 className="tp-card-title">Mix por categoria</h3>
+            <h3 className="tp-card-title">Mix por Categoria</h3>
             <p className="tp-card-subtitle">
               Distribuição de receita e volume pelas categorias cadastradas
             </p>
@@ -50,11 +50,11 @@ export function ProductCategoryMixCard({
   const hasMore = sortedCategories.length > DEFAULT_VISIBLE_CATEGORIES;
 
   return (
-    <section className="tp-card tp-category-mix-card" aria-label="Mix por Categoria">
+    <section className="tp-card tp-mix-card" aria-label="Mix por Categoria">
       <div className="tp-card-header">
         <div>
           <div className="tp-title-with-badge">
-            <h3 className="tp-card-title">Mix por categoria</h3>
+            <h3 className="tp-card-title">Mix por Categoria</h3>
             <span className="tp-badge-count">
               {hasMore && !isExpanded
                 ? `Top ${DEFAULT_VISIBLE_CATEGORIES} de ${sortedCategories.length}`
@@ -62,48 +62,51 @@ export function ProductCategoryMixCard({
             </span>
           </div>
           <p className="tp-card-subtitle">
-            Participação de receita e volume físico por linha de produtos
+            Participação de faturamento e volume por categoria
           </p>
         </div>
       </div>
 
-      <div className={`tp-category-ranking-list ${isExpanded ? "is-expanded" : ""}`}>
+      <div className={`tp-mix-ranking-list ${isExpanded ? "is-expanded" : ""}`}>
         {visibleCategories.map((cat, idx) => {
           const share =
+            cat.revenueShare ??
             cat.shareOfRevenue ??
             (totalRevenue > 0
               ? (cat.realizedRevenue / totalRevenue) * 100
               : 0);
 
+          const qty = cat.realizedQuantity ?? cat.quantity;
+
           return (
-            <div key={cat.category || idx} className="tp-category-item-row">
-              <div className="tp-category-meta-line">
-                <div className="tp-category-name-wrap">
-                  <Tag size={11} className="tp-category-icon" />
-                  <span className="tp-category-name" title={cat.category}>
-                    {cat.category}
+            <div key={cat.category || idx} className="tp-mix-item-row">
+              <div className="tp-mix-meta-line">
+                <div className="tp-mix-name-wrap">
+                  <Tag size={11} className="tp-mix-icon" />
+                  <span className="tp-mix-name" title={cat.label || cat.category}>
+                    {cat.label || cat.category}
                   </span>
                 </div>
-                <div className="tp-category-figures">
-                  <span className="tp-category-revenue">
+                <div className="tp-mix-figures">
+                  <span className="tp-mix-revenue">
                     {formatCurrency(cat.realizedRevenue)}
                   </span>
-                  <span className="tp-category-share">
+                  <span className="tp-mix-share">
                     {formatPercent(share)}
                   </span>
                 </div>
               </div>
 
               {/* Barra horizontal proporcional */}
-              <div className="tp-category-bar-track">
+              <div className="tp-mix-bar-track">
                 <div
-                  className="tp-category-bar-fill"
+                  className="tp-mix-bar-fill tp-mix-bar-fill-teal"
                   style={{ width: `${Math.min(100, Math.max(0, share))}%` }}
                 />
               </div>
 
-              <div className="tp-category-sub-stats">
-                <span>{formatNumber(cat.quantity)} un vendidas</span>
+              <div className="tp-mix-sub-stats">
+                <span>{formatNumber(qty)} un vendidas</span>
                 <span className="tp-bullet">•</span>
                 <span>{formatNumber(cat.distinctProducts)} SKUs distintos</span>
               </div>
