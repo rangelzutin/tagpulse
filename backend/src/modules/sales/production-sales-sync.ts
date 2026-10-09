@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import { type PrismaClient, SaleAnchorType } from "@prisma/client";
 import type { TagPlusOAuthTokenStore } from "../../integrations/tagplus/oauth-token-store.js";
 import {
   createTagPlusClient,
@@ -10,7 +10,12 @@ import {
   createTagPlusVendasSimplesPageFetcher,
 } from "../../integrations/tagplus/sales/sales-page-fetchers.js";
 import {
+  normalizeTagPlusNfe,
+  normalizeTagPlusVendaSimples,
+} from "../../integrations/tagplus/sales/sales-normalizers.js";
+import {
   createSalesFullSync,
+  type DocumentExistenceChecker,
   type SalesFullSyncResult,
   type SalesSyncOptions,
 } from "./sales-full-sync.js";
@@ -178,11 +183,31 @@ export function createProductionSalesSyncRunner(input: {
           ...(input.config.fetch ? { fetch: input.config.fetch } : {}),
         });
 
+        const documentChecker: DocumentExistenceChecker = async (
+          docType: SaleAnchorType,
+          sourceId: string,
+        ): Promise<"FOUND" | "NOT_FOUND" | "ERROR"> => {
+          const path =
+            docType === SaleAnchorType.NFE
+              ? `/nfes/${sourceId}`
+              : `/vendas_simples/${sourceId}`;
+          try {
+            await client.get(path);
+            return "FOUND";
+          } catch (error: unknown) {
+            if (error instanceof TagPlusHttpError && error.status === 404) {
+              return "NOT_FOUND";
+            }
+            return "ERROR";
+          }
+        };
+
         const sync = syncFactory({
           pedidosFetcher: createTagPlusPedidosPageFetcher(client),
           vendasSimplesFetcher: createTagPlusVendasSimplesPageFetcher(client),
           nfesFetcher: createTagPlusNfesPageFetcher(client),
           salesRepository: createSalesRepository(input.prisma),
+          documentChecker,
         });
 
         const result =
@@ -338,6 +363,95 @@ export function createProductionSalesSyncRunner(input: {
         itemCount: items.length,
         duplicateSourceItemIds,
         items,
+      };
+    },
+    async reprocessChildSaleAndReconcile(
+      targetConnectionId: string,
+      docType: SaleAnchorType,
+      sourceId: string,
+    ): Promise<{
+      reprocessedDocType: SaleAnchorType;
+      reprocessedSourceId: string;
+      parentSaleId: string | null;
+      reconciledAbsentSiblings: Array<{ docType: SaleAnchorType; sourceId: string }>;
+    }> {
+      const ready = await preflight(targetConnectionId);
+      const tokens = input.tokenStore.get();
+      if (!tokens?.accessToken) {
+        throw new ProductionSalesSyncError("TAGPLUS_OAUTH_TOKEN_NOT_AVAILABLE");
+      }
+
+      const client = clientFactory({
+        baseUrl: input.config.baseUrl,
+        apiVersion: ready.apiVersion,
+        accessToken: tokens.accessToken,
+        timeoutMs: SALES_TAGPLUS_REQUEST_TIMEOUT_MS,
+        ...(input.config.fetch ? { fetch: input.config.fetch } : {}),
+      });
+
+      const path =
+        docType === SaleAnchorType.NFE
+          ? `/nfes/${sourceId}?fields=*`
+          : `/vendas_simples/${sourceId}?fields=*`;
+
+      const response = await client.get<unknown>(path);
+      const normalized =
+        docType === SaleAnchorType.NFE
+          ? normalizeTagPlusNfe(response.data)
+          : normalizeTagPlusVendaSimples(response.data);
+
+      if (!normalized) {
+        throw new ProductionSalesSyncError(
+          "SALES_SYNC_ERROR",
+          `Could not normalize ${docType} #${sourceId}`,
+        );
+      }
+
+      const repository = createSalesRepository(input.prisma);
+      const persistResult = await repository.persistChildSale(
+        ready.connectionId,
+        normalized,
+        new Date(),
+      );
+
+      const reconciledAbsentSiblings: Array<{
+        docType: SaleAnchorType;
+        sourceId: string;
+      }> = [];
+
+      if (persistResult?.parentSaleId) {
+        const activeSiblings = await repository.findActiveSiblingSourceDocs(
+          ready.connectionId,
+          persistResult.parentSaleId,
+          docType,
+          sourceId,
+        );
+
+        for (const sibling of activeSiblings) {
+          const siblingPath =
+            sibling.docType === SaleAnchorType.NFE
+              ? `/nfes/${sibling.sourceId}`
+              : `/vendas_simples/${sibling.sourceId}`;
+
+          try {
+            await client.get(siblingPath);
+          } catch (error: unknown) {
+            if (error instanceof TagPlusHttpError && error.status === 404) {
+              await repository.markSourceDocAbsent(sibling.id);
+              reconciledAbsentSiblings.push({
+                docType: sibling.docType,
+                sourceId: sibling.sourceId,
+              });
+            }
+          }
+        }
+      }
+
+      return {
+        reprocessedDocType: docType,
+        reprocessedSourceId: sourceId,
+        parentSaleId: persistResult?.parentSaleId ?? null,
+        reconciledAbsentSiblings,
       };
     },
   };

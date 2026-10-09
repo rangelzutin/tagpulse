@@ -9,6 +9,11 @@ import { computeCommercialDate } from "./commercial-date.js";
 
 export const SALES_TRANSACTION_TIMEOUT_MS = 30000;
 
+export interface PersistChildSaleResult {
+  parentSaleId: string | null;
+  docId: string;
+}
+
 export interface SalesRepository {
   persistPedido(
     connectionId: string,
@@ -20,7 +25,7 @@ export interface SalesRepository {
     connectionId: string,
     childSale: NormalizedSale,
     observedAt: Date,
-  ): Promise<void>;
+  ): Promise<PersistChildSaleResult>;
 
   reconcileAbsentSourceDocs(
     connectionId: string,
@@ -32,6 +37,17 @@ export interface SalesRepository {
     connectionId: string,
     confirmedInboundSourceIds: Set<string>,
   ): Promise<number>;
+
+  findActiveSiblingSourceDocs(
+    connectionId: string,
+    saleId: string,
+    excludeDocType: SaleAnchorType,
+    excludeSourceId: string,
+  ): Promise<Array<{ id: string; docType: SaleAnchorType; sourceId: string }>>;
+
+  markSourceDocAbsent(
+    id: string,
+  ): Promise<void>;
 }
 
 export function createSalesRepository(prisma: PrismaClient): SalesRepository {
@@ -165,7 +181,7 @@ export function createSalesRepository(prisma: PrismaClient): SalesRepository {
     },
 
     async persistChildSale(connectionId, childSale, observedAt) {
-      await prisma.$transaction(async (tx) => {
+      return await prisma.$transaction(async (tx) => {
         const childRealizedDate = computeRealizedDate({
           anchorType: childSale.anchorType,
           status: childSale.status,
@@ -266,6 +282,7 @@ export function createSalesRepository(prisma: PrismaClient): SalesRepository {
           }
 
           await syncDocumentItems(tx, connectionId, docId, childSale.items);
+          return { parentSaleId: parentSale.id, docId };
         } else {
           // Direct Venda Simples or Direct NFe
           let customerId: string | null = null;
@@ -393,6 +410,7 @@ export function createSalesRepository(prisma: PrismaClient): SalesRepository {
           });
 
           await syncDocumentItems(tx, connectionId, directDoc.id, childSale.items);
+          return { parentSaleId: null, docId: directDoc.id };
         }
       }, { timeout: SALES_TRANSACTION_TIMEOUT_MS });
     },
@@ -448,6 +466,35 @@ export function createSalesRepository(prisma: PrismaClient): SalesRepository {
       });
 
       return deleteResult.count;
+    },
+
+    async findActiveSiblingSourceDocs(connectionId, saleId, excludeDocType, excludeSourceId) {
+      return prisma.saleSourceDocument.findMany({
+        where: {
+          connectionId,
+          saleId,
+          sourcePresent: true,
+          docType: { in: [SaleAnchorType.NFE, SaleAnchorType.VENDA_SIMPLES] },
+          NOT: {
+            AND: [
+              { docType: excludeDocType },
+              { sourceId: excludeSourceId },
+            ],
+          },
+        },
+        select: {
+          id: true,
+          docType: true,
+          sourceId: true,
+        },
+      });
+    },
+
+    async markSourceDocAbsent(id) {
+      await prisma.saleSourceDocument.update({
+        where: { id },
+        data: { sourcePresent: false },
+      });
     },
   };
 }

@@ -27,11 +27,17 @@ export interface SalesFullSyncResult {
   nfes: ResourceSyncResult;
 }
 
+export type DocumentExistenceChecker = (
+  docType: SaleAnchorType,
+  sourceId: string,
+) => Promise<"FOUND" | "NOT_FOUND" | "ERROR">;
+
 export interface SalesFullSyncDependencies {
   pedidosFetcher: SalesPageFetcher;
   vendasSimplesFetcher: SalesPageFetcher;
   nfesFetcher: SalesPageFetcher;
   salesRepository: SalesRepository;
+  documentChecker?: DocumentExistenceChecker;
   now?: () => Date;
   perPage?: number;
 }
@@ -150,6 +156,46 @@ export function createSalesFullSync(dependencies: SalesFullSyncDependencies) {
     options?: SalesSyncOptions,
   ): Promise<SalesFullSyncResult> {
     const startedAt = now();
+    const checkedSiblingStatus = new Map<string, "FOUND" | "NOT_FOUND" | "ERROR">();
+
+    async function reconcileSiblingsForChild(
+      parentSaleId: string,
+      currentDocType: SaleAnchorType,
+      currentSourceId: string,
+    ): Promise<void> {
+      if (!dependencies.documentChecker) {
+        return;
+      }
+
+      const activeSiblings =
+        await dependencies.salesRepository.findActiveSiblingSourceDocs(
+          connectionId,
+          parentSaleId,
+          currentDocType,
+          currentSourceId,
+        );
+
+      for (const sibling of activeSiblings) {
+        const key = `${sibling.docType}:${sibling.sourceId}`;
+        let status = checkedSiblingStatus.get(key);
+
+        if (status === undefined) {
+          try {
+            status = await dependencies.documentChecker(
+              sibling.docType,
+              sibling.sourceId,
+            );
+          } catch {
+            status = "ERROR";
+          }
+          checkedSiblingStatus.set(key, status);
+        }
+
+        if (status === "NOT_FOUND") {
+          await dependencies.salesRepository.markSourceDocAbsent(sibling.id);
+        }
+      }
+    }
 
     // 1. PEDIDOS (mandatory first)
     const pedidosResult = await syncResource(
@@ -176,11 +222,18 @@ export function createSalesFullSync(dependencies: SalesFullSyncDependencies) {
       dependencies.vendasSimplesFetcher,
       async (item, observedAt) => {
         const normalized = normalizeTagPlusVendaSimples(item);
-        await dependencies.salesRepository.persistChildSale(
+        const persistResult = await dependencies.salesRepository.persistChildSale(
           connectionId,
           normalized,
           observedAt,
         );
+        if (persistResult?.parentSaleId) {
+          await reconcileSiblingsForChild(
+            persistResult.parentSaleId,
+            normalized.anchorType,
+            normalized.sourceId,
+          );
+        }
         return normalized.sourceId;
       },
       SaleAnchorType.VENDA_SIMPLES,
@@ -205,11 +258,18 @@ export function createSalesFullSync(dependencies: SalesFullSyncDependencies) {
         if (!normalized) {
           return null;
         }
-        await dependencies.salesRepository.persistChildSale(
+        const persistResult = await dependencies.salesRepository.persistChildSale(
           connectionId,
           normalized,
           observedAt,
         );
+        if (persistResult?.parentSaleId) {
+          await reconcileSiblingsForChild(
+            persistResult.parentSaleId,
+            normalized.anchorType,
+            normalized.sourceId,
+          );
+        }
         return normalized.sourceId;
       },
       SaleAnchorType.NFE,
