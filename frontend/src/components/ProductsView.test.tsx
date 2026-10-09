@@ -1,10 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import React from "react";
 import { renderToString } from "react-dom/server";
 import { ProductsView } from "./ProductsView";
 import type { ProductsOverviewResult } from "../api/bi";
 
-describe("ProductsView — Integração Analítica Completa (Fase 3B)", () => {
+describe("ProductsView — Reorganização em Visões (Fase 3C)", () => {
   const mockFullData: ProductsOverviewResult = {
     period: { from: "2026-01-01", to: "2026-10-08" },
     summary: {
@@ -268,8 +268,8 @@ describe("ProductsView — Integração Analítica Completa (Fase 3B)", () => {
     },
   };
 
-  describe("A. Contrato e KPIs Executivos", () => {
-    it("renders the 4 executive KPI cards with exact business values", () => {
+  describe("A. Default = Visão Geral", () => {
+    it("opens in Visão Geral with tab aria-selected=true and panel mounted", () => {
       const html = renderToString(
         <ProductsView
           data={mockFullData}
@@ -279,142 +279,311 @@ describe("ProductsView — Integração Analítica Completa (Fase 3B)", () => {
         />,
       );
 
-      // Card 1: Receita realizada
+      // Tab list
+      expect(html).toContain('role="tablist"');
+      expect(html).toContain('id="tab-products-overview"');
+      expect(html).toContain('aria-selected="true"');
+      expect(html).toContain('id="panel-products-overview"');
+      expect(html).toContain('aria-labelledby="tab-products-overview"');
+    });
+  });
+
+  describe("B. Conteúdo da Visão Geral", () => {
+    it("renders the 4 commercial KPIs, catalog context strip and compact highlights", () => {
+      const html = renderToString(
+        <ProductsView
+          data={mockFullData}
+          isLoading={false}
+          error={null}
+          onRetry={() => {}}
+          initialTab="overview"
+        />,
+      );
+
+      // KPI 1: Receita realizada
       expect(html).toContain("Receita realizada");
       expect(html).toContain("323.326,48");
 
-      // Card 2: Unidades vendidas
+      // KPI 2: Unidades vendidas
       expect(html).toContain("Unidades vendidas");
       expect(html).toContain("3.989");
-      expect(html).toContain("238");
-      expect(html).toContain("SKUs vendidos");
       expect(html).toContain("142");
       expect(html).toContain("clientes compradores");
 
-      // Card 3: Lucro bruto estimado ao custo atual
-      expect(html).toContain("Lucro bruto estimado ao custo atual");
-      expect(html).toContain("161.663,24");
-      expect(html).toContain("Margem bruta estimada:");
-      expect(html).toContain("50,0%");
-      expect(html).toContain("CMV estimado:");
-      expect(html).toContain("Cobertura de custo atual: 100%");
+      // KPI 3: SKUs vendidos
+      expect(html).toContain("SKUs vendidos");
+      expect(html).toContain("238");
+      expect(html).toContain("650");
+      expect(html).toContain("ativos no catálogo");
 
-      // Card 4: Concentração Top 10
+      // KPI 4: Concentração Top 10
       expect(html).toContain("Concentração Top 10");
       expect(html).toContain("35,4%");
       expect(html).toContain("Participação dos 10 maiores SKUs no faturamento");
 
-      // Faixa compacta integrada de Catálogo & Estoque
+      // Faixa compacta de Catálogo & Estoque
       expect(html).toContain("Catálogo ativo:");
       expect(html).toContain("650");
       expect(html).toContain("Com estoque atualmente:");
       expect(html).toContain("480");
       expect(html).toContain("Vendidos no período:");
-    });
+      expect(html).toContain("238");
 
-    it("renders cost coverage warning and null metrics when cost coverage is incomplete", () => {
-      const incompleteData: ProductsOverviewResult = {
+      // Destaques do período (Mix)
+      expect(html).toContain("Destaques do período");
+      expect(html).toContain("Marca / Linha líder");
+      expect(html).toContain("NINECLOUDS");
+      expect(html).toContain("61,9% do faturamento");
+
+      expect(html).toContain("Categoria líder");
+      expect(html).toContain("Shapes");
+
+      expect(html).toContain("Shape líder");
+      expect(html).toContain('8.0&quot;');
+      expect(html).toContain("37,5% do volume de shapes");
+
+      expect(html).toContain("Canal líder");
+      expect(html).toContain("Atacado");
+      expect(html).toContain("77,3% do faturamento");
+
+      // Link para ver análise detalhada de Mix
+      expect(html).toContain("Ver análise de Mix");
+    });
+  });
+
+  describe("C. Visão Geral NÃO renderiza componentes longos", () => {
+    it("does NOT render full ranking table, full mix cards or stock radars in overview", () => {
+      const html = renderToString(
+        <ProductsView
+          data={mockFullData}
+          isLoading={false}
+          error={null}
+          onRetry={() => {}}
+          initialTab="overview"
+        />,
+      );
+
+      // Ranking table not in overview
+      expect(html).not.toContain("Ranking Analítico de Produtos");
+      expect(html).not.toContain("tp-analytical-table");
+
+      // Mix 3-col section not in overview
+      expect(html).not.toContain("Diagnóstico do Mix de Produtos");
+      expect(html).not.toContain("tp-products-mix-grid");
+
+      // Radars not in overview
+      expect(html).not.toContain("Oportunidades de Estoque");
+      expect(html).not.toContain("Vendidos no período e sem estoque hoje");
+      expect(html).not.toContain("Estoque atual sem venda no período");
+
+      // Profit KPI must NOT be primary in Produtos Visão Geral
+      expect(html).not.toContain("Lucro bruto estimado ao custo atual");
+    });
+  });
+
+  describe("D. Visão Ranking Isolada", () => {
+    it("renders TopProductsCard at the top and does not render Mix or Radars", () => {
+      const html = renderToString(
+        <ProductsView
+          data={mockFullData}
+          isLoading={false}
+          error={null}
+          onRetry={() => {}}
+          initialTab="ranking"
+        />,
+      );
+
+      expect(html).toContain('id="panel-products-ranking"');
+      expect(html).toContain("Ranking Analítico de Produtos");
+      expect(html).toContain("Shape Nineclouds Maple 8.0 Pro");
+      expect(html).toContain("Roda Spitfire F4 54mm");
+
+      // Does not render other views' content
+      expect(html).not.toContain("Diagnóstico do Mix de Produtos");
+      expect(html).not.toContain("Destaques do período");
+      expect(html).not.toContain("Oportunidades de Estoque");
+    });
+  });
+
+  describe("E. Visão Mix Isolada", () => {
+    it("renders the 3-column mix layout polished in 3B.5 and does not render Ranking or Radars", () => {
+      const html = renderToString(
+        <ProductsView
+          data={mockFullData}
+          isLoading={false}
+          error={null}
+          onRetry={() => {}}
+          initialTab="mix"
+        />,
+      );
+
+      expect(html).toContain('id="panel-products-mix"');
+      expect(html).toContain("Diagnóstico do Mix de Produtos");
+      expect(html).toContain("Mix por Marca / Linha");
+      expect(html).toContain("Mix por Canal");
+      expect(html).toContain("Mix por Categoria");
+      expect(html).toContain("Shapes por Tamanho");
+
+      // Does not render Ranking or Radars
+      expect(html).not.toContain("Ranking Analítico de Produtos");
+      expect(html).not.toContain("Oportunidades de Estoque");
+      expect(html).not.toContain("Destaques do período");
+    });
+  });
+
+  describe("F. Visão Oportunidades Isolada", () => {
+    it("renders the 2 stock radars side-by-side and does not render Mix or Ranking", () => {
+      const html = renderToString(
+        <ProductsView
+          data={mockFullData}
+          isLoading={false}
+          error={null}
+          onRetry={() => {}}
+          initialTab="opportunities"
+        />,
+      );
+
+      expect(html).toContain('id="panel-products-opportunities"');
+      expect(html).toContain("Oportunidades de Estoque");
+      expect(html).toContain("Vendidos no período e sem estoque hoje");
+      expect(html).toContain("Estoque atual sem venda no período");
+      expect(html).toContain("Roda Spitfire F4 54mm");
+      expect(html).toContain("Truck Thunder 149mm Hollow Light");
+
+      // Does not render Mix or Ranking
+      expect(html).not.toContain("Ranking Analítico de Produtos");
+      expect(html).not.toContain("Diagnóstico do Mix de Produtos");
+      expect(html).not.toContain("Destaques do período");
+    });
+  });
+
+  describe("G. Troca de Visão e Isolamento de Chamadas", () => {
+    it("preserves onRetry callback and does not invoke it during view rendering", () => {
+      const onRetryMock = vi.fn();
+      renderToString(
+        <ProductsView
+          data={mockFullData}
+          isLoading={false}
+          error={null}
+          onRetry={onRetryMock}
+          initialTab="overview"
+        />,
+      );
+      renderToString(
+        <ProductsView
+          data={mockFullData}
+          isLoading={false}
+          error={null}
+          onRetry={onRetryMock}
+          initialTab="ranking"
+        />,
+      );
+      renderToString(
+        <ProductsView
+          data={mockFullData}
+          isLoading={false}
+          error={null}
+          onRetry={onRetryMock}
+          initialTab="mix"
+        />,
+      );
+      renderToString(
+        <ProductsView
+          data={mockFullData}
+          isLoading={false}
+          error={null}
+          onRetry={onRetryMock}
+          initialTab="opportunities"
+        />,
+      );
+
+      expect(onRetryMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("H. Atualização de Dados e Período", () => {
+    it("updates KPI values correctly when receiving fresh period data", () => {
+      const updatedData: ProductsOverviewResult = {
         ...mockFullData,
         summary: {
           ...mockFullData.summary,
-          cmvEstimatedCurrentCost: null,
-          grossProfitEstimatedCurrentCost: null,
-          grossMarginEstimatedCurrentCost: null,
-          costCoverage: {
-            productsWithCost: 200,
-            productsWithoutCost: 38,
-            realizedRevenueWithCost: 280000,
-            realizedRevenueWithoutCost: 43326.48,
-            revenueCoveragePercent: 86.6,
-          },
+          realizedRevenue: 500000,
+          realizedQuantity: 6000,
         },
       };
 
       const html = renderToString(
         <ProductsView
-          data={incompleteData}
+          data={updatedData}
           isLoading={false}
           error={null}
           onRetry={() => {}}
+          initialTab="overview"
         />,
       );
 
-      expect(html).toContain("Cobertura de custo atual:");
-      expect(html).toContain("86,6%");
-      expect(html).toContain("38");
-      expect(html).toContain("SKUs sem custo");
-      expect(html).toContain("43.326,48");
-      expect(html).toContain("sem cobertura");
-      // Aggregate profit must display dash
-      expect(html).toContain("—");
+      expect(html).toContain("500.000,00");
+      expect(html).toContain("6.000");
     });
   });
 
-  describe("B. Diagnóstico do Mix (4 Cards Analíticos)", () => {
-    it("renders CommercialLine, Category, ShapeSize and Channel mix cards", () => {
+  describe("I. Labels de Shape com Aspas Únicas", () => {
+    it("formats shape size labels without duplicated quotes across views", () => {
+      const htmlOverview = renderToString(
+        <ProductsView
+          data={mockFullData}
+          isLoading={false}
+          error={null}
+          onRetry={() => {}}
+          initialTab="overview"
+        />,
+      );
+      // In overview top shape (rendered as HTML entity &quot;)
+      expect(htmlOverview).toContain('8.0&quot;');
+      expect(htmlOverview).not.toContain('8.0&quot;&quot;');
+
+      const htmlMix = renderToString(
+        <ProductsView
+          data={mockFullData}
+          isLoading={false}
+          error={null}
+          onRetry={() => {}}
+          initialTab="mix"
+        />,
+      );
+      expect(htmlMix).toContain('7.7&quot;');
+      expect(htmlMix).toContain('7.8&quot;');
+      expect(htmlMix).toContain('8.0&quot;');
+      expect(htmlMix).not.toContain('7.7&quot;&quot;');
+      expect(htmlMix).not.toContain('7.8&quot;&quot;');
+      expect(htmlMix).not.toContain('8.0&quot;&quot;');
+      expect(htmlMix).toContain("Outros");
+      expect(htmlMix).toContain("Não classificado");
+    });
+  });
+
+  describe("J. Ranking Mantém Filtros e Paginação", () => {
+    it("renders search input, filter selects and pagination controls in Ranking view", () => {
       const html = renderToString(
         <ProductsView
           data={mockFullData}
           isLoading={false}
           error={null}
           onRetry={() => {}}
+          initialTab="ranking"
         />,
       );
 
-      // Card 1: Mix por Marca / Linha
-      expect(html).toContain("Mix por Marca / Linha");
-      expect(html).toContain("NINECLOUDS");
-      expect(html).toContain("SPITFIRE");
-
-      // Card 2: Mix por Categoria
-      expect(html).toContain("Mix por Categoria");
-      expect(html).toContain("Shapes");
-      expect(html).toContain("Rodas");
-
-      // Card 3: Shapes por Tamanho
-      expect(html).toContain("Shapes por Tamanho");
-      expect(html).toContain('7.7"');
-      expect(html).toContain('7.8"');
-      expect(html).toContain('8.0"');
-      expect(html).toContain("Outros");
-      expect(html).toContain("Não classificado");
-
-      // Card 4: Mix por Canal
-      expect(html).toContain("Mix por Canal");
-      expect(html).toContain("Atacado");
-      expect(html).toContain("Varejo");
+      expect(html).toContain("Buscar produto ou código...");
+      expect(html).toContain("Todas as marcas/linhas");
+      expect(html).toContain("Todas as categorias");
+      expect(html).toContain("Todos os shapes");
+      expect(html).toContain("Todas as classes ABC");
     });
   });
 
-  describe("C. Oportunidades de Estoque (Ruptura & Sem Giro)", () => {
-    it("renders zero stock with sales and stock without sales cards", () => {
-      const html = renderToString(
-        <ProductsView
-          data={mockFullData}
-          isLoading={false}
-          error={null}
-          onRetry={() => {}}
-        />,
-      );
-
-      // Card A: Vendidos no período e sem estoque hoje
-      expect(html).toContain("Vendidos no período e sem estoque hoje");
-      expect(html).toContain("Roda Spitfire F4 54mm");
-      expect(html).toContain("80");
-      expect(html).toContain("un vendidas");
-      expect(html).toContain("Saldo:");
-
-      // Card B: Estoque atual sem venda no período
-      expect(html).toContain("Estoque atual sem venda no período");
-      expect(html).toContain("Truck Thunder 149mm Hollow Light");
-      expect(html).toContain("45");
-      expect(html).toContain("un em estoque");
-      expect(html).toContain("Zero saída no período");
-    });
-  });
-
-  describe("D. Estados de Carregamento e Erro", () => {
-    it("renders skeleton state while initial loading", () => {
+  describe("K. Estados de Carregamento, Erro e Reconciliação", () => {
+    it("renders skeleton tabs and cards during initial load", () => {
       const html = renderToString(
         <ProductsView
           data={null}
@@ -424,23 +593,58 @@ describe("ProductsView — Integração Analítica Completa (Fase 3B)", () => {
         />,
       );
 
+      expect(html).toContain("tp-products-nav-tabs-skeleton");
+      expect(html).toContain("tp-skeleton-tab-item");
       expect(html).toContain("tp-section-skeleton");
-      expect(html).toContain("tp-skeleton-card");
     });
 
-    it("renders error state with retry button when fetch fails", () => {
+    it("renders error state with retry button when error occurs without cached data", () => {
       const html = renderToString(
         <ProductsView
           data={null}
           isLoading={false}
-          error="Falha de conexão com o banco"
+          error="Falha de conexão com a API"
           onRetry={() => {}}
         />,
       );
 
       expect(html).toContain("Falha ao consultar indicadores de produtos");
-      expect(html).toContain("Falha de conexão com o banco");
+      expect(html).toContain("Falha de conexão com a API");
       expect(html).toContain("Tentar novamente");
+    });
+
+    it("renders global reconciliation banner when adjustment > 0", () => {
+      const reconciledData: ProductsOverviewResult = {
+        ...mockFullData,
+        reconciliation: {
+          commercialRevenue: 323326.48,
+          productsRevenue: 320000.0,
+          adjustmentAmount: 3326.48,
+          adjustments: [
+            {
+              type: "DOCUMENT_EXCLUSION",
+              sourceDocumentId: "ord-1",
+              sourceId: "1314",
+              reason: "Divergência documental",
+              amount: 3326.48,
+            },
+          ],
+        },
+      };
+
+      const html = renderToString(
+        <ProductsView
+          data={reconciledData}
+          isLoading={false}
+          error={null}
+          onRetry={() => {}}
+          initialTab="overview"
+        />,
+      );
+
+      expect(html).toContain("Aviso de Reconciliação Histórica");
+      expect(html).toContain("Ajuste histórico identificado");
+      expect(html).toContain("3.326,48");
     });
   });
 });

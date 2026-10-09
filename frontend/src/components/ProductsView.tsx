@@ -1,7 +1,16 @@
-import { AlertCircle, RefreshCw } from "lucide-react";
+import { useState } from "react";
+import {
+  AlertCircle,
+  RefreshCw,
+  LayoutDashboard,
+  ListOrdered,
+  Layers,
+  AlertTriangle,
+} from "lucide-react";
 import type { ProductsOverviewResult } from "../api/bi";
 import { ProductKpiGrid } from "./ProductKpiGrid";
 import { ProductReconciliationBanner } from "./ProductReconciliationBanner";
+import { ProductHighlightsCard } from "./ProductHighlightsCard";
 import { ProductCommercialLineMixCard } from "./ProductCommercialLineMixCard";
 import { ProductCategoryMixCard } from "./ProductCategoryMixCard";
 import { ProductShapeSizeMixCard } from "./ProductShapeSizeMixCard";
@@ -9,12 +18,15 @@ import { ProductChannelMixCard } from "./ProductChannelMixCard";
 import { TopProductsCard } from "./TopProductsCard";
 import { ProductStockOpportunitiesCard } from "./ProductStockOpportunitiesCard";
 
+export type ProductsViewTab = "overview" | "ranking" | "mix" | "opportunities";
+
 interface ProductsViewProps {
   data: ProductsOverviewResult | null;
   isLoading: boolean;
   isRefreshing?: boolean;
   error: string | null;
   onRetry: () => void;
+  initialTab?: ProductsViewTab;
 }
 
 export function ProductsView({
@@ -23,7 +35,10 @@ export function ProductsView({
   isRefreshing,
   error,
   onRetry,
+  initialTab = "overview",
 }: ProductsViewProps) {
+  const [activeTab, setActiveTab] = useState<ProductsViewTab>(initialTab);
+
   // Estado de Erro sem dados em cache
   if (error && !data) {
     return (
@@ -57,6 +72,13 @@ export function ProductsView({
     return (
       <section className="tp-dashboard-section" aria-label="Carregando produtos">
         <div className="tp-section-skeleton">
+          {/* Skeleton Nav Tabs */}
+          <div className="tp-products-nav-tabs-skeleton">
+            {[1, 2, 3, 4].map((idx) => (
+              <div key={idx} className="tp-skeleton-tab-item" />
+            ))}
+          </div>
+
           {/* Skeleton KPIs */}
           <div className="tp-kpi-grid">
             {[1, 2, 3, 4].map((idx) => (
@@ -67,30 +89,10 @@ export function ProductsView({
             ))}
           </div>
 
-          {/* Skeleton Mix Grid */}
-          <div className="tp-products-mix-grid">
-            {[1, 2, 3, 4].map((idx) => (
-              <div key={idx} className="tp-card tp-skeleton-card" style={{ minHeight: 220 }}>
-                <div className="tp-skeleton-line tp-skeleton-short" />
-                <div className="tp-skeleton-line tp-skeleton-long" />
-              </div>
-            ))}
-          </div>
-
-          {/* Skeleton Ranking Table */}
-          <div className="tp-card tp-skeleton-card" style={{ minHeight: 380 }}>
+          {/* Skeleton Compact Highlights */}
+          <div className="tp-card tp-skeleton-card" style={{ minHeight: 180 }}>
             <div className="tp-skeleton-line tp-skeleton-short" />
-            <div className="tp-skeleton-line tp-skeleton-chart-body" />
-          </div>
-
-          {/* Skeleton Opportunities Grid */}
-          <div className="tp-stock-opportunities-grid">
-            {[1, 2].map((idx) => (
-              <div key={idx} className="tp-card tp-skeleton-card" style={{ minHeight: 200 }}>
-                <div className="tp-skeleton-line tp-skeleton-short" />
-                <div className="tp-skeleton-line tp-skeleton-long" />
-              </div>
-            ))}
+            <div className="tp-skeleton-line tp-skeleton-long" />
           </div>
         </div>
       </section>
@@ -113,6 +115,10 @@ export function ProductsView({
     reconciliation,
   } = data;
 
+  const totalOpportunities =
+    (stockOpportunities?.zeroStockWithSales?.length ?? 0) +
+    (stockOpportunities?.stockWithoutSales?.length ?? 0);
+
   return (
     <section
       className={`tp-dashboard-section tp-products-section ${isRefreshing ? "is-refreshing" : ""}`}
@@ -132,53 +138,180 @@ export function ProductsView({
         </div>
       )}
 
-      {/* Banner de Reconciliação (exibido apenas quando houver ajuste > 0) */}
+      {/* Banner de Reconciliação (exibido apenas quando houver ajuste > 0 no nível global do módulo) */}
       <ProductReconciliationBanner reconciliation={reconciliation} />
 
-      {/* BLOCO 1: KPIs Executivos + Contexto do Catálogo Integrado */}
-      <ProductKpiGrid summary={summary} />
+      {/* Subnavegação Interna do Módulo Produtos */}
+      <nav
+        className="tp-financial-nav-tabs tp-products-nav-tabs"
+        role="tablist"
+        aria-label="Subnavegação do Módulo Produtos"
+      >
+        <button
+          type="button"
+          role="tab"
+          id="tab-products-overview"
+          aria-selected={activeTab === "overview"}
+          aria-controls="panel-products-overview"
+          className={`tp-financial-tab-btn tp-products-tab-btn ${activeTab === "overview" ? "is-active" : ""}`}
+          onClick={() => setActiveTab("overview")}
+        >
+          <LayoutDashboard size={14} className="tp-tab-icon" />
+          <span>Visão Geral</span>
+        </button>
 
-      {/* BLOCO 2: Diagnóstico do Mix (4 cards em grid responsivo) */}
-      <section className="tp-products-mix-section" aria-label="Diagnóstico do Mix de Produtos">
-        <div className="tp-products-mix-grid">
-          <ProductCommercialLineMixCard
-            commercialLineMix={commercialLineMix}
-            totalRevenue={summary.realizedRevenue}
-          />
+        <button
+          type="button"
+          role="tab"
+          id="tab-products-ranking"
+          aria-selected={activeTab === "ranking"}
+          aria-controls="panel-products-ranking"
+          className={`tp-financial-tab-btn tp-products-tab-btn ${activeTab === "ranking" ? "is-active" : ""}`}
+          onClick={() => setActiveTab("ranking")}
+        >
+          <ListOrdered size={14} className="tp-tab-icon" />
+          <span>Ranking</span>
+          {topProducts && topProducts.length > 0 && (
+            <span className="tp-tab-pill-badge" title={`${topProducts.length} produtos classificados`}>
+              {topProducts.length}
+            </span>
+          )}
+        </button>
 
-          <ProductCategoryMixCard
-            categories={categoryMix ?? categories}
-            totalRevenue={summary.realizedRevenue}
-          />
+        <button
+          type="button"
+          role="tab"
+          id="tab-products-mix"
+          aria-selected={activeTab === "mix"}
+          aria-controls="panel-products-mix"
+          className={`tp-financial-tab-btn tp-products-tab-btn ${activeTab === "mix" ? "is-active" : ""}`}
+          onClick={() => setActiveTab("mix")}
+        >
+          <Layers size={14} className="tp-tab-icon" />
+          <span>Mix</span>
+        </button>
 
-          <ProductShapeSizeMixCard
-            shapeSizeMix={shapeSizeMix}
-          />
+        <button
+          type="button"
+          role="tab"
+          id="tab-products-opportunities"
+          aria-selected={activeTab === "opportunities"}
+          aria-controls="panel-products-opportunities"
+          className={`tp-financial-tab-btn tp-products-tab-btn ${activeTab === "opportunities" ? "is-active" : ""}`}
+          onClick={() => setActiveTab("opportunities")}
+        >
+          <AlertTriangle size={14} className="tp-tab-icon" />
+          <span>Oportunidades</span>
+          {totalOpportunities > 0 && (
+            <span
+              className="tp-tab-pill-badge is-amber"
+              title={`${totalOpportunities} oportunidades de estoque`}
+            >
+              {totalOpportunities}
+            </span>
+          )}
+        </button>
+      </nav>
 
-          <ProductChannelMixCard
-            channelMix={channelMix}
-            totalRevenue={summary.realizedRevenue}
-          />
-        </div>
-      </section>
+      {/* Conteúdo das Visões Internas */}
+      <div className="tp-financial-tab-content tp-products-tab-content">
+        {/* VISÃO 1: Visão Geral (Executiva e Curta) */}
+        {activeTab === "overview" && (
+          <div
+            id="panel-products-overview"
+            role="tabpanel"
+            aria-labelledby="tab-products-overview"
+            className="tp-financial-tab-panel tp-products-tab-panel"
+          >
+            {/* KPIs Comerciais + Faixa Compacta de Catálogo */}
+            <ProductKpiGrid summary={summary} />
 
-      {/* BLOCO 3: Ranking Analítico de Produtos (Largura Total com filtros locais) */}
-      <section className="tp-products-ranking-section" aria-label="Ranking Analítico de Produtos">
-        <TopProductsCard
-          products={topProducts}
-          totalRevenue={summary.realizedRevenue}
-          totalQuantity={summary.realizedQuantity}
-        />
-      </section>
+            {/* Destaques Compactos do Mix */}
+            <ProductHighlightsCard
+              commercialLineMix={commercialLineMix}
+              categories={categoryMix ?? categories}
+              shapeSizeMix={shapeSizeMix}
+              channelMix={channelMix}
+              onViewMix={() => setActiveTab("mix")}
+            />
+          </div>
+        )}
 
-      {/* BLOCO 4: Oportunidades de Estoque (2 cards lado a lado) */}
-      {stockOpportunities && (
-        <section className="tp-products-opportunities-section" aria-label="Oportunidades de Estoque">
-          <ProductStockOpportunitiesCard
-            opportunities={stockOpportunities}
-          />
-        </section>
-      )}
+        {/* VISÃO 2: Ranking Analítico Completo */}
+        {activeTab === "ranking" && (
+          <div
+            id="panel-products-ranking"
+            role="tabpanel"
+            aria-labelledby="tab-products-ranking"
+            className="tp-financial-tab-panel tp-products-tab-panel"
+          >
+            <section className="tp-products-ranking-section" aria-label="Ranking Analítico de Produtos">
+              <TopProductsCard
+                products={topProducts}
+                totalRevenue={summary.realizedRevenue}
+                totalQuantity={summary.realizedQuantity}
+              />
+            </section>
+          </div>
+        )}
+
+        {/* VISÃO 3: Mix Completo (3 Colunas Polidas 3B.5) */}
+        {activeTab === "mix" && (
+          <div
+            id="panel-products-mix"
+            role="tabpanel"
+            aria-labelledby="tab-products-mix"
+            className="tp-financial-tab-panel tp-products-tab-panel"
+          >
+            <section className="tp-products-mix-section" aria-label="Diagnóstico do Mix de Produtos">
+              <div className="tp-products-mix-grid">
+                <div className="tp-mix-col tp-mix-col-stack">
+                  <ProductCommercialLineMixCard
+                    commercialLineMix={commercialLineMix}
+                    totalRevenue={summary.realizedRevenue}
+                  />
+
+                  <ProductChannelMixCard
+                    channelMix={channelMix}
+                    totalRevenue={summary.realizedRevenue}
+                  />
+                </div>
+
+                <div className="tp-mix-col tp-mix-col-category">
+                  <ProductCategoryMixCard
+                    categories={categoryMix ?? categories}
+                    totalRevenue={summary.realizedRevenue}
+                  />
+                </div>
+
+                <div className="tp-mix-col tp-mix-col-shapes">
+                  <ProductShapeSizeMixCard
+                    shapeSizeMix={shapeSizeMix}
+                  />
+                </div>
+              </div>
+            </section>
+          </div>
+        )}
+
+        {/* VISÃO 4: Oportunidades de Estoque */}
+        {activeTab === "opportunities" && (
+          <div
+            id="panel-products-opportunities"
+            role="tabpanel"
+            aria-labelledby="tab-products-opportunities"
+            className="tp-financial-tab-panel tp-products-tab-panel"
+          >
+            {stockOpportunities && (
+              <section className="tp-products-opportunities-section" aria-label="Oportunidades de Estoque">
+                <ProductStockOpportunitiesCard
+                  opportunities={stockOpportunities}
+                />
+              </section>
+            )}
+          </div>
+        )}
+      </div>
     </section>
   );
 }

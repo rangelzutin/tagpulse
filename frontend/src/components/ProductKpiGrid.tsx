@@ -1,4 +1,4 @@
-import { DollarSign, Package, TrendingUp, PieChart, Layers, Warehouse, CheckCircle2, AlertCircle } from "lucide-react";
+import { DollarSign, Package, PieChart, Layers, Warehouse, CheckCircle2 } from "lucide-react";
 import type { ProductsOverviewSummary } from "../api/bi";
 import { formatCurrency, formatNumber, formatPercent } from "../utils/formatters";
 
@@ -7,11 +7,6 @@ interface ProductKpiGridProps {
 }
 
 export function ProductKpiGrid({ summary }: ProductKpiGridProps) {
-  const hasIncompleteCost =
-    summary.costCoverage && summary.costCoverage.productsWithoutCost > 0;
-
-  const costCoveragePercent = summary.costCoverage?.revenueCoveragePercent;
-
   return (
     <section className="tp-kpi-section tp-products-kpi-section" aria-label="Indicadores Executivos de Produtos">
       <div className="tp-kpi-grid">
@@ -47,63 +42,26 @@ export function ProductKpiGrid({ summary }: ProductKpiGridProps) {
             </span>
           </div>
           <div className="tp-product-kpi-subtext">
-            <span>{formatNumber(summary.distinctProductsSold)} SKUs vendidos</span>
-            <span className="tp-bullet">•</span>
             <span>{formatNumber(summary.distinctCustomers)} clientes compradores</span>
           </div>
         </article>
 
-        {/* KPI 3 — Lucro bruto estimado ao custo atual */}
-        <article className={`tp-kpi-card ${hasIncompleteCost ? "tp-kpi-warning-card" : ""}`}>
+        {/* KPI 3 — SKUs vendidos */}
+        <article className="tp-kpi-card">
           <div className="tp-kpi-header">
-            <span className="tp-kpi-label">Lucro bruto estimado ao custo atual</span>
+            <span className="tp-kpi-label">SKUs vendidos</span>
             <span className="tp-kpi-icon-wrap tp-icon-teal">
-              <TrendingUp size={16} />
+              <Layers size={16} />
             </span>
           </div>
           <div className="tp-kpi-value-wrap">
             <span className="tp-kpi-value">
-              {summary.grossProfitEstimatedCurrentCost !== null
-                ? formatCurrency(summary.grossProfitEstimatedCurrentCost)
-                : "—"}
+              {formatNumber(summary.distinctProductsSold)}
             </span>
           </div>
           <div className="tp-product-kpi-subtext">
-            <span>
-              Margem bruta estimada:{" "}
-              {summary.grossMarginEstimatedCurrentCost !== null
-                ? formatPercent(summary.grossMarginEstimatedCurrentCost)
-                : "—"}
-            </span>
-            <span className="tp-bullet">•</span>
-            <span>
-              CMV estimado:{" "}
-              {summary.cmvEstimatedCurrentCost !== null
-                ? formatCurrency(summary.cmvEstimatedCurrentCost)
-                : "—"}
-            </span>
+            <span>De {formatNumber(summary.activeCatalogProducts)} ativos no catálogo</span>
           </div>
-
-          {/* Cobertura de custo atual */}
-          {summary.costCoverage && (
-            <div className={`tp-cost-coverage-indicator ${hasIncompleteCost ? "is-partial" : "is-complete"}`}>
-              {hasIncompleteCost ? (
-                <>
-                  <AlertCircle size={11} className="tp-cost-cov-icon" />
-                  <span>
-                    Cobertura de custo atual:{" "}
-                    {costCoveragePercent !== null && costCoveragePercent !== undefined
-                      ? formatPercent(costCoveragePercent)
-                      : "—"}
-                    {" "}
-                    ({summary.costCoverage.productsWithoutCost} SKUs sem custo • {formatCurrency(summary.costCoverage.realizedRevenueWithoutCost)} sem cobertura)
-                  </span>
-                </>
-              ) : (
-                <span>Cobertura de custo atual: 100%</span>
-              )}
-            </div>
-          )}
         </article>
 
         {/* KPI 4 — Concentração Top 10 */}

@@ -17,14 +17,27 @@ const FIXED_SIZE_ORDER: ShapeCommercialSize[] = [
   "UNCLASSIFIED",
 ];
 
-function getShapeSizeDisplay(size: ShapeCommercialSize, label: string) {
-  if (size === "OTHER") {
+function getShapeSizeDisplay(size: ShapeCommercialSize, label?: string) {
+  if (size === "OTHER" || label === "OTHER" || label === "Outros") {
     return { title: "Outros", subtitle: "Outros tamanhos detectados" };
   }
-  if (size === "UNCLASSIFIED") {
+  if (
+    size === "UNCLASSIFIED" ||
+    label === "UNCLASSIFIED" ||
+    label === "Não classificado"
+  ) {
     return { title: "Não classificado", subtitle: "Shape sem medida detectada" };
   }
-  return { title: `${label || size}"`, subtitle: `Tamanho ${label || size}` };
+
+  // Remove qualquer aspa pré-existente (retas, curvas, simples ou duplas) da string
+  const clean = String(label || size || "")
+    .replace(/["“”'']/g, "")
+    .trim();
+
+  return {
+    title: clean ? `${clean}"` : `${size}"`,
+    subtitle: `Tamanho ${clean || size}`,
+  };
 }
 
 export function ProductShapeSizeMixCard({
