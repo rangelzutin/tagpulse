@@ -51,118 +51,24 @@ export interface CalculateProductsOverviewParams {
   allActiveCatalogProductsWithStock?: CatalogProductInfo[];
 }
 
-/**
- * Limpa prefixos ordenadores legados do ERP TagPlus (ex: "1 - ", "2- ", "3 - ", "X - ").
- */
-export function sanitizeCommercialLine(
-  description: string | null | undefined,
-): string {
-  if (!description) return "SEM LINHA";
-  const cleaned = description
-    .trim()
-    .replace(/^(?:[0-9]+|[A-Za-z])\s*[-–]\s*/, "")
-    .trim();
-  return cleaned || "SEM LINHA";
-}
+import {
+  sanitizeCommercialLine,
+  resolveCommercialLine,
+  isShapeProduct,
+  parseShapeCommercialSize,
+  calculateAbcClasses,
+  classifyMarginTier,
+} from "./bi-analytics-helpers.js";
 
-/**
- * Percorre recursivamente os ancestrais de uma categoria até a raiz e extrai a linha comercial.
- */
-export function resolveCommercialLine(
-  categorySourceId: string | null | undefined,
-  categoryMap: Map<string, FlatCategoryInfo>,
-): string {
-  if (!categorySourceId || !categoryMap.has(categorySourceId)) {
-    return "SEM LINHA";
-  }
+export {
+  sanitizeCommercialLine,
+  resolveCommercialLine,
+  isShapeProduct,
+  parseShapeCommercialSize,
+  calculateAbcClasses,
+  classifyMarginTier,
+};
 
-  let curr = categoryMap.get(categorySourceId)!;
-  const visited = new Set<string>([curr.sourceId]);
-
-  while (curr.parentSourceId && categoryMap.has(curr.parentSourceId)) {
-    const parent = categoryMap.get(curr.parentSourceId)!;
-    if (visited.has(parent.sourceId)) break; // Proteção contra ciclos
-    visited.add(parent.sourceId);
-    curr = parent;
-  }
-
-  return sanitizeCommercialLine(curr.description);
-}
-
-/**
- * Identifica deterministicamente se um produto pertence à categoria / universo de Shapes.
- */
-export function isShapeProduct(
-  description: string | null | undefined,
-  categoryDescription: string | null | undefined,
-): boolean {
-  const text = `${description || ""} ${categoryDescription || ""}`;
-  return /\bSHAPES?\b/i.test(text);
-}
-
-/**
- * Parser determinístico para tamanhos comerciais de Shape.
- * Mapeamentos homologados:
- * 7.75 / 7 3/4 -> "7.7"
- * 7.875 / 7 7/8 -> "7.8"
- * 8.0 / 8.00 -> "8.0"
- * 8.125 / 8 1/8 -> "8.1"
- * 8.25 / 8 1/4 -> "8.2"
- * 8.5 / 8.50 / 8 1/2 -> "8.5"
- * Outras medidas detectáveis -> "OTHER"
- * Shape sem medida detectável -> "UNCLASSIFIED"
- * Não-shape -> null
- */
-export function parseShapeCommercialSize(
-  description: string | null | undefined,
-  categoryDescription: string | null | undefined,
-): ShapeCommercialSize | null {
-  if (!isShapeProduct(description, categoryDescription)) {
-    return null;
-  }
-
-  const desc = description || "";
-
-  // 1. Frações explícitas (ex: 7 3/4, 7 7/8, 8 1/8, 8 1/4, 8 1/2)
-  const fractionMatch = desc.match(
-    /(?:^|[\s"'])(\b[789])\s*([1357]\/[248])(?:[\s"']|$)/i,
-  );
-  if (fractionMatch && fractionMatch[1] && fractionMatch[2]) {
-    const whole = Number(fractionMatch[1]);
-    const fractionParts = fractionMatch[2].split("/");
-    const num = Number(fractionParts[0]);
-    const den = Number(fractionParts[1]);
-    if (!Number.isNaN(whole) && !Number.isNaN(num) && !Number.isNaN(den) && den > 0) {
-      const val = whole + num / den;
-
-      if (Math.abs(val - 7.75) < 0.001) return "7.7";
-      if (Math.abs(val - 7.875) < 0.001) return "7.8";
-      if (Math.abs(val - 8.125) < 0.001) return "8.1";
-      if (Math.abs(val - 8.25) < 0.001) return "8.2";
-      if (Math.abs(val - 8.5) < 0.001) return "8.5";
-      return "OTHER";
-    }
-  }
-
-  // 2. Decimais explícitos (ex: 7.75, 7.875, 8.0, 8.00, 8.125, 8.25, 8.5, 8.50)
-  const decimalMatch = desc.match(
-    /(?:^|[\s"'])([789]\.[0-9]{1,3})(?:[\s"']|$)/i,
-  );
-  if (decimalMatch && decimalMatch[1]) {
-    const num = Number(decimalMatch[1]);
-    if (!Number.isNaN(num)) {
-      if (Math.abs(num - 7.75) < 0.001) return "7.7";
-      if (Math.abs(num - 7.875) < 0.001) return "7.8";
-      if (Math.abs(num - 8.0) < 0.001) return "8.0";
-      if (Math.abs(num - 8.125) < 0.001) return "8.1";
-      if (Math.abs(num - 8.25) < 0.001) return "8.2";
-      if (Math.abs(num - 8.5) < 0.001) return "8.5";
-      return "OTHER";
-    }
-  }
-
-  return "UNCLASSIFIED";
-}
 
 export function calculateProductsOverview(
   params: CalculateProductsOverviewParams,
@@ -410,24 +316,7 @@ export function calculateProductsOverview(
   rawTopProducts.sort((a, b) => b.realizedRevenue - a.realizedRevenue);
 
   // 6. Curva ABC (Base exclusivamente em Receita Realizada)
-  if (totalRealizedRevenue > 0) {
-    let prevCumulativeRevenue = 0;
-    for (const item of rawTopProducts) {
-      if (item.realizedRevenue <= 0) {
-        item.abcClass = null;
-        continue;
-      }
-      const prevShare = (prevCumulativeRevenue / totalRealizedRevenue) * 100;
-      if (prevShare < 80) {
-        item.abcClass = "A";
-      } else if (prevShare < 95) {
-        item.abcClass = "B";
-      } else {
-        item.abcClass = "C";
-      }
-      prevCumulativeRevenue += item.realizedRevenue;
-    }
-  }
+  calculateAbcClasses(rawTopProducts, totalRealizedRevenue);
 
   const topProducts: TopProductItem[] = rawTopProducts;
 

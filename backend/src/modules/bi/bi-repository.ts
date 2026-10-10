@@ -11,7 +11,9 @@ import type {
   BiCustomerMetadata,
   BiCustomerSaleRawRecord,
   BiDataRangeResult,
+  BiDocumentMetadata,
   BiPeriodCustomerDoc,
+  BiSaleMetadata,
   BiSaleRealizationRecord,
   BiSaleRecord,
   CategoryTreeNode,
@@ -74,6 +76,9 @@ export interface BiRepository {
     categoriesFlat: FlatCategoryInfo[];
     categoryTree: CategoryTreeNode[];
     costSnapshot: ProfitabilityCostSnapshot;
+    salesMetadataMap?: Map<string, BiSaleMetadata>;
+    documentsMetadataMap?: Map<string, BiDocumentMetadata>;
+    customersMetadataMap?: Map<string, BiCustomerMetadata>;
   }>;
 }
 
@@ -834,6 +839,7 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
           categorySourceId: true,
           categoryDescription: true,
           effectiveCost: true,
+          stockQuantity: true,
         },
       });
 
@@ -847,10 +853,93 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
           categorySourceId: p.categorySourceId,
           categoryDescription: p.categoryDescription,
           effectiveCost: p.effectiveCost !== null ? Number(p.effectiveCost) : null,
+          stockQuantity: p.stockQuantity !== null ? Number(p.stockQuantity) : null,
         });
       }
 
-      // 3. Categorias planas (connection-scoped)
+      // 3. Mapas de metadados para Vendas, Documentos e Clientes
+      const saleIds = Array.from(new Set(movementResult.movements.map((m) => m.saleId)));
+      const salesMetadataMap = new Map<string, BiSaleMetadata>();
+      const documentsMetadataMap = new Map<string, BiDocumentMetadata>();
+      const customersMetadataMap = new Map<string, BiCustomerMetadata>();
+
+      if (saleIds.length > 0) {
+        const salesWithMeta = await prisma.sale.findMany({
+          where: { id: { in: saleIds } },
+          select: {
+            id: true,
+            anchorType: true,
+            anchorSourceId: true,
+            commercialDate: true,
+            customerId: true,
+            customer: {
+              select: {
+                id: true,
+                sourceId: true,
+                legalName: true,
+                tradeName: true,
+                cpf: true,
+                cnpj: true,
+              },
+            },
+            sourceDocs: {
+              where: {
+                sourcePresent: true,
+                docType: { in: [SaleAnchorType.NFE, SaleAnchorType.VENDA_SIMPLES] },
+              },
+              select: {
+                id: true,
+                docType: true,
+                sourceId: true,
+                realizedDate: true,
+              },
+            },
+          },
+        });
+
+        for (const s of salesWithMeta) {
+          salesMetadataMap.set(s.id, {
+            id: s.id,
+            anchorType: s.anchorType,
+            anchorSourceId: s.anchorSourceId,
+            commercialDate: s.commercialDate,
+            customerId: s.customerId,
+            customerName:
+              s.customer?.tradeName ||
+              s.customer?.legalName ||
+              (s.customer?.sourceId ? `Cliente ${s.customer.sourceId}` : null),
+            tradeName: s.customer?.tradeName ?? null,
+            legalName: s.customer?.legalName ?? null,
+            cpf: s.customer?.cpf ?? null,
+            cnpj: s.customer?.cnpj ?? null,
+          });
+
+          if (s.customer && s.customerId) {
+            customersMetadataMap.set(s.customerId, {
+              id: s.customer.id,
+              sourceId: s.customer.sourceId,
+              code: null,
+              legalName: s.customer.legalName,
+              tradeName: s.customer.tradeName,
+              cpf: s.customer.cpf,
+              cnpj: s.customer.cnpj,
+              city: null,
+              state: null,
+            });
+          }
+
+          for (const d of s.sourceDocs) {
+            documentsMetadataMap.set(d.id, {
+              id: d.id,
+              docType: d.docType,
+              sourceId: d.sourceId,
+              realizedDate: d.realizedDate,
+            });
+          }
+        }
+      }
+
+      // 4. Categorias planas (connection-scoped)
       const categoriesFlatDb = await prisma.category.findMany({
         where: { connectionId, sourcePresent: true },
         select: {
@@ -867,11 +956,11 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
         parentSourceId: c.parentSourceId,
       }));
 
-      // 4. Árvore de categorias
+      // 5. Árvore de categorias
       const categoryTreeResult = await this.findCategoryTree();
       const categoryTree = categoryTreeResult.categories;
 
-      // 5. Cost snapshot connection-scoped
+      // 6. Cost snapshot connection-scoped
       const lastProductSync = await prisma.productSyncRun.findFirst({
         where: { connectionId, status: "COMPLETED" },
         orderBy: { completedAt: "desc" },
@@ -902,6 +991,9 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
         categoriesFlat,
         categoryTree,
         costSnapshot,
+        salesMetadataMap,
+        documentsMetadataMap,
+        customersMetadataMap,
       };
     },
   };

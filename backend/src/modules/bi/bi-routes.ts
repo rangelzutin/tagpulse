@@ -63,6 +63,48 @@ export function registerBiRoutes(
     return reply.code(200).send(result.data);
   });
 
+  app.get("/bi/profitability/products", async (request, reply) => {
+    const query = (request.query ?? {}) as Record<string, unknown>;
+    const result = await service.getProfitabilityProducts(query);
+
+    if (!result.success) {
+      return reply.code(400).send({
+        status: "error",
+        message: result.error,
+      });
+    }
+
+    return reply.code(200).send(result.data);
+  });
+
+  app.get("/bi/profitability/sales", async (request, reply) => {
+    const query = (request.query ?? {}) as Record<string, unknown>;
+    const result = await service.getProfitabilitySales(query);
+
+    if (!result.success) {
+      return reply.code(400).send({
+        status: "error",
+        message: result.error,
+      });
+    }
+
+    return reply.code(200).send(result.data);
+  });
+
+  app.get("/bi/profitability/customers", async (request, reply) => {
+    const query = (request.query ?? {}) as Record<string, unknown>;
+    const result = await service.getProfitabilityCustomers(query);
+
+    if (!result.success) {
+      return reply.code(400).send({
+        status: "error",
+        message: result.error,
+      });
+    }
+
+    return reply.code(200).send(result.data);
+  });
+
 
   app.get("/bi/categories/tree", async (_request, reply) => {
     const result = await service.getCategoryTree();

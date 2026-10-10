@@ -1,20 +1,38 @@
 import type {
+  BiCustomerMetadata,
   CategoryTreeNode,
   CommercialChannel,
   ProfitabilityCategoryItem,
   ProfitabilityChannelItem,
   ProfitabilityCostSnapshot,
+  ProfitabilityCustomerItem,
+  ProfitabilityCustomersResult,
   ProfitabilityDataQuality,
+  ProfitabilityOverviewHighlights,
   ProfitabilityOverviewResult,
+  ProfitabilityProductHighlight,
   ProfitabilityProductItem,
+  ProfitabilityProductsResult,
+  ProfitabilityRealizingDocument,
   ProfitabilityRootCategoryItem,
+  ProfitabilitySaleItem,
+  ProfitabilitySalesResult,
   ProfitabilitySummary,
   ProfitabilityTrendPoint,
   RealizedProductMovement,
+  BiSaleMetadata,
+  BiDocumentMetadata,
 } from "./bi-types.js";
+import {
+  calculateAbcClasses,
+  classifyMarginTier,
+  computeProfitabilityItemMetrics,
+  parseShapeCommercialSize,
+  resolveCommercialLine,
+  round2,
+} from "./bi-analytics-helpers.js";
 
-const round2 = (n: number): number =>
-  Math.round((n + Number.EPSILON) * 100) / 100;
+export { classifyMarginTier };
 
 export interface CatalogProductProfitabilityInfo {
   id: string;
@@ -24,6 +42,7 @@ export interface CatalogProductProfitabilityInfo {
   categorySourceId: string | null;
   categoryDescription: string | null;
   effectiveCost: number | null;
+  stockQuantity?: number | null;
 }
 
 export interface FlatCategoryInfo {
@@ -46,7 +65,11 @@ export interface CalculateProfitabilityInput {
     categorySourceId?: string | null;
   };
   costSnapshot: ProfitabilityCostSnapshot;
+  salesMetadataMap?: Map<string, BiSaleMetadata> | undefined;
+  documentsMetadataMap?: Map<string, BiDocumentMetadata> | undefined;
+  customersMetadataMap?: Map<string, BiCustomerMetadata> | undefined;
 }
+
 
 /**
  * Coleta recursivamente o sourceId informado e todos os seus descendentes na árvore de categorias.
@@ -117,7 +140,10 @@ export function buildCategoryToRootMap(
 /**
  * Formata data local em string YYYY-MM-DD
  */
-function toLocalDateStr(d: Date): string {
+function toLocalDateStr(d: Date | string): string {
+  if (typeof d === "string") {
+    return d.substring(0, 10);
+  }
   const y = d.getUTCFullYear();
   const m = String(d.getUTCMonth() + 1).padStart(2, "0");
   const day = String(d.getUTCDate()).padStart(2, "0");
@@ -127,7 +153,10 @@ function toLocalDateStr(d: Date): string {
 /**
  * Formata data local em string YYYY-MM
  */
-function toLocalMonthStr(d: Date): string {
+function toLocalMonthStr(d: Date | string): string {
+  if (typeof d === "string") {
+    return d.substring(0, 7);
+  }
   const y = d.getUTCFullYear();
   const m = String(d.getUTCMonth() + 1).padStart(2, "0");
   return `${y}-${m}`;
@@ -713,6 +742,51 @@ export function calculateProfitabilityOverview(
       return b.estimatedGrossProfit - a.estimatedGrossProfit;
     });
 
+  const productsWithProfit = products.filter((p) => p.estimatedGrossProfit !== null);
+  const topProfitProducts: ProfitabilityProductHighlight[] = productsWithProfit
+    .slice(0, 3)
+    .map((p) => ({
+      productSourceId: p.productSourceId,
+      sku: p.sku,
+      productName: p.productName,
+      realizedRevenue: p.realizedRevenue,
+      estimatedGrossProfit: p.estimatedGrossProfit,
+      estimatedGrossMarginPercent: p.estimatedGrossMarginPercent,
+    }));
+
+  const negativeMarginProductsCount = products.filter(
+    (p) =>
+      p.estimatedGrossMarginPercent !== null &&
+      p.estimatedGrossMarginPercent < 0,
+  ).length;
+
+  const productsWithMargin = products.filter(
+    (p) => p.estimatedGrossMarginPercent !== null,
+  );
+  const worstMarginProducts: ProfitabilityProductHighlight[] = [
+    ...productsWithMargin,
+  ]
+    .sort(
+      (a, b) =>
+        (a.estimatedGrossMarginPercent ?? 0) -
+        (b.estimatedGrossMarginPercent ?? 0),
+    )
+    .slice(0, 3)
+    .map((p) => ({
+      productSourceId: p.productSourceId,
+      sku: p.sku,
+      productName: p.productName,
+      realizedRevenue: p.realizedRevenue,
+      estimatedGrossProfit: p.estimatedGrossProfit,
+      estimatedGrossMarginPercent: p.estimatedGrossMarginPercent,
+    }));
+
+  const highlights: ProfitabilityOverviewHighlights = {
+    topProfitProducts,
+    negativeMarginProductsCount,
+    worstMarginProducts,
+  };
+
   return {
     period,
     filters: {
@@ -728,5 +802,736 @@ export function calculateProfitabilityOverview(
     rootCategories,
     categories,
     products,
+    highlights,
+  };
+}
+
+/**
+ * Canal predominante de um cliente com resolução determinística de 3 critérios:
+ * 1. Maior receita realizada no período;
+ * 2. Empate -> maior quantidade física;
+ * 3. Empate -> prioridade canônica: ATACADO > VAREJO > INDETERMINADO > CONFLITO.
+ */
+const CHANNEL_PRIORITY: Record<CommercialChannel, number> = {
+  ATACADO: 4,
+  VAREJO: 3,
+  INDETERMINADO: 2,
+  CONFLITO: 1,
+};
+
+export function resolvePredominantChannel(
+  channelStats:
+    | Map<CommercialChannel, { revenue: number; quantity: number }>
+    | Array<{ channel: CommercialChannel; revenue: number; quantity: number }>,
+): CommercialChannel {
+  let entries: Array<[CommercialChannel, { revenue: number; quantity: number }]>;
+  if (channelStats instanceof Map) {
+    entries = Array.from(channelStats.entries());
+  } else if (Array.isArray(channelStats)) {
+    entries = channelStats.map((item) => [
+      item.channel,
+      { revenue: item.revenue, quantity: item.quantity },
+    ]);
+  } else {
+    return "INDETERMINADO";
+  }
+
+  let bestChannel: CommercialChannel = "INDETERMINADO";
+  let bestRevenue = -1;
+  let bestQuantity = -1;
+  let bestPriority = -1;
+
+  for (const [channel, stats] of entries) {
+    const rev = stats.revenue;
+    const qty = stats.quantity;
+    const prio = CHANNEL_PRIORITY[channel] ?? 0;
+
+    if (rev > bestRevenue) {
+      bestChannel = channel;
+      bestRevenue = rev;
+      bestQuantity = qty;
+      bestPriority = prio;
+    } else if (Math.abs(rev - bestRevenue) < 0.001) {
+      if (qty > bestQuantity) {
+        bestChannel = channel;
+        bestRevenue = rev;
+        bestQuantity = qty;
+        bestPriority = prio;
+      } else if (Math.abs(qty - bestQuantity) < 0.001) {
+        if (prio > bestPriority) {
+          bestChannel = channel;
+          bestRevenue = rev;
+          bestQuantity = qty;
+          bestPriority = prio;
+        }
+      }
+    }
+  }
+
+  return bestChannel;
+}
+
+/**
+ * Calculador canônico da visão de Rentabilidade por Produto.
+ */
+export function calculateProfitabilityProducts(
+  input: CalculateProfitabilityInput,
+): ProfitabilityProductsResult {
+  const {
+    movements,
+    catalogProductsMap,
+    categoriesFlat,
+    period,
+    filters = {},
+  } = input;
+
+  const selectedChannel = filters.channel ?? null;
+  const selectedCategorySourceId = filters.categorySourceId ?? null;
+
+  let allowedCategorySourceIds: Set<string> | null = null;
+  if (selectedCategorySourceId) {
+    allowedCategorySourceIds = getCategorySubtreeSourceIds(
+      selectedCategorySourceId,
+      categoriesFlat,
+    );
+  }
+
+  const categoryToRootMap = buildCategoryToRootMap(categoriesFlat);
+  const flatCategoryMap = new Map<string, FlatCategoryInfo>();
+  for (const c of categoriesFlat) {
+    flatCategoryMap.set(c.sourceId, c);
+  }
+
+  interface ProductAgg {
+    productSourceId: string;
+    physicalQuantity: number;
+    realizedRevenue: number;
+    revenueWithCurrentCost: number;
+    estimatedCOGS: number;
+    sales: Set<string>;
+    customers: Set<string>;
+    lastRealizedDate: Date | null;
+  }
+
+  const prodAggMap = new Map<string, ProductAgg>();
+
+  let totalRevenue = 0;
+  let totalWithCost = 0;
+  let totalCOGS = 0;
+
+  for (const m of movements) {
+    if (selectedChannel && m.channel !== selectedChannel) {
+      continue;
+    }
+
+    const dateStr = toLocalDateStr(m.realizedDate);
+    if (period?.from && dateStr < period.from) {
+      continue;
+    }
+    if (period?.to && dateStr > period.to) {
+      continue;
+    }
+
+    const prod = catalogProductsMap.get(m.sourceProductId);
+
+    if (allowedCategorySourceIds) {
+      if (!prod || !prod.categorySourceId || !allowedCategorySourceIds.has(prod.categorySourceId)) {
+        continue;
+      }
+    }
+
+    let pItem = prodAggMap.get(m.sourceProductId);
+    if (!pItem) {
+      pItem = {
+        productSourceId: m.sourceProductId,
+        physicalQuantity: 0,
+        realizedRevenue: 0,
+        revenueWithCurrentCost: 0,
+        estimatedCOGS: 0,
+        sales: new Set(),
+        customers: new Set(),
+        lastRealizedDate: null,
+      };
+      prodAggMap.set(m.sourceProductId, pItem);
+    }
+
+    const rev = m.allocatedNetRevenue;
+    pItem.realizedRevenue += rev;
+    pItem.physicalQuantity += m.quantity;
+    pItem.sales.add(m.saleId);
+    if (m.customerId) {
+      pItem.customers.add(m.customerId);
+    }
+
+    if (!pItem.lastRealizedDate || m.realizedDate > pItem.lastRealizedDate) {
+      pItem.lastRealizedDate = m.realizedDate;
+    }
+
+    totalRevenue += rev;
+
+    const hasCost = prod?.effectiveCost !== null && prod?.effectiveCost !== undefined && prod.effectiveCost >= 0;
+    if (hasCost) {
+      pItem.revenueWithCurrentCost += rev;
+      totalWithCost += rev;
+      if (m.quantity > 0) {
+        const cogs = m.quantity * Number(prod!.effectiveCost);
+        pItem.estimatedCOGS += cogs;
+        totalCOGS += cogs;
+      }
+    }
+  }
+
+  const products: ProfitabilityProductItem[] = Array.from(prodAggMap.values())
+    .map((item) => {
+      const prod = catalogProductsMap.get(item.productSourceId);
+      const hasProduct = Boolean(prod);
+      const hasCost = prod?.effectiveCost !== null && prod?.effectiveCost !== undefined && prod.effectiveCost >= 0;
+
+      const metrics = computeProfitabilityItemMetrics(
+        item.realizedRevenue,
+        item.revenueWithCurrentCost,
+        item.estimatedCOGS,
+        hasCost,
+      );
+
+      let sku: string | null = null;
+      let productName: string;
+      let categorySourceId: string | null = null;
+      let category: string | null = null;
+      let rootCategorySourceId: string | null = null;
+      let rootCategory: string | null = null;
+      let commercialLine = "SEM LINHA";
+      let shapeSize = null;
+
+      if (hasProduct) {
+        sku = prod!.code;
+        productName = prod!.description ?? `Produto ${item.productSourceId}`;
+        categorySourceId = prod!.categorySourceId;
+        category = prod!.categoryDescription;
+        commercialLine = resolveCommercialLine(prod!.categorySourceId, flatCategoryMap);
+        shapeSize = parseShapeCommercialSize(prod!.description, prod!.categoryDescription);
+
+        if (prod!.categorySourceId) {
+          const rootInfo = categoryToRootMap.get(prod!.categorySourceId);
+          if (rootInfo) {
+            rootCategorySourceId = rootInfo.rootSourceId;
+            rootCategory = rootInfo.rootDescription;
+          }
+        }
+      } else {
+        productName = `Produto não disponível no catálogo atual (ID: ${item.productSourceId})`;
+      }
+
+      return {
+        productId: prod?.id ?? null,
+        productSourceId: item.productSourceId,
+        sku,
+        productName,
+        commercialLine,
+        categorySourceId,
+        category,
+        rootCategorySourceId,
+        rootCategory,
+        shapeSize,
+        physicalQuantity: item.physicalQuantity,
+        realizedRevenue: metrics.realizedRevenue,
+        revenueWithCurrentCost: metrics.revenueWithCurrentCost,
+        revenueWithoutCurrentCost: metrics.revenueWithoutCurrentCost,
+        costCoveragePercent: metrics.costCoveragePercent,
+        currentEffectiveCost: hasCost ? Number(prod!.effectiveCost) : null,
+        estimatedCOGS: metrics.estimatedCOGS,
+        estimatedGrossProfit: metrics.estimatedGrossProfit,
+        estimatedGrossMarginPercent: metrics.estimatedGrossMarginPercent,
+        stockQuantity: prod?.stockQuantity !== undefined && prod?.stockQuantity !== null ? Number(prod.stockQuantity) : null,
+        abcClass: null,
+        distinctCustomers: item.customers.size,
+        distinctSales: item.sales.size,
+        marginTier: classifyMarginTier(metrics.estimatedGrossMarginPercent),
+        isOrphan: !hasProduct,
+        lastRealizedDate: item.lastRealizedDate ? toLocalDateStr(item.lastRealizedDate) : null,
+      };
+    });
+
+  // Curva ABC sobre receita realizada decrescente
+  products.sort((a, b) => b.realizedRevenue - a.realizedRevenue);
+  calculateAbcClasses(products, round2(totalRevenue));
+
+  // Ordenação final: estimatedGrossProfit DESC (nulos ao final), realizedRevenue DESC, sku ASC
+  products.sort((a, b) => {
+    if (a.estimatedGrossProfit === null && b.estimatedGrossProfit === null) {
+      return (
+        b.realizedRevenue - a.realizedRevenue ||
+        (a.sku ?? "").localeCompare(b.sku ?? "") ||
+        a.productSourceId.localeCompare(b.productSourceId)
+      );
+    }
+    if (a.estimatedGrossProfit === null) return 1;
+    if (b.estimatedGrossProfit === null) return -1;
+    if (Math.abs(b.estimatedGrossProfit - a.estimatedGrossProfit) > 0.001) {
+      return b.estimatedGrossProfit - a.estimatedGrossProfit;
+    }
+    return (
+      b.realizedRevenue - a.realizedRevenue ||
+      (a.sku ?? "").localeCompare(b.sku ?? "") ||
+      a.productSourceId.localeCompare(b.productSourceId)
+    );
+  });
+
+  const summaryMetrics = computeProfitabilityItemMetrics(
+    totalRevenue,
+    totalWithCost,
+    totalCOGS,
+  );
+
+  const distinctProductsSold = products.filter(
+    (p) => p.physicalQuantity > 0 || p.realizedRevenue > 0,
+  ).length;
+
+  const negativeMarginCount = products.filter(
+    (p) =>
+      p.estimatedGrossMarginPercent !== null &&
+      p.estimatedGrossMarginPercent < 0,
+  ).length;
+
+  return {
+    period,
+    filters: {
+      channel: selectedChannel,
+      categorySourceId: selectedCategorySourceId,
+    },
+    summary: {
+      realizedRevenue: summaryMetrics.realizedRevenue,
+      revenueWithCurrentCost: summaryMetrics.revenueWithCurrentCost,
+      revenueWithoutCurrentCost: summaryMetrics.revenueWithoutCurrentCost,
+      costCoveragePercent: summaryMetrics.costCoveragePercent,
+      estimatedCOGS: summaryMetrics.estimatedCOGS ?? 0,
+      estimatedGrossProfit: summaryMetrics.estimatedGrossProfit ?? 0,
+      estimatedGrossMarginPercent: summaryMetrics.estimatedGrossMarginPercent,
+      distinctProductsSold,
+      negativeMarginCount,
+    },
+    products,
+  };
+}
+
+/**
+ * Calculador canônico da visão de Rentabilidade por Venda/Negociação.
+ */
+export function calculateProfitabilitySales(
+  input: CalculateProfitabilityInput,
+): ProfitabilitySalesResult {
+  const {
+    movements,
+    catalogProductsMap,
+    period,
+    filters = {},
+    salesMetadataMap,
+    documentsMetadataMap,
+  } = input;
+
+  const selectedChannel = filters.channel ?? null;
+
+  interface SaleAgg {
+    saleId: string;
+    customerId: string | null;
+    channel: CommercialChannel;
+    physicalQuantity: number;
+    distinctProducts: Set<string>;
+    realizedRevenue: number;
+    revenueWithCurrentCost: number;
+    estimatedCOGS: number;
+    hasCostMovement: boolean;
+    realizedDates: Date[];
+    docsMap: Map<string, ProfitabilityRealizingDocument>;
+  }
+
+  const salesAggMap = new Map<string, SaleAgg>();
+
+  let totalRevenue = 0;
+  let totalWithCost = 0;
+  let totalCOGS = 0;
+
+  for (const m of movements) {
+    if (selectedChannel && m.channel !== selectedChannel) {
+      continue;
+    }
+
+    const dateStr = toLocalDateStr(m.realizedDate);
+    if (period?.from && dateStr < period.from) {
+      continue;
+    }
+    if (period?.to && dateStr > period.to) {
+      continue;
+    }
+
+    let sItem = salesAggMap.get(m.saleId);
+    if (!sItem) {
+      sItem = {
+        saleId: m.saleId,
+        customerId: m.customerId,
+        channel: m.channel,
+        physicalQuantity: 0,
+        distinctProducts: new Set(),
+        realizedRevenue: 0,
+        revenueWithCurrentCost: 0,
+        estimatedCOGS: 0,
+        hasCostMovement: false,
+        realizedDates: [],
+        docsMap: new Map(),
+      };
+      salesAggMap.set(m.saleId, sItem);
+    }
+
+    const rev = m.allocatedNetRevenue;
+    sItem.realizedRevenue += rev;
+    sItem.physicalQuantity += m.quantity;
+    sItem.distinctProducts.add(m.sourceProductId);
+    sItem.realizedDates.push(m.realizedDate);
+
+    totalRevenue += rev;
+
+    const prod = catalogProductsMap.get(m.sourceProductId);
+    const hasCost = prod?.effectiveCost !== null && prod?.effectiveCost !== undefined && prod.effectiveCost >= 0;
+    if (hasCost) {
+      sItem.hasCostMovement = true;
+      sItem.revenueWithCurrentCost += rev;
+      totalWithCost += rev;
+      if (m.quantity > 0) {
+        const cogs = m.quantity * Number(prod!.effectiveCost);
+        sItem.estimatedCOGS += cogs;
+        totalCOGS += cogs;
+      }
+    }
+
+    if (!sItem.docsMap.has(m.sourceDocumentId)) {
+      const docMeta = documentsMetadataMap?.get(m.sourceDocumentId);
+      sItem.docsMap.set(m.sourceDocumentId, {
+        docType: docMeta?.docType ?? m.sourceDocumentType,
+        sourceId: docMeta?.sourceId ?? m.sourceDocumentId,
+        realizedDate: toLocalDateStr(docMeta?.realizedDate ?? m.realizedDate),
+      });
+    }
+  }
+
+  const sales: ProfitabilitySaleItem[] = Array.from(salesAggMap.values())
+    .map((item) => {
+      const metrics = computeProfitabilityItemMetrics(
+        item.realizedRevenue,
+        item.revenueWithCurrentCost,
+        item.estimatedCOGS,
+        item.hasCostMovement,
+      );
+
+      const saleMeta = salesMetadataMap?.get(item.saleId);
+      const anchorType = saleMeta?.anchorType ?? "PEDIDO";
+      const anchorSourceId = saleMeta?.anchorSourceId ?? item.saleId;
+      const commercialDate = saleMeta?.commercialDate
+        ? toLocalDateStr(saleMeta.commercialDate)
+        : null;
+
+      let customerName: string | null = null;
+      if (saleMeta) {
+        customerName =
+          saleMeta.customerName ||
+          saleMeta.tradeName ||
+          saleMeta.legalName ||
+          (item.customerId ? `Cliente ${item.customerId}` : null);
+      } else if (item.customerId) {
+        customerName = `Cliente ${item.customerId}`;
+      }
+
+      let minDate = item.realizedDates[0]!;
+      let maxDate = item.realizedDates[0]!;
+      for (const d of item.realizedDates) {
+        if (d < minDate) minDate = d;
+        if (d > maxDate) maxDate = d;
+      }
+
+      const realizingDocuments = Array.from(item.docsMap.values()).sort(
+        (a, b) => a.realizedDate.localeCompare(b.realizedDate) || a.sourceId.localeCompare(b.sourceId),
+      );
+
+      return {
+        saleId: item.saleId,
+        anchorType,
+        anchorSourceId,
+        customerId: item.customerId,
+        customerName,
+        channel: item.channel,
+        commercialDate,
+        firstRealizedDate: toLocalDateStr(minDate),
+        lastRealizedDate: toLocalDateStr(maxDate),
+        realizedQuantity: item.physicalQuantity,
+        distinctProducts: item.distinctProducts.size,
+        realizedRevenue: metrics.realizedRevenue,
+        revenueWithCurrentCost: metrics.revenueWithCurrentCost,
+        revenueWithoutCurrentCost: metrics.revenueWithoutCurrentCost,
+        costCoveragePercent: metrics.costCoveragePercent,
+        estimatedCOGS: metrics.estimatedCOGS,
+        estimatedGrossProfit: metrics.estimatedGrossProfit,
+        estimatedGrossMarginPercent: metrics.estimatedGrossMarginPercent,
+        marginTier: classifyMarginTier(metrics.estimatedGrossMarginPercent),
+        realizingDocuments,
+      };
+    })
+    .sort((a, b) => {
+      if (a.estimatedGrossProfit === null && b.estimatedGrossProfit === null) {
+        return (
+          b.realizedRevenue - a.realizedRevenue ||
+          a.saleId.localeCompare(b.saleId)
+        );
+      }
+      if (a.estimatedGrossProfit === null) return 1;
+      if (b.estimatedGrossProfit === null) return -1;
+      if (Math.abs(b.estimatedGrossProfit - a.estimatedGrossProfit) > 0.001) {
+        return b.estimatedGrossProfit - a.estimatedGrossProfit;
+      }
+      return (
+        b.realizedRevenue - a.realizedRevenue ||
+        a.saleId.localeCompare(b.saleId)
+      );
+    });
+
+  const summaryMetrics = computeProfitabilityItemMetrics(
+    totalRevenue,
+    totalWithCost,
+    totalCOGS,
+  );
+
+  const negativeMarginSalesCount = sales.filter(
+    (s) =>
+      s.estimatedGrossMarginPercent !== null &&
+      s.estimatedGrossMarginPercent < 0,
+  ).length;
+
+  return {
+    period,
+    filters: {
+      channel: selectedChannel,
+    },
+    summary: {
+      realizedRevenue: summaryMetrics.realizedRevenue,
+      revenueWithCurrentCost: summaryMetrics.revenueWithCurrentCost,
+      revenueWithoutCurrentCost: summaryMetrics.revenueWithoutCurrentCost,
+      costCoveragePercent: summaryMetrics.costCoveragePercent,
+      estimatedCOGS: summaryMetrics.estimatedCOGS ?? 0,
+      estimatedGrossProfit: summaryMetrics.estimatedGrossProfit ?? 0,
+      estimatedGrossMarginPercent: summaryMetrics.estimatedGrossMarginPercent,
+      totalSales: sales.length,
+      negativeMarginSalesCount,
+    },
+    sales,
+  };
+}
+
+/**
+ * Calculador canônico da visão de Rentabilidade por Cliente.
+ */
+export function calculateProfitabilityCustomers(
+  input: CalculateProfitabilityInput,
+): ProfitabilityCustomersResult {
+  const {
+    movements,
+    catalogProductsMap,
+    period,
+    filters = {},
+    customersMetadataMap,
+  } = input;
+
+  const selectedChannel = filters.channel ?? null;
+
+  interface CustomerAgg {
+    customerId: string | null;
+    sales: Set<string>;
+    physicalQuantity: number;
+    realizedRevenue: number;
+    revenueWithCurrentCost: number;
+    estimatedCOGS: number;
+    hasCostMovement: boolean;
+    firstPurchaseDate: Date;
+    lastPurchaseDate: Date;
+    channelStats: Map<CommercialChannel, { revenue: number; quantity: number }>;
+  }
+
+  const custAggMap = new Map<string, CustomerAgg>();
+
+  let totalRevenue = 0;
+  let totalWithCost = 0;
+  let totalCOGS = 0;
+  const allUniqueSales = new Set<string>();
+
+  for (const m of movements) {
+    if (selectedChannel && m.channel !== selectedChannel) {
+      continue;
+    }
+
+    const dateStr = toLocalDateStr(m.realizedDate);
+    if (period?.from && dateStr < period.from) {
+      continue;
+    }
+    if (period?.to && dateStr > period.to) {
+      continue;
+    }
+
+    const key = m.customerId ?? "__SYNTHETIC_NULL_CUSTOMER__";
+
+    let cItem = custAggMap.get(key);
+    if (!cItem) {
+      cItem = {
+        customerId: m.customerId,
+        sales: new Set(),
+        physicalQuantity: 0,
+        realizedRevenue: 0,
+        revenueWithCurrentCost: 0,
+        estimatedCOGS: 0,
+        hasCostMovement: false,
+        firstPurchaseDate: m.realizedDate,
+        lastPurchaseDate: m.realizedDate,
+        channelStats: new Map(),
+      };
+      custAggMap.set(key, cItem);
+    }
+
+    const rev = m.allocatedNetRevenue;
+    cItem.realizedRevenue += rev;
+    cItem.physicalQuantity += m.quantity;
+    cItem.sales.add(m.saleId);
+    allUniqueSales.add(m.saleId);
+
+    if (m.realizedDate < cItem.firstPurchaseDate) {
+      cItem.firstPurchaseDate = m.realizedDate;
+    }
+    if (m.realizedDate > cItem.lastPurchaseDate) {
+      cItem.lastPurchaseDate = m.realizedDate;
+    }
+
+    const chStat = cItem.channelStats.get(m.channel) ?? { revenue: 0, quantity: 0 };
+    chStat.revenue += rev;
+    chStat.quantity += m.quantity;
+    cItem.channelStats.set(m.channel, chStat);
+
+    totalRevenue += rev;
+
+    const prod = catalogProductsMap.get(m.sourceProductId);
+    const hasCost = prod?.effectiveCost !== null && prod?.effectiveCost !== undefined && prod.effectiveCost >= 0;
+    if (hasCost) {
+      cItem.hasCostMovement = true;
+      cItem.revenueWithCurrentCost += rev;
+      totalWithCost += rev;
+      if (m.quantity > 0) {
+        const cogs = m.quantity * Number(prod!.effectiveCost);
+        cItem.estimatedCOGS += cogs;
+        totalCOGS += cogs;
+      }
+    }
+  }
+
+  const customers: ProfitabilityCustomerItem[] = Array.from(custAggMap.values())
+    .map((item) => {
+      const metrics = computeProfitabilityItemMetrics(
+        item.realizedRevenue,
+        item.revenueWithCurrentCost,
+        item.estimatedCOGS,
+        item.hasCostMovement,
+      );
+
+      let customerName: string;
+      let tradeName: string | null = null;
+      let legalName: string | null = null;
+      let cpf: string | null = null;
+      let cnpj: string | null = null;
+
+      if (item.customerId === null) {
+        customerName = "Cliente não identificado";
+      } else {
+        const meta = customersMetadataMap?.get(item.customerId);
+        tradeName = meta?.tradeName ?? null;
+        legalName = meta?.legalName ?? null;
+        cpf = meta?.cpf ?? null;
+        cnpj = meta?.cnpj ?? null;
+
+        customerName =
+          meta?.tradeName ||
+          meta?.legalName ||
+          (meta?.sourceId ? `Cliente ${meta.sourceId}` : `Cliente ${item.customerId}`);
+      }
+
+      const realizedSales = item.sales.size;
+      const ticketAverage =
+        realizedSales > 0
+          ? round2(metrics.realizedRevenue / realizedSales)
+          : 0;
+
+      const predominantChannel = resolvePredominantChannel(item.channelStats);
+
+      return {
+        customerId: item.customerId,
+        customerName,
+        tradeName,
+        legalName,
+        cpf,
+        cnpj,
+        predominantChannel,
+        realizedSales,
+        realizedQuantity: item.physicalQuantity,
+        realizedRevenue: metrics.realizedRevenue,
+        ticketAverage,
+        revenueWithCurrentCost: metrics.revenueWithCurrentCost,
+        revenueWithoutCurrentCost: metrics.revenueWithoutCurrentCost,
+        costCoveragePercent: metrics.costCoveragePercent,
+        estimatedCOGS: metrics.estimatedCOGS,
+        estimatedGrossProfit: metrics.estimatedGrossProfit,
+        estimatedGrossMarginPercent: metrics.estimatedGrossMarginPercent,
+        marginTier: classifyMarginTier(metrics.estimatedGrossMarginPercent),
+        firstPurchaseInPeriod: toLocalDateStr(item.firstPurchaseDate),
+        lastPurchaseInPeriod: toLocalDateStr(item.lastPurchaseDate),
+      };
+    })
+    .sort((a, b) => {
+      if (a.estimatedGrossProfit === null && b.estimatedGrossProfit === null) {
+        return (
+          b.realizedRevenue - a.realizedRevenue ||
+          a.customerName.localeCompare(b.customerName)
+        );
+      }
+      if (a.estimatedGrossProfit === null) return 1;
+      if (b.estimatedGrossProfit === null) return -1;
+      if (Math.abs(b.estimatedGrossProfit - a.estimatedGrossProfit) > 0.001) {
+        return b.estimatedGrossProfit - a.estimatedGrossProfit;
+      }
+      return (
+        b.realizedRevenue - a.realizedRevenue ||
+        a.customerName.localeCompare(b.customerName)
+      );
+    });
+
+  const summaryMetrics = computeProfitabilityItemMetrics(
+    totalRevenue,
+    totalWithCost,
+    totalCOGS,
+  );
+
+  const averageTicket =
+    allUniqueSales.size > 0
+      ? round2(summaryMetrics.realizedRevenue / allUniqueSales.size)
+      : 0;
+
+  return {
+    period,
+    filters: {
+      channel: selectedChannel,
+    },
+    summary: {
+      realizedRevenue: summaryMetrics.realizedRevenue,
+      revenueWithCurrentCost: summaryMetrics.revenueWithCurrentCost,
+      revenueWithoutCurrentCost: summaryMetrics.revenueWithoutCurrentCost,
+      costCoveragePercent: summaryMetrics.costCoveragePercent,
+      estimatedCOGS: summaryMetrics.estimatedCOGS ?? 0,
+      estimatedGrossProfit: summaryMetrics.estimatedGrossProfit ?? 0,
+      estimatedGrossMarginPercent: summaryMetrics.estimatedGrossMarginPercent,
+      totalCustomers: customers.length,
+      averageTicket,
+    },
+    customers,
   };
 }

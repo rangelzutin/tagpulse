@@ -174,4 +174,55 @@ describe("GET /bi/profitability/overview — Integration Suite", () => {
     expect(body.filters.channel).toBe("ATACADO");
     expect(body.summary.realizedRevenue).toBe(2000);
   });
+
+  it("3. GET /bi/profitability/products retorna status 200 e payload canônico", async () => {
+    const app = await createApp(createMockRepo());
+    const res = await app.inject({
+      method: "GET",
+      url: "/bi/profitability/products?from=2026-01-01&to=2026-01-31",
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body.summary.realizedRevenue).toBe(2500);
+    expect(body.summary.revenueWithCurrentCost).toBe(2000);
+    expect(body.summary.revenueWithoutCurrentCost).toBe(500);
+    expect(body.summary.costCoveragePercent).toBe(80);
+    expect(body.summary.estimatedCOGS).toBe(500);
+    expect(body.summary.estimatedGrossProfit).toBe(1500);
+    expect(body.summary.estimatedGrossMarginPercent).toBe(75);
+    expect(body.products).toHaveLength(2);
+  });
+
+  it("4. GET /bi/profitability/sales retorna status 200 e payload canônico de vendas", async () => {
+    const app = await createApp(createMockRepo());
+    const res = await app.inject({
+      method: "GET",
+      url: "/bi/profitability/sales?from=2026-01-01&to=2026-01-31",
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body.summary.totalSales).toBe(2);
+    expect(body.summary.realizedRevenue).toBe(2500);
+    expect(body.summary.revenueWithCurrentCost).toBe(2000);
+    expect(body.summary.revenueWithoutCurrentCost).toBe(500);
+    expect(body.sales).toHaveLength(2);
+  });
+
+  it("5. GET /bi/profitability/customers retorna status 200 e payload canônico de clientes", async () => {
+    const app = await createApp(createMockRepo());
+    const res = await app.inject({
+      method: "GET",
+      url: "/bi/profitability/customers?from=2026-01-01&to=2026-01-31",
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body.summary.totalCustomers).toBe(2);
+    expect(body.summary.realizedRevenue).toBe(2500);
+    expect(body.summary.revenueWithCurrentCost).toBe(2000);
+    expect(body.summary.revenueWithoutCurrentCost).toBe(500);
+    expect(body.customers).toHaveLength(2);
+  });
 });

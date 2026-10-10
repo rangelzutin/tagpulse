@@ -745,14 +745,39 @@ export interface ProfitabilityCategoryItem {
   physicalQuantity: number;
 }
 
-export interface ProfitabilityProductItem {
+export type ProfitabilityMarginTier =
+  | "NEGATIVE"
+  | "ZERO_TO_20"
+  | "TWENTY_TO_40"
+  | "FORTY_PLUS"
+  | "UNKNOWN";
+
+export interface ProfitabilityProductHighlight {
   productSourceId: string;
   sku: string | null;
   productName: string;
+  realizedRevenue: number;
+  estimatedGrossProfit: number | null;
+  estimatedGrossMarginPercent: number | null;
+}
+
+export interface ProfitabilityOverviewHighlights {
+  topProfitProducts: ProfitabilityProductHighlight[];
+  negativeMarginProductsCount: number;
+  worstMarginProducts: ProfitabilityProductHighlight[];
+}
+
+export interface ProfitabilityProductItem {
+  productId?: string | null;
+  productSourceId: string;
+  sku: string | null;
+  productName: string;
+  commercialLine?: string;
   categorySourceId: string | null;
   category: string | null;
   rootCategorySourceId: string | null;
   rootCategory: string | null;
+  shapeSize?: ShapeCommercialSize | null;
   physicalQuantity: number;
   realizedRevenue: number;
   currentEffectiveCost: number | null;
@@ -762,6 +787,12 @@ export interface ProfitabilityProductItem {
   estimatedGrossProfit: number | null;
   estimatedGrossMarginPercent: number | null;
   costCoveragePercent: number | null;
+  stockQuantity?: number | null;
+  abcClass?: AbcClass | null;
+  distinctCustomers?: number;
+  distinctSales?: number;
+  marginTier?: ProfitabilityMarginTier;
+  isOrphan?: boolean;
   lastRealizedDate: string | null;
 }
 
@@ -783,6 +814,131 @@ export interface ProfitabilityOverviewResult {
   rootCategories: ProfitabilityRootCategoryItem[];
   categories: ProfitabilityCategoryItem[];
   products: ProfitabilityProductItem[];
+  highlights?: ProfitabilityOverviewHighlights;
+}
+
+export interface ProfitabilityProductsSummary extends ProfitabilitySummary {
+  distinctProductsSold: number;
+  negativeMarginCount: number;
+}
+
+export interface ProfitabilityProductsResult {
+  period: {
+    from: string;
+    to: string;
+  };
+  filters: {
+    channel: CommercialChannel | null;
+    categorySourceId: string | null;
+  };
+  summary: ProfitabilityProductsSummary;
+  products: ProfitabilityProductItem[];
+}
+
+export interface ProfitabilityRealizingDocument {
+  docType: SaleAnchorType;
+  sourceId: string;
+  realizedDate: string;
+}
+
+export interface ProfitabilitySaleItem {
+  saleId: string;
+  anchorType: SaleAnchorType;
+  anchorSourceId: string;
+  customerId: string | null;
+  customerName: string | null;
+  channel: CommercialChannel;
+  commercialDate: string | null;
+  firstRealizedDate: string;
+  lastRealizedDate: string;
+  realizedQuantity: number;
+  distinctProducts: number;
+  realizedRevenue: number;
+  revenueWithCurrentCost: number;
+  revenueWithoutCurrentCost: number;
+  costCoveragePercent: number | null;
+  estimatedCOGS: number | null;
+  estimatedGrossProfit: number | null;
+  estimatedGrossMarginPercent: number | null;
+  marginTier: ProfitabilityMarginTier;
+  realizingDocuments: ProfitabilityRealizingDocument[];
+}
+
+export interface ProfitabilitySalesSummary extends ProfitabilitySummary {
+  totalSales: number;
+  negativeMarginSalesCount: number;
+}
+
+export interface ProfitabilitySalesResult {
+  period: {
+    from: string;
+    to: string;
+  };
+  filters: {
+    channel: CommercialChannel | null;
+  };
+  summary: ProfitabilitySalesSummary;
+  sales: ProfitabilitySaleItem[];
+}
+
+export interface ProfitabilityCustomerItem {
+  customerId: string | null;
+  customerName: string;
+  tradeName: string | null;
+  legalName: string | null;
+  cpf: string | null;
+  cnpj: string | null;
+  predominantChannel: CommercialChannel;
+  realizedSales: number;
+  realizedQuantity: number;
+  realizedRevenue: number;
+  ticketAverage: number;
+  revenueWithCurrentCost: number;
+  revenueWithoutCurrentCost: number;
+  costCoveragePercent: number | null;
+  estimatedCOGS: number | null;
+  estimatedGrossProfit: number | null;
+  estimatedGrossMarginPercent: number | null;
+  marginTier: ProfitabilityMarginTier;
+  firstPurchaseInPeriod: string;
+  lastPurchaseInPeriod: string;
+}
+
+export interface ProfitabilityCustomersSummary extends ProfitabilitySummary {
+  totalCustomers: number;
+  averageTicket: number;
+}
+
+export interface ProfitabilityCustomersResult {
+  period: {
+    from: string;
+    to: string;
+  };
+  filters: {
+    channel: CommercialChannel | null;
+  };
+  summary: ProfitabilityCustomersSummary;
+  customers: ProfitabilityCustomerItem[];
+}
+
+export interface BiSaleMetadata {
+  id: string;
+  anchorType: SaleAnchorType;
+  anchorSourceId: string;
+  commercialDate: Date | null;
+  customerId: string | null;
+  customerName: string | null;
+  tradeName: string | null;
+  legalName: string | null;
+  cpf: string | null;
+  cnpj: string | null;
+}
+
+export interface BiDocumentMetadata {
+  id: string;
+  docType: SaleAnchorType;
+  sourceId: string;
+  realizedDate: Date | null;
 }
 
 // ==========================================

@@ -7,7 +7,12 @@ import {
   calculateProductsOverview,
   type CatalogProductInfo,
 } from "./bi-products-calculator.js";
-import { calculateProfitabilityOverview } from "./bi-profitability-calculator.js";
+import {
+  calculateProfitabilityOverview,
+  calculateProfitabilityProducts,
+  calculateProfitabilitySales,
+  calculateProfitabilityCustomers,
+} from "./bi-profitability-calculator.js";
 import {
   buildCustomerBehavioralMap,
   computeDisplayName,
@@ -37,6 +42,9 @@ import type {
   InventoryWindowDays,
   ProductsOverviewResult,
   ProfitabilityOverviewResult,
+  ProfitabilityProductsResult,
+  ProfitabilitySalesResult,
+  ProfitabilityCustomersResult,
   SalesOverviewResult,
   BiDecisionsOverviewResult,
 } from "./bi-types.js";
@@ -53,6 +61,18 @@ export type BiInventoryOverviewResult =
 
 export type BiProfitabilityOverviewResult =
   | { success: true; data: ProfitabilityOverviewResult }
+  | { success: false; error: string };
+
+export type BiProfitabilityProductsServiceResult =
+  | { success: true; data: ProfitabilityProductsResult }
+  | { success: false; error: string };
+
+export type BiProfitabilitySalesServiceResult =
+  | { success: true; data: ProfitabilitySalesResult }
+  | { success: false; error: string };
+
+export type BiProfitabilityCustomersServiceResult =
+  | { success: true; data: ProfitabilityCustomersResult }
   | { success: false; error: string };
 
 export type BiSalesOverviewResult =
@@ -90,6 +110,15 @@ export interface BiService {
   getProfitabilityOverview(
     query: Record<string, unknown>,
   ): Promise<BiProfitabilityOverviewResult>;
+  getProfitabilityProducts(
+    query: Record<string, unknown>,
+  ): Promise<BiProfitabilityProductsServiceResult>;
+  getProfitabilitySales(
+    query: Record<string, unknown>,
+  ): Promise<BiProfitabilitySalesServiceResult>;
+  getProfitabilityCustomers(
+    query: Record<string, unknown>,
+  ): Promise<BiProfitabilityCustomersServiceResult>;
   getCustomerOverview(
     from: unknown,
     to: unknown,
@@ -390,6 +419,177 @@ export function createBiService(
           categorySourceId,
         },
         costSnapshot: context.costSnapshot,
+      });
+
+      return { success: true, data };
+    },
+
+    async getProfitabilityProducts(
+      query: Record<string, unknown>,
+    ): Promise<BiProfitabilityProductsServiceResult> {
+      const parsedRange = parseOverviewDateRange(query.from, query.to);
+      if (!parsedRange.success) {
+        return { success: false, error: parsedRange.error };
+      }
+
+      const { from: fromStr, to: toStr, fromDate, toExclusiveDate } =
+        parsedRange.range;
+
+      if (!repository.findProfitabilityContext) {
+        return {
+          success: false,
+          error: "Repositório não suporta inteligência de rentabilidade.",
+        };
+      }
+
+      let channel: CommercialChannel | null = null;
+      if (typeof query.channel === "string" && query.channel.trim()) {
+        const c = query.channel.trim().toUpperCase() as CommercialChannel;
+        if (
+          c === "ATACADO" ||
+          c === "VAREJO" ||
+          c === "INDETERMINADO" ||
+          c === "CONFLITO"
+        ) {
+          channel = c;
+        }
+      }
+
+      let categorySourceId: string | null = null;
+      if (
+        typeof query.categorySourceId === "string" &&
+        query.categorySourceId.trim()
+      ) {
+        categorySourceId = query.categorySourceId.trim();
+      }
+
+      const context = await repository.findProfitabilityContext(
+        fromDate,
+        toExclusiveDate,
+      );
+
+      const data = calculateProfitabilityProducts({
+        movements: context.movements,
+        catalogProductsMap: context.catalogProductsMap,
+        categoriesFlat: context.categoriesFlat,
+        categoryTree: context.categoryTree,
+        period: { from: fromStr, to: toStr },
+        filters: {
+          channel,
+          categorySourceId,
+        },
+        costSnapshot: context.costSnapshot,
+        salesMetadataMap: context.salesMetadataMap,
+        documentsMetadataMap: context.documentsMetadataMap,
+        customersMetadataMap: context.customersMetadataMap,
+      });
+
+      return { success: true, data };
+    },
+
+    async getProfitabilitySales(
+      query: Record<string, unknown>,
+    ): Promise<BiProfitabilitySalesServiceResult> {
+      const parsedRange = parseOverviewDateRange(query.from, query.to);
+      if (!parsedRange.success) {
+        return { success: false, error: parsedRange.error };
+      }
+
+      const { from: fromStr, to: toStr, fromDate, toExclusiveDate } =
+        parsedRange.range;
+
+      if (!repository.findProfitabilityContext) {
+        return {
+          success: false,
+          error: "Repositório não suporta inteligência de rentabilidade.",
+        };
+      }
+
+      let channel: CommercialChannel | null = null;
+      if (typeof query.channel === "string" && query.channel.trim()) {
+        const c = query.channel.trim().toUpperCase() as CommercialChannel;
+        if (
+          c === "ATACADO" ||
+          c === "VAREJO" ||
+          c === "INDETERMINADO" ||
+          c === "CONFLITO"
+        ) {
+          channel = c;
+        }
+      }
+
+      const context = await repository.findProfitabilityContext(
+        fromDate,
+        toExclusiveDate,
+      );
+
+      const data = calculateProfitabilitySales({
+        movements: context.movements,
+        catalogProductsMap: context.catalogProductsMap,
+        categoriesFlat: context.categoriesFlat,
+        categoryTree: context.categoryTree,
+        period: { from: fromStr, to: toStr },
+        filters: {
+          channel,
+        },
+        costSnapshot: context.costSnapshot,
+        salesMetadataMap: context.salesMetadataMap,
+        documentsMetadataMap: context.documentsMetadataMap,
+        customersMetadataMap: context.customersMetadataMap,
+      });
+
+      return { success: true, data };
+    },
+
+    async getProfitabilityCustomers(
+      query: Record<string, unknown>,
+    ): Promise<BiProfitabilityCustomersServiceResult> {
+      const parsedRange = parseOverviewDateRange(query.from, query.to);
+      if (!parsedRange.success) {
+        return { success: false, error: parsedRange.error };
+      }
+
+      const { from: fromStr, to: toStr, fromDate, toExclusiveDate } =
+        parsedRange.range;
+
+      if (!repository.findProfitabilityContext) {
+        return {
+          success: false,
+          error: "Repositório não suporta inteligência de rentabilidade.",
+        };
+      }
+
+      let channel: CommercialChannel | null = null;
+      if (typeof query.channel === "string" && query.channel.trim()) {
+        const c = query.channel.trim().toUpperCase() as CommercialChannel;
+        if (
+          c === "ATACADO" ||
+          c === "VAREJO" ||
+          c === "INDETERMINADO" ||
+          c === "CONFLITO"
+        ) {
+          channel = c;
+        }
+      }
+
+      const context = await repository.findProfitabilityContext(
+        fromDate,
+        toExclusiveDate,
+      );
+
+      const data = calculateProfitabilityCustomers({
+        movements: context.movements,
+        catalogProductsMap: context.catalogProductsMap,
+        categoriesFlat: context.categoriesFlat,
+        categoryTree: context.categoryTree,
+        period: { from: fromStr, to: toStr },
+        filters: {
+          channel,
+        },
+        costSnapshot: context.costSnapshot,
+        salesMetadataMap: context.salesMetadataMap,
+        documentsMetadataMap: context.documentsMetadataMap,
+        customersMetadataMap: context.customersMetadataMap,
       });
 
       return { success: true, data };
