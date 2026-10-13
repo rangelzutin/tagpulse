@@ -1,24 +1,29 @@
-import { useState, useCallback } from "react";
+import { useState, useRef } from "react";
 import {
   AlertCircle,
-  AlertTriangle,
-  CheckCircle2,
   Info,
   RefreshCw,
   TrendingUp,
+  LayoutDashboard,
+  Package,
+  ShoppingCart,
+  Users,
 } from "lucide-react";
 import type {
   CategoryTreeNode,
   CommercialChannel,
   ProfitabilityOverviewResult,
 } from "../api/bi";
-import { formatCurrency, formatDateBr, formatNumber } from "../utils/formatters";
-import { ProfitabilityKpiGrid } from "./ProfitabilityKpiGrid";
-import { ProfitabilityTrendChart } from "./ProfitabilityTrendChart";
-import { ProfitabilityBreakdowns } from "./ProfitabilityBreakdowns";
-import { ProfitabilityProductsTable } from "./ProfitabilityProductsTable";
+import { ProfitabilityOverviewTab } from "./ProfitabilityOverviewTab";
+import { ProfitabilityProductsTab } from "./ProfitabilityProductsTab";
+import { ProfitabilitySalesTab } from "./ProfitabilitySalesTab";
+import { ProfitabilityCustomersTab } from "./ProfitabilityCustomersTab";
 
-interface ProfitabilityViewProps {
+export type ProfitabilityTab = "overview" | "products" | "sales" | "customers";
+
+export interface ProfitabilityViewProps {
+  from?: string;
+  to?: string;
   data: ProfitabilityOverviewResult | null;
   isLoading: boolean;
   isRefreshing?: boolean;
@@ -29,6 +34,7 @@ interface ProfitabilityViewProps {
   selectedCategorySourceId: string | null;
   onSelectCategorySourceId: (sourceId: string | null) => void;
   categoryTree: CategoryTreeNode[];
+  initialTab?: ProfitabilityTab;
 }
 
 function formatCostSnapshotDate(isoString: string | null | undefined): string {
@@ -47,15 +53,9 @@ function formatCostSnapshotDate(isoString: string | null | undefined): string {
   }
 }
 
-function formatProductsCoverage(withCost: number, total: number): string {
-  if (total <= 0) {
-    return "0 de 0";
-  }
-  const pct = formatNumber((withCost / total) * 100);
-  return `${withCost} de ${total} (${pct}%)`;
-}
-
 export function ProfitabilityView({
+  from,
+  to,
   data,
   isLoading,
   isRefreshing = false,
@@ -66,8 +66,38 @@ export function ProfitabilityView({
   selectedCategorySourceId,
   onSelectCategorySourceId,
   categoryTree,
+  initialTab = "overview",
 }: ProfitabilityViewProps) {
-  // Estado de Erro sem dados em cache
+  const [activeTab, setActiveTab] = useState<ProfitabilityTab>(initialTab);
+  const [isPremiseExpanded, setIsPremiseExpanded] = useState(false);
+  const tabListRef = useRef<HTMLDivElement>(null);
+
+  // Teclado acessível para navegação entre abas (WAI-ARIA)
+  const handleKeyDownTabList = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const tabs: ProfitabilityTab[] = ["overview", "products", "sales", "customers"];
+    const currentIndex = tabs.indexOf(activeTab);
+    let nextIndex = -1;
+
+    if (e.key === "ArrowRight") {
+      nextIndex = (currentIndex + 1) % tabs.length;
+    } else if (e.key === "ArrowLeft") {
+      nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+    } else if (e.key === "Home") {
+      nextIndex = 0;
+    } else if (e.key === "End") {
+      nextIndex = tabs.length - 1;
+    }
+
+    if (nextIndex !== -1) {
+      e.preventDefault();
+      const nextTab = tabs[nextIndex];
+      setActiveTab(nextTab);
+      const tabElement = document.getElementById(`tab-profitability-${nextTab}`);
+      tabElement?.focus();
+    }
+  };
+
+  // Estado de Erro sem dados em cache (no nível raiz de Overview)
   if (error && !data) {
     return (
       <section
@@ -106,6 +136,13 @@ export function ProfitabilityView({
         aria-label="Carregando rentabilidade"
       >
         <div className="tp-section-skeleton">
+          {/* Skeleton Nav Tabs */}
+          <div className="tp-products-nav-tabs-skeleton">
+            {[1, 2, 3, 4].map((idx) => (
+              <div key={idx} className="tp-skeleton-tab-item" />
+            ))}
+          </div>
+
           {/* Skeleton KPIs */}
           <div className="tp-kpi-grid">
             {[1, 2, 3, 4].map((idx) => (
@@ -116,28 +153,10 @@ export function ProfitabilityView({
             ))}
           </div>
 
-          {/* Skeleton Disclaimer & Coverage */}
-          <div className="tp-card tp-skeleton-card" style={{ height: 90 }}>
-            <div className="tp-skeleton-line tp-skeleton-short" />
-            <div className="tp-skeleton-line tp-skeleton-long" />
-          </div>
-
           {/* Skeleton Chart */}
           <div className="tp-card tp-skeleton-card" style={{ height: 320 }}>
             <div className="tp-skeleton-line tp-skeleton-short" />
             <div className="tp-skeleton-line tp-skeleton-chart-body" />
-          </div>
-
-          {/* Skeleton Breakdowns */}
-          <div className="tp-profit-split-grid">
-            <div className="tp-card tp-skeleton-card" style={{ height: 260 }}>
-              <div className="tp-skeleton-line tp-skeleton-short" />
-              <div className="tp-skeleton-line tp-skeleton-chart-body" />
-            </div>
-            <div className="tp-card tp-skeleton-card" style={{ height: 260 }}>
-              <div className="tp-skeleton-line tp-skeleton-short" />
-              <div className="tp-skeleton-line tp-skeleton-chart-body" />
-            </div>
           </div>
         </div>
       </section>
@@ -148,26 +167,9 @@ export function ProfitabilityView({
     return null;
   }
 
-  const {
-    summary,
-    costSnapshot,
-    dataQuality,
-    trendGranularity,
-    trend,
-    channels,
-    rootCategories,
-    products,
-  } = data;
-
-  const handleResetFilters = () => {
-    onSelectChannel(null);
-    onSelectCategorySourceId(null);
-  };
-
-  const [isPremiseExpanded, setIsPremiseExpanded] = useState(false);
-
-  const isFullCostCoverage =
-    summary.costCoveragePercent !== null && summary.costCoveragePercent >= 99.9;
+  const effectiveFrom = from || data.period?.from || "";
+  const effectiveTo = to || data.period?.to || "";
+  const { costSnapshot } = data;
 
   return (
     <section
@@ -234,112 +236,118 @@ export function ProfitabilityView({
         )}
       </div>
 
-      {/* 3. Primary KPI Grid */}
-      <ProfitabilityKpiGrid summary={summary} />
+      {/* 3. Subnavegação Interna do Módulo Rentabilidade (4 Visões) */}
+      <div
+        ref={tabListRef}
+        className="tp-financial-nav-tabs tp-profit-nav-tabs"
+        role="tablist"
+        aria-label="Subnavegação do Módulo Rentabilidade"
+        onKeyDown={handleKeyDownTabList}
+      >
+        <button
+          type="button"
+          role="tab"
+          id="tab-profitability-overview"
+          aria-selected={activeTab === "overview"}
+          aria-controls="panel-profitability-overview"
+          tabIndex={activeTab === "overview" ? 0 : -1}
+          className={`tp-financial-tab-btn tp-profit-tab-btn ${
+            activeTab === "overview" ? "is-active" : ""
+          }`}
+          onClick={() => setActiveTab("overview")}
+        >
+          <LayoutDashboard size={14} className="tp-tab-icon" />
+          <span>Visão Geral</span>
+        </button>
 
-      {/* 4. Coverage & Data Quality Bar */}
-      <div className="tp-card tp-profit-coverage-card">
-        <div className="tp-coverage-card-inner">
-          <div className="tp-coverage-primary-stat">
-            <div className="tp-coverage-stat-header">
-              {isFullCostCoverage ? (
-                <CheckCircle2 size={16} className="tp-color-teal" />
-              ) : (
-                <AlertTriangle size={16} className="tp-color-amber" />
-              )}
-              <span className="tp-coverage-stat-label">
-                Cobertura de Custo Atual
-              </span>
-            </div>
-            <div className="tp-coverage-stat-val">
-              {summary.costCoveragePercent !== null
-                ? `${formatNumber(summary.costCoveragePercent)}%`
-                : "—"}
-            </div>
-            <span className="tp-coverage-stat-sub">
-              da receita realizada com custo cadastrado
-            </span>
-          </div>
+        <button
+          type="button"
+          role="tab"
+          id="tab-profitability-products"
+          aria-selected={activeTab === "products"}
+          aria-controls="panel-profitability-products"
+          tabIndex={activeTab === "products" ? 0 : -1}
+          className={`tp-financial-tab-btn tp-profit-tab-btn ${
+            activeTab === "products" ? "is-active" : ""
+          }`}
+          onClick={() => setActiveTab("products")}
+        >
+          <Package size={14} className="tp-tab-icon" />
+          <span>Produtos</span>
+        </button>
 
-          <div className="tp-coverage-details-grid">
-            <div className="tp-coverage-detail-item">
-              <span className="tp-detail-label">Receita com custo atual:</span>
-              <span className="tp-detail-value tp-font-mono tp-color-teal">
-                {formatCurrency(summary.revenueWithCurrentCost)}
-              </span>
-            </div>
+        <button
+          type="button"
+          role="tab"
+          id="tab-profitability-sales"
+          aria-selected={activeTab === "sales"}
+          aria-controls="panel-profitability-sales"
+          tabIndex={activeTab === "sales" ? 0 : -1}
+          className={`tp-financial-tab-btn tp-profit-tab-btn ${
+            activeTab === "sales" ? "is-active" : ""
+          }`}
+          onClick={() => setActiveTab("sales")}
+        >
+          <ShoppingCart size={14} className="tp-tab-icon" />
+          <span>Vendas</span>
+        </button>
 
-            <div className="tp-coverage-detail-item">
-              <span className="tp-detail-label">Receita sem custo atual:</span>
-              <span
-                className={`tp-detail-value tp-font-mono ${
-                  summary.revenueWithoutCurrentCost > 0
-                    ? "tp-color-magenta"
-                    : "tp-text-muted"
-                }`}
-              >
-                {formatCurrency(summary.revenueWithoutCurrentCost)}
-              </span>
-            </div>
-
-            <div className="tp-coverage-detail-item">
-              <span className="tp-detail-label">Produtos vendidos com custo atual:</span>
-              <span className="tp-detail-value tp-font-mono">
-                {formatProductsCoverage(
-                  dataQuality.productsWithCurrentCost ?? 0,
-                  dataQuality.productsTotal ?? 0
-                )}
-              </span>
-            </div>
-
-            <div className="tp-coverage-detail-item">
-              <span className="tp-detail-label">Classificação de categoria:</span>
-              <span className="tp-detail-value tp-font-mono">
-                {dataQuality.currentCategoryCoveragePercent !== null
-                  ? `${formatNumber(dataQuality.currentCategoryCoveragePercent)}% da receita`
-                  : "—"}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {dataQuality.movementsWithoutCurrentProduct > 0 && (
-          <div className="tp-coverage-orphan-note">
-            <Info size={13} />
-            <span>
-              {dataQuality.movementsWithoutCurrentProduct} movimentações (
-              {formatCurrency(dataQuality.revenueWithoutCurrentProduct)}) pertencem a produtos históricos descontinuados e ausentes do catálogo atual do TagPlus. A receita está 100% preservada nos totais.
-            </span>
-          </div>
-        )}
+        <button
+          type="button"
+          role="tab"
+          id="tab-profitability-customers"
+          aria-selected={activeTab === "customers"}
+          aria-controls="panel-profitability-customers"
+          tabIndex={activeTab === "customers" ? 0 : -1}
+          className={`tp-financial-tab-btn tp-profit-tab-btn ${
+            activeTab === "customers" ? "is-active" : ""
+          }`}
+          onClick={() => setActiveTab("customers")}
+        >
+          <Users size={14} className="tp-tab-icon" />
+          <span>Clientes</span>
+        </button>
       </div>
 
-      {/* 5. Temporal Evolution Chart */}
-      <ProfitabilityTrendChart
-        trend={trend}
-        granularity={trendGranularity}
-      />
+      {/* 4. Conteúdo das Visões Internas */}
+      <div className="tp-profit-tab-content">
+        {activeTab === "overview" && (
+          <ProfitabilityOverviewTab
+            data={data}
+            selectedChannel={selectedChannel}
+            onSelectChannel={onSelectChannel}
+            selectedCategorySourceId={selectedCategorySourceId}
+            onSelectCategorySourceId={onSelectCategorySourceId}
+            categoryTree={categoryTree}
+          />
+        )}
 
-      {/* 6. Channel and Category Family Breakdowns */}
-      <ProfitabilityBreakdowns
-        channels={channels}
-        rootCategories={rootCategories}
-        selectedChannel={selectedChannel}
-        onSelectChannel={onSelectChannel}
-        selectedCategorySourceId={selectedCategorySourceId}
-        onSelectCategorySourceId={onSelectCategorySourceId}
-      />
+        {activeTab === "products" && (
+          <ProfitabilityProductsTab
+            from={effectiveFrom}
+            to={effectiveTo}
+            categoryTree={categoryTree}
+            initialChannel={selectedChannel}
+            initialCategorySourceId={selectedCategorySourceId}
+          />
+        )}
 
-      {/* 7. Product Breakdown Table */}
-      <ProfitabilityProductsTable
-        products={products}
-        categoryTree={categoryTree}
-        selectedChannel={selectedChannel}
-        onSelectChannel={onSelectChannel}
-        selectedCategorySourceId={selectedCategorySourceId}
-        onSelectCategorySourceId={onSelectCategorySourceId}
-        onResetFilters={handleResetFilters}
-      />
+        {activeTab === "sales" && (
+          <ProfitabilitySalesTab
+            from={effectiveFrom}
+            to={effectiveTo}
+            initialChannel={selectedChannel}
+          />
+        )}
+
+        {activeTab === "customers" && (
+          <ProfitabilityCustomersTab
+            from={effectiveFrom}
+            to={effectiveTo}
+            initialChannel={selectedChannel}
+          />
+        )}
+      </div>
     </section>
   );
 }

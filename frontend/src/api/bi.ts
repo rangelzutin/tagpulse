@@ -1011,23 +1011,166 @@ export interface ProfitabilityCategoryItem {
   physicalQuantity: number;
 }
 
+export type ProfitabilityMarginTier =
+  | "NEGATIVE"
+  | "ZERO_TO_20"
+  | "TWENTY_TO_40"
+  | "FORTY_PLUS"
+  | "UNKNOWN";
+
+export interface ProfitabilityProductHighlight {
+  productSourceId: string;
+  sku: string | null;
+  productName: string;
+  realizedRevenue: number;
+  estimatedGrossProfit: number | null;
+  estimatedGrossMarginPercent: number | null;
+}
+
+export interface ProfitabilityOverviewHighlights {
+  topProfitProducts: ProfitabilityProductHighlight[];
+  negativeMarginProductsCount: number;
+  worstMarginProducts: ProfitabilityProductHighlight[];
+}
+
 export interface ProfitabilityProductItem {
   productId: string | null;
   productSourceId: string;
   sku: string | null;
   productName: string;
+  commercialLine?: string;
   category: string | null;
   categorySourceId: string | null;
-  currentEffectiveCost: number | null;
+  rootCategory?: string | null;
+  rootCategorySourceId?: string | null;
+  shapeSize?: ShapeCommercialSize | null;
   physicalQuantity: number;
   realizedRevenue: number;
   revenueWithCurrentCost: number;
   revenueWithoutCurrentCost: number;
+  costCoveragePercent: number | null;
+  currentEffectiveCost: number | null;
   estimatedCOGS: number | null;
   estimatedGrossProfit: number | null;
   estimatedGrossMarginPercent: number | null;
-  costCoveragePercent: number | null;
+  stockQuantity?: number | null;
+  abcClass?: AbcClass | null;
+  distinctCustomers?: number;
+  distinctSales?: number;
   isOrphan: boolean;
+  marginTier?: ProfitabilityMarginTier;
+  lastRealizedDate?: string | null;
+}
+
+export interface ProfitabilityProductsSummary extends ProfitabilitySummary {
+  distinctProductsSold: number;
+  negativeMarginCount: number;
+}
+
+export interface ProfitabilityProductsResult {
+  period: {
+    from: string;
+    to: string;
+  };
+  filters: {
+    channel: CommercialChannel | null;
+    categorySourceId: string | null;
+  };
+  summary: ProfitabilityProductsSummary;
+  products: ProfitabilityProductItem[];
+}
+
+export type SaleAnchorType =
+  | "PEDIDO_VENDA"
+  | "PEDIDO"
+  | "VENDA_SIMPLES"
+  | "NFE"
+  | "UNKNOWN";
+
+export interface ProfitabilityRealizingDocument {
+  docType: SaleAnchorType;
+  sourceId: string;
+  realizedDate: string;
+}
+
+export interface ProfitabilitySaleItem {
+  saleId: string;
+  anchorType: SaleAnchorType;
+  anchorSourceId: string;
+  customerId: string | null;
+  customerName: string | null;
+  channel: CommercialChannel;
+  commercialDate: string | null;
+  firstRealizedDate: string;
+  lastRealizedDate: string;
+  realizedQuantity: number;
+  distinctProducts: number;
+  realizedRevenue: number;
+  revenueWithCurrentCost: number;
+  revenueWithoutCurrentCost: number;
+  costCoveragePercent: number | null;
+  estimatedCOGS: number | null;
+  estimatedGrossProfit: number | null;
+  estimatedGrossMarginPercent: number | null;
+  marginTier: ProfitabilityMarginTier;
+  realizingDocuments: ProfitabilityRealizingDocument[];
+}
+
+export interface ProfitabilitySalesSummary extends ProfitabilitySummary {
+  totalSales: number;
+  negativeMarginSalesCount: number;
+}
+
+export interface ProfitabilitySalesResult {
+  period: {
+    from: string;
+    to: string;
+  };
+  filters: {
+    channel: CommercialChannel | null;
+  };
+  summary: ProfitabilitySalesSummary;
+  sales: ProfitabilitySaleItem[];
+}
+
+export interface ProfitabilityCustomerItem {
+  customerId: string | null;
+  customerName: string;
+  tradeName: string | null;
+  legalName: string | null;
+  cpf: string | null;
+  cnpj: string | null;
+  predominantChannel: CommercialChannel;
+  realizedSales: number;
+  realizedQuantity: number;
+  realizedRevenue: number;
+  ticketAverage: number;
+  revenueWithCurrentCost: number;
+  revenueWithoutCurrentCost: number;
+  costCoveragePercent: number | null;
+  estimatedCOGS: number | null;
+  estimatedGrossProfit: number | null;
+  estimatedGrossMarginPercent: number | null;
+  marginTier: ProfitabilityMarginTier;
+  firstPurchaseInPeriod: string;
+  lastPurchaseInPeriod: string;
+}
+
+export interface ProfitabilityCustomersSummary extends ProfitabilitySummary {
+  totalCustomers: number;
+  averageTicket: number;
+}
+
+export interface ProfitabilityCustomersResult {
+  period: {
+    from: string;
+    to: string;
+  };
+  filters: {
+    channel: CommercialChannel | null;
+  };
+  summary: ProfitabilityCustomersSummary;
+  customers: ProfitabilityCustomerItem[];
 }
 
 export interface ProfitabilityOverviewResult {
@@ -1048,6 +1191,7 @@ export interface ProfitabilityOverviewResult {
   rootCategories: ProfitabilityRootCategoryItem[];
   categories: ProfitabilityCategoryItem[];
   products: ProfitabilityProductItem[];
+  highlights?: ProfitabilityOverviewHighlights;
 }
 
 export async function fetchProfitabilityOverview(options: {
@@ -1107,6 +1251,175 @@ export async function fetchProfitabilityOverview(options: {
   }
 
   return (await response.json()) as ProfitabilityOverviewResult;
+}
+
+export async function fetchProfitabilityProducts(options: {
+  from: string;
+  to: string;
+  channel?: string | null;
+  categorySourceId?: string | null;
+  signal?: AbortSignal;
+}): Promise<ProfitabilityProductsResult> {
+  const rawBaseUrl = import.meta.env.VITE_API_URL || "";
+  const baseUrl = rawBaseUrl.endsWith("/")
+    ? rawBaseUrl.slice(0, -1)
+    : rawBaseUrl;
+
+  const params = new URLSearchParams({
+    from: options.from,
+    to: options.to,
+  });
+
+  if (options.channel && options.channel !== "TODOS") {
+    params.set("channel", options.channel);
+  }
+  if (options.categorySourceId) {
+    params.set("categorySourceId", options.categorySourceId);
+  }
+
+  const url = `${baseUrl}/bi/profitability/products?${params.toString()}`;
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+      },
+      signal: options.signal,
+    });
+  } catch (err: unknown) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw err;
+    }
+    throw new Error(
+      "Não foi possível conectar ao servidor para carregar os produtos de rentabilidade.",
+    );
+  }
+
+  if (!response.ok) {
+    let errorMsg = "Erro ao carregar os dados de produtos de rentabilidade.";
+    try {
+      const errJson = await response.json();
+      if (errJson.message) {
+        errorMsg = errJson.message;
+      }
+    } catch {
+      // ignora falha de parse
+    }
+    throw new Error(errorMsg);
+  }
+
+  return (await response.json()) as ProfitabilityProductsResult;
+}
+
+export async function fetchProfitabilitySales(options: {
+  from: string;
+  to: string;
+  channel?: string | null;
+  signal?: AbortSignal;
+}): Promise<ProfitabilitySalesResult> {
+  const rawBaseUrl = import.meta.env.VITE_API_URL || "";
+  const baseUrl = rawBaseUrl.endsWith("/")
+    ? rawBaseUrl.slice(0, -1)
+    : rawBaseUrl;
+
+  const params = new URLSearchParams({
+    from: options.from,
+    to: options.to,
+  });
+
+  if (options.channel && options.channel !== "TODOS") {
+    params.set("channel", options.channel);
+  }
+
+  const url = `${baseUrl}/bi/profitability/sales?${params.toString()}`;
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+      },
+      signal: options.signal,
+    });
+  } catch (err: unknown) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw err;
+    }
+    throw new Error(
+      "Não foi possível conectar ao servidor para carregar as vendas de rentabilidade.",
+    );
+  }
+
+  if (!response.ok) {
+    let errorMsg = "Erro ao carregar os dados de vendas de rentabilidade.";
+    try {
+      const errJson = await response.json();
+      if (errJson.message) {
+        errorMsg = errJson.message;
+      }
+    } catch {
+      // ignora falha de parse
+    }
+    throw new Error(errorMsg);
+  }
+
+  return (await response.json()) as ProfitabilitySalesResult;
+}
+
+export async function fetchProfitabilityCustomers(options: {
+  from: string;
+  to: string;
+  channel?: string | null;
+  signal?: AbortSignal;
+}): Promise<ProfitabilityCustomersResult> {
+  const rawBaseUrl = import.meta.env.VITE_API_URL || "";
+  const baseUrl = rawBaseUrl.endsWith("/")
+    ? rawBaseUrl.slice(0, -1)
+    : rawBaseUrl;
+
+  const params = new URLSearchParams({
+    from: options.from,
+    to: options.to,
+  });
+
+  if (options.channel && options.channel !== "TODOS") {
+    params.set("channel", options.channel);
+  }
+
+  const url = `${baseUrl}/bi/profitability/customers?${params.toString()}`;
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+      },
+      signal: options.signal,
+    });
+  } catch (err: unknown) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw err;
+    }
+    throw new Error(
+      "Não foi possível conectar ao servidor para carregar os clientes de rentabilidade.",
+    );
+  }
+
+  if (!response.ok) {
+    let errorMsg = "Erro ao carregar os dados de clientes de rentabilidade.";
+    try {
+      const errJson = await response.json();
+      if (errJson.message) {
+        errorMsg = errJson.message;
+      }
+    } catch {
+      // ignora falha de parse
+    }
+    throw new Error(errorMsg);
+  }
+
+  return (await response.json()) as ProfitabilityCustomersResult;
 }
 
 // ==========================================

@@ -856,6 +856,8 @@ export function App() {
           />
         ) : activeNav === "profitability" ? (
           <ProfitabilityView
+            from={currentPeriod.from}
+            to={currentPeriod.to}
             data={profitabilityData}
             isLoading={isProfitabilityLoading}
             isRefreshing={isProfitabilityRefreshing}

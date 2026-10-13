@@ -4,391 +4,314 @@ import { renderToString } from "react-dom/server";
 import { ProfitabilityView } from "./ProfitabilityView";
 import { ProfitabilityKpiGrid } from "./ProfitabilityKpiGrid";
 import { ProfitabilityBreakdowns } from "./ProfitabilityBreakdowns";
-import { ProfitabilityProductsTable } from "./ProfitabilityProductsTable";
-import type { ProfitabilityOverviewResult } from "../api/bi";
+import { ProfitabilityOverviewTab } from "./ProfitabilityOverviewTab";
+import { ProfitabilityHighlightsCard } from "./ProfitabilityHighlightsCard";
+import type {
+  ProfitabilityOverviewResult,
+  ProfitabilityProductsResult,
+  ProfitabilitySalesResult,
+  ProfitabilityCustomersResult,
+} from "../api/bi";
 
-describe("ProfitabilityView & Components", () => {
-  const mockProfitabilityData: ProfitabilityOverviewResult = {
+describe("ProfitabilityView & Subviews (Fase 4D — Arquitetura V1 Completa)", () => {
+  const mockProfitabilityOverview: ProfitabilityOverviewResult = {
     period: {
       from: "2026-01-01",
-      to: "2026-01-31",
+      to: "2026-10-08",
     },
     filters: {
       channel: null,
       categorySourceId: null,
     },
     summary: {
-      realizedRevenue: 53766.28,
-      revenueWithCurrentCost: 50084.7,
-      revenueWithoutCurrentCost: 3681.58,
-      costCoveragePercent: 93.15,
-      estimatedCOGS: 36143.45,
-      estimatedGrossProfit: 13941.25,
-      estimatedGrossMarginPercent: 27.84,
+      realizedRevenue: 322465.68,
+      revenueWithCurrentCost: 322465.68,
+      revenueWithoutCurrentCost: 0,
+      costCoveragePercent: 100.0,
+      estimatedCOGS: 197277.62,
+      estimatedGrossProfit: 125188.06,
+      estimatedGrossMarginPercent: 38.82,
     },
     costSnapshot: {
       completedAt: "2026-09-17T21:00:00.000Z",
       source: "PRODUCT_SYNC_RUN",
     },
     dataQuality: {
-      movementsWithCurrentCost: 150,
-      movementsWithoutCurrentCost: 12,
-      productsTotal: 42,
-      productsWithCurrentCost: 42,
+      movementsWithCurrentCost: 3989,
+      movementsWithoutCurrentCost: 0,
+      productsTotal: 238,
+      productsWithCurrentCost: 238,
       productsWithoutCurrentCost: 0,
-      financialComplementCount: 5,
-      financialComplementRevenue: 450,
-      movementsWithoutCurrentProduct: 8,
-      revenueWithoutCurrentProduct: 2500,
-      currentCategoryCoveragePercent: 95.35,
+      financialComplementCount: 0,
+      financialComplementRevenue: 0,
+      movementsWithoutCurrentProduct: 0,
+      revenueWithoutCurrentProduct: 0,
+      currentCategoryCoveragePercent: 100.0,
       costBasis: "CURRENT_PRODUCT_EFFECTIVE_COST",
       categoryBasis: "CURRENT_PRODUCT_CATEGORY",
     },
-    trendGranularity: "DAY",
+    trendGranularity: "MONTH",
     trend: [
       {
-        period: "2026-01-01",
-        realizedRevenue: 1500,
-        revenueWithCurrentCost: 1500,
+        period: "2026-01",
+        realizedRevenue: 40000,
+        revenueWithCurrentCost: 40000,
         revenueWithoutCurrentCost: 0,
-        estimatedCOGS: 900,
-        estimatedGrossProfit: 600,
-        estimatedGrossMarginPercent: 40,
+        estimatedCOGS: 24000,
+        estimatedGrossProfit: 16000,
+        estimatedGrossMarginPercent: 40.0,
         costCoveragePercent: 100,
       },
     ],
     channels: [
       {
         channel: "ATACADO",
-        realizedRevenue: 40000,
-        revenueWithCurrentCost: 40000,
-        estimatedCOGS: 26000,
-        estimatedGrossProfit: 14000,
-        estimatedGrossMarginPercent: 35,
+        realizedRevenue: 249000,
+        revenueWithCurrentCost: 249000,
+        estimatedCOGS: 152000,
+        estimatedGrossProfit: 97000,
+        estimatedGrossMarginPercent: 38.95,
         costCoveragePercent: 100,
-        physicalQuantity: 200,
+        physicalQuantity: 3000,
       },
       {
         channel: "VAREJO",
-        realizedRevenue: 13766.28,
-        revenueWithCurrentCost: 10084.7,
-        estimatedCOGS: 10143.45,
-        estimatedGrossProfit: -58.75,
-        estimatedGrossMarginPercent: -0.58,
-        costCoveragePercent: 73.26,
-        physicalQuantity: 80,
+        realizedRevenue: 73465.68,
+        revenueWithCurrentCost: 73465.68,
+        estimatedCOGS: 45277.62,
+        estimatedGrossProfit: 28188.06,
+        estimatedGrossMarginPercent: 38.37,
+        costCoveragePercent: 100,
+        physicalQuantity: 989,
       },
     ],
     rootCategories: [
       {
         categorySourceId: "49",
         category: "1 - NINECLOUDS",
-        realizedRevenue: 45000,
-        revenueWithCurrentCost: 45000,
+        realizedRevenue: 280000,
+        revenueWithCurrentCost: 280000,
         revenueWithoutCurrentCost: 0,
-        estimatedCOGS: 30000,
-        estimatedGrossProfit: 15000,
-        estimatedGrossMarginPercent: 33.33,
+        estimatedCOGS: 170000,
+        estimatedGrossProfit: 110000,
+        estimatedGrossMarginPercent: 39.28,
         costCoveragePercent: 100,
-        physicalQuantity: 250,
-      },
-      {
-        categorySourceId: "78",
-        category: "X - DESATIVADOS",
-        realizedRevenue: 5084.7,
-        revenueWithCurrentCost: 5084.7,
-        revenueWithoutCurrentCost: 0,
-        estimatedCOGS: 4000,
-        estimatedGrossProfit: 1084.7,
-        estimatedGrossMarginPercent: 21.33,
-        costCoveragePercent: 100,
-        physicalQuantity: 30,
+        physicalQuantity: 3500,
       },
     ],
     categories: [],
-    products: [
-      {
-        productId: "p1",
-        productSourceId: "101",
-        sku: "SKU-PRO-01",
-        productName: "Shape Nineclouds Maple 8.0",
-        category: "Shapes",
-        categorySourceId: "50",
-        currentEffectiveCost: 85,
-        physicalQuantity: 50,
-        realizedRevenue: 10000,
-        revenueWithCurrentCost: 10000,
-        revenueWithoutCurrentCost: 0,
-        estimatedCOGS: 4250,
-        estimatedGrossProfit: 5750,
-        estimatedGrossMarginPercent: 57.5,
-        costCoveragePercent: 100,
-        isOrphan: false,
-      },
-      {
-        // Produto histórico órfão (excluído do catálogo ERP)
-        productId: null,
-        productSourceId: "645",
-        sku: null,
-        productName: "Produto não disponível no catálogo atual (ID: 645)",
-        category: null,
-        categorySourceId: null,
-        currentEffectiveCost: null,
-        physicalQuantity: 10,
-        realizedRevenue: 2500,
-        revenueWithCurrentCost: 0,
-        revenueWithoutCurrentCost: 2500,
-        estimatedCOGS: null,
-        estimatedGrossProfit: null,
-        estimatedGrossMarginPercent: null,
-        costCoveragePercent: 0,
-        isOrphan: true,
-      },
-    ],
+    products: [],
+    highlights: {
+      topProfitProducts: [
+        {
+          productSourceId: "101",
+          productName: "Shape Nineclouds Maple 8.0",
+          sku: "SHP-80-01",
+          realizedRevenue: 31750,
+          estimatedGrossProfit: 15400,
+          estimatedGrossMarginPercent: 48.5,
+        },
+        {
+          productSourceId: "102",
+          productName: "Shape Nineclouds Maple 8.25",
+          sku: "SHP-825-01",
+          realizedRevenue: 25900,
+          estimatedGrossProfit: 12200,
+          estimatedGrossMarginPercent: 47.1,
+        },
+      ],
+      negativeMarginProductsCount: 3,
+      worstMarginProducts: [
+        {
+          productSourceId: "991",
+          productName: "Lixa Emborrachada Promocional",
+          sku: "LIX-EMB",
+          realizedRevenue: 1417.65,
+          estimatedGrossProfit: -120.5,
+          estimatedGrossMarginPercent: -8.5,
+        },
+      ],
+    },
   };
 
-  it("1. Renderiza os 4 KPIs com estrutura padronizada e valores preservados (H)", () => {
-    const html = renderToString(
-      <ProfitabilityKpiGrid summary={mockProfitabilityData.summary} />,
-    );
+  describe("A. Navegação Interna e Default (Section 3)", () => {
+    it("abre por padrão na Visão Geral e renderiza as quatro abas com WAI-ARIA", () => {
+      const html = renderToString(
+        <ProfitabilityView
+          data={mockProfitabilityOverview}
+          isLoading={false}
+          error={null}
+          onRetry={vi.fn()}
+          selectedChannel={null}
+          onSelectChannel={vi.fn()}
+          selectedCategorySourceId={null}
+          onSelectCategorySourceId={vi.fn()}
+          categoryTree={[]}
+        />,
+      );
 
-    expect(html).toContain("Receita realizada");
-    expect(html).toContain("CMV estimado ao custo atual");
-    expect(html).toContain("Lucro bruto estimado ao custo atual");
-    expect(html).toContain("Margem bruta estimada ao custo atual");
-    expect(html).toContain("53.766,28");
-    expect(html).toContain("36.143,45");
-    expect(html).toContain("13.941,25");
-    expect(html).toContain("27,84%");
-    expect(html).toContain("tp-profit-kpi-card");
-    expect(html).toContain("tp-profit-kpi-header");
-    expect(html).toContain("tp-profit-kpi-value-wrap");
-    expect(html).toContain("tp-profit-kpi-footer");
+      // Tablist container
+      expect(html).toContain('role="tablist"');
+      expect(html).toContain('aria-label="Subnavegação do Módulo Rentabilidade"');
+
+      // 4 tabs
+      expect(html).toContain('id="tab-profitability-overview"');
+      expect(html).toContain('id="tab-profitability-products"');
+      expect(html).toContain('id="tab-profitability-sales"');
+      expect(html).toContain('id="tab-profitability-customers"');
+
+      // Default active tab is Visão Geral
+      expect(html).toContain('aria-selected="true"');
+      expect(html).toContain('aria-controls="panel-profitability-overview"');
+      expect(html).toContain("Visão Geral");
+      expect(html).toContain("Produtos");
+      expect(html).toContain("Vendas");
+      expect(html).toContain("Clientes");
+    });
   });
 
-  it("2. Snapshot presente: não exibe 'Catálogo TagPlus: Não disponível' e exibe timestamp formatado (A, B)", () => {
-    const html = renderToString(
-      <ProfitabilityView
-        data={mockProfitabilityData}
-        isLoading={false}
-        error={null}
-        onRetry={vi.fn()}
-        selectedChannel={null}
-        onSelectChannel={vi.fn()}
-        selectedCategorySourceId={null}
-        onSelectCategorySourceId={vi.fn()}
-        categoryTree={[]}
-      />,
-    );
+  describe("B. Premissa e Metodologia de Rentabilidade (Section 5)", () => {
+    it("exibe a premissa obrigatória em callout expansível com terminologia canônica", () => {
+      const html = renderToString(
+        <ProfitabilityView
+          data={mockProfitabilityOverview}
+          isLoading={false}
+          error={null}
+          onRetry={vi.fn()}
+          selectedChannel={null}
+          onSelectChannel={vi.fn()}
+          selectedCategorySourceId={null}
+          onSelectCategorySourceId={vi.fn()}
+          categoryTree={[]}
+        />,
+      );
 
-    expect(html).not.toContain("Catálogo TagPlus: Não disponível");
-    expect(html).toContain("Custos atuais atualizados em");
-    expect(html).toContain("Sobre esta estimativa:");
-    expect(html).toContain("Rentabilidade estimada com o custo atual dos produtos");
-    expect(html).toContain("Saiba mais");
+      expect(html).toContain("Sobre esta estimativa:");
+      expect(html).toContain(
+        "Rentabilidade estimada com o custo atual dos produtos. Não representa o custo histórico na data da venda.",
+      );
+      expect(html).toContain("Saiba mais");
+    });
   });
 
-  it("3. Snapshot ausente: exibe fallback semanticamente correto e nunca 'Catálogo TagPlus: Não disponível' (A)", () => {
-    const dataWithoutSnapshot = {
-      ...mockProfitabilityData,
-      costSnapshot: { completedAt: null, source: "PRODUCT_SYNC_RUN" as const },
-    };
-    const html = renderToString(
-      <ProfitabilityView
-        data={dataWithoutSnapshot}
-        isLoading={false}
-        error={null}
-        onRetry={vi.fn()}
-        selectedChannel={null}
-        onSelectChannel={vi.fn()}
-        selectedCategorySourceId={null}
-        onSelectCategorySourceId={vi.fn()}
-        categoryTree={[]}
-      />,
-    );
+  describe("C. Visão Geral (Section 6)", () => {
+    it("renderiza 4 KPIs canônicos, cobertura secundária, gráfico, canais, categorias e highlights", () => {
+      const html = renderToString(
+        <ProfitabilityOverviewTab
+          data={mockProfitabilityOverview}
+          selectedChannel={null}
+          onSelectChannel={vi.fn()}
+          selectedCategorySourceId={null}
+          onSelectCategorySourceId={vi.fn()}
+          categoryTree={[]}
+        />,
+      );
 
-    expect(html).not.toContain("Catálogo TagPlus: Não disponível");
-    expect(html).toContain("Data de atualização dos custos indisponível");
+      // KPIs
+      expect(html).toContain("Receita realizada");
+      expect(html).toContain("322.465,68");
+      expect(html).toContain("CMV estimado ao custo atual");
+      expect(html).toContain("197.277,62");
+      expect(html).toContain("Lucro bruto estimado ao custo atual");
+      expect(html).toContain("125.188,06");
+      expect(html).toContain("Margem bruta estimada ao custo atual");
+      expect(html).toContain("38,82%");
+
+      // Cobertura de custo secundária
+      expect(html).toContain("Cobertura de custo atual:");
+      expect(html).toContain("100%");
+
+      // Evolução temporal & Highlights (Row 2)
+      expect(html).toContain("tp-profit-overview-row2");
+      expect(html).toContain("tp-profit-overview-chart-col");
+      expect(html).toContain("tp-profit-overview-highlights-col");
+      expect(html).toContain("Destaques de Rentabilidade");
+      expect(html).toContain("Top Lucro Bruto");
+      expect(html).toContain("Shape Nineclouds Maple 8.0");
+      expect(html).toContain("3 com margem negativa");
+
+      // Canais e Categorias (Row 3)
+      expect(html).toContain("tp-profit-overview-row3");
+      expect(html).toContain("Rentabilidade por Canal");
+      expect(html).toContain("Atacado");
+      expect(html).toContain("Varejo");
+      expect(html).toContain("1 - NINECLOUDS");
+
+      // NÃO mostra a tabela longa de produtos na Visão Geral
+      expect(html).not.toContain("tp-profit-products-table");
+      expect(html).not.toContain("tp-products-table");
+      expect(html).not.toContain("Buscar produto ou código...");
+    });
   });
 
-  it("4. Renderiza produtos vendidos com custo atual e nunca NaN (C, D)", () => {
-    const html = renderToString(
-      <ProfitabilityView
-        data={mockProfitabilityData}
-        isLoading={false}
-        error={null}
-        onRetry={vi.fn()}
-        selectedChannel={null}
-        onSelectChannel={vi.fn()}
-        selectedCategorySourceId={null}
-        onSelectCategorySourceId={vi.fn()}
-        categoryTree={[]}
-      />,
-    );
+  describe("D. Destaques e Alertas (Section 6.6)", () => {
+    it("renderiza no máximo 3 itens por lista e destaca margem negativa", () => {
+      const html = renderToString(
+        <ProfitabilityHighlightsCard highlights={mockProfitabilityOverview.highlights} />,
+      );
 
-    expect(html).not.toContain("NaN");
-    expect(html).toContain("Produtos vendidos com custo atual:");
-    expect(html).toContain("42 de 42 (100%)");
+      expect(html).toContain("Destaques de Rentabilidade");
+      expect(html).toContain("Top Lucro Bruto");
+      expect(html).toContain("Menores Margens");
+      expect(html).toContain("Lixa Emborrachada Promocional");
+      expect(html).toContain("-8,5%");
+      expect(html).toContain("3 com margem negativa");
+    });
   });
 
-  it("5. Zero produtos nunca gera NaN nem (100%) (C)", () => {
-    const zeroData = {
-      ...mockProfitabilityData,
-      dataQuality: {
-        ...mockProfitabilityData.dataQuality,
-        productsTotal: 0,
-        productsWithCurrentCost: 0,
-        productsWithoutCurrentCost: 0,
-      },
-    };
-    const html = renderToString(
-      <ProfitabilityView
-        data={zeroData}
-        isLoading={false}
-        error={null}
-        onRetry={vi.fn()}
-        selectedChannel={null}
-        onSelectChannel={vi.fn()}
-        selectedCategorySourceId={null}
-        onSelectCategorySourceId={vi.fn()}
-        categoryTree={[]}
-      />,
-    );
+  describe("E. Nomenclatura Estrita em Todo o Módulo (Section 5 & 14.N)", () => {
+    it("NUNCA utiliza termos proibidos (lucro líquido, margem líquida, EBITDA, margem média)", () => {
+      const htmlOverview = renderToString(
+        <ProfitabilityOverviewTab
+          data={mockProfitabilityOverview}
+          selectedChannel={null}
+          onSelectChannel={vi.fn()}
+          selectedCategorySourceId={null}
+          onSelectCategorySourceId={vi.fn()}
+          categoryTree={[]}
+        />,
+      );
 
-    expect(html).not.toContain("NaN");
-    expect(html).toContain("0 de 0");
-    expect(html).not.toContain("0 de 0 (100%)");
+      expect(htmlOverview.toLowerCase()).not.toContain("lucro líquido");
+      expect(htmlOverview.toLowerCase()).not.toContain("margem líquida");
+      expect(htmlOverview.toLowerCase()).not.toContain("ebitda");
+      expect(htmlOverview.toLowerCase()).not.toContain("margem média");
+      expect(htmlOverview.toLowerCase()).not.toContain("margem de contribuição");
+    });
   });
 
-  it("6. Produto normal mostra Código e não mostra ID TagPlus; órfão mostra ID TagPlus + Histórico (E, F)", () => {
-    const html = renderToString(
-      <ProfitabilityProductsTable
-        products={mockProfitabilityData.products}
-        categoryTree={[]}
-        selectedChannel={null}
-        onSelectChannel={vi.fn()}
-        selectedCategorySourceId={null}
-        onSelectCategorySourceId={vi.fn()}
-        onResetFilters={vi.fn()}
-      />,
-    );
+  describe("F. Estados de Carregamento e Erro (Section 12)", () => {
+    it("renderiza skeleton ao carregar e tela de erro com botão retry", () => {
+      const loadingHtml = renderToString(
+        <ProfitabilityView
+          data={null}
+          isLoading={true}
+          error={null}
+          onRetry={vi.fn()}
+          selectedChannel={null}
+          onSelectChannel={vi.fn()}
+          selectedCategorySourceId={null}
+          onSelectCategorySourceId={vi.fn()}
+          categoryTree={[]}
+        />,
+      );
+      expect(loadingHtml).toContain("tp-section-skeleton");
 
-    // Produto normal
-    expect(html).toContain("Shape Nineclouds Maple 8.0");
-    expect(html).toContain("Código: SKU-PRO-01");
-    expect(html).not.toContain("ID: 101");
-    expect(html).not.toContain("ID TagPlus: 101");
-
-    // Produto órfão
-    expect(html).toContain("Produto não disponível no catálogo atual");
-    expect(html).toContain("ID TagPlus: 645 • Histórico");
-  });
-
-  it("7. Filtros por canal, categoria e busca estão presentes no DOM estilizado (G)", () => {
-    const html = renderToString(
-      <ProfitabilityProductsTable
-        products={mockProfitabilityData.products}
-        categoryTree={[]}
-        selectedChannel="ATACADO"
-        onSelectChannel={vi.fn()}
-        selectedCategorySourceId={null}
-        onSelectCategorySourceId={vi.fn()}
-        onResetFilters={vi.fn()}
-      />,
-    );
-
-    expect(html).toContain("Atacado");
-    expect(html).toContain("tp-channel-combobox");
-    expect(html).toContain("tp-profit-search-wrap");
-    expect(html).toContain("Buscar produto ou código...");
-    expect(html).toContain("Limpar filtros");
-  });
-
-  it("8. Renderiza breakdowns de canais e famílias com nomenclatura canônica", () => {
-    const html = renderToString(
-      <ProfitabilityBreakdowns
-        channels={mockProfitabilityData.channels}
-        rootCategories={mockProfitabilityData.rootCategories}
-        selectedChannel={null}
-        onSelectChannel={vi.fn()}
-        selectedCategorySourceId={null}
-        onSelectCategorySourceId={vi.fn()}
-      />,
-    );
-
-    expect(html).toContain("Rentabilidade por Canal");
-    expect(html).toContain("Atacado");
-    expect(html).toContain("Varejo");
-    expect(html).toContain("Receita realizada:");
-    expect(html).toContain("Lucro bruto estimado:");
-    expect(html).toContain("Margem bruta estimada:");
-    expect(html).not.toContain("lucro líquido");
-    expect(html).not.toContain("margem líquida");
-    expect(html).not.toContain("margem realizada");
-    expect(html).toContain("Rentabilidade por Família / Categoria Mãe");
-    expect(html).toContain("1 - NINECLOUDS");
-  });
-
-  it("8b. Renderiza cards de canal com badge de seleção e suporte a canais secundários", () => {
-    const channelsWithSecondary = [
-      ...mockProfitabilityData.channels,
-      {
-        channel: "INDETERMINADO" as const,
-        realizedRevenue: 3000,
-        revenueWithCurrentCost: 3000,
-        estimatedCOGS: 1500,
-        estimatedGrossProfit: 1500,
-        estimatedGrossMarginPercent: 50,
-        costCoveragePercent: 100,
-        physicalQuantity: 30,
-      },
-    ];
-
-    const html = renderToString(
-      <ProfitabilityBreakdowns
-        channels={channelsWithSecondary}
-        rootCategories={[]}
-        selectedChannel="ATACADO"
-        onSelectChannel={vi.fn()}
-        selectedCategorySourceId={null}
-        onSelectCategorySourceId={vi.fn()}
-      />,
-    );
-
-    expect(html).toContain("Filtrado");
-    expect(html).toContain("Canais Secundários");
-    expect(html).toContain("Indeterminado");
-  });
-
-  it("9. Renderiza loading (skeleton) e estado de erro graciosamente", () => {
-    const loadingHtml = renderToString(
-      <ProfitabilityView
-        data={null}
-        isLoading={true}
-        error={null}
-        onRetry={vi.fn()}
-        selectedChannel={null}
-        onSelectChannel={vi.fn()}
-        selectedCategorySourceId={null}
-        onSelectCategorySourceId={vi.fn()}
-        categoryTree={[]}
-      />,
-    );
-    expect(loadingHtml).toContain("tp-section-skeleton");
-
-    const errorHtml = renderToString(
-      <ProfitabilityView
-        data={null}
-        isLoading={false}
-        error="Falha de conexão com a API"
-        onRetry={vi.fn()}
-        selectedChannel={null}
-        onSelectChannel={vi.fn()}
-        selectedCategorySourceId={null}
-        onSelectCategorySourceId={vi.fn()}
-        categoryTree={[]}
-      />,
-    );
-    expect(errorHtml).toContain("Falha ao consultar indicadores de rentabilidade");
+      const errorHtml = renderToString(
+        <ProfitabilityView
+          data={null}
+          isLoading={false}
+          error="Falha de conexão com a API"
+          onRetry={vi.fn()}
+          selectedChannel={null}
+          onSelectChannel={vi.fn()}
+          selectedCategorySourceId={null}
+          onSelectCategorySourceId={vi.fn()}
+          categoryTree={[]}
+        />,
+      );
+      expect(errorHtml).toContain("Falha ao consultar indicadores de rentabilidade");
+      expect(errorHtml).toContain("Tentar novamente");
+    });
   });
 });
