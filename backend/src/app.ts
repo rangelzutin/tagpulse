@@ -18,9 +18,14 @@ import {
   registerFinancialSyncRoutes,
   createFinancialOperationalService,
   createPrismaFinancialOperationalRepository,
+  registerFinancialDreRoutes,
+  createFinancialDreService,
+  createPrismaFinancialDreRepository,
   type FinancialOperationalService,
   type FinancialOperationalRepository,
   type FinancialSyncOrchestrator,
+  type FinancialDreService,
+  type FinancialDreRepository,
 } from "./modules/financial/index.js";
 import type { PrismaClient } from "@prisma/client";
 
@@ -34,6 +39,8 @@ export interface BuildAppOptions {
   financialSyncOrchestrator?: FinancialSyncOrchestrator;
   financialService?: FinancialOperationalService;
   financialRepository?: FinancialOperationalRepository;
+  financialDreService?: FinancialDreService;
+  financialDreRepository?: FinancialDreRepository;
   prisma?: PrismaClient;
 }
 
@@ -85,6 +92,21 @@ export async function buildApp(
       app,
       createFinancialOperationalService(repo),
     );
+  }
+
+  if (options.financialDreService) {
+    registerFinancialDreRoutes(app, options.financialDreService);
+  } else if (options.financialDreRepository) {
+    registerFinancialDreRoutes(
+      app,
+      createFinancialDreService(options.financialDreRepository),
+    );
+  } else if (options.prisma && options.biRepository) {
+    const dreRepo = createPrismaFinancialDreRepository(
+      options.prisma,
+      options.biRepository,
+    );
+    registerFinancialDreRoutes(app, createFinancialDreService(dreRepo));
   }
 
   app.get("/health/database", async (_request, reply) => {
