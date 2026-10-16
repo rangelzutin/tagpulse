@@ -79,13 +79,14 @@ export function calculateDreMonthly(
 
   for (const r of classifiedRecords) {
     if (r.isDeductibleInDre && r.referenceMonth && recordsByMonth.has(r.referenceMonth)) {
-      // Se houver limite temporal estrito (ex: corte em 13/10/2026), respeitar o limite
-      if (options?.toExclusiveDate && r.competenceDate) {
+      // Se for o mês final do período parcial, respeitar toExclusiveDate
+      if (maxMonth && r.referenceMonth === maxMonth && options?.toExclusiveDate && r.competenceDate) {
         if (r.competenceDate.getTime() >= options.toExclusiveDate.getTime()) {
           continue;
         }
       }
-      if (options?.fromDate && r.competenceDate) {
+      // Se for o mês inicial do período parcial, respeitar fromDate
+      if (minMonth && r.referenceMonth === minMonth && options?.fromDate && r.competenceDate) {
         if (r.competenceDate.getTime() < options.fromDate.getTime()) {
           continue;
         }
@@ -270,13 +271,11 @@ export function calculateDreMonthly(
     const isMonthOver = monthEnd.getTime() < refDate.getTime();
 
     const pendingAccruals: string[] = [];
-    if (isMonthOver) {
-      if (!hasDas) {
-        pendingAccruals.push("VARIABLE_TAX_ON_REVENUE");
-      }
-      if (!hasGps) {
-        pendingAccruals.push("OPERATING_PERSONNEL");
-      }
+    if (!hasDas) {
+      pendingAccruals.push("VARIABLE_TAX_ON_REVENUE");
+    }
+    if (!hasGps) {
+      pendingAccruals.push("OPERATING_PERSONNEL");
     }
 
     const isCurrentPartial = month === currentMonthStr;
@@ -573,10 +572,10 @@ export function calculateDreBreakdown(
     if (!r.referenceMonth) continue;
     if (r.referenceMonth < fromM || r.referenceMonth > toM) continue;
 
-    if (options?.toExclusiveDate && r.competenceDate) {
+    if (r.referenceMonth === toM && options?.toExclusiveDate && r.competenceDate) {
       if (r.competenceDate.getTime() >= options.toExclusiveDate.getTime()) continue;
     }
-    if (options?.fromDate && r.competenceDate) {
+    if (r.referenceMonth === fromM && options?.fromDate && r.competenceDate) {
       if (r.competenceDate.getTime() < options.fromDate.getTime()) continue;
     }
 

@@ -172,4 +172,110 @@ describe("Financial DRE Calculator", () => {
     expect(paymentFeeCat?.amount).toBe(500);
     expect(paymentFeeCat?.group).toBe("VARIABLE_EXPENSE");
   });
+
+  it("strictly enforces operating expense cutoff for partial periods", () => {
+    // Expense A: effectiveCompetenceDate = 2026-10-10, R$ 100
+    // Expense B: effectiveCompetenceDate = 2026-10-20, R$ 200
+    const records: DreClassificationResult[] = [
+      {
+        recordId: "exp-a",
+        sourceId: "sa",
+        category: "OPERATING_ADMINISTRATIVE",
+        baseAmount: 100,
+        competenceDate: new Date("2026-10-10T00:00:00Z"),
+        referenceMonth: "2026-10",
+        isDeductibleInDre: true,
+      },
+      {
+        recordId: "exp-b",
+        sourceId: "sb",
+        category: "OPERATING_ADMINISTRATIVE",
+        baseAmount: 200,
+        competenceDate: new Date("2026-10-20T00:00:00Z"),
+        referenceMonth: "2026-10",
+        isDeductibleInDre: true,
+      },
+    ];
+
+    // Consulta 1: from=2026-10-01 to=2026-10-13 -> OpEx = 100
+    const mCutoff = calculateDreMonthly([], records, {
+      period: { from: "2026-10-01", to: "2026-10-13" },
+      fromDate: new Date("2026-10-01T00:00:00Z"),
+      toExclusiveDate: new Date("2026-10-14T00:00:00Z"),
+    });
+    const sCutoff = calculateDreSummary(mCutoff, { from: "2026-10-01", to: "2026-10-13" });
+    expect(sCutoff.totals.operatingExpenses.total).toBe(100);
+
+    // Consulta 2: from=2026-10-01 to=2026-10-31 -> OpEx = 300
+    const mFull = calculateDreMonthly([], records, {
+      period: { from: "2026-10-01", to: "2026-10-31" },
+      fromDate: new Date("2026-10-01T00:00:00Z"),
+      toExclusiveDate: new Date("2026-11-01T00:00:00Z"),
+    });
+    const sFull = calculateDreSummary(mFull, { from: "2026-10-01", to: "2026-10-31" });
+    expect(sFull.totals.operatingExpenses.total).toBe(300);
+  });
+
+  it("strictly enforces financial result cutoff by confirmationDate for partial periods", () => {
+    const records: DreClassificationResult[] = [
+      {
+        recordId: "fin-inc-1",
+        sourceId: "fi1",
+        category: "FINANCIAL_INCOME",
+        baseAmount: 50,
+        competenceDate: new Date("2026-10-05T00:00:00Z"),
+        referenceMonth: "2026-10",
+        isDeductibleInDre: true,
+      },
+      {
+        recordId: "fin-inc-2",
+        sourceId: "fi2",
+        category: "FINANCIAL_INCOME",
+        baseAmount: 80,
+        competenceDate: new Date("2026-10-25T00:00:00Z"),
+        referenceMonth: "2026-10",
+        isDeductibleInDre: true,
+      },
+      {
+        recordId: "fin-exp-1",
+        sourceId: "fe1",
+        category: "FINANCIAL_EXPENSE",
+        baseAmount: 30,
+        competenceDate: new Date("2026-10-08T00:00:00Z"),
+        referenceMonth: "2026-10",
+        isDeductibleInDre: true,
+      },
+      {
+        recordId: "fin-exp-2",
+        sourceId: "fe2",
+        category: "FINANCIAL_EXPENSE",
+        baseAmount: 40,
+        competenceDate: new Date("2026-10-22T00:00:00Z"),
+        referenceMonth: "2026-10",
+        isDeductibleInDre: true,
+      },
+    ];
+
+    // Cutoff on 2026-10-13 excludes events confirmed after 13/10
+    const mCutoff = calculateDreMonthly([], records, {
+      period: { from: "2026-10-01", to: "2026-10-13" },
+      fromDate: new Date("2026-10-01T00:00:00Z"),
+      toExclusiveDate: new Date("2026-10-14T00:00:00Z"),
+    });
+    const sCutoff = calculateDreSummary(mCutoff, { from: "2026-10-01", to: "2026-10-13" });
+    expect(sCutoff.totals.financialResult.financialIncome).toBe(50);
+    expect(sCutoff.totals.financialResult.financialExpenses).toBe(30);
+    expect(sCutoff.totals.financialResult.total).toBe(20);
+
+    // Full month includes both
+    const mFull = calculateDreMonthly([], records, {
+      period: { from: "2026-10-01", to: "2026-10-31" },
+      fromDate: new Date("2026-10-01T00:00:00Z"),
+      toExclusiveDate: new Date("2026-11-01T00:00:00Z"),
+    });
+    const sFull = calculateDreSummary(mFull, { from: "2026-10-01", to: "2026-10-31" });
+    expect(sFull.totals.financialResult.financialIncome).toBe(130);
+    expect(sFull.totals.financialResult.financialExpenses).toBe(70);
+    expect(sFull.totals.financialResult.total).toBe(60);
+  });
 });

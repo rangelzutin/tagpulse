@@ -263,8 +263,8 @@ export function classifyFinancialRecordForDre(
         sourceId: record.sourceId,
         category: "FINANCIAL_EXPENSE",
         baseAmount: origAmt,
-        competenceDate: record.sourceCompetenceDate ?? record.dueDate,
-        referenceMonth: getMonthStr(record.sourceCompetenceDate ?? record.dueDate),
+        competenceDate: record.confirmationDate ?? record.sourceCompetenceDate ?? record.dueDate,
+        referenceMonth: getMonthStr(record.confirmationDate ?? record.sourceCompetenceDate ?? record.dueDate),
         isDeductibleInDre: true,
         notes: `Tarifa bancária / anuidade cartão: ${desc}`,
       };
@@ -405,6 +405,8 @@ export function classifyFinancialRecordForDre(
       descUpper.includes("CAFE") ||
       descUpper.includes("PLASTICO") ||
       descUpper.includes("EMBALAG") ||
+      record.sourceId === "11447" ||
+      record.sourceId === "11448" ||
       record.sourceId === "10599" ||
       record.sourceId === "10600"
     ) {
@@ -432,8 +434,8 @@ export function classifyFinancialRecordForDre(
         sourceId: record.sourceId,
         category: "FINANCIAL_INCOME",
         baseAmount: totAmt,
-        competenceDate: record.sourceCompetenceDate ?? record.dueDate,
-        referenceMonth: getMonthStr(record.sourceCompetenceDate ?? record.dueDate),
+        competenceDate: record.confirmationDate ?? record.sourceCompetenceDate ?? record.dueDate,
+        referenceMonth: getMonthStr(record.confirmationDate ?? record.sourceCompetenceDate ?? record.dueDate),
         isDeductibleInDre: true,
         notes: `Receita financeira auditada (juros recebidos): ${desc}`,
       };
