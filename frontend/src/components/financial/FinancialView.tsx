@@ -4,6 +4,7 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   CircleDollarSign,
+  FileSpreadsheet,
 } from "lucide-react";
 import {
   fetchReceivablesOverview,
@@ -22,8 +23,9 @@ import { FinancialOverviewTab } from "./FinancialOverviewTab";
 import { FinancialReceivablesTab } from "./FinancialReceivablesTab";
 import { FinancialPayablesTab } from "./FinancialPayablesTab";
 import { FinancialCashFlowTab } from "./FinancialCashFlowTab";
+import { FinancialDreTab } from "./FinancialDreTab";
 
-export type FinancialSubTab = "overview" | "receivables" | "payables" | "cash-flow";
+export type FinancialSubTab = "overview" | "receivables" | "payables" | "cash-flow" | "dre";
 
 interface FinancialViewProps {
   onSyncSuccessGlobal?: () => void;
@@ -147,8 +149,12 @@ export function FinancialView({ onSyncSuccessGlobal, minDate }: FinancialViewPro
     <div className="tp-financial-module" aria-label="Módulo Financeiro">
       {/* Header with Title, Subtitle, Sync Status & Trigger, and Date Range Picker */}
       <Header
-        title="Financeiro"
-        subtitle="Contas a receber, contas a pagar e fluxo de caixa operacional."
+        title={activeTab === "dre" ? "DRE Gerencial" : "Financeiro"}
+        subtitle={
+          activeTab === "dre"
+            ? "Resultado econômico da operação por competência."
+            : "Contas a receber, contas a pagar e fluxo de caixa operacional."
+        }
         isUpdating={isRefreshing}
       >
         <div className="tp-financial-header-actions">
@@ -230,6 +236,19 @@ export function FinancialView({ onSyncSuccessGlobal, minDate }: FinancialViewPro
           <CircleDollarSign size={14} className="tp-tab-icon" />
           <span>Fluxo de Caixa</span>
         </button>
+
+        <button
+          type="button"
+          role="tab"
+          id="tab-financial-dre"
+          aria-selected={activeTab === "dre"}
+          aria-controls="panel-financial-dre"
+          className={`tp-financial-tab-btn ${activeTab === "dre" ? "is-active" : ""}`}
+          onClick={() => setActiveTab("dre")}
+        >
+          <FileSpreadsheet size={14} className="tp-tab-icon" />
+          <span>DRE Gerencial</span>
+        </button>
       </nav>
 
       {/* Tab Panels */}
@@ -299,6 +318,20 @@ export function FinancialView({ onSyncSuccessGlobal, minDate }: FinancialViewPro
               periodMode={periodMode}
               onApplyFilter={handleApplyFilter}
               showPeriodFilter={false}
+            />
+          </section>
+        )}
+
+        {activeTab === "dre" && (
+          <section
+            id="panel-financial-dre"
+            role="tabpanel"
+            aria-labelledby="tab-financial-dre"
+            className="tp-financial-tab-panel"
+          >
+            <FinancialDreTab
+              currentPeriod={currentPeriod}
+              isLoadingGlobal={isLoading}
             />
           </section>
         )}
