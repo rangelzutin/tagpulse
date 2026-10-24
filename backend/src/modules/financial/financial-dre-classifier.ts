@@ -39,6 +39,16 @@ function toNum(val: number | { toNumber(): number } | string | null | undefined)
 
 const FREIGHT_LOGISTICS_PREFIXES = ["RTE Rodonaves", "Melhor Envio", "Braspress"];
 
+function resolveCompetenceDateFromMonth(
+  referenceMonth: string | null | undefined,
+  fallback: Date,
+): Date {
+  if (!referenceMonth) return fallback;
+  const [y, m] = referenceMonth.split("-").map(Number);
+  if (!y || !m) return fallback;
+  return new Date(Date.UTC(y, m, 0, 12, 0, 0));
+}
+
 export function classifyFinancialRecordForDre(
   record: ClassifierRecordInput,
 ): DreClassificationResult {
@@ -161,7 +171,9 @@ export function classifyFinancialRecordForDre(
         sourceId: record.sourceId,
         category: "OPERATING_PERSONNEL",
         baseAmount: totAmt,
-        competenceDate: record.sourceCompetenceDate ?? record.dueDate,
+        competenceDate:
+          record.sourceCompetenceDate ??
+          resolveCompetenceDateFromMonth(referenceMonth, record.dueDate),
         referenceMonth,
         isDeductibleInDre: true,
         requiresReview,
@@ -218,7 +230,9 @@ export function classifyFinancialRecordForDre(
         sourceId: record.sourceId,
         category: "VARIABLE_TAX_ON_REVENUE",
         baseAmount: totAmt,
-        competenceDate: record.sourceCompetenceDate ?? record.dueDate,
+        competenceDate:
+          record.sourceCompetenceDate ??
+          resolveCompetenceDateFromMonth(referenceMonth, record.dueDate),
         referenceMonth,
         isDeductibleInDre: true,
         requiresReview,

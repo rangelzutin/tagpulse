@@ -126,6 +126,7 @@ describe("Profitability BI V1 — Deterministic Calculator", () => {
     to?: string;
     channel?: CommercialChannel | null;
     categorySourceId?: string | null;
+    trendGranularity?: "DAY" | "MONTH";
   }) {
     return calculateProfitabilityOverview({
       movements: options.movements,
@@ -141,6 +142,7 @@ describe("Profitability BI V1 — Deterministic Calculator", () => {
         categorySourceId: options.categorySourceId,
       },
       costSnapshot: defaultCostSnapshot,
+      trendGranularity: options.trendGranularity,
     });
   }
 
@@ -454,6 +456,75 @@ describe("Profitability BI V1 — Deterministic Calculator", () => {
     expect(result.trend[1]!.realizedRevenue).toBe(100);
     expect(result.trend[2]!.period).toBe("2026-01-03");
     expect(result.trend[2]!.realizedRevenue).toBe(0);
+  });
+
+  it("7b. Série temporal (trend) mensal quando range > 45 dias sem trendGranularity (B)", () => {
+    const movements: RealizedProductMovement[] = [
+      {
+        productId: "prod-1",
+        sourceProductId: "101",
+        realizedDate: new Date("2026-01-15T10:00:00.000Z"),
+        quantity: 1,
+        grossItemAmount: 100,
+        allocationBaseAmount: 100,
+        allocatedNetRevenue: 100,
+        saleId: "sale-1",
+        customerId: "cust-1",
+        channel: "ATACADO",
+        sourceDocumentId: "doc-1",
+        sourceDocumentType: "NFE" as any,
+        origin: "DIRECT_NFE",
+      },
+    ];
+
+    // 2026-01-01 a 2026-03-31 = 90 dias (> 45 dias)
+    const result = runCalculator({
+      movements,
+      from: "2026-01-01",
+      to: "2026-03-31",
+    });
+
+    expect(result.trendGranularity).toBe("MONTH");
+    expect(result.trend).toHaveLength(3); // 2026-01, 2026-02, 2026-03
+    expect(result.trend[0]!.period).toBe("2026-01");
+    expect(result.trend[0]!.realizedRevenue).toBe(100);
+    expect(result.trend[1]!.period).toBe("2026-02");
+    expect(result.trend[1]!.realizedRevenue).toBe(0);
+    expect(result.trend[2]!.period).toBe("2026-03");
+    expect(result.trend[2]!.realizedRevenue).toBe(0);
+  });
+
+  it("7c. Override trendGranularity: 'MONTH' força série temporal mensal mesmo para range <= 45 dias (C)", () => {
+    const movements: RealizedProductMovement[] = [
+      {
+        productId: "prod-1",
+        sourceProductId: "101",
+        realizedDate: new Date("2026-09-15T10:00:00.000Z"),
+        quantity: 1,
+        grossItemAmount: 100,
+        allocationBaseAmount: 100,
+        allocatedNetRevenue: 100,
+        saleId: "sale-1",
+        customerId: "cust-1",
+        channel: "ATACADO",
+        sourceDocumentId: "doc-1",
+        sourceDocumentType: "NFE" as any,
+        origin: "DIRECT_NFE",
+      },
+    ];
+
+    // 2026-09-01 a 2026-09-30 = 30 dias (<= 45 dias), mas com override MONTH (DRE contract)
+    const result = runCalculator({
+      movements,
+      from: "2026-09-01",
+      to: "2026-09-30",
+      trendGranularity: "MONTH",
+    });
+
+    expect(result.trendGranularity).toBe("MONTH");
+    expect(result.trend).toHaveLength(1); // 2026-09
+    expect(result.trend[0]!.period).toBe("2026-09");
+    expect(result.trend[0]!.realizedRevenue).toBe(100);
   });
 
   it("8. DataQuality: calcula productsTotal, productsWithCurrentCost e productsWithoutCurrentCost corretamente", () => {

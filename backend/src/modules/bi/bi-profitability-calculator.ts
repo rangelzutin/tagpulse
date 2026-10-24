@@ -68,6 +68,7 @@ export interface CalculateProfitabilityInput {
   salesMetadataMap?: Map<string, BiSaleMetadata> | undefined;
   documentsMetadataMap?: Map<string, BiDocumentMetadata> | undefined;
   customersMetadataMap?: Map<string, BiCustomerMetadata> | undefined;
+  trendGranularity?: "DAY" | "MONTH";
 }
 
 
@@ -318,7 +319,8 @@ export function calculateProfitabilityOverview(
   const fromDate = new Date(`${period.from}T00:00:00.000Z`);
   const toDate = new Date(`${period.to}T00:00:00.000Z`);
   const diffDays = Math.ceil((toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-  const trendGranularity: "DAY" | "MONTH" = diffDays <= 45 ? "DAY" : "MONTH";
+  const trendGranularity: "DAY" | "MONTH" =
+    input.trendGranularity ?? (diffDays <= 45 ? "DAY" : "MONTH");
 
   interface BucketData {
     period: string;

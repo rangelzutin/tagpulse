@@ -55,18 +55,36 @@ export function createPrismaFinancialDreRepository(
           period: { from: fromStr, to: toStr },
           filters: {},
           costSnapshot: biCtx.costSnapshot,
+          trendGranularity: "MONTH",
         });
 
         totalRealizedRevenue = overview.summary.realizedRevenue;
         totalEstimatedCOGS = overview.summary.estimatedCOGS;
 
-        commercialTrend = overview.trend.map((t) => ({
-          month: t.period,
-          realizedRevenue: t.realizedRevenue,
-          estimatedCOGS: t.estimatedCOGS,
-          estimatedGrossProfit: t.estimatedGrossProfit,
-          grossMarginPercent: t.estimatedGrossMarginPercent,
-        }));
+        const monthlyTrendMap = new Map<string, MonthlyCommercialTrend>();
+        for (const t of overview.trend) {
+          const monthKey = t.period.slice(0, 7);
+          const existing = monthlyTrendMap.get(monthKey);
+          if (!existing) {
+            monthlyTrendMap.set(monthKey, {
+              month: monthKey,
+              realizedRevenue: t.realizedRevenue,
+              estimatedCOGS: t.estimatedCOGS,
+              estimatedGrossProfit: t.estimatedGrossProfit,
+              grossMarginPercent: t.estimatedGrossMarginPercent,
+            });
+          } else {
+            const rev = Math.round((existing.realizedRevenue + t.realizedRevenue) * 100) / 100;
+            const cogs = Math.round((existing.estimatedCOGS + t.estimatedCOGS) * 100) / 100;
+            const gp = Math.round((rev - cogs) * 100) / 100;
+            const gm = rev > 0 ? Math.round((gp / rev) * 10000) / 100 : null;
+            existing.realizedRevenue = rev;
+            existing.estimatedCOGS = cogs;
+            existing.estimatedGrossProfit = gp;
+            existing.grossMarginPercent = gm;
+          }
+        }
+        commercialTrend = Array.from(monthlyTrendMap.values());
       }
 
       // 2. Registros Financeiros (com janela estendida para suportar competência real)

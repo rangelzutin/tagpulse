@@ -232,4 +232,86 @@ describe("Financial DRE Integration Tests (Canonical Baseline 2026)", () => {
     const finIncCat = breakdown.categories.find((c) => c.economicCategory === "FINANCIAL_INCOME");
     expect(finIncCat?.amount).toBe(summaryTotals.financialResult.financialIncome);
   }, 30000);
+
+  it("reconciles summary(2026-09-01, 2026-09-30) exactly with monthly['2026-09']", async () => {
+    const [summaryRes, monthlyRes] = await Promise.all([
+      dreService.getDreSummary({ from: "2026-09-01", to: "2026-09-30" }),
+      dreService.getDreMonthly({ year: "2026" }),
+    ]);
+
+    expect(summaryRes.success).toBe(true);
+    expect(monthlyRes.success).toBe(true);
+
+    const s = summaryRes.data!.totals;
+    const m = monthlyRes.data!.find((item) => item.month === "2026-09");
+    expect(m).toBeDefined();
+
+    expect(s.realizedRevenue).toBe(m!.realizedRevenue);
+    expect(s.estimatedCOGS).toBe(m!.estimatedCOGS);
+    expect(s.estimatedGrossProfit).toBe(m!.estimatedGrossProfit);
+    expect(s.variableExpenses.total).toBe(m!.variableExpenses.total);
+    expect(s.contributionMargin).toBe(m!.contributionMargin);
+    expect(s.operatingExpenses.total).toBe(m!.operatingExpenses.total);
+    expect(s.financialResult.total).toBe(m!.financialResult.total);
+    expect(s.netManagerialResult).toBe(m!.netManagerialResult);
+    expect(s.status).toBe(m!.status);
+  }, 30000);
+
+  it("reconciles summary(2026-08-01, 2026-08-31) exactly with monthly['2026-08']", async () => {
+    const [summaryRes, monthlyRes] = await Promise.all([
+      dreService.getDreSummary({ from: "2026-08-01", to: "2026-08-31" }),
+      dreService.getDreMonthly({ year: "2026" }),
+    ]);
+
+    expect(summaryRes.success).toBe(true);
+    expect(monthlyRes.success).toBe(true);
+
+    const s = summaryRes.data!.totals;
+    const m = monthlyRes.data!.find((item) => item.month === "2026-08");
+    expect(m).toBeDefined();
+
+    expect(s.realizedRevenue).toBe(m!.realizedRevenue);
+    expect(s.estimatedCOGS).toBe(m!.estimatedCOGS);
+    expect(s.estimatedGrossProfit).toBe(m!.estimatedGrossProfit);
+    expect(s.variableExpenses.total).toBe(m!.variableExpenses.total);
+    expect(s.contributionMargin).toBe(m!.contributionMargin);
+    expect(s.operatingExpenses.total).toBe(m!.operatingExpenses.total);
+    expect(s.financialResult.total).toBe(m!.financialResult.total);
+    expect(s.netManagerialResult).toBe(m!.netManagerialResult);
+    expect(s.status).toBe(m!.status);
+  }, 30000);
+
+  it("reconciles multi-month summary(2026-08-01, 2026-09-30) with sum of monthly buckets", async () => {
+    const [summaryRes, monthlyRes] = await Promise.all([
+      dreService.getDreSummary({ from: "2026-08-01", to: "2026-09-30" }),
+      dreService.getDreMonthly({ year: "2026" }),
+    ]);
+
+    expect(summaryRes.success).toBe(true);
+    expect(monthlyRes.success).toBe(true);
+
+    const s = summaryRes.data!.totals;
+    const aug = monthlyRes.data!.find((item) => item.month === "2026-08")!;
+    const sep = monthlyRes.data!.find((item) => item.month === "2026-09")!;
+    expect(aug).toBeDefined();
+    expect(sep).toBeDefined();
+
+    const expectedRev = Math.round((aug.realizedRevenue + sep.realizedRevenue) * 100) / 100;
+    const expectedCogs = Math.round((aug.estimatedCOGS + sep.estimatedCOGS) * 100) / 100;
+    const expectedGross = Math.round((aug.estimatedGrossProfit + sep.estimatedGrossProfit) * 100) / 100;
+    const expectedVar = Math.round((aug.variableExpenses.total + sep.variableExpenses.total) * 100) / 100;
+    const expectedCM = Math.round((aug.contributionMargin + sep.contributionMargin) * 100) / 100;
+    const expectedOp = Math.round((aug.operatingExpenses.total + sep.operatingExpenses.total) * 100) / 100;
+    const expectedFin = Math.round((aug.financialResult.total + sep.financialResult.total) * 100) / 100;
+    const expectedNet = Math.round((aug.netManagerialResult + sep.netManagerialResult) * 100) / 100;
+
+    expect(s.realizedRevenue).toBe(expectedRev);
+    expect(s.estimatedCOGS).toBe(expectedCogs);
+    expect(s.estimatedGrossProfit).toBe(expectedGross);
+    expect(s.variableExpenses.total).toBe(expectedVar);
+    expect(s.contributionMargin).toBe(expectedCM);
+    expect(s.operatingExpenses.total).toBe(expectedOp);
+    expect(s.financialResult.total).toBe(expectedFin);
+    expect(s.netManagerialResult).toBe(expectedNet);
+  }, 30000);
 });
