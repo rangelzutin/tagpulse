@@ -4,6 +4,8 @@ import { Prisma } from "@prisma/client";
 import {
   resolveSinceDate,
   fetchRecentSourceIds,
+  fetchCatalogTailSourceIds,
+  getKnownMaxSourceId,
   collectIncrementalCandidates,
   runIncrementalSync,
 } from "../src/modules/financial/financial-incremental-sync.js";
@@ -559,6 +561,7 @@ describe("Financial Incremental Sync — Unit Tests (Fase 5F)", () => {
 
     it("Test J: 404 response does not delete FinancialRecord", async () => {
       const mockPrisma = {
+        $transaction: vi.fn().mockImplementation(async (promises: any[]) => Promise.all(promises)),
         financialRecordSyncItem: {
           findUnique: vi.fn().mockResolvedValue({ id: "item-1", sourceId: "404-id", attemptCount: 0 }),
           update: vi.fn().mockResolvedValue({}),
@@ -568,6 +571,7 @@ describe("Financial Incremental Sync — Unit Tests (Fase 5F)", () => {
           delete: vi.fn(),
           deleteMany: vi.fn(),
           update: vi.fn(),
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
         },
       } as unknown as any;
 
@@ -656,6 +660,427 @@ describe("Financial Incremental Sync — Unit Tests (Fase 5F)", () => {
       expect(report1.workerSummary?.unchanged).toBe(2);
       expect(report2.workerSummary?.inserted).toBe(0);
       expect(report2.workerSummary?.unchanged).toBe(2);
+    });
+  });
+
+  describe("Deterministic Blind-Spot Regression Tests (Fase 5D.3.1)", () => {
+    it("Caso A: Sync em 25/10 com registro criado em 25/10 mas dueDate em 10/09 (já confirmado) é descoberto via cauda e ingerido", async () => {
+      const mockPrisma = {
+        financialRecordSyncItem: {
+          count: vi.fn().mockResolvedValue(10450), // indicates ~105 pages
+        },
+        financialRecord: {
+          findMany: vi.fn().mockResolvedValue([]), // no open or undated records
+        },
+      } as unknown as any;
+
+      const mockClient = {
+        get: vi.fn().mockImplementation(async (path: string) => {
+          if (path.includes("since=")) {
+            // endpoint filtering by dueDate >= 2026-09-25 returns nothing
+            return { status: 200, data: [] };
+          }
+          if (path.includes("page=101")) {
+            return { status: 200, data: [{ id: 11400 }] };
+          }
+          if (path.includes("page=102")) {
+            return { status: 200, data: [{ id: 11450 }] };
+          }
+          if (path.includes("page=103")) {
+            // Target item 11491 is at the tail of the catalog!
+            return { status: 200, data: [{ id: 11491 }, { id: 11492 }, { id: 11493 }] };
+          }
+          return { status: 200, data: [] };
+        }),
+      } as unknown as TagPlusClient;
+
+      const candidates = await collectIncrementalCandidates({
+        prisma: mockPrisma,
+        getClient: () => mockClient,
+        connectionId: "conn-1",
+        now: new Date("2026-10-25T12:00:00Z"),
+        lookbackDays: 30,
+        enableTailScan: true,
+        tailLookbackPages: 3,
+        pageDelayMs: 0,
+      });
+
+      expect(candidates.recentCandidates).toEqual([]);
+      expect(candidates.openCandidates).toEqual([]);
+      expect(candidates.tailCandidates).toEqual(["11400", "11450", "11491", "11492", "11493"]);
+      expect(candidates.uniqueCandidates).toContain("11491");
+      expect(candidates.uniqueCandidates).toContain("11492");
+      expect(candidates.uniqueCandidates).toContain("11493");
+
+      const mockRepo = {
+        prepareIncrementalCandidates: vi.fn().mockResolvedValue({ total: 5, newlyCreated: 3, refreshed: 2 }),
+      } as unknown as FinancialRecordRepository;
+
+      const mockWorker = {
+        processQueue: vi.fn().mockResolvedValue({
+          processed: 5,
+          completed: 5,
+          failed: 0,
+          notFound: 0,
+          elapsedMs: 150,
+          inserted: 3,
+          updated: 2,
+          unchanged: 0,
+        }),
+      } as unknown as FinancialRecordWorker;
+
+      const report = await runIncrementalSync({
+        prisma: mockPrisma,
+        repository: mockRepo,
+        worker: mockWorker,
+        getClient: () => mockClient,
+        connectionId: "conn-1",
+        now: new Date("2026-10-25T12:00:00Z"),
+        lookbackDays: 30,
+        enableTailScan: true,
+        tailLookbackPages: 3,
+        pageDelayMs: 0,
+      });
+
+      expect(report.candidates.uniqueCount).toBe(5);
+      expect(report.candidates.tailCount).toBe(5);
+      expect(report.candidates.recentCount).toBe(0);
+      expect(mockRepo.prepareIncrementalCandidates).toHaveBeenCalledWith(
+        "conn-1",
+        expect.arrayContaining(["11491", "11492", "11493"]),
+      );
+      expect(mockWorker.processQueue).toHaveBeenCalledWith(
+        "conn-1",
+        expect.objectContaining({
+          candidateSourceIds: expect.arrayContaining(["11491", "11492", "11493"]),
+        }),
+      );
+    });
+
+    it("Caso B: Registro antigo sem alteração recente não é reprocessado nem duplicado", async () => {
+      const mockPrisma = {
+        financialRecordSyncItem: {
+          count: vi.fn().mockResolvedValue(10000),
+        },
+        financialRecord: {
+          findMany: vi.fn().mockResolvedValue([]),
+        },
+      } as unknown as any;
+
+      const mockClient = {
+        get: vi.fn().mockImplementation(async (path: string) => {
+          if (path.includes("since=")) {
+            return { status: 200, data: [] };
+          }
+          if (path.includes("page=97")) {
+            return { status: 200, data: [{ id: 9900 }] };
+          }
+          return { status: 200, data: [] };
+        }),
+      } as unknown as TagPlusClient;
+
+      const candidates = await collectIncrementalCandidates({
+        prisma: mockPrisma,
+        getClient: () => mockClient,
+        connectionId: "conn-1",
+        now: new Date("2026-10-25T12:00:00Z"),
+        lookbackDays: 30,
+        enableTailScan: true,
+        pageDelayMs: 0,
+      });
+
+      expect(candidates.uniqueCandidates).not.toContain("5000");
+    });
+
+    it("Caso C: Registro aberto antigo posteriormente confirmado é descoberto via openCandidates e atualizado", async () => {
+      const mockPrisma = {
+        financialRecordSyncItem: {
+          count: vi.fn().mockResolvedValue(0),
+        },
+        financialRecord: {
+          findMany: vi.fn().mockImplementation(async ({ where }: any) => {
+            if (where.isConfirmed === false) {
+              return [{ sourceId: "777" }];
+            }
+            return [];
+          }),
+        },
+      } as unknown as any;
+
+      const mockClient = {
+        get: vi.fn().mockResolvedValue({ status: 200, data: [] }),
+      } as unknown as TagPlusClient;
+
+      const candidates = await collectIncrementalCandidates({
+        prisma: mockPrisma,
+        getClient: () => mockClient,
+        connectionId: "conn-1",
+        pageDelayMs: 0,
+      });
+
+      expect(candidates.openCandidates).toContain("777");
+      expect(candidates.uniqueCandidates).toContain("777");
+    });
+
+    it("Caso D: Mesmo registro retornado por mais de uma via de descoberta é unificado e ingerido uma única vez", async () => {
+      const mockPrisma = {
+        financialRecordSyncItem: {
+          count: vi.fn().mockResolvedValue(100),
+        },
+        financialRecord: {
+          findMany: vi.fn().mockResolvedValue([]),
+        },
+      } as unknown as any;
+
+      const mockClient = {
+        get: vi.fn().mockImplementation(async (path: string) => {
+          if (path.includes("since=") && path.includes("page=1&")) {
+            return { status: 200, data: [{ id: 999 }, { id: 1001 }] };
+          }
+          if (!path.includes("since=") && path.includes("page=1&")) {
+            return { status: 200, data: [{ id: 999 }, { id: 1002 }] };
+          }
+          return { status: 200, data: [] };
+        }),
+      } as unknown as TagPlusClient;
+
+      const candidates = await collectIncrementalCandidates({
+        prisma: mockPrisma,
+        getClient: () => mockClient,
+        connectionId: "conn-1",
+        additionalCandidateIds: ["999", "1003"],
+        pageDelayMs: 0,
+      });
+
+      expect(candidates.recentCandidates).toContain("999");
+      expect(candidates.tailCandidates).toContain("999");
+      expect(candidates.additionalCandidates).toContain("999");
+
+      const countOf999 = candidates.uniqueCandidates.filter((id) => id === "999").length;
+      expect(countOf999).toBe(1);
+      expect(candidates.uniqueCandidates.sort()).toEqual(["1001", "1002", "1003", "999"].sort());
+      expect(candidates.overlapDeduplicated).toBeGreaterThanOrEqual(2);
+    });
+
+    it("Caso E: Registro removido/cancelado na origem (404) tem sourcePresent marcado como false", async () => {
+      const mockPrisma = {
+        $transaction: vi.fn().mockImplementation(async (promises: any[]) => {
+          return Promise.all(promises);
+        }),
+        financialRecordSyncItem: {
+          update: vi.fn().mockResolvedValue({ id: "sync-1", status: "NOT_FOUND" }),
+        },
+        financialRecord: {
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        },
+      } as unknown as any;
+
+      const { createFinancialRecordRepository } = await import(
+        "../src/modules/financial/financial-record-repository.js"
+      );
+      const repo = createFinancialRecordRepository(mockPrisma);
+
+      await repo.markItemNotFound("conn-1", "deleted-123", 404);
+
+      expect(mockPrisma.$transaction).toHaveBeenCalled();
+      expect(mockPrisma.financialRecordSyncItem.update).toHaveBeenCalledWith({
+        where: {
+          connectionId_sourceId: {
+            connectionId: "conn-1",
+            sourceId: "deleted-123",
+          },
+        },
+        data: expect.objectContaining({
+          status: "NOT_FOUND",
+          lastHttpStatus: 404,
+        }),
+      });
+      expect(mockPrisma.financialRecord.updateMany).toHaveBeenCalledWith({
+        where: {
+          connectionId: "conn-1",
+          sourceId: "deleted-123",
+        },
+        data: expect.objectContaining({
+          sourcePresent: false,
+          noLongerObservedAt: expect.any(Date),
+        }),
+      });
+    });
+  });
+
+  describe("Tail Scan Completeness & Volume Tests (Fase 5D.3.2)", () => {
+    // Factory to simulate TagPlus catalog pagination with N existing IDs and M new IDs
+    function createCatalogMock(totalExistingPages: number, newPagesCount: number) {
+      const perPage = 100;
+      const totalPages = totalExistingPages + newPagesCount;
+
+      const getMock = vi.fn().mockImplementation(async (path: string) => {
+        // since= returns nothing because all new records have retroactive dueDate outside lookback
+        if (path.includes("since=")) {
+          return { status: 200, data: [] };
+        }
+
+        const match = path.match(/page=(\d+)/);
+        const page = match ? Number.parseInt(match[1], 10) : 1;
+
+        if (page < 1 || page > totalPages) {
+          return { status: 200, data: [] };
+        }
+
+        const startId = (page - 1) * perPage + 1;
+        const pageItems = Array.from({ length: perPage }, (_, i) => ({
+          id: startId + i,
+        }));
+
+        return { status: 200, data: pageItems };
+      });
+
+      return {
+        client: { get: getMock } as unknown as TagPlusClient,
+        existingCount: totalExistingPages * perPage,
+        maxExistingId: totalExistingPages * perPage,
+        expectedNewIds: Array.from(
+          { length: newPagesCount * perPage },
+          (_, i) => String(totalExistingPages * perPage + 1 + i),
+        ),
+      };
+    }
+
+    it("Cenário A: 1 página de novos registros (100 IDs novos) — 100% descobertos", async () => {
+      // 100 existing pages (10,000 IDs), 1 new page (IDs 10001..10100)
+      const { client, existingCount, maxExistingId, expectedNewIds } = createCatalogMock(100, 1);
+
+      const mockPrisma = {
+        financialRecordSyncItem: {
+          count: vi.fn().mockResolvedValue(existingCount),
+          findMany: vi.fn().mockResolvedValue([{ sourceId: String(maxExistingId) }]),
+        },
+        financialRecord: {
+          findMany: vi.fn().mockResolvedValue([]),
+        },
+      } as unknown as any;
+
+      const discoveredIds = await fetchCatalogTailSourceIds(
+        () => client,
+        mockPrisma,
+        "conn-1",
+        { pageDelayMs: 0, knownMaxSourceId: maxExistingId },
+      );
+
+      // Verify all 100 new IDs are discovered
+      const discoveredSet = new Set(discoveredIds);
+      const allFound = expectedNewIds.every((id) => discoveredSet.has(id));
+      expect(allFound).toBe(true);
+      expect(expectedNewIds.length).toBe(100);
+    });
+
+    it("Cenário B: 3 páginas de novos registros (300 IDs novos) — 100% descobertos", async () => {
+      // 100 existing pages, 3 new pages (IDs 10001..10300)
+      const { client, existingCount, maxExistingId, expectedNewIds } = createCatalogMock(100, 3);
+
+      const mockPrisma = {
+        financialRecordSyncItem: {
+          count: vi.fn().mockResolvedValue(existingCount),
+          findMany: vi.fn().mockResolvedValue([{ sourceId: String(maxExistingId) }]),
+        },
+        financialRecord: {
+          findMany: vi.fn().mockResolvedValue([]),
+        },
+      } as unknown as any;
+
+      const discoveredIds = await fetchCatalogTailSourceIds(
+        () => client,
+        mockPrisma,
+        "conn-1",
+        { pageDelayMs: 0, knownMaxSourceId: maxExistingId },
+      );
+
+      const discoveredSet = new Set(discoveredIds);
+      const allFound = expectedNewIds.every((id) => discoveredSet.has(id));
+      expect(allFound).toBe(true);
+      expect(expectedNewIds.length).toBe(300);
+    });
+
+    it("Cenário C: 4 páginas de novos registros (400 IDs novos) — 100% descobertos", async () => {
+      // 100 existing pages, 4 new pages (IDs 10001..10400)
+      const { client, existingCount, maxExistingId, expectedNewIds } = createCatalogMock(100, 4);
+
+      const mockPrisma = {
+        financialRecordSyncItem: {
+          count: vi.fn().mockResolvedValue(existingCount),
+          findMany: vi.fn().mockResolvedValue([{ sourceId: String(maxExistingId) }]),
+        },
+        financialRecord: {
+          findMany: vi.fn().mockResolvedValue([]),
+        },
+      } as unknown as any;
+
+      const discoveredIds = await fetchCatalogTailSourceIds(
+        () => client,
+        mockPrisma,
+        "conn-1",
+        { pageDelayMs: 0, knownMaxSourceId: maxExistingId },
+      );
+
+      const discoveredSet = new Set(discoveredIds);
+      const allFound = expectedNewIds.every((id) => discoveredSet.has(id));
+      expect(allFound).toBe(true);
+      expect(expectedNewIds.length).toBe(400);
+    });
+
+    it("Cenário D: 10 páginas de novos registros (1000 IDs novos) — 100% descobertos", async () => {
+      // 100 existing pages, 10 new pages (IDs 10001..11000)
+      const { client, existingCount, maxExistingId, expectedNewIds } = createCatalogMock(100, 10);
+
+      const mockPrisma = {
+        financialRecordSyncItem: {
+          count: vi.fn().mockResolvedValue(existingCount),
+          findMany: vi.fn().mockResolvedValue([{ sourceId: String(maxExistingId) }]),
+        },
+        financialRecord: {
+          findMany: vi.fn().mockResolvedValue([]),
+        },
+      } as unknown as any;
+
+      const discoveredIds = await fetchCatalogTailSourceIds(
+        () => client,
+        mockPrisma,
+        "conn-1",
+        { pageDelayMs: 0, knownMaxSourceId: maxExistingId },
+      );
+
+      const discoveredSet = new Set(discoveredIds);
+      const allFound = expectedNewIds.every((id) => discoveredSet.has(id));
+      expect(allFound).toBe(true);
+      expect(expectedNewIds.length).toBe(1000);
+    });
+
+    it("Cenário E: Deslocamento de catálogo (deletions / boundary shift) aciona step-back e recupera 100% dos IDs", async () => {
+      // Suppose local DB recorded knownCount = 10500, but catalog was shifted and new IDs began on page 98
+      // startPage initially computed as 105 - 2 = 103, where firstId is 10301 > knownMaxId (9800)
+      const { client, expectedNewIds } = createCatalogMock(97, 5); // pages 98..102 are new (IDs 9701..10200)
+
+      const mockPrisma = {
+        financialRecordSyncItem: {
+          count: vi.fn().mockResolvedValue(10500), // skewed high count
+          findMany: vi.fn().mockResolvedValue([{ sourceId: "9700" }]),
+        },
+        financialRecord: {
+          findMany: vi.fn().mockResolvedValue([]),
+        },
+      } as unknown as any;
+
+      const discoveredIds = await fetchCatalogTailSourceIds(
+        () => client,
+        mockPrisma,
+        "conn-1",
+        { pageDelayMs: 0, knownMaxSourceId: 9700 },
+      );
+
+      const discoveredSet = new Set(discoveredIds);
+      const allFound = expectedNewIds.every((id) => discoveredSet.has(id));
+      expect(allFound).toBe(true);
+      expect(expectedNewIds.length).toBe(500);
     });
   });
 });

@@ -530,4 +530,154 @@ describe("Financial DRE Calculator", () => {
     // Summary lastClosedMonth is exactly 2026-08
     expect(summary.lastClosedMonth).toBe("2026-08");
   });
+
+  it("regression: ensures partner compensation is preserved across August, September (3 x 2000 = 6000), and October", () => {
+    const commercialTrend: MonthlyCommercialTrend[] = [
+      {
+        month: "2026-08",
+        realizedRevenue: 35000,
+        estimatedCOGS: 20000,
+        estimatedGrossProfit: 15000,
+        grossMarginPercent: 42.86,
+      },
+      {
+        month: "2026-09",
+        realizedRevenue: 39137.44,
+        estimatedCOGS: 23365.58,
+        estimatedGrossProfit: 15771.86,
+        grossMarginPercent: 40.3,
+      },
+      {
+        month: "2026-10",
+        realizedRevenue: 28000,
+        estimatedCOGS: 16000,
+        estimatedGrossProfit: 12000,
+        grossMarginPercent: 42.86,
+      },
+    ];
+
+    const records: DreClassificationResult[] = [
+      // Agosto/2026: 3 retiradas de 2.000 = 6.000
+      {
+        recordId: "rec-aug-1",
+        sourceId: "11251",
+        category: "OPERATING_PARTNER_COMPENSATION",
+        baseAmount: 2000,
+        referenceMonth: "2026-08",
+        competenceDate: new Date("2026-08-10T00:00:00Z"),
+        isDeductibleInDre: true,
+      },
+      {
+        recordId: "rec-aug-2",
+        sourceId: "11252",
+        category: "OPERATING_PARTNER_COMPENSATION",
+        baseAmount: 2000,
+        referenceMonth: "2026-08",
+        competenceDate: new Date("2026-08-10T00:00:00Z"),
+        isDeductibleInDre: true,
+      },
+      {
+        recordId: "rec-aug-3",
+        sourceId: "11253",
+        category: "OPERATING_PARTNER_COMPENSATION",
+        baseAmount: 2000,
+        referenceMonth: "2026-08",
+        competenceDate: new Date("2026-08-10T00:00:00Z"),
+        isDeductibleInDre: true,
+      },
+      // Setembro/2026: 3 retiradas de 2.000 = 6.000 (Mario: 11491, Rangel: 11492, Andre: 11493)
+      {
+        recordId: "rec-sep-1",
+        sourceId: "11491",
+        category: "OPERATING_PARTNER_COMPENSATION",
+        baseAmount: 2000,
+        referenceMonth: "2026-09",
+        competenceDate: new Date("2026-09-10T00:00:00Z"),
+        isDeductibleInDre: true,
+      },
+      {
+        recordId: "rec-sep-2",
+        sourceId: "11492",
+        category: "OPERATING_PARTNER_COMPENSATION",
+        baseAmount: 2000,
+        referenceMonth: "2026-09",
+        competenceDate: new Date("2026-09-10T00:00:00Z"),
+        isDeductibleInDre: true,
+      },
+      {
+        recordId: "rec-sep-3",
+        sourceId: "11493",
+        category: "OPERATING_PARTNER_COMPENSATION",
+        baseAmount: 2000,
+        referenceMonth: "2026-09",
+        competenceDate: new Date("2026-09-10T00:00:00Z"),
+        isDeductibleInDre: true,
+      },
+      // Outubro/2026: 3 retiradas de 2.000 = 6.000
+      {
+        recordId: "rec-oct-1",
+        sourceId: "11494",
+        category: "OPERATING_PARTNER_COMPENSATION",
+        baseAmount: 2000,
+        referenceMonth: "2026-10",
+        competenceDate: new Date("2026-10-10T00:00:00Z"),
+        isDeductibleInDre: true,
+      },
+      {
+        recordId: "rec-oct-2",
+        sourceId: "11495",
+        category: "OPERATING_PARTNER_COMPENSATION",
+        baseAmount: 2000,
+        referenceMonth: "2026-10",
+        competenceDate: new Date("2026-10-10T00:00:00Z"),
+        isDeductibleInDre: true,
+      },
+      {
+        recordId: "rec-oct-3",
+        sourceId: "11496",
+        category: "OPERATING_PARTNER_COMPENSATION",
+        baseAmount: 2000,
+        referenceMonth: "2026-10",
+        competenceDate: new Date("2026-10-10T00:00:00Z"),
+        isDeductibleInDre: true,
+      },
+    ];
+
+    const monthlyItems = calculateDreMonthly(commercialTrend, records, {
+      period: { from: "2026-08-01", to: "2026-10-31" },
+    });
+
+    const aug = monthlyItems.find((m) => m.month === "2026-08")!;
+    const sep = monthlyItems.find((m) => m.month === "2026-09")!;
+    const oct = monthlyItems.find((m) => m.month === "2026-10")!;
+
+    // 1. Agosto: pró-labore presente
+    expect(aug).toBeDefined();
+    expect(aug.operatingExpenses.partnerCompensation).toBe(6000);
+
+    // 2. Setembro: 3 x R$ 2.000 = R$ 6.000
+    expect(sep).toBeDefined();
+    expect(sep.operatingExpenses.partnerCompensation).toBe(6000);
+
+    // 3. Outubro: pró-labore presente
+    expect(oct).toBeDefined();
+    expect(oct.operatingExpenses.partnerCompensation).toBe(6000);
+
+    // 4. Setembro summary = monthly["2026-09"]
+    const sepMonthlyOnly = calculateDreMonthly(commercialTrend, records, {
+      period: { from: "2026-09-01", to: "2026-09-30" },
+      fromDate: new Date("2026-09-01T00:00:00.000Z"),
+      toExclusiveDate: new Date("2026-10-01T00:00:00.000Z"),
+    });
+    const summarySep = calculateDreSummary(sepMonthlyOnly, {
+      from: "2026-09-01",
+      to: "2026-09-30",
+    });
+
+    expect(summarySep.totals.operatingExpenses.partnerCompensation).toBe(6000);
+    expect(summarySep.totals.operatingExpenses.partnerCompensation).toBe(sep.operatingExpenses.partnerCompensation);
+    expect(summarySep.totals.operatingExpenses.total).toBe(sep.operatingExpenses.total);
+    expect(summarySep.totals.netManagerialResult).toBe(sep.netManagerialResult);
+    expect(summarySep.totals.status).toBe(sep.status);
+  });
 });

@@ -562,19 +562,43 @@ export function createFinancialRecordRepository(
     },
 
     async markItemNotFound(connectionId, sourceId, httpStatus = 404) {
-      await prisma.financialRecordSyncItem.update({
-        where: {
-          connectionId_sourceId: {
-            connectionId,
-            sourceId,
+      const now = new Date();
+      const operations: any[] = [
+        prisma.financialRecordSyncItem.update({
+          where: {
+            connectionId_sourceId: {
+              connectionId,
+              sourceId,
+            },
           },
-        },
-        data: {
-          status: "NOT_FOUND",
-          lastError: `Resource not found (${httpStatus})`,
-          lastHttpStatus: httpStatus,
-        },
-      });
+          data: {
+            status: "NOT_FOUND",
+            lastError: `Resource not found (${httpStatus})`,
+            lastHttpStatus: httpStatus,
+          },
+        }),
+      ];
+
+      if (prisma.financialRecord?.updateMany) {
+        operations.push(
+          prisma.financialRecord.updateMany({
+            where: {
+              connectionId,
+              sourceId,
+            },
+            data: {
+              sourcePresent: false,
+              noLongerObservedAt: now,
+            },
+          }),
+        );
+      }
+
+      if (prisma.$transaction) {
+        await prisma.$transaction(operations);
+      } else {
+        await Promise.all(operations);
+      }
     },
 
     async resetFailedItems(connectionId) {

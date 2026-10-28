@@ -15,8 +15,10 @@ export interface IncrementalCandidateResult {
   sinceDate: string;
   lookbackDays?: number | undefined;
   recentCandidates: string[];
+  tailCandidates?: string[] | undefined;
   openCandidates: string[];
   undatedCandidates: string[];
+  additionalCandidates?: string[] | undefined;
   uniqueCandidates: string[];
   overlapDeduplicated: number;
 }
@@ -27,8 +29,10 @@ export interface IncrementalSyncReport {
   dryRun: boolean;
   candidates: {
     recentCount: number;
+    tailCount?: number | undefined;
     openCount: number;
     undatedCount: number;
+    additionalCount?: number | undefined;
     uniqueCount: number;
     overlapDeduplicated: number;
   };
@@ -55,6 +59,11 @@ export interface RunIncrementalSyncOptions {
   limit?: number | undefined;
   rateLimitDelayMs?: number | undefined;
   pageDelayMs?: number | undefined;
+  enableTailScan?: boolean | undefined;
+  tailLookbackPages?: number | undefined;
+  knownMaxSourceId?: number | undefined;
+  additionalCandidateIds?: string[] | undefined;
+  candidateSourceIds?: string[] | undefined;
   onCandidatesDiscovered?: ((candidates: IncrementalCandidateResult) => void) | undefined;
   onProgress?: ((progress: WorkerProgress) => void) | undefined;
   refreshToken?: (() => Promise<string | null>) | undefined;
@@ -192,6 +201,155 @@ export async function fetchUndatedConfirmedSourceIds(
   return records.map((r) => r.sourceId);
 }
 
+export async function getKnownMaxSourceId(
+  prisma: PrismaClient,
+  connectionId: string,
+): Promise<number> {
+  if (!prisma) return 0;
+  try {
+    if ((prisma as any).financialRecordSyncItem?.findMany) {
+      const items = await (prisma as any).financialRecordSyncItem.findMany({
+        where: { connectionId },
+        select: { sourceId: true },
+        orderBy: { createdAt: "desc" },
+        take: 500,
+      });
+      let max = 0;
+      if (Array.isArray(items)) {
+        for (const item of items) {
+          const num = Number.parseInt(String(item.sourceId).trim(), 10);
+          if (!Number.isNaN(num) && num > max) max = num;
+        }
+      }
+      return max;
+    }
+    return 0;
+  } catch {
+    return 0;
+  }
+}
+
+export async function fetchCatalogTailSourceIds(
+  getClient: () => TagPlusClient,
+  prisma: PrismaClient,
+  connectionId: string,
+  options?: {
+    pageDelayMs?: number | undefined;
+    refreshToken?: (() => Promise<string | null>) | undefined;
+    updateClientToken?: ((newToken: string) => void) | undefined;
+    tailLookbackPages?: number | undefined;
+    knownMaxSourceId?: number | undefined;
+    maxScanPages?: number | undefined;
+  },
+): Promise<string[]> {
+  const pageDelayMs = options?.pageDelayMs ?? 300;
+  const tailLookbackPages = options?.tailLookbackPages ?? 3;
+  const perPage = 100;
+
+  let knownMaxId = options?.knownMaxSourceId ?? 0;
+  if (knownMaxId <= 0 && prisma) {
+    knownMaxId = await getKnownMaxSourceId(prisma, connectionId);
+  }
+
+  let knownCount = 0;
+  if (prisma && (prisma as any).financialRecordSyncItem?.count) {
+    try {
+      knownCount = await (prisma as any).financialRecordSyncItem.count({
+        where: { connectionId },
+      });
+    } catch {
+      knownCount = 0;
+    }
+  }
+
+  if (knownCount === 0 && knownMaxId === 0) {
+    return [];
+  }
+
+  let startPage = 1;
+  if (knownCount > 0) {
+    startPage = Math.max(1, Math.floor(knownCount / perPage) - tailLookbackPages);
+  } else if (knownMaxId > 0) {
+    startPage = Math.max(1, Math.floor(knownMaxId / perPage) - tailLookbackPages);
+  }
+
+  const ids: string[] = [];
+  let page = startPage;
+  let steppedBack = false;
+  let scannedPagesCount = 0;
+  const maxScanPages = options?.maxScanPages ?? 200;
+
+  while (scannedPagesCount < maxScanPages) {
+    let client = getClient();
+    let res: TagPlusResponse<TagPlusFinancialListItem[]>;
+
+    try {
+      res = await client.get<TagPlusFinancialListItem[]>(
+        `/financeiros?page=${page}&per_page=${perPage}`,
+      );
+    } catch (err: unknown) {
+      if (err instanceof TagPlusHttpError && err.status === 401 && options?.refreshToken) {
+        const newToken = await options.refreshToken();
+        if (newToken && options.updateClientToken) {
+          options.updateClientToken(newToken);
+          client = getClient();
+          res = await client.get<TagPlusFinancialListItem[]>(
+            `/financeiros?page=${page}&per_page=${perPage}`,
+          );
+        } else {
+          throw err;
+        }
+      } else {
+        throw err;
+      }
+    }
+
+    const items = res.data;
+    if (!Array.isArray(items)) {
+      throw new Error(
+        `Invalid TagPlus response at page ${page}: expected array, got ${typeof items}`,
+      );
+    }
+
+    if (items.length === 0) {
+      if (page === startPage && startPage > 1) {
+        startPage = Math.max(1, startPage - 5);
+        page = startPage;
+        continue;
+      }
+      break;
+    }
+
+    if (knownMaxId > 0 && startPage > 1 && !steppedBack) {
+      const firstItem = items[0];
+      const firstId = firstItem && firstItem.id != null ? Number(firstItem.id) : null;
+      if (firstId != null && !Number.isNaN(firstId) && firstId > knownMaxId) {
+        startPage = Math.max(1, startPage - 5);
+        page = startPage;
+        continue;
+      }
+      steppedBack = true;
+    }
+
+    for (const item of items) {
+      if (item && item.id != null) {
+        const idStr = String(item.id).trim();
+        if (idStr) {
+          ids.push(idStr);
+        }
+      }
+    }
+
+    page++;
+    scannedPagesCount++;
+    if (pageDelayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, pageDelayMs));
+    }
+  }
+
+  return Array.from(new Set(ids));
+}
+
 export async function collectIncrementalCandidates(options: {
   prisma: PrismaClient;
   getClient: () => TagPlusClient;
@@ -200,6 +358,11 @@ export async function collectIncrementalCandidates(options: {
   since?: string | undefined;
   now?: Date | undefined;
   pageDelayMs?: number | undefined;
+  enableTailScan?: boolean | undefined;
+  tailLookbackPages?: number | undefined;
+  knownMaxSourceId?: number | undefined;
+  additionalCandidateIds?: string[] | undefined;
+  candidateSourceIds?: string[] | undefined;
   refreshToken?: (() => Promise<string | null>) | undefined;
   updateClientToken?: ((newToken: string) => void) | undefined;
 }): Promise<IncrementalCandidateResult> {
@@ -209,7 +372,7 @@ export async function collectIncrementalCandidates(options: {
     now: options.now,
   });
 
-  // Source A: RECENT
+  // Source A: RECENT (filtro por data_vencimento na API TagPlus)
   const recentCandidates = await fetchRecentSourceIds(
     options.getClient,
     sinceDate,
@@ -220,32 +383,66 @@ export async function collectIncrementalCandidates(options: {
     },
   );
 
-  // Source B: OPEN RECONCILIATION
+  // Source B: CATALOG TAIL (novos lançamentos criados no TagPlus com qualquer vencimento)
+  const enableTailScan = options.enableTailScan ?? true;
+  const tailCandidates = enableTailScan
+    ? await fetchCatalogTailSourceIds(
+        options.getClient,
+        options.prisma,
+        options.connectionId,
+        {
+          pageDelayMs: options.pageDelayMs,
+          refreshToken: options.refreshToken,
+          updateClientToken: options.updateClientToken,
+          tailLookbackPages: options.tailLookbackPages,
+          knownMaxSourceId: options.knownMaxSourceId,
+        },
+      )
+    : [];
+
+  // Source C: OPEN RECONCILIATION
   const openCandidates = await fetchOpenSourceIds(options.prisma, options.connectionId);
 
-  // Source C: UNDATED CONFIRMED
+  // Source D: UNDATED CONFIRMED
   const undatedCandidates = await fetchUndatedConfirmedSourceIds(
     options.prisma,
     options.connectionId,
   );
 
+  // Source E: ADDITIONAL CANDIDATES (backfill controlado / IDs explícitos)
+  const explicitIds = [
+    ...(options.additionalCandidateIds ?? []),
+    ...(options.candidateSourceIds ?? []),
+  ];
+  const additionalCandidates = Array.from(
+    new Set(explicitIds.map((id) => String(id).trim())),
+  ).filter(Boolean);
+
   // Deduplicated UNION
   const candidateSet = new Set<string>();
   for (const id of recentCandidates) candidateSet.add(id);
+  for (const id of tailCandidates) candidateSet.add(id);
   for (const id of openCandidates) candidateSet.add(id);
   for (const id of undatedCandidates) candidateSet.add(id);
+  for (const id of additionalCandidates) candidateSet.add(id);
 
   const uniqueCandidates = Array.from(candidateSet);
   const totalCandidateEntries =
-    recentCandidates.length + openCandidates.length + undatedCandidates.length;
+    recentCandidates.length +
+    tailCandidates.length +
+    openCandidates.length +
+    undatedCandidates.length +
+    additionalCandidates.length;
   const overlapDeduplicated = totalCandidateEntries - uniqueCandidates.length;
 
   return {
     sinceDate,
     lookbackDays,
     recentCandidates,
+    tailCandidates,
     openCandidates,
     undatedCandidates,
+    additionalCandidates,
     uniqueCandidates,
     overlapDeduplicated,
   };
@@ -257,7 +454,7 @@ export async function runIncrementalSync(
   const startTime = performance.now();
   const dryRun = options.dryRun ?? false;
 
-  // 1. Discover and deduplicate candidates
+  // 1. Discover and deduplicate candidates across all vectors
   const candidates = await collectIncrementalCandidates({
     prisma: options.prisma,
     getClient: options.getClient,
@@ -266,6 +463,11 @@ export async function runIncrementalSync(
     since: options.since,
     now: options.now,
     pageDelayMs: options.pageDelayMs,
+    enableTailScan: options.enableTailScan,
+    tailLookbackPages: options.tailLookbackPages,
+    knownMaxSourceId: options.knownMaxSourceId,
+    additionalCandidateIds: options.additionalCandidateIds,
+    candidateSourceIds: options.candidateSourceIds,
     refreshToken: options.refreshToken,
     updateClientToken: options.updateClientToken,
   });
@@ -280,8 +482,10 @@ export async function runIncrementalSync(
       dryRun: true,
       candidates: {
         recentCount: candidates.recentCandidates.length,
+        tailCount: candidates.tailCandidates?.length ?? 0,
         openCount: candidates.openCandidates.length,
         undatedCount: candidates.undatedCandidates.length,
+        additionalCount: candidates.additionalCandidates?.length ?? 0,
         uniqueCount: candidates.uniqueCandidates.length,
         overlapDeduplicated: candidates.overlapDeduplicated,
       },
@@ -316,8 +520,10 @@ export async function runIncrementalSync(
     dryRun: false,
     candidates: {
       recentCount: candidates.recentCandidates.length,
+      tailCount: candidates.tailCandidates?.length ?? 0,
       openCount: candidates.openCandidates.length,
       undatedCount: candidates.undatedCandidates.length,
+      additionalCount: candidates.additionalCandidates?.length ?? 0,
       uniqueCount: candidates.uniqueCandidates.length,
       overlapDeduplicated: candidates.overlapDeduplicated,
     },
