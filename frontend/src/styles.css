@@ -10530,22 +10530,44 @@ body {
   flex-shrink: 0;
 }
 
-/* Main Layout */
-.tp-dre-main-layout {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--tp-space-base, 16px);
-  align-items: start;
-}
-
-.tp-dre-table-column {
+/* Evolução Mensal Full-Width Section */
+.tp-dre-evolution-section {
+  width: 100%;
   min-width: 0;
+  margin-bottom: var(--tp-space-base, 16px);
 }
 
-.tp-dre-side-column {
+/* DRE Table Full-Width Section */
+.tp-dre-table-section {
+  width: 100%;
+  min-width: 0;
+  margin-bottom: var(--tp-space-base, 16px);
+}
+
+/* Composição das Despesas Full-Width Section */
+.tp-dre-breakdown-section {
+  width: 100%;
+  min-width: 0;
+  margin-bottom: var(--tp-space-base, 16px);
+}
+
+/* Fallback / legacy layouts */
+.tp-dre-details-layout {
   display: flex;
   flex-direction: column;
   gap: var(--tp-space-base, 16px);
+}
+
+.tp-dre-main-layout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tp-space-base, 16px);
+}
+
+.tp-dre-table-column,
+.tp-dre-breakdown-column,
+.tp-dre-side-column {
+  width: 100%;
   min-width: 0;
 }
 
@@ -10585,8 +10607,13 @@ body {
   border-bottom: 1px solid var(--tp-border-subtle);
 }
 
-.tp-col-amount,
+.tp-col-amount {
+  width: 200px;
+  text-align: right;
+}
+
 .tp-col-percent {
+  width: 140px;
   text-align: right;
 }
 
@@ -10985,8 +11012,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 18px;
-  gap: 12px;
+  padding: 9px 18px;
+  gap: 16px;
   transition: background 0.12s ease;
 }
 
@@ -11001,7 +11028,7 @@ body {
 .tp-breakdown-left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
 }
 
@@ -11021,14 +11048,15 @@ body {
 .tp-breakdown-title-wrap {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 10px;
+  flex-wrap: nowrap;
 }
 
 .tp-breakdown-label {
   font-size: 0.8125rem;
   font-weight: 600;
   color: var(--tp-text-primary);
+  white-space: nowrap;
 }
 
 .tp-group-badge {
@@ -11036,6 +11064,7 @@ body {
   font-weight: 500;
   padding: 1px 6px;
   border-radius: 3px;
+  white-space: nowrap;
 }
 
 .tp-group-badge.is-variable {
@@ -11056,17 +11085,18 @@ body {
 .tp-breakdown-count {
   font-size: 0.675rem;
   color: var(--tp-text-muted);
+  white-space: nowrap;
 }
 
 .tp-breakdown-right {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   flex-shrink: 0;
 }
 
 .tp-breakdown-bar-wrap {
-  width: 90px;
+  width: clamp(120px, 18vw, 240px);
   height: 6px;
   background: rgba(255, 255, 255, 0.04);
   border-radius: 3px;
@@ -11084,7 +11114,7 @@ body {
   font-weight: 600;
   color: var(--tp-text-primary);
   font-family: var(--tp-font-mono, monospace);
-  min-width: 85px;
+  min-width: 100px;
   text-align: right;
 }
 
@@ -11092,7 +11122,7 @@ body {
   font-size: 0.725rem;
   color: var(--tp-text-secondary);
   font-family: var(--tp-font-mono, monospace);
-  min-width: 48px;
+  min-width: 56px;
   text-align: right;
 }
 
@@ -11156,6 +11186,12 @@ body {
 /* Responsive Rules */
 @media (max-width: 1200px) {
   .tp-dre-main-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1100px) {
+  .tp-dre-details-layout {
     grid-template-columns: 1fr;
   }
 }

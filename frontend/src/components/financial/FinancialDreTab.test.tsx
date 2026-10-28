@@ -330,7 +330,7 @@ describe("Phase 5D: Financial DRE Frontend Components & Tab Tests", () => {
 
     // Title and elements
     expect(html).toContain("Evolução Mensal do Resultado");
-    expect(html).toContain("Meses provisórios no período");
+    expect(html).toContain("Há meses provisórios na série");
   });
 
   // 4. Breakdown card rendering test

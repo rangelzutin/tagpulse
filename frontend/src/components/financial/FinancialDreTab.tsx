@@ -498,66 +498,68 @@ export function FinancialDreTab({ currentPeriod, isLoadingGlobal }: FinancialDre
         </div>
       </section>
 
-      {/* Main Grid: DRE Table & Monthly Evolution */}
-      <div className="tp-dre-main-layout">
-        <div className="tp-dre-table-column">
-          <FinancialDreTable totals={totals} realizedRevenue={totals.realizedRevenue} />
-        </div>
-
-        <div className="tp-dre-side-column">
-          {monthlyError ? (
-            <div className="tp-state-card tp-state-error" role="alert">
-              <div className="tp-state-icon">
-                <AlertCircle size={18} />
-              </div>
-              <div className="tp-state-content">
-                <h4 className="tp-state-title">Falha ao carregar evolução mensal</h4>
-                <p className="tp-state-message">{monthlyError}</p>
-                <button
-                  type="button"
-                  className="tp-btn-retry"
-                  onClick={() => void loadMonthly(selectedYear)}
-                >
-                  <RefreshCw size={12} />
-                  <span>Tentar novamente</span>
-                </button>
-              </div>
+      {/* 1. Full-Width Monthly Evolution Section */}
+      <section className="tp-dre-evolution-section" aria-label="Evolução Mensal do Resultado">
+        {monthlyError ? (
+          <div className="tp-state-card tp-state-error" role="alert">
+            <div className="tp-state-icon">
+              <AlertCircle size={18} />
             </div>
-          ) : (
-            <FinancialDreMonthlyChart
-              monthlyData={monthlyData}
-              year={selectedYear}
-              onYearChange={setSelectedYear}
-              isLoading={isLoadingMonthly}
-            />
-          )}
-
-          {breakdownError ? (
-            <div className="tp-state-card tp-state-error" role="alert">
-              <div className="tp-state-icon">
-                <AlertCircle size={18} />
-              </div>
-              <div className="tp-state-content">
-                <h4 className="tp-state-title">Falha ao carregar composição de despesas</h4>
-                <p className="tp-state-message">{breakdownError}</p>
-                <button
-                  type="button"
-                  className="tp-btn-retry"
-                  onClick={() => void loadBreakdown(currentPeriod.from, currentPeriod.to)}
-                >
-                  <RefreshCw size={12} />
-                  <span>Tentar novamente</span>
-                </button>
-              </div>
+            <div className="tp-state-content">
+              <h4 className="tp-state-title">Falha ao carregar evolução mensal</h4>
+              <p className="tp-state-message">{monthlyError}</p>
+              <button
+                type="button"
+                className="tp-btn-retry"
+                onClick={() => void loadMonthly(selectedYear)}
+              >
+                <RefreshCw size={12} />
+                <span>Tentar novamente</span>
+              </button>
             </div>
-          ) : (
-            <FinancialDreBreakdownCard
-              breakdown={breakdownData}
-              isLoading={isLoadingBreakdown}
-            />
-          )}
-        </div>
-      </div>
+          </div>
+        ) : (
+          <FinancialDreMonthlyChart
+            monthlyData={monthlyData}
+            year={selectedYear}
+            onYearChange={setSelectedYear}
+            isLoading={isLoadingMonthly}
+          />
+        )}
+      </section>
+
+      {/* 2. Full-Width DRE Table Section */}
+      <section className="tp-dre-table-section" aria-label="Demonstrativo do Resultado do Exercício">
+        <FinancialDreTable totals={totals} realizedRevenue={totals.realizedRevenue} />
+      </section>
+
+      {/* 3. Full-Width Expense Breakdown Section */}
+      <section className="tp-dre-breakdown-section" aria-label="Composição das Despesas">
+        {breakdownError ? (
+          <div className="tp-state-card tp-state-error" role="alert">
+            <div className="tp-state-icon">
+              <AlertCircle size={18} />
+            </div>
+            <div className="tp-state-content">
+              <h4 className="tp-state-title">Falha ao carregar composição de despesas</h4>
+              <p className="tp-state-message">{breakdownError}</p>
+              <button
+                type="button"
+                className="tp-btn-retry"
+                onClick={() => void loadBreakdown(currentPeriod.from, currentPeriod.to)}
+              >
+                <RefreshCw size={12} />
+                <span>Tentar novamente</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <FinancialDreBreakdownCard
+            breakdown={breakdownData}
+            isLoading={isLoadingBreakdown}
+          />
+        )}
+      </section>
 
       {/* Discreet Legal & Managerial Disclaimer */}
       <footer className="tp-dre-footer-disclaimer">

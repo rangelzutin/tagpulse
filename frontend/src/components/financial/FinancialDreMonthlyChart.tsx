@@ -161,8 +161,8 @@ export function FinancialDreMonthlyChart({
 
         <div className="tp-dre-monthly-controls">
           {hasProvisionalMonths && (
-            <span className="tp-badge-provisional-legend" title="Setembro e Outubro contêm apropriações a conciliar">
-              <Clock size={12} /> Meses provisórios no período
+            <span className="tp-badge-provisional-legend" title="A série histórica anual contém meses com apropriações a conciliar">
+              <Clock size={12} /> Há meses provisórios na série
             </span>
           )}
 
@@ -188,7 +188,7 @@ export function FinancialDreMonthlyChart({
       </div>
 
       {chartViewMode === "chart" ? (
-        <div className="tp-dre-chart-wrap" style={{ width: "100%", height: 320 }}>
+        <div className="tp-dre-chart-wrap" style={{ width: "100%", height: 380 }}>
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart
               data={chartData}
@@ -226,7 +226,7 @@ export function FinancialDreMonthlyChart({
                 dataKey="realizedRevenue"
                 fill="#0ea5e9"
                 radius={[4, 4, 0, 0]}
-                maxBarSize={36}
+                maxBarSize={44}
               />
 
               {/* Margem de Contribuição */}
