@@ -5,6 +5,7 @@ import { FinancialDreTab, formatPendingAccrualLabel } from "./FinancialDreTab";
 import { FinancialDreTable } from "./FinancialDreTable";
 import { FinancialDreMonthlyChart } from "./FinancialDreMonthlyChart";
 import { FinancialDreBreakdownCard } from "./FinancialDreBreakdownCard";
+import { getRequiredYearsForPeriod } from "./dreEvolutionHelper";
 import type {
   DreSummaryDto,
   DreMonthlyItemDto,
@@ -395,7 +396,7 @@ describe("Phase 5D: Financial DRE Frontend Components & Tab Tests", () => {
   });
 
   // 7. Period Synchronization test
-  it("renders with synchronized period passed from parent", () => {
+  it("renders with synchronized period passed from parent and propagates period to evolution chart", () => {
     const html = renderToString(
       <FinancialDreTab
         currentPeriod={{ from: "2026-09-01", to: "2026-09-30" }}
@@ -404,5 +405,23 @@ describe("Phase 5D: Financial DRE Frontend Components & Tab Tests", () => {
     );
     expect(html).toContain("01/09/2026");
     expect(html).toContain("30/09/2026");
+    expect(html).toContain("Contexto de 6 meses — período selecionado: Set/26");
+  });
+
+  // 8. Required years determination for single-year, cross-year 6-month context, and multi-year ranges
+  it("computes required years including cross-year 6-month context and multi-year ranges", () => {
+    const ref = new Date("2026-10-29T12:00:00Z");
+    // Single month in Sep 2026 -> context Apr..Sep 2026 -> only 2026
+    expect(
+      getRequiredYearsForPeriod({ from: "2026-09-01", to: "2026-09-30" }, ref),
+    ).toEqual(["2026"]);
+    // Single month in Jan 2026 -> context Aug 2025..Jan 2026 -> 2025 and 2026
+    expect(
+      getRequiredYearsForPeriod({ from: "2026-01-01", to: "2026-01-31" }, ref),
+    ).toEqual(["2025", "2026"]);
+    // Multi-year 30 months (May 2024..Oct 2026) -> 2024, 2025, 2026
+    expect(
+      getRequiredYearsForPeriod({ from: "2024-05-01", to: "2026-10-29" }, ref),
+    ).toEqual(["2024", "2025", "2026"]);
   });
 });
