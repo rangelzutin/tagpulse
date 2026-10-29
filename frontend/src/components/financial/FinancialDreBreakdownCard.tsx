@@ -89,7 +89,7 @@ export function FinancialDreBreakdownCard({
                     <span className="tp-breakdown-bullet" />
                   )}
                   <div className="tp-breakdown-title-wrap">
-                    <span className="tp-breakdown-label">{cat.label}</span>
+                    <span className="tp-breakdown-label" title={cat.label}>{cat.label}</span>
                     {getGroupBadge(cat.group)}
                     <span className="tp-breakdown-count">
                       {`${cat.recordCount} ${cat.recordCount === 1 ? "registro" : "registros"}`}

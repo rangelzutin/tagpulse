@@ -785,6 +785,20 @@ describe("Phase 5K: Financial Module Frontend Tests (A through M)", () => {
       expect(htmlView).toContain("Financeiro");
       expect(htmlView).toContain("tp-period-trigger");
     });
+
+    it("Post-5K Polish: accepts external global period and mode from AppShell", () => {
+      const onApplyMock = vi.fn();
+      const html = renderToString(
+        <FinancialView
+          minDate="2015-05-05"
+          currentPeriod={{ from: "2026-09-01", to: "2026-09-30" }}
+          periodMode="range"
+          onApplyFilter={onApplyMock}
+        />
+      );
+      expect(html).toContain("01/09/2026");
+      expect(html).toContain("30/09/2026");
+    });
   });
 });
 

@@ -393,4 +393,16 @@ describe("Phase 5D: Financial DRE Frontend Components & Tab Tests", () => {
       "DRE Gerencial do TagPulse: utiliza o custo atual dos produtos como estimativa de CMV"
     );
   });
+
+  // 7. Period Synchronization test
+  it("renders with synchronized period passed from parent", () => {
+    const html = renderToString(
+      <FinancialDreTab
+        currentPeriod={{ from: "2026-09-01", to: "2026-09-30" }}
+        initialSummary={canonicalSummary}
+      />
+    );
+    expect(html).toContain("01/09/2026");
+    expect(html).toContain("30/09/2026");
+  });
 });

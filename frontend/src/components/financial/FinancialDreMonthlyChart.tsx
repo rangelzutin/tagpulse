@@ -188,21 +188,22 @@ export function FinancialDreMonthlyChart({
       </div>
 
       {chartViewMode === "chart" ? (
-        <div className="tp-dre-chart-wrap" style={{ width: "100%", height: 380 }}>
+        <div className="tp-dre-chart-wrap" style={{ width: "100%", height: 330 }}>
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart
               data={chartData}
-              margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
+              margin={{ top: 10, right: 16, bottom: 6, left: 10 }}
             >
               <CartesianGrid strokeDasharray="3 3" stroke="#1f2c48" vertical={false} />
               <XAxis
                 dataKey="formattedMonth"
                 stroke="#64748b"
-                tick={{ fill: "#94a3b8", fontSize: 12 }}
+                tick={{ fill: "#94a3b8", fontSize: 11 }}
                 axisLine={{ stroke: "#1f2c48" }}
               />
               <YAxis
                 stroke="#64748b"
+                width={62}
                 tick={{ fill: "#94a3b8", fontSize: 11 }}
                 axisLine={{ stroke: "#1f2c48" }}
                 tickFormatter={(val) => {
@@ -216,7 +217,7 @@ export function FinancialDreMonthlyChart({
               <Legend
                 verticalAlign="top"
                 align="right"
-                wrapperStyle={{ paddingBottom: 12, fontSize: 12 }}
+                wrapperStyle={{ paddingBottom: 6, fontSize: 11 }}
               />
               <ReferenceLine y={0} stroke="#475569" strokeDasharray="2 2" />
 

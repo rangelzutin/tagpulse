@@ -625,6 +625,8 @@ export function App() {
       ]).finally(() => {
         setIsUpdating(false);
       });
+    } else if (activeNav === "financial") {
+      setIsUpdating(false);
     }
   };
 
@@ -767,6 +769,9 @@ export function App() {
           <FinancialView
             onSyncSuccessGlobal={handleSyncSuccess}
             minDate={dataRange?.firstRealizedDate}
+            currentPeriod={currentPeriod}
+            periodMode={periodMode}
+            onApplyFilter={handleApplyFilter}
           />
         ) : (
           <>

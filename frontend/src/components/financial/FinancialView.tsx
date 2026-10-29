@@ -30,9 +30,18 @@ export type FinancialSubTab = "overview" | "receivables" | "payables" | "cash-fl
 interface FinancialViewProps {
   onSyncSuccessGlobal?: () => void;
   minDate?: string | null;
+  currentPeriod?: { from: string; to: string };
+  periodMode?: PeriodMode;
+  onApplyFilter?: (from: string, to: string, mode: PeriodMode) => void;
 }
 
-export function FinancialView({ onSyncSuccessGlobal, minDate }: FinancialViewProps) {
+export function FinancialView({
+  onSyncSuccessGlobal,
+  minDate,
+  currentPeriod: currentPeriodProp,
+  periodMode: periodModeProp,
+  onApplyFilter: onApplyFilterProp,
+}: FinancialViewProps) {
   const [activeTab, setActiveTab] = useState<FinancialSubTab>("overview");
 
   // Overview data states
@@ -45,8 +54,13 @@ export function FinancialView({ onSyncSuccessGlobal, minDate }: FinancialViewPro
   const [undatedConfirmed, setUndatedConfirmed] =
     useState<UndatedConfirmedCashResponse | null>(null);
 
-  const [currentPeriod, setCurrentPeriod] = useState(() => getDefaultPeriod());
-  const [periodMode, setPeriodMode] = useState<PeriodMode>("range");
+  // If controlled externally by global calendar, use props; otherwise fallback to local state
+  const [localPeriod, setLocalPeriod] = useState(() => getDefaultPeriod());
+  const [localPeriodMode, setLocalPeriodMode] = useState<PeriodMode>("range");
+
+  const currentPeriod = currentPeriodProp ?? localPeriod;
+  const periodMode = periodModeProp ?? localPeriodMode;
+
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [overviewError, setOverviewError] = useState<string | null>(null);
@@ -136,14 +150,18 @@ export function FinancialView({ onSyncSuccessGlobal, minDate }: FinancialViewPro
   }, [currentPeriod.from, currentPeriod.to, periodMode]);
 
   useEffect(() => {
-    void loadFinancialOverviewData();
-  }, [loadFinancialOverviewData]);
+    void loadFinancialOverviewData(false, currentPeriod.from, currentPeriod.to, periodMode);
+  }, [currentPeriod.from, currentPeriod.to, periodMode, loadFinancialOverviewData]);
 
   const handleApplyFilter = useCallback((from: string, to: string, mode: PeriodMode) => {
-    setCurrentPeriod({ from, to });
-    setPeriodMode(mode);
+    if (onApplyFilterProp) {
+      onApplyFilterProp(from, to, mode);
+    } else {
+      setLocalPeriod({ from, to });
+      setLocalPeriodMode(mode);
+    }
     void loadFinancialOverviewData(true, from, to, mode);
-  }, [loadFinancialOverviewData]);
+  }, [onApplyFilterProp, loadFinancialOverviewData]);
 
   return (
     <div className="tp-financial-module" aria-label="Módulo Financeiro">

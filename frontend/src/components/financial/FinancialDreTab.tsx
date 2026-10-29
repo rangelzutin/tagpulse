@@ -36,6 +36,7 @@ interface FinancialDreTabProps {
     from: string;
     to: string;
   };
+  initialSummary?: DreSummaryDto | null;
   isLoadingGlobal?: boolean;
 }
 
@@ -52,14 +53,18 @@ export function formatPendingAccrualLabel(code: string): string {
   }
 }
 
-export function FinancialDreTab({ currentPeriod, isLoadingGlobal }: FinancialDreTabProps) {
+export function FinancialDreTab({
+  currentPeriod,
+  initialSummary,
+  isLoadingGlobal,
+}: FinancialDreTabProps) {
   // Data states
-  const [summaryData, setSummaryData] = useState<DreSummaryDto | null>(null);
+  const [summaryData, setSummaryData] = useState<DreSummaryDto | null>(initialSummary ?? null);
   const [monthlyData, setMonthlyData] = useState<DreMonthlyItemDto[]>([]);
   const [breakdownData, setBreakdownData] = useState<DreBreakdownDto | null>(null);
 
   // Loading and Error states
-  const [isLoadingSummary, setIsLoadingSummary] = useState(true);
+  const [isLoadingSummary, setIsLoadingSummary] = useState(!initialSummary);
   const [isLoadingMonthly, setIsLoadingMonthly] = useState(true);
   const [isLoadingBreakdown, setIsLoadingBreakdown] = useState(true);
 
@@ -67,9 +72,7 @@ export function FinancialDreTab({ currentPeriod, isLoadingGlobal }: FinancialDre
   const [monthlyError, setMonthlyError] = useState<string | null>(null);
   const [breakdownError, setBreakdownError] = useState<string | null>(null);
 
-  const [selectedYear, setSelectedYear] = useState<string>(() => {
-    return currentPeriod.to ? currentPeriod.to.slice(0, 4) : String(new Date().getFullYear());
-  });
+  const activeYear = currentPeriod.to ? currentPeriod.to.slice(0, 4) : String(new Date().getFullYear());
 
   const isMountedRef = useRef(true);
 
@@ -79,13 +82,6 @@ export function FinancialDreTab({ currentPeriod, isLoadingGlobal }: FinancialDre
       isMountedRef.current = false;
     };
   }, []);
-
-  // Update selected year when currentPeriod changes
-  useEffect(() => {
-    if (currentPeriod.to) {
-      setSelectedYear(currentPeriod.to.slice(0, 4));
-    }
-  }, [currentPeriod.to]);
 
   // Load Summary
   const loadSummary = useCallback(async (from: string, to: string) => {
@@ -154,8 +150,8 @@ export function FinancialDreTab({ currentPeriod, isLoadingGlobal }: FinancialDre
   useEffect(() => {
     void loadSummary(currentPeriod.from, currentPeriod.to);
     void loadBreakdown(currentPeriod.from, currentPeriod.to);
-    void loadMonthly(selectedYear);
-  }, [currentPeriod.from, currentPeriod.to, selectedYear, loadSummary, loadBreakdown, loadMonthly]);
+    void loadMonthly(activeYear);
+  }, [currentPeriod.from, currentPeriod.to, activeYear, loadSummary, loadBreakdown, loadMonthly]);
 
   // Main error state if summary failed completely
   if (summaryError && !summaryData) {
@@ -173,7 +169,7 @@ export function FinancialDreTab({ currentPeriod, isLoadingGlobal }: FinancialDre
             onClick={() => {
               void loadSummary(currentPeriod.from, currentPeriod.to);
               void loadBreakdown(currentPeriod.from, currentPeriod.to);
-              void loadMonthly(selectedYear);
+              void loadMonthly(activeYear);
             }}
           >
             <RefreshCw size={13} />
@@ -511,7 +507,7 @@ export function FinancialDreTab({ currentPeriod, isLoadingGlobal }: FinancialDre
               <button
                 type="button"
                 className="tp-btn-retry"
-                onClick={() => void loadMonthly(selectedYear)}
+                onClick={() => void loadMonthly(activeYear)}
               >
                 <RefreshCw size={12} />
                 <span>Tentar novamente</span>
@@ -521,8 +517,7 @@ export function FinancialDreTab({ currentPeriod, isLoadingGlobal }: FinancialDre
         ) : (
           <FinancialDreMonthlyChart
             monthlyData={monthlyData}
-            year={selectedYear}
-            onYearChange={setSelectedYear}
+            year={activeYear}
             isLoading={isLoadingMonthly}
           />
         )}
