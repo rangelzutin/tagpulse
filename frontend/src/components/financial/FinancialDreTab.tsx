@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   DollarSign,
   TrendingDown,
@@ -11,7 +11,6 @@ import {
   RefreshCw,
   Scale,
   Calendar,
-  Layers,
 } from "lucide-react";
 import {
   fetchFinancialDreSummary,
@@ -30,6 +29,7 @@ import {
 import { FinancialDreTable } from "./FinancialDreTable";
 import { FinancialDreMonthlyChart } from "./FinancialDreMonthlyChart";
 import { FinancialDreBreakdownCard } from "./FinancialDreBreakdownCard";
+import { getRequiredYearsForPeriod } from "./dreEvolutionHelper";
 
 interface FinancialDreTabProps {
   currentPeriod: {
@@ -56,7 +56,6 @@ export function formatPendingAccrualLabel(code: string): string {
 export function FinancialDreTab({
   currentPeriod,
   initialSummary,
-  isLoadingGlobal,
 }: FinancialDreTabProps) {
   // Data states
   const [summaryData, setSummaryData] = useState<DreSummaryDto | null>(initialSummary ?? null);
@@ -72,7 +71,11 @@ export function FinancialDreTab({
   const [monthlyError, setMonthlyError] = useState<string | null>(null);
   const [breakdownError, setBreakdownError] = useState<string | null>(null);
 
-  const activeYear = currentPeriod.to ? currentPeriod.to.slice(0, 4) : String(new Date().getFullYear());
+  const requiredYears = useMemo(
+    () => getRequiredYearsForPeriod(currentPeriod),
+    [currentPeriod.from, currentPeriod.to],
+  );
+  const requiredYearsKey = requiredYears.join(",");
 
   const isMountedRef = useRef(true);
 
@@ -104,14 +107,29 @@ export function FinancialDreTab({
     }
   }, []);
 
-  // Load Monthly
-  const loadMonthly = useCallback(async (yearStr: string) => {
+  // Load Monthly (supports single or multi-year parallel fetch)
+  const loadMonthly = useCallback(async (yearsCsv: string) => {
+    const years = yearsCsv
+      .split(",")
+      .map((y) => y.trim())
+      .filter(Boolean);
     setIsLoadingMonthly(true);
     setMonthlyError(null);
     try {
-      const data = await fetchFinancialDreMonthly({ year: yearStr });
+      const responses = await Promise.all(
+        years.map((year) => fetchFinancialDreMonthly({ year })),
+      );
       if (isMountedRef.current) {
-        setMonthlyData(data);
+        const mergedMap = new Map<string, DreMonthlyItemDto>();
+        for (const list of responses) {
+          for (const item of list) {
+            mergedMap.set(item.month, item);
+          }
+        }
+        const combined = Array.from(mergedMap.values()).sort((a, b) =>
+          a.month.localeCompare(b.month),
+        );
+        setMonthlyData(combined);
       }
     } catch (err: unknown) {
       if (isMountedRef.current) {
@@ -150,8 +168,8 @@ export function FinancialDreTab({
   useEffect(() => {
     void loadSummary(currentPeriod.from, currentPeriod.to);
     void loadBreakdown(currentPeriod.from, currentPeriod.to);
-    void loadMonthly(activeYear);
-  }, [currentPeriod.from, currentPeriod.to, activeYear, loadSummary, loadBreakdown, loadMonthly]);
+    void loadMonthly(requiredYearsKey);
+  }, [currentPeriod.from, currentPeriod.to, requiredYearsKey, loadSummary, loadBreakdown, loadMonthly]);
 
   // Main error state if summary failed completely
   if (summaryError && !summaryData) {
@@ -169,7 +187,7 @@ export function FinancialDreTab({
             onClick={() => {
               void loadSummary(currentPeriod.from, currentPeriod.to);
               void loadBreakdown(currentPeriod.from, currentPeriod.to);
-              void loadMonthly(activeYear);
+              void loadMonthly(requiredYearsKey);
             }}
           >
             <RefreshCw size={13} />
@@ -507,7 +525,7 @@ export function FinancialDreTab({
               <button
                 type="button"
                 className="tp-btn-retry"
-                onClick={() => void loadMonthly(activeYear)}
+                onClick={() => void loadMonthly(requiredYearsKey)}
               >
                 <RefreshCw size={12} />
                 <span>Tentar novamente</span>
@@ -517,7 +535,7 @@ export function FinancialDreTab({
         ) : (
           <FinancialDreMonthlyChart
             monthlyData={monthlyData}
-            year={activeYear}
+            period={currentPeriod}
             isLoading={isLoadingMonthly}
           />
         )}

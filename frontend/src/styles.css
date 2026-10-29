@@ -10488,6 +10488,10 @@ body {
 }
 
 /* Secondary Indicators Strip */
+.tp-dre-module-content .tp-kpi-section {
+  margin-bottom: 0;
+}
+
 .tp-dre-secondary-strip {
   display: flex;
   align-items: center;
@@ -10498,7 +10502,6 @@ body {
   border-radius: var(--tp-radius-md, 7px);
   gap: 12px;
   overflow-x: auto;
-  margin-top: -4px;
 }
 
 .tp-secondary-metric-item {
@@ -10922,6 +10925,44 @@ body {
   padding: 2px 7px;
   border-radius: 4px;
   border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.tp-badge-context-window {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--tp-cyan-300, #38bdf8);
+  background: rgba(56, 189, 248, 0.1);
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(56, 189, 248, 0.22);
+}
+
+.tp-tooltip-title-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tp-badge-range-role {
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 9999px;
+}
+
+.tp-badge-range-role.is-selected {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.tp-badge-range-role.is-context {
+  color: #94a3b8;
+  background: rgba(148, 163, 184, 0.12);
+  border: 1px solid rgba(148, 163, 184, 0.25);
 }
 
 .tp-chart-toggle-group {

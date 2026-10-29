@@ -3,6 +3,7 @@ import {
   ResponsiveContainer,
   ComposedChart,
   Bar,
+  Cell,
   Line,
   XAxis,
   YAxis,
@@ -10,6 +11,7 @@ import {
   CartesianGrid,
   Legend,
   ReferenceLine,
+  ReferenceArea,
 } from "recharts";
 import type { DreMonthlyItemDto } from "../../api/financial";
 import {
@@ -17,24 +19,35 @@ import {
   formatPercent,
   formatMonthLabel,
 } from "../../utils/formatters";
-import { AlertCircle, Clock, CheckCircle2 } from "lucide-react";
+import { Clock, CheckCircle2, CalendarRange } from "lucide-react";
+import {
+  buildAdaptiveDreEvolution,
+  type DreChartBucket,
+  type DreEvolutionPeriod,
+} from "./dreEvolutionHelper";
 
 interface FinancialDreMonthlyChartProps {
   monthlyData: DreMonthlyItemDto[];
-  year: string;
+  period?: DreEvolutionPeriod;
+  year?: string;
   onYearChange?: (year: string) => void;
   isLoading?: boolean;
+  initialViewMode?: "chart" | "table";
 }
 
 interface CustomTooltipProps {
   active?: boolean;
-  payload?: any[];
-  label?: string;
+  payload?: Array<{ payload?: DreChartBucket }>;
+  hasContextWindow?: boolean;
 }
 
-function DreMonthlyTooltip({ active, payload }: CustomTooltipProps) {
+function DreMonthlyTooltip({
+  active,
+  payload,
+  hasContextWindow,
+}: CustomTooltipProps) {
   if (!active || !payload || payload.length === 0) return null;
-  const item = payload[0]?.payload as DreMonthlyItemDto | undefined;
+  const item = payload[0]?.payload;
   if (!item) return null;
 
   const isProfit = item.netManagerialResult > 0;
@@ -43,7 +56,18 @@ function DreMonthlyTooltip({ active, payload }: CustomTooltipProps) {
   return (
     <div className="tp-chart-tooltip tp-dre-tooltip">
       <div className="tp-tooltip-header">
-        <span className="tp-tooltip-title">{formatMonthLabel(item.month)}</span>
+        <div className="tp-tooltip-title-group">
+          <span className="tp-tooltip-title">{item.label}</span>
+          {hasContextWindow && (
+            <span
+              className={`tp-badge-range-role ${
+                item.isSelected ? "is-selected" : "is-context"
+              }`}
+            >
+              {item.isSelected ? "Selecionado" : "Contexto"}
+            </span>
+          )}
+        </div>
         <div className="tp-tooltip-badges">
           {item.dataQuality.isProvisional ? (
             <span className="tp-badge-provisional" title="Competências provisórias">
@@ -94,7 +118,7 @@ function DreMonthlyTooltip({ active, payload }: CustomTooltipProps) {
         <div className="tp-tooltip-row">
           <span className="tp-tooltip-label">Despesas operacionais:</span>
           <span className="tp-tooltip-value">
-            {formatCurrency(item.operatingExpenses.total)}
+            {formatCurrency(item.operatingExpensesTotal)}
           </span>
         </div>
         <div className="tp-tooltip-row tp-tooltip-divider">
@@ -115,11 +139,12 @@ function DreMonthlyTooltip({ active, payload }: CustomTooltipProps) {
             )
           </span>
         </div>
-        {item.dataQuality.pendingAccruals && item.dataQuality.pendingAccruals.length > 0 && (
-          <div className="tp-tooltip-pending-hint">
-            Pendências: {item.dataQuality.pendingAccruals.join(", ")}
-          </div>
-        )}
+        {item.dataQuality.pendingAccruals &&
+          item.dataQuality.pendingAccruals.length > 0 && (
+            <div className="tp-tooltip-pending-hint">
+              Pendências: {item.dataQuality.pendingAccruals.join(", ")}
+            </div>
+          )}
       </div>
     </div>
   );
@@ -127,27 +152,72 @@ function DreMonthlyTooltip({ active, payload }: CustomTooltipProps) {
 
 export function FinancialDreMonthlyChart({
   monthlyData,
-  year,
-  onYearChange,
-  isLoading,
+  period,
+  initialViewMode = "chart",
 }: FinancialDreMonthlyChartProps) {
-  const [chartViewMode, setChartViewMode] = useState<"chart" | "table">("chart");
+  const [chartViewMode, setChartViewMode] = useState<"chart" | "table">(
+    initialViewMode,
+  );
 
-  const chartData = useMemo(() => {
-    return monthlyData.map((m) => {
-      return {
-        ...m,
-        formattedMonth: formatMonthLabel(m.month),
-        // For visual chart differentiation
-        revenueProvisional: m.dataQuality.isProvisional ? m.realizedRevenue : 0,
-        revenueClosed: !m.dataQuality.isProvisional ? m.realizedRevenue : 0,
-      };
-    });
-  }, [monthlyData]);
+  const evolution = useMemo(
+    () => buildAdaptiveDreEvolution(monthlyData, period),
+    [monthlyData, period],
+  );
 
-  const hasProvisionalMonths = useMemo(() => {
-    return monthlyData.some((m) => m.dataQuality.isProvisional);
-  }, [monthlyData]);
+  const {
+    granularity,
+    hasContextWindow,
+    contextNotice,
+    chartBuckets,
+    tableRows,
+    hasProvisionalInVisibleChart,
+  } = evolution;
+
+  const selectedBucketLabels = useMemo(
+    () => chartBuckets.filter((b) => b.isSelected).map((b) => b.label),
+    [chartBuckets],
+  );
+
+  const firstSelectedLabel = selectedBucketLabels[0];
+  const lastSelectedLabel =
+    selectedBucketLabels[selectedBucketLabels.length - 1];
+
+  const selectedLabelSet = useMemo(
+    () => new Set(selectedBucketLabels),
+    [selectedBucketLabels],
+  );
+
+  const renderXAxisTick = (props: {
+    x?: string | number;
+    y?: string | number;
+    payload?: { value?: string | number };
+  }) => {
+    const { x = 0, y = 0, payload } = props;
+    const label = String(payload?.value ?? "");
+    const isSelectedTick = !hasContextWindow || selectedLabelSet.has(label);
+
+    return (
+      <g transform={`translate(${x},${y})`}>
+        <text
+          x={0}
+          y={0}
+          dy={12}
+          textAnchor="middle"
+          fill={
+            hasContextWindow
+              ? isSelectedTick
+                ? "#38bdf8"
+                : "#64748b"
+              : "#94a3b8"
+          }
+          fontSize={11}
+          fontWeight={hasContextWindow && isSelectedTick ? 700 : 400}
+        >
+          {label}
+        </text>
+      </g>
+    );
+  };
 
   return (
     <div className="tp-dre-monthly-card tp-card">
@@ -160,8 +230,21 @@ export function FinancialDreMonthlyChart({
         </div>
 
         <div className="tp-dre-monthly-controls">
-          {hasProvisionalMonths && (
-            <span className="tp-badge-provisional-legend" title="A série histórica anual contém meses com apropriações a conciliar">
+          {chartViewMode === "chart" && contextNotice && (
+            <span
+              className="tp-badge-context-window"
+              data-testid="dre-context-notice"
+            >
+              <CalendarRange size={12} />
+              <span>{contextNotice}</span>
+            </span>
+          )}
+
+          {hasProvisionalInVisibleChart && (
+            <span
+              className="tp-badge-provisional-legend"
+              title="A série visível contém competências com apropriações a conciliar"
+            >
               <Clock size={12} /> Há meses provisórios na série
             </span>
           )}
@@ -188,18 +271,30 @@ export function FinancialDreMonthlyChart({
       </div>
 
       {chartViewMode === "chart" ? (
-        <div className="tp-dre-chart-wrap" style={{ width: "100%", height: 330 }}>
+        <div
+          className="tp-dre-chart-wrap"
+          style={{ width: "100%", height: 330 }}
+          data-granularity={granularity}
+          data-chart-buckets={chartBuckets.map((b) => b.label).join(",")}
+          data-selected-buckets={selectedBucketLabels.join(",")}
+          data-context-buckets={chartBuckets
+            .filter((b) => b.isContext)
+            .map((b) => b.label)
+            .join(",")}
+        >
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart
-              data={chartData}
+              data={chartBuckets}
               margin={{ top: 10, right: 16, bottom: 6, left: 10 }}
             >
               <CartesianGrid strokeDasharray="3 3" stroke="#1f2c48" vertical={false} />
               <XAxis
                 dataKey="formattedMonth"
                 stroke="#64748b"
-                tick={{ fill: "#94a3b8", fontSize: 11 }}
+                tick={renderXAxisTick}
                 axisLine={{ stroke: "#1f2c48" }}
+                interval="preserveStartEnd"
+                minTickGap={chartBuckets.length > 12 ? 14 : 6}
               />
               <YAxis
                 stroke="#64748b"
@@ -213,13 +308,25 @@ export function FinancialDreMonthlyChart({
                   return `R$ ${val}`;
                 }}
               />
-              <Tooltip content={<DreMonthlyTooltip />} />
+              <Tooltip
+                content={<DreMonthlyTooltip hasContextWindow={hasContextWindow} />}
+              />
               <Legend
                 verticalAlign="top"
                 align="right"
                 wrapperStyle={{ paddingBottom: 6, fontSize: 11 }}
               />
               <ReferenceLine y={0} stroke="#475569" strokeDasharray="2 2" />
+
+              {hasContextWindow && firstSelectedLabel && lastSelectedLabel && (
+                <ReferenceArea
+                  x1={firstSelectedLabel}
+                  x2={lastSelectedLabel}
+                  fill="rgba(56, 189, 248, 0.07)"
+                  stroke="rgba(56, 189, 248, 0.28)"
+                  strokeDasharray="3 3"
+                />
+              )}
 
               {/* Receita Realizada */}
               <Bar
@@ -228,7 +335,28 @@ export function FinancialDreMonthlyChart({
                 fill="#0ea5e9"
                 radius={[4, 4, 0, 0]}
                 maxBarSize={44}
-              />
+              >
+                {chartBuckets.map((entry) => {
+                  const isContextBucket = hasContextWindow && entry.isContext;
+                  const isHighlightedBucket =
+                    hasContextWindow && entry.isSelected;
+                  return (
+                    <Cell
+                      key={entry.key}
+                      fill={isHighlightedBucket ? "#38bdf8" : "#0ea5e9"}
+                      fillOpacity={isContextBucket ? 0.3 : 1}
+                      stroke={
+                        isHighlightedBucket
+                          ? "#7dd3fc"
+                          : isContextBucket
+                          ? "rgba(56, 189, 248, 0.45)"
+                          : "none"
+                      }
+                      strokeWidth={isHighlightedBucket ? 1.5 : isContextBucket ? 1 : 0}
+                    />
+                  );
+                })}
+              </Bar>
 
               {/* Margem de Contribuição */}
               <Line
@@ -237,7 +365,26 @@ export function FinancialDreMonthlyChart({
                 dataKey="contributionMargin"
                 stroke="#2dd4bf"
                 strokeWidth={2}
-                dot={{ r: 4, fill: "#2dd4bf" }}
+                dot={(dotProps: {
+                  cx?: number;
+                  cy?: number;
+                  payload?: DreChartBucket;
+                }) => {
+                  const { cx = 0, cy = 0, payload } = dotProps;
+                  const isCtx = hasContextWindow && payload?.isContext;
+                  return (
+                    <circle
+                      key={`mc-${payload?.key ?? `${cx}-${cy}`}`}
+                      cx={cx}
+                      cy={cy}
+                      r={isCtx ? 3 : hasContextWindow ? 5 : 4}
+                      fill="#2dd4bf"
+                      fillOpacity={isCtx ? 0.45 : 1}
+                      stroke={hasContextWindow && payload?.isSelected ? "#0f172a" : "none"}
+                      strokeWidth={hasContextWindow && payload?.isSelected ? 1.5 : 0}
+                    />
+                  );
+                }}
               />
 
               {/* Resultado Líquido Gerencial Estimado */}
@@ -247,7 +394,26 @@ export function FinancialDreMonthlyChart({
                 dataKey="netManagerialResult"
                 stroke="#f43f5e"
                 strokeWidth={2.5}
-                dot={{ r: 5, fill: "#f43f5e" }}
+                dot={(dotProps: {
+                  cx?: number;
+                  cy?: number;
+                  payload?: DreChartBucket;
+                }) => {
+                  const { cx = 0, cy = 0, payload } = dotProps;
+                  const isCtx = hasContextWindow && payload?.isContext;
+                  return (
+                    <circle
+                      key={`net-${payload?.key ?? `${cx}-${cy}`}`}
+                      cx={cx}
+                      cy={cy}
+                      r={isCtx ? 3.5 : hasContextWindow ? 6 : 5}
+                      fill="#f43f5e"
+                      fillOpacity={isCtx ? 0.45 : 1}
+                      stroke={hasContextWindow && payload?.isSelected ? "#ffffff" : "none"}
+                      strokeWidth={hasContextWindow && payload?.isSelected ? 1.5 : 0}
+                    />
+                  );
+                }}
               />
             </ComposedChart>
           </ResponsiveContainer>
@@ -268,7 +434,7 @@ export function FinancialDreMonthlyChart({
               </tr>
             </thead>
             <tbody>
-              {monthlyData.map((m) => {
+              {tableRows.map((m) => {
                 const isProfit = m.netManagerialResult > 0;
                 const isLoss = m.netManagerialResult < 0;
 
