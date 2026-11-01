@@ -131,6 +131,9 @@ export function createFinancialSyncOrchestrator(
 ): FinancialSyncOrchestrator {
   const nowFn = dependencies.now ?? (() => new Date());
   const runSync = dependencies.runIncrementalSyncFn ?? runIncrementalSync;
+  const targetConnId = dependencies.targetConnectionId ?? "8e1d662c-c9f3-4fee-9618-bb984573fa2a";
+  const lockService = dependencies.syncLockService ?? defaultGlobalSyncLockService;
+  const hasExplicitLockService = Boolean(dependencies.syncLockService);
 
   let isRunning = false;
   let startedAtDate: Date | null = null;
@@ -332,6 +335,7 @@ export function createFinancialSyncOrchestrator(
           state.uniqueCandidates = cand.uniqueCandidates.length;
           state.totalCandidates = cand.uniqueCandidates.length;
           state.overlapDeduplicated = cand.overlapDeduplicated;
+          activeLockHandle?.updateFinancialSnapshot?.({ ...state });
         },
         onProgress: (prog) => {
           state.processed = prog.processed;
@@ -342,6 +346,7 @@ export function createFinancialSyncOrchestrator(
           else if (prog.recordAction === "updated") state.updated++;
           else if (prog.recordAction === "unchanged") state.unchanged++;
           state.durationMs = Math.max(0, nowFn().getTime() - options.startTimeMs);
+          activeLockHandle?.updateFinancialSnapshot?.({ ...state });
         },
       });
 
@@ -370,6 +375,7 @@ export function createFinancialSyncOrchestrator(
         unchanged: report.workerSummary?.unchanged ?? state.unchanged,
         lastError: null,
       };
+      activeLockHandle?.updateFinancialSnapshot?.({ ...state });
     } catch (err: unknown) {
       const finishedAtDate = nowFn();
       const durationMs = Math.max(0, finishedAtDate.getTime() - options.startTimeMs);
@@ -381,6 +387,7 @@ export function createFinancialSyncOrchestrator(
         durationMs,
         lastError: sanitizeFinancialErrorMessage(err),
       };
+      activeLockHandle?.updateFinancialSnapshot?.({ ...state });
     } finally {
       isRunning = false;
       startedAtDate = null;
@@ -393,9 +400,6 @@ export function createFinancialSyncOrchestrator(
     async startSync(params?: StartFinancialSyncParams): Promise<StartFinancialSyncResult> {
       // 1. Validação de parâmetros ANTES de qualquer alteração de estado
       const { sinceDate, resolvedLookbackDays } = validateParams(params);
-
-      const targetConnId = dependencies.targetConnectionId ?? "8e1d662c-c9f3-4fee-9618-bb984573fa2a";
-      const lockService = dependencies.syncLockService ?? defaultGlobalSyncLockService;
 
       // Aquisição da trava compartilhada única (bloqueia concorrência com global sync e financial sync)
       let lockHandle: SyncLockHandle;
@@ -481,6 +485,7 @@ export function createFinancialSyncOrchestrator(
         unchanged: 0,
         lastError: null,
       };
+      activeLockHandle?.updateFinancialSnapshot?.({ ...state });
 
       // 5. Disparo em background com proteção de unhandled rejection
       executePipeline(connection, {
@@ -516,6 +521,58 @@ export function createFinancialSyncOrchestrator(
           durationMs: liveDurationMs,
         };
       }
+
+      const activeLock = lockService.getActive(targetConnId);
+      if (activeLock) {
+        const lockFinancialSnapshot = lockService.getFinancialSnapshot?.(targetConnId);
+        const snapshotStartedAtMs = lockFinancialSnapshot?.startedAt
+          ? new Date(lockFinancialSnapshot.startedAt).getTime()
+          : activeLock.startedAt.getTime();
+        const liveDurationMs = Math.max(0, nowFn().getTime() - snapshotStartedAtMs);
+
+        if (lockFinancialSnapshot && lockFinancialSnapshot.status === "RUNNING") {
+          return {
+            ...lockFinancialSnapshot,
+            durationMs: liveDurationMs,
+          };
+        }
+
+        return {
+          status: "RUNNING",
+          startedAt: activeLock.startedAt.toISOString(),
+          finishedAt: null,
+          durationMs: Math.max(0, nowFn().getTime() - activeLock.startedAt.getTime()),
+          since: lockFinancialSnapshot?.since ?? state.since,
+          lookbackDays: lockFinancialSnapshot?.lookbackDays ?? state.lookbackDays,
+          recentCandidates: lockFinancialSnapshot?.recentCandidates ?? 0,
+          openCandidates: lockFinancialSnapshot?.openCandidates ?? 0,
+          undatedCandidates: lockFinancialSnapshot?.undatedCandidates ?? 0,
+          uniqueCandidates: lockFinancialSnapshot?.uniqueCandidates ?? 0,
+          totalCandidates: lockFinancialSnapshot?.totalCandidates ?? 0,
+          overlapDeduplicated: lockFinancialSnapshot?.overlapDeduplicated ?? 0,
+          processed: lockFinancialSnapshot?.processed ?? 0,
+          completed: lockFinancialSnapshot?.completed ?? 0,
+          failed: lockFinancialSnapshot?.failed ?? 0,
+          notFound: lockFinancialSnapshot?.notFound ?? 0,
+          inserted: lockFinancialSnapshot?.inserted ?? 0,
+          updated: lockFinancialSnapshot?.updated ?? 0,
+          unchanged: lockFinancialSnapshot?.unchanged ?? 0,
+          lastError: null,
+        };
+      }
+
+      if (hasExplicitLockService) {
+        const lockFinancialSnapshot = lockService.getFinancialSnapshot?.(targetConnId);
+        if (lockFinancialSnapshot && lockFinancialSnapshot.status !== "IDLE") {
+          return { ...lockFinancialSnapshot };
+        }
+      } else if (state.status === "IDLE") {
+        const lockFinancialSnapshot = lockService.getFinancialSnapshot?.(targetConnId);
+        if (lockFinancialSnapshot && lockFinancialSnapshot.status !== "IDLE") {
+          return { ...lockFinancialSnapshot };
+        }
+      }
+
       return { ...state };
     },
   };

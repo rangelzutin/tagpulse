@@ -138,6 +138,7 @@ export function App() {
 
   // Global updating state for header
   const [isUpdating, setIsUpdating] = useState(false);
+  const [financialRefreshTrigger, setFinancialRefreshTrigger] = useState(0);
 
   // Fetch Sales Overview independently
   const loadSalesOverview = useCallback(
@@ -504,6 +505,11 @@ export function App() {
         selectedProfitabilityCategorySourceId,
         Boolean(profitabilityData),
       );
+    } else if (activeNav === "financial") {
+      setProductsLoadedPeriod(null);
+      setInventoryLoadedWindow(null);
+      setProfitabilityLoadedPeriod(null);
+      setFinancialRefreshTrigger((prev) => prev + 1);
     } else if (activeNav === "decisions") {
       setProductsLoadedPeriod(null);
       setInventoryLoadedWindow(null);
@@ -772,6 +778,7 @@ export function App() {
             currentPeriod={currentPeriod}
             periodMode={periodMode}
             onApplyFilter={handleApplyFilter}
+            refreshTrigger={financialRefreshTrigger}
           />
         ) : (
           <>

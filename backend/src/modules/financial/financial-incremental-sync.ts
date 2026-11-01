@@ -418,11 +418,11 @@ export async function collectIncrementalCandidates(options: {
     new Set(explicitIds.map((id) => String(id).trim())),
   ).filter(Boolean);
 
-  // Deduplicated UNION
+  // Deduplicated UNION (priority order: recent -> open -> tail -> undated -> additional)
   const candidateSet = new Set<string>();
   for (const id of recentCandidates) candidateSet.add(id);
-  for (const id of tailCandidates) candidateSet.add(id);
   for (const id of openCandidates) candidateSet.add(id);
+  for (const id of tailCandidates) candidateSet.add(id);
   for (const id of undatedCandidates) candidateSet.add(id);
   for (const id of additionalCandidates) candidateSet.add(id);
 

@@ -1082,5 +1082,386 @@ describe("Financial Incremental Sync — Unit Tests (Fase 5F)", () => {
       expect(allFound).toBe(true);
       expect(expectedNewIds.length).toBe(500);
     });
+
+    it("Fase 5D.3.3 — Prioridade da fila: 450 tailCandidates + 1 openCandidate antigo (fora de recent/tail) processa GET individual do openCandidate ANTES dos tailCandidates", async () => {
+      const { createFinancialRecordWorker } = await import(
+        "../src/modules/financial/financial-record-worker.js"
+      );
+
+      const tailIds = Array.from({ length: 450 }, (_, i) => String(20001 + i));
+      const recentIds = ["30001", "30002"];
+      const oldOpenId = "11438"; // Vencido antigo (10/09/2026), ausente de recent e tail
+      const undatedId = "9001";
+
+      const individualDetailGets: string[] = [];
+
+      const mockClient = {
+        get: vi.fn().mockImplementation(async (path: string) => {
+          // 1. recentCandidates: GET /financeiros?since=...
+          if (path.startsWith("/financeiros?") && path.includes("since=")) {
+            if (path.includes("page=1&")) {
+              return { status: 200, data: recentIds.map((id) => ({ id: Number(id) })) };
+            }
+            return { status: 200, data: [] };
+          }
+
+          // 2. tailCandidates: GET /financeiros?page=... (sem since=)
+          if (path.startsWith("/financeiros?") && !path.includes("since=")) {
+            const match = path.match(/page=(\d+)/);
+            const page = match ? Number.parseInt(match[1], 10) : 1;
+            // startPage = max(1, floor(1000/100) - 3) = 7 => pages 7..11 return 450 tail IDs
+            if (page >= 7 && page <= 11) {
+              const offset = (page - 7) * 100;
+              const slice = tailIds.slice(offset, offset + 100);
+              return { status: 200, data: slice.map((id) => ({ id: Number(id) })) };
+            }
+            return { status: 200, data: [] };
+          }
+
+          // 3. Individual detail GET /financeiros/{id}
+          const detailMatch = path.match(/^\/financeiros\/(\d+)$/);
+          if (detailMatch) {
+            const id = detailMatch[1] as string;
+            individualDetailGets.push(id);
+            return {
+              status: 200,
+              data: {
+                id: Number(id),
+                descricao: `Titulo ${id}`,
+                valor: 100,
+                valor_pago: 0,
+                tipo_registro: "P",
+                confirmado: false,
+                data_vencimento: "2026-09-10",
+              },
+            };
+          }
+
+          return { status: 200, data: [] };
+        }),
+      } as unknown as TagPlusClient;
+
+      let queuedOrder: string[] = [];
+      const mockRepo = {
+        prepareIncrementalCandidates: vi.fn().mockImplementation(async (_connId: string, ids: string[]) => {
+          queuedOrder = [...ids];
+          return { total: ids.length, newlyCreated: 0, refreshed: ids.length };
+        }),
+        claimNextPendingItem: vi.fn().mockImplementation(async (_connId: string, opts?: any) => {
+          if (opts?.specificSourceId) {
+            return { sourceId: opts.specificSourceId, attemptCount: 1 };
+          }
+          const next = queuedOrder.shift();
+          return next ? { sourceId: next, attemptCount: 1 } : null;
+        }),
+        saveFinancialRecordWithTx: vi.fn().mockResolvedValue({ action: "updated", id: "rec-id" }),
+        markItemCompletedWithTx: vi.fn().mockResolvedValue(undefined),
+        markItemNotFound: vi.fn().mockResolvedValue(undefined),
+        markItemFailed: vi.fn().mockResolvedValue(undefined),
+      } as unknown as FinancialRecordRepository;
+
+      const mockPrisma = {
+        $transaction: vi.fn().mockImplementation(async (fn: any) => fn(mockPrisma)),
+        financialRecordSyncItem: {
+          count: vi.fn().mockResolvedValue(1000),
+          findMany: vi.fn().mockResolvedValue([{ sourceId: "20001" }]),
+        },
+        financialRecord: {
+          findMany: vi.fn().mockImplementation(async ({ where }: any) => {
+            if (where?.isConfirmed === false && where?.sourcePresent === true) {
+              return [{ sourceId: oldOpenId }];
+            }
+            if (where?.isConfirmed === true && where?.confirmationDate === null && where?.sourcePresent === true) {
+              return [{ sourceId: undatedId }];
+            }
+            return [{ sourceId: "20001" }];
+          }),
+        },
+      } as unknown as any;
+
+      const worker = createFinancialRecordWorker({
+        prisma: mockPrisma,
+        repository: mockRepo,
+        getClient: () => mockClient,
+      });
+
+      const report = await runIncrementalSync({
+        prisma: mockPrisma,
+        repository: mockRepo,
+        worker,
+        getClient: () => mockClient,
+        connectionId: "conn-1",
+        lookbackDays: 30,
+        pageDelayMs: 0,
+        rateLimitDelayMs: 0,
+      });
+
+      // Validate candidate counts
+      expect(report.candidates.tailCount).toBe(450);
+      expect(report.candidates.openCount).toBe(1);
+      expect(report.candidates.recentCount).toBe(2);
+      expect(report.candidates.undatedCount).toBe(1);
+      expect(report.candidates.uniqueCount).toBe(454);
+
+      // Validate logical order of GET /financeiros/{id}:
+      // recentCandidates (indices 0, 1) -> openCandidates (index 2) -> tailCandidates (indices 3..452) -> undatedCandidates (index 453)
+      expect(individualDetailGets.length).toBe(454);
+      expect(individualDetailGets.slice(0, 2)).toEqual(["30001", "30002"]);
+      expect(individualDetailGets[2]).toBe(oldOpenId);
+
+      const openIndex = individualDetailGets.indexOf(oldOpenId);
+      const firstTailIndex = individualDetailGets.indexOf(tailIds[0] as string);
+      const lastTailIndex = individualDetailGets.indexOf(tailIds[tailIds.length - 1] as string);
+      const undatedIndex = individualDetailGets.indexOf(undatedId);
+
+      expect(openIndex).toBe(2);
+      expect(firstTailIndex).toBe(3);
+      expect(openIndex).toBeLessThan(firstTailIndex);
+      expect(lastTailIndex).toBe(452);
+      expect(undatedIndex).toBe(453);
+    });
+
+    it("Fase 5D.3.3 — NOT_FOUND + Contas a Pagar + Idempotência: open item antigo (11438) com 404 sai de Contas a Pagar e 2ª execução é idempotente", async () => {
+      const { createFinancialRecordRepository } = await import(
+        "../src/modules/financial/financial-record-repository.js"
+      );
+      const { createFinancialRecordWorker } = await import(
+        "../src/modules/financial/financial-record-worker.js"
+      );
+      const { createPrismaFinancialOperationalRepository } = await import(
+        "../src/modules/financial/financial-operational-repository.js"
+      );
+      const { createFinancialOperationalService } = await import(
+        "../src/modules/financial/financial-operational-service.js"
+      );
+      const { TagPlusHttpError } = await import(
+        "../src/integrations/tagplus/tagplus-client.js"
+      );
+
+      // In-memory state simulating DB records for connection "conn-1"
+      const dbRecords = new Map<string, any>([
+        [
+          "11438",
+          {
+            id: "dea555ba-2554-4b6a-ba00-5f722589a646",
+            connectionId: "conn-1",
+            sourceId: "11438",
+            description: "Seguro - Parcela 1/10",
+            documentNumber: null,
+            type: "SAIDA",
+            isConfirmed: false,
+            isTransfer: false,
+            dueDate: new Date("2026-09-10T00:00:00.000Z"),
+            confirmationDate: null,
+            totalAmount: new Prisma.Decimal("97.44"),
+            paidAmount: new Prisma.Decimal("0.00"),
+            sourcePresent: true,
+            noLongerObservedAt: null,
+            entitySourceId: "73",
+            entityName: "Porto Seguro Companhia De Seguros Gerais",
+            budgetPlanSourceId: "5",
+            paymentMethodSourceId: "6",
+            bankAccountSourceId: "1",
+            linkedInvoiceInstallmentSourceId: null,
+            departmentSourceId: null,
+            installmentNumber: 1,
+            installmentCount: 10,
+            sourcePayload: {},
+          },
+        ],
+      ]);
+
+      const dbSyncItems = new Map<string, any>([
+        [
+          "11438",
+          {
+            id: "64d89875-7a21-40d4-a127-7905b8b40f91",
+            connectionId: "conn-1",
+            sourceId: "11438",
+            status: "COMPLETED",
+            attemptCount: 7,
+            lastHttpStatus: 200,
+            lastError: null,
+            syncedAt: new Date("2026-10-08T18:22:02.073Z"),
+          },
+        ],
+      ]);
+
+      const filterRecords = (where: any) => {
+        let list = Array.from(dbRecords.values());
+        if (where?.sourcePresent !== undefined) {
+          list = list.filter((r) => r.sourcePresent === where.sourcePresent);
+        }
+        if (where?.isConfirmed !== undefined) {
+          list = list.filter((r) => r.isConfirmed === where.isConfirmed);
+        }
+        if (where?.confirmationDate === null) {
+          list = list.filter((r) => r.confirmationDate === null);
+        }
+        if (where?.type !== undefined) {
+          list = list.filter((r) => r.type === where.type);
+        }
+        if (where?.isTransfer !== undefined) {
+          list = list.filter((r) => r.isTransfer === where.isTransfer);
+        }
+        return list;
+      };
+
+      const mockPrisma: any = {
+        $transaction: vi.fn().mockImplementation(async (arg: any) => {
+          if (typeof arg === "function") return arg(mockPrisma);
+          return Promise.all(arg);
+        }),
+        tagPlusConnection: {
+          findFirst: vi.fn().mockResolvedValue({ id: "conn-1", status: "ACTIVE" }),
+        },
+        financialBudgetPlan: {
+          findMany: vi.fn().mockResolvedValue([{ sourceId: "5", description: "Conta de Consumo" }]),
+        },
+        financialRecordSyncItem: {
+          count: vi.fn().mockImplementation(async () => dbSyncItems.size),
+          findMany: vi.fn().mockImplementation(async ({ where }: any) => {
+            const all = Array.from(dbSyncItems.values());
+            if (where?.sourceId?.in) {
+              return all.filter((item) => where.sourceId.in.includes(item.sourceId));
+            }
+            if (where?.status?.in) {
+              return all.filter((item) => where.status.in.includes(item.status));
+            }
+            return all;
+          }),
+          findFirst: vi.fn().mockImplementation(async ({ where }: any) => {
+            if (where?.sourceId) {
+              return dbSyncItems.get(where.sourceId) ?? null;
+            }
+            return Array.from(dbSyncItems.values()).find((i) => i.status === "PENDING") ?? null;
+          }),
+          findUnique: vi.fn().mockImplementation(async ({ where }: any) => {
+            const sourceId = where?.connectionId_sourceId?.sourceId ?? where?.sourceId;
+            return dbSyncItems.get(sourceId) ?? null;
+          }),
+          createMany: vi.fn().mockResolvedValue({ count: 0 }),
+          updateMany: vi.fn().mockImplementation(async ({ where, data }: any) => {
+            let count = 0;
+            for (const item of dbSyncItems.values()) {
+              if (where?.sourceId?.in?.includes(item.sourceId) || where?.id === item.id) {
+                if (data.attemptCount?.increment) {
+                  item.attemptCount += data.attemptCount.increment;
+                }
+                const { attemptCount: _ac, ...rest } = data;
+                Object.assign(item, rest);
+                count++;
+              }
+            }
+            return { count };
+          }),
+          update: vi.fn().mockImplementation(async ({ where, data }: any) => {
+            const sourceId = where?.connectionId_sourceId?.sourceId;
+            const item = dbSyncItems.get(sourceId);
+            if (item) {
+              if (data.attemptCount?.increment) {
+                item.attemptCount += data.attemptCount.increment;
+              }
+              const { attemptCount: _ac, ...rest } = data;
+              Object.assign(item, rest);
+            }
+            return item;
+          }),
+        },
+        financialRecord: {
+          count: vi.fn().mockImplementation(async ({ where }: any) => filterRecords(where).length),
+          findMany: vi.fn().mockImplementation(async ({ where }: any) => filterRecords(where)),
+          updateMany: vi.fn().mockImplementation(async ({ where, data }: any) => {
+            const rec = dbRecords.get(where?.sourceId);
+            if (rec) {
+              Object.assign(rec, data);
+              return { count: 1 };
+            }
+            return { count: 0 };
+          }),
+        },
+      };
+
+      const repo = createFinancialRecordRepository(mockPrisma);
+      const operationalRepo = createPrismaFinancialOperationalRepository(mockPrisma);
+      const operationalService = createFinancialOperationalService(operationalRepo);
+
+      // Before sync: 11438 appears in Contas a Pagar (OPEN)
+      const payablesBefore = await operationalService.getPayablesList({
+        status: "OPEN",
+        referenceDate: "2026-10-31",
+      });
+      expect(payablesBefore.data?.items.map((i) => i.sourceId)).toContain("11438");
+
+      const detailCallsFor11438: number[] = [];
+      const mockClient = {
+        get: vi.fn().mockImplementation(async (path: string) => {
+          if (path === "/financeiros/11438") {
+            detailCallsFor11438.push(Date.now());
+            throw new TagPlusHttpError(404);
+          }
+          return { status: 200, data: [] };
+        }),
+      } as unknown as TagPlusClient;
+
+      const worker = createFinancialRecordWorker({
+        prisma: mockPrisma,
+        repository: repo,
+        getClient: () => mockClient,
+      });
+
+      // 1st execution: discovers 11438 in openCandidates, receives 404, marks NOT_FOUND + sourcePresent=false
+      const firstRun = await runIncrementalSync({
+        prisma: mockPrisma,
+        repository: repo,
+        worker,
+        getClient: () => mockClient,
+        connectionId: "conn-1",
+        lookbackDays: 30,
+        pageDelayMs: 0,
+        rateLimitDelayMs: 0,
+      });
+
+      expect(firstRun.candidates.openCount).toBe(1);
+      expect(firstRun.workerSummary?.notFound).toBe(1);
+      expect(detailCallsFor11438.length).toBe(1);
+
+      const syncItemAfterFirst = dbSyncItems.get("11438");
+      const recordAfterFirst = dbRecords.get("11438");
+      expect(syncItemAfterFirst.status).toBe("NOT_FOUND");
+      expect(syncItemAfterFirst.lastHttpStatus).toBe(404);
+      expect(recordAfterFirst.sourcePresent).toBe(false);
+      expect(recordAfterFirst.noLongerObservedAt).toBeInstanceOf(Date);
+
+      // After 1st sync: 11438 no longer appears in Contas a Pagar (OPEN or ALL)
+      const payablesAfterOpen = await operationalService.getPayablesList({
+        status: "OPEN",
+        referenceDate: "2026-10-31",
+      });
+      expect(payablesAfterOpen.data?.items.map((i) => i.sourceId)).not.toContain("11438");
+
+      const payablesAfterAll = await operationalService.getPayablesList({
+        status: "ALL",
+        referenceDate: "2026-10-31",
+      });
+      expect(payablesAfterAll.data?.items.map((i) => i.sourceId)).not.toContain("11438");
+
+      // 2nd execution: idempotent (11438 has sourcePresent=false, so it is not queued again and remains NOT_FOUND)
+      const secondRun = await runIncrementalSync({
+        prisma: mockPrisma,
+        repository: repo,
+        worker,
+        getClient: () => mockClient,
+        connectionId: "conn-1",
+        lookbackDays: 30,
+        pageDelayMs: 0,
+        rateLimitDelayMs: 0,
+      });
+
+      expect(secondRun.candidates.openCount).toBe(0);
+      expect(detailCallsFor11438.length).toBe(1);
+      expect(dbSyncItems.get("11438").status).toBe("NOT_FOUND");
+      expect(dbRecords.get("11438").sourcePresent).toBe(false);
+    });
   });
 });

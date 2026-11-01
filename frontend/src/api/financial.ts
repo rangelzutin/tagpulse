@@ -222,10 +222,15 @@ export interface StartFinancialSyncResult {
 }
 
 export interface StartFinancialSyncConflictResponse {
-  statusCode: 409;
-  error: string;
-  message: string;
-  activeRun: {
+  statusCode?: 409;
+  error?: string;
+  message?: string;
+  accepted?: boolean;
+  status?: "RUNNING";
+  startedAt?: string;
+  since?: string | null;
+  lookbackDays?: number | null;
+  activeRun?: {
     status: "RUNNING";
     startedAt: string;
     since?: string | null;
@@ -503,9 +508,19 @@ export async function triggerFinancialIncrementalSync(params?: {
 
   if (response.status === 409) {
     const data = (await response.json().catch(() => ({}))) as StartFinancialSyncConflictResponse;
+    const activeRun =
+      data.activeRun ??
+      (data.status === "RUNNING" && data.startedAt
+        ? {
+            status: "RUNNING" as const,
+            startedAt: data.startedAt,
+            since: data.since ?? null,
+            lookbackDays: data.lookbackDays ?? null,
+          }
+        : undefined);
     throw new FinancialSyncConflictError(
       "Já existe uma sincronização financeira em andamento.",
-      data.activeRun,
+      activeRun,
     );
   }
 

@@ -799,6 +799,41 @@ describe("Phase 5K: Financial Module Frontend Tests (A through M)", () => {
       expect(html).toContain("01/09/2026");
       expect(html).toContain("30/09/2026");
     });
+
+    it("Fase 5D.3.3: FinancialSyncControl in RUNNING state (e.g. during GLOBAL_SYNC) shows 'Sincronizando...', disables button, and never shows completed/idle", () => {
+      const htmlRunning = renderToString(
+        <FinancialSyncControl
+          initialStatus={{
+            status: "RUNNING",
+            startedAt: "2026-10-31T00:26:12.000Z",
+            finishedAt: null,
+            durationMs: 12000,
+            since: "2026-10-01",
+            lookbackDays: 30,
+            recentCandidates: 20,
+            openCandidates: 15,
+            undatedCandidates: 2,
+            uniqueCandidates: 120,
+            totalCandidates: 120,
+            overlapDeduplicated: 5,
+            processed: 42,
+            completed: 41,
+            failed: 0,
+            notFound: 1,
+            inserted: 2,
+            updated: 5,
+            unchanged: 34,
+            lastError: null,
+          }}
+        />,
+      );
+
+      expect(htmlRunning).toContain("is-running");
+      expect(htmlRunning).toContain("Sincronizando...");
+      expect(htmlRunning).toContain("disabled");
+      expect(htmlRunning).not.toContain("Atualizado às");
+      expect(htmlRunning).not.toContain("Pronto");
+    });
   });
 });
 

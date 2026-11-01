@@ -9,10 +9,47 @@ import {
 
 interface FinancialSyncControlProps {
   onSyncSuccess?: () => void;
+  initialStatus?: FinancialSyncStatusResponse | null;
 }
 
-export function FinancialSyncControl({ onSyncSuccess }: FinancialSyncControlProps) {
-  const [syncStatus, setSyncStatus] = useState<FinancialSyncStatusResponse | null>(null);
+function createRunningFallbackStatus(
+  prev: FinancialSyncStatusResponse | null,
+  activeRun?: {
+    status: "RUNNING";
+    startedAt: string;
+    since?: string | null;
+    lookbackDays?: number | null;
+  },
+): FinancialSyncStatusResponse {
+  return {
+    status: "RUNNING",
+    startedAt: activeRun?.startedAt ?? prev?.startedAt ?? new Date().toISOString(),
+    finishedAt: null,
+    durationMs: 0,
+    since: activeRun?.since ?? prev?.since ?? null,
+    lookbackDays: activeRun?.lookbackDays ?? prev?.lookbackDays ?? 30,
+    recentCandidates: prev?.status === "RUNNING" ? prev.recentCandidates : 0,
+    openCandidates: prev?.status === "RUNNING" ? prev.openCandidates : 0,
+    undatedCandidates: prev?.status === "RUNNING" ? prev.undatedCandidates : 0,
+    uniqueCandidates: prev?.status === "RUNNING" ? prev.uniqueCandidates : 0,
+    totalCandidates: prev?.status === "RUNNING" ? prev.totalCandidates : 0,
+    overlapDeduplicated: prev?.status === "RUNNING" ? prev.overlapDeduplicated : 0,
+    processed: prev?.status === "RUNNING" ? prev.processed : 0,
+    completed: prev?.status === "RUNNING" ? prev.completed : 0,
+    failed: prev?.status === "RUNNING" ? prev.failed : 0,
+    notFound: prev?.status === "RUNNING" ? prev.notFound : 0,
+    inserted: prev?.status === "RUNNING" ? prev.inserted : 0,
+    updated: prev?.status === "RUNNING" ? prev.updated : 0,
+    unchanged: prev?.status === "RUNNING" ? prev.unchanged : 0,
+    lastError: null,
+  };
+}
+
+export function FinancialSyncControl({
+  onSyncSuccess,
+  initialStatus = null,
+}: FinancialSyncControlProps) {
+  const [syncStatus, setSyncStatus] = useState<FinancialSyncStatusResponse | null>(initialStatus);
   const [isTriggering, setIsTriggering] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const pollTimerRef = useRef<number | null>(null);
@@ -79,37 +116,20 @@ export function FinancialSyncControl({ onSyncSuccess }: FinancialSyncControlProp
     setNotice(null);
 
     try {
-      await triggerFinancialIncrementalSync();
+      const started = await triggerFinancialIncrementalSync();
       setSyncStatus((prev) =>
-        prev
-          ? { ...prev, status: "RUNNING" }
-          : {
-              status: "RUNNING",
-              startedAt: new Date().toISOString(),
-              finishedAt: null,
-              durationMs: null,
-              since: null,
-              lookbackDays: 7,
-              recentCandidates: 0,
-              openCandidates: 0,
-              undatedCandidates: 0,
-              uniqueCandidates: 0,
-              totalCandidates: 0,
-              overlapDeduplicated: 0,
-              processed: 0,
-              completed: 0,
-              failed: 0,
-              notFound: 0,
-              inserted: 0,
-              updated: 0,
-              unchanged: 0,
-              lastError: null,
-            },
+        createRunningFallbackStatus(prev, {
+          status: "RUNNING",
+          startedAt: started.startedAt,
+          since: started.since,
+          lookbackDays: started.lookbackDays ?? null,
+        }),
       );
       void pollUntilComplete();
     } catch (err: unknown) {
       if (err instanceof FinancialSyncConflictError) {
         setNotice("Sincronização já em andamento.");
+        setSyncStatus((prev) => createRunningFallbackStatus(prev, err.activeRun));
         void pollUntilComplete();
       } else {
         const msg = err instanceof Error ? err.message : "Erro ao disparar sincronização.";
@@ -169,7 +189,7 @@ export function FinancialSyncControl({ onSyncSuccess }: FinancialSyncControlProp
           </span>
         )}
 
-        {notice && !isRunning && (
+        {notice && (
           <span className="tp-financial-sync-notice">{notice}</span>
         )}
       </div>

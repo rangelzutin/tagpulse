@@ -11,6 +11,7 @@ import {
   fetchPayablesOverview,
   fetchCashFlowOverview,
   fetchUndatedConfirmedCash,
+  fetchFinancialSyncStatus,
   type ReceivablesOverviewResponse,
   type PayablesOverviewResponse,
   type CashFlowOverviewResponse,
@@ -33,6 +34,7 @@ interface FinancialViewProps {
   currentPeriod?: { from: string; to: string };
   periodMode?: PeriodMode;
   onApplyFilter?: (from: string, to: string, mode: PeriodMode) => void;
+  refreshTrigger?: number;
 }
 
 export function FinancialView({
@@ -41,6 +43,7 @@ export function FinancialView({
   currentPeriod: currentPeriodProp,
   periodMode: periodModeProp,
   onApplyFilter: onApplyFilterProp,
+  refreshTrigger,
 }: FinancialViewProps) {
   const [activeTab, setActiveTab] = useState<FinancialSubTab>("overview");
 
@@ -63,15 +66,21 @@ export function FinancialView({
 
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSyncRunning, setIsSyncRunning] = useState(false);
   const [overviewError, setOverviewError] = useState<string | null>(null);
 
   const isMountedRef = useRef(true);
+  const syncPollTimerRef = useRef<number | null>(null);
+  const lastRefreshTriggerRef = useRef(refreshTrigger);
   const effectiveMinDate = minDate ?? "2015-05-05";
 
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
+      if (syncPollTimerRef.current !== null) {
+        window.clearTimeout(syncPollTimerRef.current);
+      }
     };
   }, []);
 
@@ -153,6 +162,46 @@ export function FinancialView({
     void loadFinancialOverviewData(false, currentPeriod.from, currentPeriod.to, periodMode);
   }, [currentPeriod.from, currentPeriod.to, periodMode, loadFinancialOverviewData]);
 
+  useEffect(() => {
+    if (refreshTrigger !== undefined && refreshTrigger !== lastRefreshTriggerRef.current) {
+      lastRefreshTriggerRef.current = refreshTrigger;
+      void loadFinancialOverviewData(true, currentPeriod.from, currentPeriod.to, periodMode);
+    }
+  }, [refreshTrigger, currentPeriod.from, currentPeriod.to, periodMode, loadFinancialOverviewData]);
+
+  const pollSyncStatus = useCallback(async (wasRunning = false) => {
+    if (syncPollTimerRef.current !== null) {
+      window.clearTimeout(syncPollTimerRef.current);
+      syncPollTimerRef.current = null;
+    }
+
+    try {
+      const statusData = await fetchFinancialSyncStatus();
+      if (!isMountedRef.current || !statusData) return;
+
+      if (statusData.status === "RUNNING") {
+        setIsSyncRunning(true);
+        syncPollTimerRef.current = window.setTimeout(() => {
+          void pollSyncStatus(true);
+        }, 2500);
+      } else {
+        setIsSyncRunning(false);
+        if (wasRunning && statusData.status === "SUCCEEDED") {
+          void loadFinancialOverviewData(true);
+          onSyncSuccessGlobal?.();
+        }
+      }
+    } catch {
+      if (isMountedRef.current) {
+        setIsSyncRunning(false);
+      }
+    }
+  }, [loadFinancialOverviewData, onSyncSuccessGlobal]);
+
+  useEffect(() => {
+    void pollSyncStatus(false);
+  }, [pollSyncStatus]);
+
   const handleApplyFilter = useCallback((from: string, to: string, mode: PeriodMode) => {
     if (onApplyFilterProp) {
       onApplyFilterProp(from, to, mode);
@@ -173,7 +222,7 @@ export function FinancialView({
             ? "Resultado econômico da operação por competência."
             : "Contas a receber, contas a pagar e fluxo de caixa operacional."
         }
-        isUpdating={isRefreshing}
+        isUpdating={isRefreshing || isSyncRunning}
       >
         <div className="tp-financial-header-actions">
           <PeriodFilter
@@ -349,7 +398,7 @@ export function FinancialView({
           >
             <FinancialDreTab
               currentPeriod={currentPeriod}
-              isLoadingGlobal={isLoading}
+              isLoadingGlobal={isLoading || isRefreshing}
             />
           </section>
         )}

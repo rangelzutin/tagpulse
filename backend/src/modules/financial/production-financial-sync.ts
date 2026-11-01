@@ -52,6 +52,7 @@ export interface FinancialIncrementalSummary {
   processed: number;
   completed: number;
   failed: number;
+  notFound?: number | undefined;
   inserted: number;
   updated: number;
   unchanged: number;
@@ -252,6 +253,15 @@ export function createProductionFinancialSyncRunner(
         ? normalizeExplicitSinceDate(options.since)
         : undefined;
 
+      let discoveredCandidates: {
+        sinceDate?: string;
+        lookbackDays?: number | undefined;
+        recentCandidates?: string[];
+        openCandidates?: string[];
+        undatedCandidates?: string[];
+        uniqueCandidates: string[];
+        overlapDeduplicated?: number;
+      } | null = null;
       let discoveredCandidateIds: string[] = [];
       let incrementalInserted = 0;
       let incrementalUpdated = 0;
@@ -269,6 +279,7 @@ export function createProductionFinancialSyncRunner(
         refreshToken: refreshTokenHandler,
         updateClientToken,
         onCandidatesDiscovered: (c) => {
+          discoveredCandidates = c;
           discoveredCandidateIds = c.uniqueCandidates;
           options.onProgress?.({
             current: 0,
@@ -277,14 +288,21 @@ export function createProductionFinancialSyncRunner(
             label: "Atualizando financeiro",
             summary: {
               incremental: {
+                sinceDate: c.sinceDate,
+                lookbackDays: c.lookbackDays,
                 processed: 0,
                 completed: 0,
                 failed: 0,
+                notFound: 0,
                 inserted: 0,
                 updated: 0,
                 unchanged: 0,
                 candidates: {
+                  recentCount: c.recentCandidates?.length ?? 0,
+                  openCount: c.openCandidates?.length ?? 0,
+                  undatedCount: c.undatedCandidates?.length ?? 0,
                   uniqueCount: discoveredCandidateIds.length,
+                  overlapDeduplicated: c.overlapDeduplicated ?? 0,
                 },
               },
             },
@@ -307,14 +325,21 @@ export function createProductionFinancialSyncRunner(
             label: "Atualizando financeiro",
             summary: {
               incremental: {
+                sinceDate: discoveredCandidates?.sinceDate,
+                lookbackDays: discoveredCandidates?.lookbackDays,
                 processed: wp.processed,
                 completed: wp.completed,
                 failed: wp.failed,
+                notFound: wp.notFound,
                 inserted: incrementalInserted,
                 updated: incrementalUpdated,
                 unchanged: incrementalUnchanged,
                 candidates: {
+                  recentCount: discoveredCandidates?.recentCandidates?.length ?? 0,
+                  openCount: discoveredCandidates?.openCandidates?.length ?? 0,
+                  undatedCount: discoveredCandidates?.undatedCandidates?.length ?? 0,
                   uniqueCount: total,
+                  overlapDeduplicated: discoveredCandidates?.overlapDeduplicated ?? 0,
                 },
               },
             },
@@ -402,6 +427,7 @@ export function createProductionFinancialSyncRunner(
           processed: incrementalReport.workerSummary?.processed ?? 0,
           completed: incrementalReport.workerSummary?.completed ?? 0,
           failed: incrementalReport.workerSummary?.failed ?? 0,
+          notFound: incrementalReport.workerSummary?.notFound ?? 0,
           inserted: incrementalReport.workerSummary?.inserted ?? 0,
           updated: incrementalReport.workerSummary?.updated ?? 0,
           unchanged: incrementalReport.workerSummary?.unchanged ?? 0,

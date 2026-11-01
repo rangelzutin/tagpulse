@@ -169,7 +169,7 @@ export function FinancialPayablesTab({
 
   useEffect(() => {
     void loadList();
-  }, [loadList]);
+  }, [loadList, initialOverview]);
 
   // Search input handler
   const handleSearchSubmit = (e: React.FormEvent) => {

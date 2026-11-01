@@ -318,10 +318,12 @@ export function createTagPlusSyncOrchestrator(
     },
   ): Promise<void> {
     const stageSummaries: Record<string, unknown> = {};
+    let financialStageStartedAt: Date | null = null;
 
     try {
       // 1. Categories
       currentStage = TagPlusSyncStage.CATEGORIES;
+      activeLockHandle?.updateStage?.(TagPlusSyncStage.CATEGORIES);
       inMemoryStages.categories = {
         status: "RUNNING",
         progress: {
@@ -360,6 +362,7 @@ export function createTagPlusSyncOrchestrator(
 
       // 2. Customers
       currentStage = TagPlusSyncStage.CUSTOMERS;
+      activeLockHandle?.updateStage?.(TagPlusSyncStage.CUSTOMERS);
       inMemoryStages.customers = {
         status: "RUNNING",
         progress: {
@@ -398,6 +401,7 @@ export function createTagPlusSyncOrchestrator(
 
       // 3. Products
       currentStage = TagPlusSyncStage.PRODUCTS;
+      activeLockHandle?.updateStage?.(TagPlusSyncStage.PRODUCTS);
       inMemoryStages.products = {
         status: "RUNNING",
         progress: {
@@ -436,6 +440,7 @@ export function createTagPlusSyncOrchestrator(
 
       // 4. Sales
       currentStage = TagPlusSyncStage.SALES;
+      activeLockHandle?.updateStage?.(TagPlusSyncStage.SALES);
       inMemoryStages.sales = {
         status: "RUNNING",
         progress: {
@@ -479,6 +484,30 @@ export function createTagPlusSyncOrchestrator(
       // 4. Financial (Stage 5)
       if (dependencies.financialRunner) {
         currentStage = TagPlusSyncStage.FINANCIAL;
+        financialStageStartedAt = now();
+        activeLockHandle?.updateStage?.(TagPlusSyncStage.FINANCIAL);
+        activeLockHandle?.updateFinancialSnapshot?.({
+          status: "RUNNING",
+          startedAt: financialStageStartedAt.toISOString(),
+          finishedAt: null,
+          durationMs: 0,
+          since: null,
+          lookbackDays: 30,
+          recentCandidates: 0,
+          openCandidates: 0,
+          undatedCandidates: 0,
+          uniqueCandidates: 0,
+          totalCandidates: 0,
+          overlapDeduplicated: 0,
+          processed: 0,
+          completed: 0,
+          failed: 0,
+          notFound: 0,
+          inserted: 0,
+          updated: 0,
+          unchanged: 0,
+          lastError: null,
+        });
         inMemoryStages.financial = {
           status: "RUNNING",
           progress: {
@@ -510,6 +539,38 @@ export function createTagPlusSyncOrchestrator(
               },
               summary: p.summary ?? inMemoryStages.financial.summary,
             };
+
+            const inc = (p.summary?.incremental ?? undefined) as Record<string, unknown> | undefined;
+            const cands = (inc?.candidates ?? undefined) as Record<string, unknown> | undefined;
+            const liveDurationMs = financialStageStartedAt
+              ? Math.max(0, now().getTime() - financialStageStartedAt.getTime())
+              : 0;
+
+            activeLockHandle?.updateFinancialSnapshot?.({
+              status: "RUNNING",
+              startedAt: (financialStageStartedAt ?? run.startedAt).toISOString(),
+              finishedAt: null,
+              durationMs: liveDurationMs,
+              ...(typeof inc?.sinceDate === "string" ? { since: inc.sinceDate } : {}),
+              ...(typeof inc?.lookbackDays === "number" ? { lookbackDays: inc.lookbackDays } : {}),
+              ...(typeof cands?.recentCount === "number" ? { recentCandidates: cands.recentCount } : {}),
+              ...(typeof cands?.openCount === "number" ? { openCandidates: cands.openCount } : {}),
+              ...(typeof cands?.undatedCount === "number" ? { undatedCandidates: cands.undatedCount } : {}),
+              ...(typeof cands?.uniqueCount === "number"
+                ? { uniqueCandidates: cands.uniqueCount, totalCandidates: cands.uniqueCount }
+                : {}),
+              ...(typeof cands?.overlapDeduplicated === "number"
+                ? { overlapDeduplicated: cands.overlapDeduplicated }
+                : {}),
+              ...(typeof inc?.processed === "number" ? { processed: inc.processed } : {}),
+              ...(typeof inc?.completed === "number" ? { completed: inc.completed } : {}),
+              ...(typeof inc?.failed === "number" ? { failed: inc.failed } : {}),
+              ...(typeof inc?.notFound === "number" ? { notFound: inc.notFound } : {}),
+              ...(typeof inc?.inserted === "number" ? { inserted: inc.inserted } : {}),
+              ...(typeof inc?.updated === "number" ? { updated: inc.updated } : {}),
+              ...(typeof inc?.unchanged === "number" ? { unchanged: inc.unchanged } : {}),
+              lastError: null,
+            });
           },
         });
         stageSummaries.financial = financialResult;
@@ -517,6 +578,38 @@ export function createTagPlusSyncOrchestrator(
           status: "COMPLETED",
           summary: financialResult as unknown as Record<string, unknown>,
         };
+
+        const financialCompletedAt = now();
+        const finDurationMs =
+          typeof financialResult?.elapsedMs === "number"
+            ? financialResult.elapsedMs
+            : financialStageStartedAt
+              ? Math.max(0, financialCompletedAt.getTime() - financialStageStartedAt.getTime())
+              : 0;
+        const inc = financialResult?.incremental;
+        const cands = inc?.candidates;
+        activeLockHandle?.updateFinancialSnapshot?.({
+          status: "SUCCEEDED",
+          startedAt: (financialStageStartedAt ?? run.startedAt).toISOString(),
+          finishedAt: financialCompletedAt.toISOString(),
+          durationMs: finDurationMs,
+          since: inc?.sinceDate ?? null,
+          lookbackDays: inc?.lookbackDays ?? 30,
+          recentCandidates: cands?.recentCount ?? 0,
+          openCandidates: cands?.openCount ?? 0,
+          undatedCandidates: cands?.undatedCount ?? 0,
+          uniqueCandidates: cands?.uniqueCount ?? 0,
+          totalCandidates: cands?.uniqueCount ?? 0,
+          overlapDeduplicated: cands?.overlapDeduplicated ?? 0,
+          processed: inc?.processed ?? 0,
+          completed: inc?.completed ?? 0,
+          failed: inc?.failed ?? 0,
+          notFound: inc?.notFound ?? 0,
+          inserted: inc?.inserted ?? 0,
+          updated: inc?.updated ?? 0,
+          unchanged: inc?.unchanged ?? 0,
+          lastError: null,
+        });
       }
 
       // Conclusão total - Summary normalizado para JSON válido (ISO strings em datas)
@@ -551,6 +644,16 @@ export function createTagPlusSyncOrchestrator(
         inMemoryStages.sales = { status: "FAILED", error: stageErrorMessage };
       } else if (currentStage === TagPlusSyncStage.FINANCIAL) {
         inMemoryStages.financial = { status: "FAILED", error: stageErrorMessage };
+        const financialFailedAt = now();
+        const finDurationMs = financialStageStartedAt
+          ? Math.max(0, financialFailedAt.getTime() - financialStageStartedAt.getTime())
+          : 0;
+        activeLockHandle?.updateFinancialSnapshot?.({
+          status: "FAILED",
+          finishedAt: financialFailedAt.toISOString(),
+          durationMs: finDurationMs,
+          lastError: stageErrorMessage,
+        });
       }
 
       await dependencies.syncRepository.failRun(

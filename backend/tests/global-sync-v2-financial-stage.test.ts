@@ -1152,5 +1152,170 @@ describe("Global Sync V2 — Stage FINANCIAL + Stock Adjustment Reconciliation",
     expect((finalStatus.stages.financial.summary as any)?.incremental?.processed).toBe(165);
     expect((finalStatus.stages.financial.summary as any)?.stockAdjustments?.processed).toBe(12);
   });
+
+  it("17. Fase 5D.3.3: /api/financial/sync/status retorna RUNNING (nunca IDLE) enquanto GLOBAL_SYNC executa etapa FINANCIAL e SUCCEEDED após conclusão", async () => {
+    let finishFinancialPromise: (val: any) => void;
+    const financialRunningPromise = new Promise((resolve) => {
+      finishFinancialPromise = resolve;
+    });
+    let inFinancialStage = false;
+
+    const mockFinancialRunner: FinancialRunnerLike = {
+      run: vi.fn().mockImplementation(async (_connId: string, opts?: any) => {
+        inFinancialStage = true;
+        opts?.onProgress?.({
+          current: 42,
+          total: 120,
+          substep: "Atualizando financeiro",
+          label: "Atualizando financeiro",
+          summary: {
+            incremental: {
+              sinceDate: "2026-10-01",
+              lookbackDays: 30,
+              processed: 42,
+              completed: 41,
+              failed: 0,
+              notFound: 1,
+              inserted: 2,
+              updated: 5,
+              unchanged: 34,
+              candidates: {
+                recentCount: 20,
+                openCount: 15,
+                undatedCount: 3,
+                uniqueCount: 120,
+                overlapDeduplicated: 5,
+              },
+            },
+          },
+        });
+        return financialRunningPromise;
+      }),
+    };
+
+    const setup = createTestSetup();
+    const globalOrchestrator = createTagPlusSyncOrchestrator({
+      prisma: setup.mockPrisma,
+      syncRepository: setup.syncRepository,
+      tokenStore: setup.tokenStore,
+      categoryRunner: setup.categoryRunner,
+      customerRunner: setup.customerRunner,
+      productRunner: setup.productRunner,
+      salesRunner: setup.salesRunner,
+      financialRunner: mockFinancialRunner,
+      syncLockService: setup.syncLockService,
+      targetConnectionId: TEST_CONNECTION_ID,
+    });
+
+    const financialOrchestrator = createFinancialSyncOrchestrator({
+      prisma: setup.mockPrisma,
+      tokenStore: setup.tokenStore,
+      syncLockService: setup.syncLockService,
+      targetConnectionId: TEST_CONNECTION_ID,
+    });
+
+    const app = await buildApp({
+      databaseHealth: { check: vi.fn().mockResolvedValue(undefined) },
+      frontendUrl: "http://localhost:5173",
+      logger: false,
+      tagPlusSyncOrchestrator: globalOrchestrator,
+      financialSyncOrchestrator: financialOrchestrator,
+    });
+    apps.push(app);
+
+    // 1. Antes do sync, /api/financial/sync/status responde IDLE
+    const idleRes = await app.inject({
+      method: "GET",
+      url: "/api/financial/sync/status",
+    });
+    expect(idleRes.statusCode).toBe(200);
+    expect(idleRes.json().status).toBe("IDLE");
+
+    // 2. Inicia GLOBAL_SYNC
+    await globalOrchestrator.startSync({ mode: TagPlusSyncMode.INCREMENTAL });
+
+    // Aguarda chegar na etapa FINANCIAL
+    for (let i = 0; i < 50; i++) {
+      if (inFinancialStage) break;
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    expect(inFinancialStage).toBe(true);
+
+    // 3. Enquanto GLOBAL_SYNC processa FINANCIAL, /api/financial/sync/status retorna RUNNING com contadores reais
+    const runningRes = await app.inject({
+      method: "GET",
+      url: "/api/financial/sync/status",
+    });
+    expect(runningRes.statusCode).toBe(200);
+    const runningBody = runningRes.json();
+    expect(runningBody.status).toBe("RUNNING");
+    expect(runningBody.processed).toBe(42);
+    expect(runningBody.notFound).toBe(1);
+    expect(runningBody.openCandidates).toBe(15);
+    expect(runningBody.totalCandidates).toBe(120);
+
+    // 4. Tentativa concorrente de POST /api/financial/sync/incremental retorna 409 RUNNING
+    const conflictRes = await app.inject({
+      method: "POST",
+      url: "/api/financial/sync/incremental",
+      payload: {},
+    });
+    expect(conflictRes.statusCode).toBe(409);
+    expect(conflictRes.json().status).toBe("RUNNING");
+
+    // 5. Conclui etapa FINANCIAL no GLOBAL_SYNC
+    finishFinancialPromise!({
+      incremental: {
+        sinceDate: "2026-10-01",
+        lookbackDays: 30,
+        processed: 120,
+        completed: 119,
+        failed: 0,
+        notFound: 1,
+        inserted: 2,
+        updated: 5,
+        unchanged: 112,
+        candidates: {
+          recentCount: 20,
+          openCount: 15,
+          undatedCount: 3,
+          uniqueCount: 120,
+          overlapDeduplicated: 5,
+        },
+        aeMovementNumbersFound: [],
+      },
+      stockAdjustments: {
+        processed: 0,
+        completed: 0,
+        failed: 0,
+        inserted: 0,
+        updated: 0,
+        unchanged: 0,
+        candidateCount: 0,
+        catalogDiscovered: 678,
+        recentEligibleCount: 0,
+        newlyDiscoveredCount: 0,
+        aeMovementMatchedCount: 0,
+        jitResolvedCount: 0,
+      },
+      elapsedMs: 500,
+    });
+
+    await vi.waitFor(() => {
+      expect(setup.syncRepository.completeRun).toHaveBeenCalled();
+    });
+
+    // 6. Após conclusão real do GLOBAL_SYNC, /api/financial/sync/status retorna SUCCEEDED
+    const succeededRes = await app.inject({
+      method: "GET",
+      url: "/api/financial/sync/status",
+    });
+    expect(succeededRes.statusCode).toBe(200);
+    const succeededBody = succeededRes.json();
+    expect(succeededBody.status).toBe("SUCCEEDED");
+    expect(succeededBody.processed).toBe(120);
+    expect(succeededBody.notFound).toBe(1);
+    expect(succeededBody.finishedAt).toEqual(expect.any(String));
+  });
 });
 
