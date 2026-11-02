@@ -1,7 +1,12 @@
 import { describe, it, expect } from "vitest";
 import React from "react";
 import { renderToString } from "react-dom/server";
-import { FinancialDreMonthlyChart } from "./FinancialDreMonthlyChart";
+import {
+  FinancialDreMonthlyChart,
+  DreMonthlyTooltip,
+  formatDrePendingAccrualLabel,
+  formatDrePendingAccruals,
+} from "./FinancialDreMonthlyChart";
 import {
   buildAdaptiveDreEvolution,
   getRequiredYearsForPeriod,
@@ -375,6 +380,219 @@ describe("Phase 5D.5: Adaptive DRE Evolution Chart & Faithful Monthly Table", ()
     expect(months2026).toContain("2026-10");
     expect(months2026).not.toContain("2026-11");
     expect(months2026).not.toContain("2026-12");
+  });
+
+  describe("DreMonthlyTooltip — Contraste, Labels Amigáveis e Hierarquia", () => {
+    it("A. Mês provisório com pendências exibe status Provisório, múltiplas pendências formatadas e conteúdo completo", () => {
+      const provisionalMonth = makeMonthlyItem("2026-10", {
+        realizedRevenue: 50000,
+        estimatedCOGS: 25000,
+        variableTotal: 5000,
+        operatingTotal: 8000,
+        isProvisional: true,
+      });
+      provisionalMonth.dataQuality.pendingAccruals = [
+        "VARIABLE_TAX_ON_REVENUE",
+        "OPERATING_PERSONNEL",
+      ];
+
+      const evolution = buildAdaptiveDreEvolution(
+        [provisionalMonth],
+        { from: "2026-10-01", to: "2026-10-31" },
+        new Date("2026-10-29T12:00:00Z"),
+      );
+      const bucket = evolution.chartBuckets.find((b) => b.isSelected)!;
+
+      const html = renderToString(
+        React.createElement(DreMonthlyTooltip, {
+          active: true,
+          payload: [{ payload: bucket }],
+          hasContextWindow: true,
+        }),
+      );
+
+      // Classes de contraste e container do tooltip
+      expect(html).toContain("tp-chart-tooltip tp-dre-tooltip");
+      // Mês e status do período
+      expect(html).toContain(bucket.label);
+      expect(html).toContain("Provisório");
+      expect(html).toContain("Selecionado");
+      expect(html).toContain("Lucro");
+      // Múltiplas pendências renderizadas de forma organizada
+      expect(html).toContain("Pendências:");
+      expect(html).toContain("Impostos sobre vendas • Pessoal / encargos");
+      // Raw keys ausentes
+      expect(html).not.toContain("VARIABLE_TAX_ON_REVENUE");
+      expect(html).not.toContain("OPERATING_PERSONNEL");
+    });
+
+    it("B. Mês fechado sem pendências exibe status Fechado e omite seção de pendências", () => {
+      const closedMonth = makeMonthlyItem("2026-08", {
+        realizedRevenue: 40000,
+        estimatedCOGS: 28000,
+        variableTotal: 4000,
+        operatingTotal: 12000,
+        isProvisional: false,
+      });
+
+      const evolution = buildAdaptiveDreEvolution(
+        [closedMonth],
+        { from: "2026-08-01", to: "2026-08-31" },
+        new Date("2026-10-29T12:00:00Z"),
+      );
+      const bucket = evolution.chartBuckets.find((b) => b.isSelected)!;
+
+      const html = renderToString(
+        React.createElement(DreMonthlyTooltip, {
+          active: true,
+          payload: [{ payload: bucket }],
+          hasContextWindow: false,
+        }),
+      );
+
+      expect(html).toContain("Fechado");
+      expect(html).toContain("Prejuízo");
+      expect(html).not.toContain("Provisório");
+      expect(html).not.toContain("Pendências:");
+      expect(html).not.toContain("tp-tooltip-pending-hint");
+    });
+
+    it("C. Mapeia corretamente todos os códigos reais de pendências para labels amigáveis", () => {
+      expect(formatDrePendingAccrualLabel("VARIABLE_TAX_ON_REVENUE")).toBe(
+        "Impostos sobre vendas",
+      );
+      expect(formatDrePendingAccrualLabel("OPERATING_PERSONNEL")).toBe(
+        "Pessoal / encargos",
+      );
+      expect(formatDrePendingAccrualLabel("PRO_LABORE_GPS")).toBe(
+        "Encargos de pró-labore",
+      );
+      expect(formatDrePendingAccrualLabel("DAS")).toBe(
+        "DAS / Simples Nacional",
+      );
+      expect(formatDrePendingAccrualLabel("ICMS")).toBe("ICMS");
+      expect(formatDrePendingAccrualLabel("TAX_ICMS_UNRESOLVED")).toBe("ICMS");
+      expect(
+        formatDrePendingAccrualLabel("OPERATING_PARTNER_COMPENSATION"),
+      ).toBe("Pró-labore / remuneração de sócios");
+
+      // Deduplicação e múltiplas pendências
+      expect(
+        formatDrePendingAccruals([
+          "VARIABLE_TAX_ON_REVENUE",
+          "OPERATING_PERSONNEL",
+          "PRO_LABORE_GPS",
+          "ICMS",
+          "TAX_ICMS_UNRESOLVED",
+        ]),
+      ).toEqual([
+        "Impostos sobre vendas",
+        "Pessoal / encargos",
+        "Encargos de pró-labore",
+        "ICMS",
+      ]);
+    });
+
+    it("D. Garante ausência total de raw keys técnicas no tooltip e na visualização em tabela", () => {
+      const m = makeMonthlyItem("2026-10", { isProvisional: true });
+      m.dataQuality.pendingAccruals = [
+        "VARIABLE_TAX_ON_REVENUE",
+        "OPERATING_PERSONNEL",
+        "PRO_LABORE_GPS",
+        "UNMAPPED_INTERNAL_KEY",
+      ];
+
+      const evolution = buildAdaptiveDreEvolution(
+        [m],
+        { from: "2026-10-01", to: "2026-10-31" },
+        new Date("2026-10-29T12:00:00Z"),
+      );
+
+      const tooltipHtml = renderToString(
+        React.createElement(DreMonthlyTooltip, {
+          active: true,
+          payload: [{ payload: evolution.chartBuckets.find((b) => b.isSelected)! }],
+        }),
+      );
+
+      const tableHtml = renderToString(
+        React.createElement(FinancialDreMonthlyChart, {
+          monthlyData: [m],
+          period: { from: "2026-10-01", to: "2026-10-31" },
+          initialViewMode: "table",
+        }),
+      );
+
+      for (const rawKey of [
+        "VARIABLE_TAX_ON_REVENUE",
+        "OPERATING_PERSONNEL",
+        "PRO_LABORE_GPS",
+        "UNMAPPED_INTERNAL_KEY",
+      ]) {
+        expect(tooltipHtml).not.toContain(rawKey);
+        expect(tableHtml).not.toContain(rawKey);
+      }
+
+      expect(tooltipHtml).toContain(
+        "Impostos sobre vendas • Pessoal / encargos • Encargos de pró-labore • Outras pendências de conciliação",
+      );
+      expect(tableHtml).toContain(
+        "Aguardando conciliação: Impostos sobre vendas • Pessoal / encargos • Encargos de pró-labore • Outras pendências de conciliação",
+      );
+    });
+
+    it("E. Renderiza a hierarquia completa do tooltip com valores monetários e percentuais preservados", () => {
+      const m = makeMonthlyItem("2026-09", {
+        realizedRevenue: 100000,
+        estimatedCOGS: 60000,
+        variableTotal: 10000,
+        operatingTotal: 15000,
+        isProvisional: true,
+      });
+      m.dataQuality.pendingAccruals = ["DAS", "ICMS"];
+
+      const evolution = buildAdaptiveDreEvolution(
+        [m],
+        { from: "2026-09-01", to: "2026-09-30" },
+        new Date("2026-10-29T12:00:00Z"),
+      );
+      const bucket = evolution.chartBuckets.find((b) => b.isSelected)!;
+
+      const html = renderToString(
+        React.createElement(DreMonthlyTooltip, {
+          active: true,
+          payload: [{ payload: bucket }],
+          hasContextWindow: false,
+        }),
+      );
+
+      // Hierarquia completa exigida:
+      // 1. Mês
+      expect(html).toContain(bucket.label);
+      // 2. Status do período
+      expect(html).toContain("Provisório");
+      // 3. Lucro / Prejuízo
+      expect(html).toContain("Lucro");
+      // 4. Receita realizada
+      expect(html).toContain("Receita realizada:");
+      expect(html).toContain("100.000,00");
+      // 5. CMV estimado
+      expect(html).toContain("CMV estimado:");
+      expect(html).toContain("60.000,00");
+      // 6. Margem de contribuição (R$ 30.000,00 / 30,0%)
+      expect(html).toContain("Margem de contribuição:");
+      expect(html).toContain("30.000,00");
+      expect(html).toContain("30,0%");
+      // 7. Despesas operacionais (R$ 15.000,00)
+      expect(html).toContain("Despesas operacionais:");
+      expect(html).toContain("15.000,00");
+      // 8. Resultado líquido (R$ 15.000,00 / 15,0%)
+      expect(html).toContain("Resultado líquido:");
+      expect(html).toContain("15,0%");
+      // 9. Pendências
+      expect(html).toContain("Pendências:");
+      expect(html).toContain("DAS / Simples Nacional • ICMS");
+    });
   });
 });
 

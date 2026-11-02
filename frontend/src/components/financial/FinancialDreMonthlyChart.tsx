@@ -26,6 +26,69 @@ import {
   type DreEvolutionPeriod,
 } from "./dreEvolutionHelper";
 
+const DRE_PENDING_ACCRUAL_LABELS: Record<string, string> = {
+  VARIABLE_TAX_ON_REVENUE: "Impostos sobre vendas",
+  OPERATING_PERSONNEL: "Pessoal / encargos",
+  PRO_LABORE_GPS: "Encargos de pró-labore",
+  DAS: "DAS / Simples Nacional",
+  ICMS: "ICMS",
+  TAX_ICMS_UNRESOLVED: "ICMS",
+  OPERATING_PARTNER_COMPENSATION: "Pró-labore / remuneração de sócios",
+  VARIABLE_PAYMENT_FEE: "Taxas de meios de pagamento",
+  VARIABLE_FREIGHT_LOGISTICS: "Frete e logística",
+  VARIABLE_SALES_COMMISSION: "Comissões de venda",
+  VARIABLE_OTHER: "Outras despesas variáveis",
+  OPERATING_MARKETING: "Marketing e comercial",
+  OPERATING_OCCUPANCY: "Ocupação / aluguel",
+  OPERATING_UTILITIES: "Contas de consumo",
+  OPERATING_SOFTWARE: "Sistemas e software",
+  OPERATING_ACCOUNTING: "Contabilidade e jurídico",
+  OPERATING_INFRASTRUCTURE: "Manutenção e infraestrutura",
+  OPERATING_ADMINISTRATIVE: "Despesas administrativas",
+  OPERATING_OTHER: "Outras despesas operacionais",
+  FINANCIAL_EXPENSE: "Despesas financeiras",
+  FINANCIAL_INCOME: "Receitas financeiras",
+  OTHER_OPERATING_INCOME: "Outras receitas operacionais",
+  OTHER_OPERATING_EXPENSE: "Outras saídas operacionais",
+  INVENTORY_PURCHASE: "Compras de estoque",
+  CAPITAL_MOVEMENT: "Movimentação de capital",
+  TRANSFER: "Transferências",
+  UNKNOWN: "Pendente de classificação",
+};
+
+export function formatDrePendingAccrualLabel(code: string): string {
+  const trimmed = code.trim();
+  if (!trimmed) return "";
+
+  const mapped = DRE_PENDING_ACCRUAL_LABELS[trimmed.toUpperCase()];
+  if (mapped) return mapped;
+
+  if (/^[A-Z0-9_]+$/.test(trimmed) || trimmed.includes("_")) {
+    return "Outras pendências de conciliação";
+  }
+
+  return trimmed;
+}
+
+export function formatDrePendingAccruals(
+  codes?: string[] | null,
+): string[] {
+  if (!codes || codes.length === 0) return [];
+
+  const result: string[] = [];
+  const seen = new Set<string>();
+
+  for (const raw of codes) {
+    if (typeof raw !== "string") continue;
+    const label = formatDrePendingAccrualLabel(raw);
+    if (!label || seen.has(label)) continue;
+    seen.add(label);
+    result.push(label);
+  }
+
+  return result;
+}
+
 interface FinancialDreMonthlyChartProps {
   monthlyData: DreMonthlyItemDto[];
   period?: DreEvolutionPeriod;
@@ -35,13 +98,13 @@ interface FinancialDreMonthlyChartProps {
   initialViewMode?: "chart" | "table";
 }
 
-interface CustomTooltipProps {
+export interface CustomTooltipProps {
   active?: boolean;
   payload?: Array<{ payload?: DreChartBucket }>;
   hasContextWindow?: boolean;
 }
 
-function DreMonthlyTooltip({
+export function DreMonthlyTooltip({
   active,
   payload,
   hasContextWindow,
@@ -52,6 +115,9 @@ function DreMonthlyTooltip({
 
   const isProfit = item.netManagerialResult > 0;
   const isLoss = item.netManagerialResult < 0;
+  const pendingLabels = formatDrePendingAccruals(
+    item.dataQuality.pendingAccruals,
+  );
 
   return (
     <div className="tp-chart-tooltip tp-dre-tooltip">
@@ -139,12 +205,14 @@ function DreMonthlyTooltip({
             )
           </span>
         </div>
-        {item.dataQuality.pendingAccruals &&
-          item.dataQuality.pendingAccruals.length > 0 && (
-            <div className="tp-tooltip-pending-hint">
-              Pendências: {item.dataQuality.pendingAccruals.join(", ")}
-            </div>
-          )}
+        {pendingLabels.length > 0 && (
+          <div className="tp-tooltip-pending-hint">
+            <span className="tp-tooltip-pending-label">Pendências:</span>{" "}
+            <span className="tp-tooltip-pending-items">
+              {pendingLabels.join(" • ")}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -309,6 +377,7 @@ export function FinancialDreMonthlyChart({
                 }}
               />
               <Tooltip
+                wrapperStyle={{ zIndex: 60, pointerEvents: "none" }}
                 content={<DreMonthlyTooltip hasContextWindow={hasContextWindow} />}
               />
               <Legend
@@ -437,6 +506,9 @@ export function FinancialDreMonthlyChart({
               {tableRows.map((m) => {
                 const isProfit = m.netManagerialResult > 0;
                 const isLoss = m.netManagerialResult < 0;
+                const pendingLabels = formatDrePendingAccruals(
+                  m.dataQuality.pendingAccruals,
+                );
 
                 return (
                   <tr
@@ -486,7 +558,11 @@ export function FinancialDreMonthlyChart({
                       {m.dataQuality.isProvisional ? (
                         <span
                           className="tp-badge-provisional"
-                          title={`Aguardando conciliação: ${m.dataQuality.pendingAccruals.join(", ")}`}
+                          title={
+                            pendingLabels.length > 0
+                              ? `Aguardando conciliação: ${pendingLabels.join(" • ")}`
+                              : "Competência provisória"
+                          }
                         >
                           <Clock size={11} /> Provisório
                         </span>
