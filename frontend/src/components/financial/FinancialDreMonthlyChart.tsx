@@ -96,6 +96,9 @@ interface FinancialDreMonthlyChartProps {
   onYearChange?: (year: string) => void;
   isLoading?: boolean;
   initialViewMode?: "chart" | "table";
+  mode?: "interactive" | "export";
+  exportWidth?: number;
+  exportHeight?: number;
 }
 
 export interface CustomTooltipProps {
@@ -222,10 +225,15 @@ export function FinancialDreMonthlyChart({
   monthlyData,
   period,
   initialViewMode = "chart",
+  mode = "interactive",
+  exportWidth = 760,
+  exportHeight = 250,
 }: FinancialDreMonthlyChartProps) {
+  const isExport = mode === "export";
   const [chartViewMode, setChartViewMode] = useState<"chart" | "table">(
     initialViewMode,
   );
+  const effectiveViewMode = isExport ? "chart" : chartViewMode;
 
   const evolution = useMemo(
     () => buildAdaptiveDreEvolution(monthlyData, period),
@@ -255,6 +263,24 @@ export function FinancialDreMonthlyChart({
     [selectedBucketLabels],
   );
 
+  const provisionalLabelSet = useMemo(
+    () =>
+      new Set(
+        chartBuckets
+          .filter((b) => b.dataQuality.isProvisional)
+          .map((b) => b.label),
+      ),
+    [chartBuckets],
+  );
+
+  const visiblePendingLabels = useMemo(
+    () =>
+      formatDrePendingAccruals(
+        chartBuckets.flatMap((b) => b.dataQuality.pendingAccruals ?? []),
+      ),
+    [chartBuckets],
+  );
+
   const renderXAxisTick = (props: {
     x?: string | number;
     y?: string | number;
@@ -263,6 +289,21 @@ export function FinancialDreMonthlyChart({
     const { x = 0, y = 0, payload } = props;
     const label = String(payload?.value ?? "");
     const isSelectedTick = !hasContextWindow || selectedLabelSet.has(label);
+    const isProvisionalTick = provisionalLabelSet.has(label);
+
+    const fillColor = isExport
+      ? isProvisionalTick
+        ? "#b45309"
+        : hasContextWindow
+        ? isSelectedTick
+          ? "#0369a1"
+          : "#64748b"
+        : "#334155"
+      : hasContextWindow
+      ? isSelectedTick
+        ? "#38bdf8"
+        : "#64748b"
+      : "#94a3b8";
 
     return (
       <g transform={`translate(${x},${y})`}>
@@ -271,24 +312,553 @@ export function FinancialDreMonthlyChart({
           y={0}
           dy={12}
           textAnchor="middle"
-          fill={
-            hasContextWindow
-              ? isSelectedTick
-                ? "#38bdf8"
-                : "#64748b"
-              : "#94a3b8"
-          }
+          fill={fillColor}
           fontSize={11}
-          fontWeight={hasContextWindow && isSelectedTick ? 700 : 400}
+          fontWeight={
+            (hasContextWindow && isSelectedTick) ||
+            (isExport && isProvisionalTick)
+              ? 700
+              : 400
+          }
         >
-          {label}
+          {isExport && isProvisionalTick ? `${label}*` : label}
         </text>
       </g>
     );
   };
 
+  const renderExportSvgChart = () => {
+    const W = exportWidth;
+    const H = exportHeight;
+    const padLeft = 58;
+    const padRight = 18;
+    const padTop = 22;
+    const padBottom = 28;
+    const plotW = Math.max(100, W - padLeft - padRight);
+    const plotH = Math.max(80, H - padTop - padBottom);
+
+    const allValues: number[] = [0];
+    for (const b of chartBuckets) {
+      allValues.push(
+        b.realizedRevenue || 0,
+        b.contributionMargin || 0,
+        b.netManagerialResult || 0,
+      );
+    }
+    const rawMin = Math.min(...allValues, 0);
+    const rawMax = Math.max(...allValues, 1000);
+
+    // Compute clean step ticks
+    const roughRange = rawMax - rawMin || 1000;
+    const mag = Math.pow(10, Math.floor(Math.log10(roughRange)));
+    const residual = roughRange / mag;
+    const step =
+      residual > 5 ? mag : residual > 2 ? mag / 2 : mag / 5;
+    const niceMin = Math.floor(rawMin / step) * step;
+    const niceMax = Math.ceil(rawMax / step) * step;
+    const totalRange = Math.max(1, niceMax - niceMin);
+
+    const yTicks: number[] = [];
+    for (let v = niceMin; v <= niceMax + step * 0.01; v += step) {
+      yTicks.push(Math.round(v));
+    }
+    if (!yTicks.includes(0) && niceMin < 0 && niceMax > 0) {
+      yTicks.push(0);
+      yTicks.sort((a, b) => a - b);
+    }
+
+    const yToPx = (val: number) =>
+      padTop + plotH - ((val - niceMin) / totalRange) * plotH;
+
+    const count = Math.max(1, chartBuckets.length);
+    const slotW = plotW / count;
+    const barW = Math.min(38, Math.max(10, Math.round(slotW * 0.56)));
+    const xCenter = (idx: number) => padLeft + slotW * idx + slotW / 2;
+
+    const formatYTick = (val: number) => {
+      if (val === 0) return "R$ 0";
+      if (Math.abs(val) >= 1000) {
+        const k = val / 1000;
+        const formatted = Number.isInteger(k) ? k.toFixed(0) : k.toFixed(1);
+        return `${val < 0 ? "-R$ " : "R$ "}${formatted.replace("-", "")}k`;
+      }
+      return `R$ ${val}`;
+    };
+
+    const yZero = yToPx(0);
+
+    // Context window selected range highlight
+    const selectedIndices = chartBuckets
+      .map((b, idx) => (b.isSelected ? idx : -1))
+      .filter((idx) => idx >= 0);
+    const firstSelIdx = selectedIndices.length > 0 ? selectedIndices[0] : -1;
+    const lastSelIdx =
+      selectedIndices.length > 0
+        ? selectedIndices[selectedIndices.length - 1]
+        : -1;
+
+    const mcPoints = chartBuckets.map((b, idx) => ({
+      x: xCenter(idx),
+      y: yToPx(b.contributionMargin || 0),
+      bucket: b,
+    }));
+
+    const netPoints = chartBuckets.map((b, idx) => ({
+      x: xCenter(idx),
+      y: yToPx(b.netManagerialResult || 0),
+      bucket: b,
+    }));
+
+    const buildPath = (pts: Array<{ x: number; y: number }>) =>
+      pts
+        .map(
+          (p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`,
+        )
+        .join(" ");
+
+    return (
+      <div
+        className="recharts-wrapper"
+        style={{ position: "relative", width: W, height: H }}
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          className="recharts-surface tp-dre-export-svg"
+          width={W}
+          height={H}
+          viewBox={`0 0 ${W} ${H}`}
+        >
+          {/* Horizontal grid lines & Y-axis labels */}
+          {yTicks.map((tickVal) => {
+            const y = yToPx(tickVal);
+            const isZero = tickVal === 0;
+            return (
+              <g key={`ytick-${tickVal}`}>
+                <line
+                  x1={padLeft}
+                  y1={y}
+                  x2={W - padRight}
+                  y2={y}
+                  stroke={isZero ? "#94a3b8" : "#e2e8f0"}
+                  strokeWidth={isZero ? 1.25 : 1}
+                  strokeDasharray={isZero ? "4 3" : "3 3"}
+                />
+                <text
+                  x={padLeft - 8}
+                  y={y + 3.5}
+                  textAnchor="end"
+                  fill={isZero ? "#334155" : "#64748b"}
+                  fontSize={10}
+                  fontWeight={isZero ? 700 : 500}
+                >
+                  {formatYTick(tickVal)}
+                </text>
+              </g>
+            );
+          })}
+
+          {/* Context window highlight for selected period */}
+          {hasContextWindow && firstSelIdx >= 0 && lastSelIdx >= 0 && (
+            <g>
+              <rect
+                x={padLeft + firstSelIdx * slotW + 2}
+                y={padTop}
+                width={(lastSelIdx - firstSelIdx + 1) * slotW - 4}
+                height={plotH}
+                rx={4}
+                fill="#0284c7"
+                fillOpacity={0.07}
+                stroke="#0284c7"
+                strokeOpacity={0.35}
+                strokeDasharray="4 3"
+              />
+              <text
+                x={
+                  padLeft +
+                  ((firstSelIdx + lastSelIdx + 1) / 2) * slotW
+                }
+                y={padTop - 6}
+                textAnchor="middle"
+                fill="#0369a1"
+                fontSize={9.5}
+                fontWeight={700}
+              >
+                Período selecionado
+              </text>
+            </g>
+          )}
+
+          {/* Bars: Receita Realizada */}
+          {chartBuckets.map((entry, idx) => {
+            const val = entry.realizedRevenue || 0;
+            const yVal = yToPx(val);
+            const barTop = Math.min(yVal, yZero);
+            const barHeight = Math.max(1.5, Math.abs(yZero - yVal));
+            const x = xCenter(idx) - barW / 2;
+            const isContextBucket = hasContextWindow && entry.isContext;
+            const isHighlightedBucket = hasContextWindow && entry.isSelected;
+            const isProvisionalEntry = entry.dataQuality.isProvisional;
+
+            return (
+              <g key={`bar-${entry.key}`}>
+                <rect
+                  x={x}
+                  y={barTop}
+                  width={barW}
+                  height={barHeight}
+                  rx={3}
+                  fill={
+                    isProvisionalEntry
+                      ? "#38bdf8"
+                      : isHighlightedBucket
+                      ? "#0284c7"
+                      : "#0ea5e9"
+                  }
+                  fillOpacity={
+                    isContextBucket ? 0.3 : isProvisionalEntry ? 0.45 : 0.85
+                  }
+                  stroke={
+                    isProvisionalEntry
+                      ? "#d97706"
+                      : isHighlightedBucket
+                      ? "#0369a1"
+                      : "#0284c7"
+                  }
+                  strokeWidth={
+                    isProvisionalEntry ? 1.75 : isHighlightedBucket ? 1.5 : 0.75
+                  }
+                  strokeDasharray={isProvisionalEntry ? "3 2" : undefined}
+                />
+              </g>
+            );
+          })}
+
+          {/* Line: Margem de Contribuição */}
+          {mcPoints.length > 1 && (
+            <path
+              d={buildPath(mcPoints)}
+              fill="none"
+              stroke="#0d9488"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )}
+          {mcPoints.map((pt) => {
+            const isCtx = hasContextWindow && pt.bucket.isContext;
+            return (
+              <circle
+                key={`mc-dot-${pt.bucket.key}`}
+                cx={pt.x}
+                cy={pt.y}
+                r={isCtx ? 2.75 : 3.5}
+                fill="#0d9488"
+                fillOpacity={isCtx ? 0.5 : 1}
+                stroke="#ffffff"
+                strokeWidth={1.25}
+              />
+            );
+          })}
+
+          {/* Line: Resultado Líquido */}
+          {netPoints.length > 1 && (
+            <path
+              d={buildPath(netPoints)}
+              fill="none"
+              stroke="#e11d48"
+              strokeWidth={2.4}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )}
+          {netPoints.map((pt) => {
+            const isCtx = hasContextWindow && pt.bucket.isContext;
+            const isProv = pt.bucket.dataQuality.isProvisional;
+            const isPositive = (pt.bucket.netManagerialResult || 0) >= 0;
+            return (
+              <g key={`net-dot-${pt.bucket.key}`}>
+                {isProv && (
+                  <circle
+                    cx={pt.x}
+                    cy={pt.y}
+                    r={6.5}
+                    fill="none"
+                    stroke="#d97706"
+                    strokeWidth={1.5}
+                    strokeDasharray="2 2"
+                  />
+                )}
+                <circle
+                  cx={pt.x}
+                  cy={pt.y}
+                  r={isCtx ? 3.25 : 4.25}
+                  fill={isPositive ? "#059669" : "#e11d48"}
+                  fillOpacity={isCtx ? 0.55 : 1}
+                  stroke="#ffffff"
+                  strokeWidth={1.5}
+                />
+              </g>
+            );
+          })}
+
+          {/* X-Axis Baseline & Ticks */}
+          <line
+            x1={padLeft}
+            y1={padTop + plotH}
+            x2={W - padRight}
+            y2={padTop + plotH}
+            stroke="#cbd5e1"
+            strokeWidth={1}
+          />
+          {chartBuckets.map((entry, idx) => {
+            const cx = xCenter(idx);
+            const label = entry.formattedMonth;
+            const isSelectedTick =
+              !hasContextWindow || selectedLabelSet.has(label);
+            const isProvisionalTick = provisionalLabelSet.has(label);
+            const fillColor = isProvisionalTick
+              ? "#b45309"
+              : hasContextWindow
+              ? isSelectedTick
+                ? "#0369a1"
+                : "#64748b"
+              : "#334155";
+
+            return (
+              <g key={`xtick-${entry.key}`}>
+                <line
+                  x1={cx}
+                  y1={padTop + plotH}
+                  x2={cx}
+                  y2={padTop + plotH + 4}
+                  stroke="#cbd5e1"
+                />
+                <text
+                  x={cx}
+                  y={padTop + plotH + 16}
+                  textAnchor="middle"
+                  fill={fillColor}
+                  fontSize={count > 12 ? 9.5 : 10.5}
+                  fontWeight={
+                    (hasContextWindow && isSelectedTick) || isProvisionalTick
+                      ? 700
+                      : 500
+                  }
+                >
+                  {isProvisionalTick ? `${label}*` : label}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+    );
+  };
+
+  const chartElement = (
+    <ComposedChart
+      width={isExport ? exportWidth : undefined}
+      height={isExport ? exportHeight : undefined}
+      data={chartBuckets}
+      margin={{ top: 10, right: 16, bottom: 6, left: 10 }}
+    >
+      <CartesianGrid
+        strokeDasharray="3 3"
+        stroke={isExport ? "#e2e8f0" : "#1f2c48"}
+        vertical={false}
+      />
+      <XAxis
+        dataKey="formattedMonth"
+        stroke={isExport ? "#64748b" : "#64748b"}
+        tick={renderXAxisTick}
+        axisLine={{ stroke: isExport ? "#cbd5e1" : "#1f2c48" }}
+        interval="preserveStartEnd"
+        minTickGap={chartBuckets.length > 12 ? 14 : 6}
+      />
+      <YAxis
+        stroke="#64748b"
+        width={62}
+        tick={{ fill: isExport ? "#475569" : "#94a3b8", fontSize: 11 }}
+        axisLine={{ stroke: isExport ? "#cbd5e1" : "#1f2c48" }}
+        tickFormatter={(val) => {
+          if (Math.abs(val) >= 1000) {
+            return `R$ ${(val / 1000).toFixed(0)}k`;
+          }
+          return `R$ ${val}`;
+        }}
+      />
+      {!isExport && (
+        <Tooltip
+          wrapperStyle={{ zIndex: 60, pointerEvents: "none" }}
+          content={<DreMonthlyTooltip hasContextWindow={hasContextWindow} />}
+        />
+      )}
+      <Legend
+        verticalAlign="top"
+        align="right"
+        wrapperStyle={{ paddingBottom: 6, fontSize: 11 }}
+      />
+      <ReferenceLine
+        y={0}
+        stroke={isExport ? "#94a3b8" : "#475569"}
+        strokeDasharray="2 2"
+      />
+
+      {hasContextWindow && firstSelectedLabel && lastSelectedLabel && (
+        <ReferenceArea
+          x1={firstSelectedLabel}
+          x2={lastSelectedLabel}
+          fill={
+            isExport ? "rgba(2, 132, 199, 0.08)" : "rgba(56, 189, 248, 0.07)"
+          }
+          stroke={
+            isExport ? "rgba(2, 132, 199, 0.35)" : "rgba(56, 189, 248, 0.28)"
+          }
+          strokeDasharray="3 3"
+        />
+      )}
+
+      {/* Receita Realizada */}
+      <Bar
+        name="Receita Realizada"
+        dataKey="realizedRevenue"
+        fill={isExport ? "#0284c7" : "#0ea5e9"}
+        radius={[4, 4, 0, 0]}
+        maxBarSize={44}
+        isAnimationActive={!isExport}
+      >
+        {chartBuckets.map((entry) => {
+          const isContextBucket = hasContextWindow && entry.isContext;
+          const isHighlightedBucket = hasContextWindow && entry.isSelected;
+          const isProvisionalEntry = entry.dataQuality.isProvisional;
+          return (
+            <Cell
+              key={entry.key}
+              fill={
+                isExport
+                  ? isHighlightedBucket
+                    ? "#0284c7"
+                    : "#0ea5e9"
+                  : isHighlightedBucket
+                  ? "#38bdf8"
+                  : "#0ea5e9"
+              }
+              fillOpacity={isContextBucket ? 0.32 : 1}
+              stroke={
+                isExport && isProvisionalEntry
+                  ? "#d97706"
+                  : isHighlightedBucket
+                  ? isExport
+                    ? "#0369a1"
+                    : "#7dd3fc"
+                  : isContextBucket
+                  ? "rgba(56, 189, 248, 0.45)"
+                  : "none"
+              }
+              strokeWidth={
+                isExport && isProvisionalEntry
+                  ? 2
+                  : isHighlightedBucket
+                  ? 1.5
+                  : isContextBucket
+                  ? 1
+                  : 0
+              }
+              strokeDasharray={
+                isExport && isProvisionalEntry ? "3 2" : undefined
+              }
+            />
+          );
+        })}
+      </Bar>
+
+      {/* Margem de Contribuição */}
+      <Line
+        type="monotone"
+        name="Margem de Contribuição"
+        dataKey="contributionMargin"
+        stroke={isExport ? "#0d9488" : "#2dd4bf"}
+        strokeWidth={2}
+        isAnimationActive={!isExport}
+        dot={(dotProps: {
+          cx?: number;
+          cy?: number;
+          payload?: DreChartBucket;
+        }) => {
+          const { cx = 0, cy = 0, payload } = dotProps;
+          const isCtx = hasContextWindow && payload?.isContext;
+          return (
+            <circle
+              key={`mc-${payload?.key ?? `${cx}-${cy}`}`}
+              cx={cx}
+              cy={cy}
+              r={isCtx ? 3 : hasContextWindow ? 5 : 4}
+              fill={isExport ? "#0d9488" : "#2dd4bf"}
+              fillOpacity={isCtx ? 0.45 : 1}
+              stroke={
+                hasContextWindow && payload?.isSelected
+                  ? isExport
+                    ? "#ffffff"
+                    : "#0f172a"
+                  : "none"
+              }
+              strokeWidth={hasContextWindow && payload?.isSelected ? 1.5 : 0}
+            />
+          );
+        }}
+      />
+
+      {/* Resultado Líquido Gerencial Estimado */}
+      <Line
+        type="monotone"
+        name="Resultado Líquido"
+        dataKey="netManagerialResult"
+        stroke={isExport ? "#e11d48" : "#f43f5e"}
+        strokeWidth={2.5}
+        isAnimationActive={!isExport}
+        dot={(dotProps: {
+          cx?: number;
+          cy?: number;
+          payload?: DreChartBucket;
+        }) => {
+          const { cx = 0, cy = 0, payload } = dotProps;
+          const isCtx = hasContextWindow && payload?.isContext;
+          const isProv = payload?.dataQuality.isProvisional;
+          return (
+            <circle
+              key={`net-${payload?.key ?? `${cx}-${cy}`}`}
+              cx={cx}
+              cy={cy}
+              r={isCtx ? 3.5 : hasContextWindow ? 6 : 5}
+              fill={isExport ? "#e11d48" : "#f43f5e"}
+              fillOpacity={isCtx ? 0.45 : 1}
+              stroke={
+                isExport && isProv
+                  ? "#d97706"
+                  : hasContextWindow && payload?.isSelected
+                  ? "#ffffff"
+                  : "none"
+              }
+              strokeWidth={
+                isExport && isProv
+                  ? 2
+                  : hasContextWindow && payload?.isSelected
+                  ? 1.5
+                  : 0
+              }
+            />
+          );
+        }}
+      />
+    </ComposedChart>
+  );
+
   return (
-    <div className="tp-dre-monthly-card tp-card">
+    <div
+      className={`tp-dre-monthly-card tp-card ${
+        isExport ? "is-export-mode" : ""
+      }`}
+    >
       <div className="tp-card-header tp-dre-monthly-header">
         <div className="tp-dre-monthly-title-wrap">
           <h3 className="tp-card-title">Evolução Mensal do Resultado</h3>
@@ -298,7 +868,7 @@ export function FinancialDreMonthlyChart({
         </div>
 
         <div className="tp-dre-monthly-controls">
-          {chartViewMode === "chart" && contextNotice && (
+          {effectiveViewMode === "chart" && contextNotice && (
             <span
               className="tp-badge-context-window"
               data-testid="dre-context-notice"
@@ -313,180 +883,98 @@ export function FinancialDreMonthlyChart({
               className="tp-badge-provisional-legend"
               title="A série visível contém competências com apropriações a conciliar"
             >
-              <Clock size={12} /> Há meses provisórios na série
+              <Clock size={12} />{" "}
+              {isExport
+                ? "Há competências provisórias no período."
+                : "Há meses provisórios na série"}
             </span>
           )}
 
-          <div className="tp-chart-toggle-group">
-            <button
-              type="button"
-              className={`tp-toggle-btn ${chartViewMode === "chart" ? "is-active" : ""}`}
-              onClick={() => setChartViewMode("chart")}
-              aria-label="Visualização em Gráfico"
-            >
-              Gráfico
-            </button>
-            <button
-              type="button"
-              className={`tp-toggle-btn ${chartViewMode === "table" ? "is-active" : ""}`}
-              onClick={() => setChartViewMode("table")}
-              aria-label="Visualização em Tabela"
-            >
-              Tabela
-            </button>
-          </div>
+          {!isExport && (
+            <div className="tp-chart-toggle-group">
+              <button
+                type="button"
+                className={`tp-toggle-btn ${chartViewMode === "chart" ? "is-active" : ""}`}
+                onClick={() => setChartViewMode("chart")}
+                aria-label="Visualização em Gráfico"
+              >
+                Gráfico
+              </button>
+              <button
+                type="button"
+                className={`tp-toggle-btn ${chartViewMode === "table" ? "is-active" : ""}`}
+                onClick={() => setChartViewMode("table")}
+                aria-label="Visualização em Tabela"
+              >
+                Tabela
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
-      {chartViewMode === "chart" ? (
-        <div
-          className="tp-dre-chart-wrap"
-          style={{ width: "100%", height: 330 }}
-          data-granularity={granularity}
-          data-chart-buckets={chartBuckets.map((b) => b.label).join(",")}
-          data-selected-buckets={selectedBucketLabels.join(",")}
-          data-context-buckets={chartBuckets
-            .filter((b) => b.isContext)
-            .map((b) => b.label)
-            .join(",")}
-        >
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart
-              data={chartBuckets}
-              margin={{ top: 10, right: 16, bottom: 6, left: 10 }}
+      {effectiveViewMode === "chart" ? (
+        <>
+          <div
+            className="tp-dre-chart-wrap"
+            style={{
+              width: isExport ? exportWidth : "100%",
+              height: isExport ? exportHeight : 330,
+            }}
+            data-granularity={granularity}
+            data-chart-buckets={chartBuckets.map((b) => b.label).join(",")}
+            data-selected-buckets={selectedBucketLabels.join(",")}
+            data-context-buckets={chartBuckets
+              .filter((b) => b.isContext)
+              .map((b) => b.label)
+              .join(",")}
+          >
+            {isExport ? (
+              renderExportSvgChart()
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                {chartElement}
+              </ResponsiveContainer>
+            )}
+          </div>
+
+          {isExport && (
+            <div
+              className="tp-dre-export-chart-meta"
+              data-testid="dre-export-chart-meta"
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f2c48" vertical={false} />
-              <XAxis
-                dataKey="formattedMonth"
-                stroke="#64748b"
-                tick={renderXAxisTick}
-                axisLine={{ stroke: "#1f2c48" }}
-                interval="preserveStartEnd"
-                minTickGap={chartBuckets.length > 12 ? 14 : 6}
-              />
-              <YAxis
-                stroke="#64748b"
-                width={62}
-                tick={{ fill: "#94a3b8", fontSize: 11 }}
-                axisLine={{ stroke: "#1f2c48" }}
-                tickFormatter={(val) => {
-                  if (Math.abs(val) >= 1000) {
-                    return `R$ ${(val / 1000).toFixed(0)}k`;
-                  }
-                  return `R$ ${val}`;
-                }}
-              />
-              <Tooltip
-                wrapperStyle={{ zIndex: 60, pointerEvents: "none" }}
-                content={<DreMonthlyTooltip hasContextWindow={hasContextWindow} />}
-              />
-              <Legend
-                verticalAlign="top"
-                align="right"
-                wrapperStyle={{ paddingBottom: 6, fontSize: 11 }}
-              />
-              <ReferenceLine y={0} stroke="#475569" strokeDasharray="2 2" />
+              <div className="tp-dre-export-chart-legend-items">
+                <span>
+                  <strong style={{ color: "#0284c7" }}>■</strong> Receita Realizada
+                </span>
+                <span>
+                  <strong style={{ color: "#0d9488" }}>●</strong> Margem de Contribuição
+                </span>
+                <span>
+                  <strong style={{ color: "#e11d48" }}>●</strong> Resultado Líquido (Lucro &gt; R$ 0 / Prejuízo &lt; R$ 0)
+                </span>
+                <span>
+                  <strong style={{ color: "#15803d" }}>✓</strong> Mês fechado
+                </span>
+                {hasProvisionalInVisibleChart && (
+                  <span>
+                    <strong style={{ color: "#b45309" }}>*</strong> Competência provisória
+                  </span>
+                )}
+              </div>
 
-              {hasContextWindow && firstSelectedLabel && lastSelectedLabel && (
-                <ReferenceArea
-                  x1={firstSelectedLabel}
-                  x2={lastSelectedLabel}
-                  fill="rgba(56, 189, 248, 0.07)"
-                  stroke="rgba(56, 189, 248, 0.28)"
-                  strokeDasharray="3 3"
-                />
+              {hasProvisionalInVisibleChart && visiblePendingLabels.length > 0 && (
+                <div
+                  className="tp-dre-export-chart-pending"
+                  data-testid="dre-export-chart-pending"
+                >
+                  <strong>Pendências na série:</strong>{" "}
+                  {visiblePendingLabels.join(" • ")}
+                </div>
               )}
-
-              {/* Receita Realizada */}
-              <Bar
-                name="Receita Realizada"
-                dataKey="realizedRevenue"
-                fill="#0ea5e9"
-                radius={[4, 4, 0, 0]}
-                maxBarSize={44}
-              >
-                {chartBuckets.map((entry) => {
-                  const isContextBucket = hasContextWindow && entry.isContext;
-                  const isHighlightedBucket =
-                    hasContextWindow && entry.isSelected;
-                  return (
-                    <Cell
-                      key={entry.key}
-                      fill={isHighlightedBucket ? "#38bdf8" : "#0ea5e9"}
-                      fillOpacity={isContextBucket ? 0.3 : 1}
-                      stroke={
-                        isHighlightedBucket
-                          ? "#7dd3fc"
-                          : isContextBucket
-                          ? "rgba(56, 189, 248, 0.45)"
-                          : "none"
-                      }
-                      strokeWidth={isHighlightedBucket ? 1.5 : isContextBucket ? 1 : 0}
-                    />
-                  );
-                })}
-              </Bar>
-
-              {/* Margem de Contribuição */}
-              <Line
-                type="monotone"
-                name="Margem de Contribuição"
-                dataKey="contributionMargin"
-                stroke="#2dd4bf"
-                strokeWidth={2}
-                dot={(dotProps: {
-                  cx?: number;
-                  cy?: number;
-                  payload?: DreChartBucket;
-                }) => {
-                  const { cx = 0, cy = 0, payload } = dotProps;
-                  const isCtx = hasContextWindow && payload?.isContext;
-                  return (
-                    <circle
-                      key={`mc-${payload?.key ?? `${cx}-${cy}`}`}
-                      cx={cx}
-                      cy={cy}
-                      r={isCtx ? 3 : hasContextWindow ? 5 : 4}
-                      fill="#2dd4bf"
-                      fillOpacity={isCtx ? 0.45 : 1}
-                      stroke={hasContextWindow && payload?.isSelected ? "#0f172a" : "none"}
-                      strokeWidth={hasContextWindow && payload?.isSelected ? 1.5 : 0}
-                    />
-                  );
-                }}
-              />
-
-              {/* Resultado Líquido Gerencial Estimado */}
-              <Line
-                type="monotone"
-                name="Resultado Líquido"
-                dataKey="netManagerialResult"
-                stroke="#f43f5e"
-                strokeWidth={2.5}
-                dot={(dotProps: {
-                  cx?: number;
-                  cy?: number;
-                  payload?: DreChartBucket;
-                }) => {
-                  const { cx = 0, cy = 0, payload } = dotProps;
-                  const isCtx = hasContextWindow && payload?.isContext;
-                  return (
-                    <circle
-                      key={`net-${payload?.key ?? `${cx}-${cy}`}`}
-                      cx={cx}
-                      cy={cy}
-                      r={isCtx ? 3.5 : hasContextWindow ? 6 : 5}
-                      fill="#f43f5e"
-                      fillOpacity={isCtx ? 0.45 : 1}
-                      stroke={hasContextWindow && payload?.isSelected ? "#ffffff" : "none"}
-                      strokeWidth={hasContextWindow && payload?.isSelected ? 1.5 : 0}
-                    />
-                  );
-                }}
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
+            </div>
+          )}
+        </>
       ) : (
         <div className="tp-dre-monthly-table-wrap">
           <table className="tp-dre-mini-table" aria-label="Resumo Mensal do DRE">

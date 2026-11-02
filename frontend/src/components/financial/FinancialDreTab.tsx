@@ -11,6 +11,11 @@ import {
   RefreshCw,
   Scale,
   Calendar,
+  Download,
+  ChevronDown,
+  FileText,
+  Image as ImageIcon,
+  X,
 } from "lucide-react";
 import {
   fetchFinancialDreSummary,
@@ -29,6 +34,13 @@ import {
 import { FinancialDreTable } from "./FinancialDreTable";
 import { FinancialDreMonthlyChart } from "./FinancialDreMonthlyChart";
 import { FinancialDreBreakdownCard } from "./FinancialDreBreakdownCard";
+import { FinancialDreExportReport } from "./FinancialDreExportReport";
+import {
+  buildDreExportFilename,
+  exportDreReportToPdf,
+  exportDreReportToJpg,
+  type DreExportFormat,
+} from "./dreExportService";
 import { getRequiredYearsForPeriod } from "./dreEvolutionHelper";
 
 interface FinancialDreTabProps {
@@ -36,8 +48,16 @@ interface FinancialDreTabProps {
     from: string;
     to: string;
   };
+  companyName?: string;
   initialSummary?: DreSummaryDto | null;
+  initialMonthly?: DreMonthlyItemDto[];
+  initialBreakdown?: DreBreakdownDto | null;
   isLoadingGlobal?: boolean;
+  defaultExportMenuOpen?: boolean;
+  initialExportingFormat?: DreExportFormat | null;
+  initialExportError?: string | null;
+  onExportPdf?: (element: HTMLElement, filename: string) => Promise<unknown>;
+  onExportJpg?: (element: HTMLElement, filename: string) => Promise<unknown>;
 }
 
 export function formatPendingAccrualLabel(code: string): string {
@@ -53,23 +73,71 @@ export function formatPendingAccrualLabel(code: string): string {
   }
 }
 
+function resolveActiveCompanyName(explicitName?: string): string {
+  if (explicitName && explicitName.trim()) {
+    return explicitName.trim();
+  }
+  if (typeof document !== "undefined") {
+    const brandNode = document.querySelector(".tp-brand-company");
+    const domName = brandNode?.textContent?.trim();
+    if (domName) {
+      return domName;
+    }
+  }
+  return "Nineclouds";
+}
+
 export function FinancialDreTab({
   currentPeriod,
+  companyName,
   initialSummary,
+  initialMonthly,
+  initialBreakdown,
+  defaultExportMenuOpen = false,
+  initialExportingFormat = null,
+  initialExportError = null,
+  onExportPdf,
+  onExportJpg,
 }: FinancialDreTabProps) {
   // Data states
-  const [summaryData, setSummaryData] = useState<DreSummaryDto | null>(initialSummary ?? null);
-  const [monthlyData, setMonthlyData] = useState<DreMonthlyItemDto[]>([]);
-  const [breakdownData, setBreakdownData] = useState<DreBreakdownDto | null>(null);
+  const [summaryData, setSummaryData] = useState<DreSummaryDto | null>(
+    initialSummary ?? null,
+  );
+  const [monthlyData, setMonthlyData] = useState<DreMonthlyItemDto[]>(
+    initialMonthly ?? [],
+  );
+  const [breakdownData, setBreakdownData] = useState<DreBreakdownDto | null>(
+    initialBreakdown ?? null,
+  );
 
   // Loading and Error states
   const [isLoadingSummary, setIsLoadingSummary] = useState(!initialSummary);
-  const [isLoadingMonthly, setIsLoadingMonthly] = useState(true);
-  const [isLoadingBreakdown, setIsLoadingBreakdown] = useState(true);
+  const [isLoadingMonthly, setIsLoadingMonthly] = useState(
+    !initialMonthly || initialMonthly.length === 0,
+  );
+  const [isLoadingBreakdown, setIsLoadingBreakdown] = useState(
+    !initialBreakdown,
+  );
 
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [monthlyError, setMonthlyError] = useState<string | null>(null);
   const [breakdownError, setBreakdownError] = useState<string | null>(null);
+
+  // Export states
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(
+    defaultExportMenuOpen,
+  );
+  const [exportingFormat, setExportingFormat] =
+    useState<DreExportFormat | null>(initialExportingFormat);
+  const [exportLayoutMode, setExportLayoutMode] = useState<
+    "paginated" | "continuous"
+  >("paginated");
+  const [exportError, setExportError] = useState<string | null>(
+    initialExportError,
+  );
+
+  const exportDropdownRef = useRef<HTMLDivElement | null>(null);
+  const exportReportHostRef = useRef<HTMLDivElement | null>(null);
 
   const requiredYears = useMemo(
     () => getRequiredYearsForPeriod(currentPeriod),
@@ -86,6 +154,23 @@ export function FinancialDreTab({
     };
   }, []);
 
+  // Close export dropdown on outside click
+  useEffect(() => {
+    if (!isExportMenuOpen) return;
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (
+        exportDropdownRef.current &&
+        !exportDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsExportMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+    };
+  }, [isExportMenuOpen]);
+
   // Load Summary
   const loadSummary = useCallback(async (from: string, to: string) => {
     setIsLoadingSummary(true);
@@ -97,7 +182,10 @@ export function FinancialDreTab({
       }
     } catch (err: unknown) {
       if (isMountedRef.current) {
-        const msg = err instanceof Error ? err.message : "Erro ao carregar resumo do DRE.";
+        const msg =
+          err instanceof Error
+            ? err.message
+            : "Erro ao carregar resumo do DRE.";
         setSummaryError(msg);
       }
     } finally {
@@ -133,7 +221,10 @@ export function FinancialDreTab({
       }
     } catch (err: unknown) {
       if (isMountedRef.current) {
-        const msg = err instanceof Error ? err.message : "Erro ao carregar série mensal do DRE.";
+        const msg =
+          err instanceof Error
+            ? err.message
+            : "Erro ao carregar série mensal do DRE.";
         setMonthlyError(msg);
       }
     } finally {
@@ -154,7 +245,10 @@ export function FinancialDreTab({
       }
     } catch (err: unknown) {
       if (isMountedRef.current) {
-        const msg = err instanceof Error ? err.message : "Erro ao carregar composição de despesas.";
+        const msg =
+          err instanceof Error
+            ? err.message
+            : "Erro ao carregar composição de despesas.";
         setBreakdownError(msg);
       }
     } finally {
@@ -169,7 +263,86 @@ export function FinancialDreTab({
     void loadSummary(currentPeriod.from, currentPeriod.to);
     void loadBreakdown(currentPeriod.from, currentPeriod.to);
     void loadMonthly(requiredYearsKey);
-  }, [currentPeriod.from, currentPeriod.to, requiredYearsKey, loadSummary, loadBreakdown, loadMonthly]);
+  }, [
+    currentPeriod.from,
+    currentPeriod.to,
+    requiredYearsKey,
+    loadSummary,
+    loadBreakdown,
+    loadMonthly,
+  ]);
+
+  const handleExport = useCallback(
+    async (format: DreExportFormat) => {
+      if (!summaryData || exportingFormat !== null) return;
+
+      const targetLayout = format === "pdf" ? "paginated" : "continuous";
+      setExportLayoutMode(targetLayout);
+      setExportError(null);
+      setIsExportMenuOpen(false);
+      setExportingFormat(format);
+
+      try {
+        // Wait for React to commit the target export layout to DOM
+        await new Promise<void>((resolve) => {
+          window.setTimeout(() => resolve(), 30);
+        });
+
+        const hostNode = exportReportHostRef.current;
+        const reportElement =
+          (hostNode?.querySelector(
+            '[data-testid="dre-export-report"]',
+          ) as HTMLElement | null) ?? hostNode;
+
+        if (!reportElement) {
+          throw new Error(
+            "Não foi possível preparar o layout de exportação do DRE.",
+          );
+        }
+
+        const activeCompany = resolveActiveCompanyName(companyName);
+        const filename = buildDreExportFilename(
+          activeCompany,
+          currentPeriod,
+          format,
+        );
+
+        if (format === "pdf") {
+          if (onExportPdf) {
+            await onExportPdf(reportElement, filename);
+          } else {
+            await exportDreReportToPdf(reportElement, filename);
+          }
+        } else {
+          if (onExportJpg) {
+            await onExportJpg(reportElement, filename);
+          } else {
+            await exportDreReportToJpg(reportElement, filename);
+          }
+        }
+      } catch (err: unknown) {
+        if (isMountedRef.current) {
+          const message =
+            err instanceof Error
+              ? err.message
+              : "Não foi possível concluir a exportação do relatório.";
+          setExportError(message);
+        }
+      } finally {
+        if (isMountedRef.current) {
+          setExportingFormat(null);
+        }
+      }
+    },
+    [
+      summaryData,
+      exportingFormat,
+      companyName,
+      currentPeriod,
+      onExportPdf,
+      onExportJpg,
+    ],
+  );
 
   // Main error state if summary failed completely
   if (summaryError && !summaryData) {
@@ -201,7 +374,10 @@ export function FinancialDreTab({
   // Skeleton loading state
   if (isLoadingSummary && !summaryData) {
     return (
-      <div className="tp-section-skeleton tp-dre-skeleton" aria-label="Carregando DRE Gerencial">
+      <div
+        className="tp-section-skeleton tp-dre-skeleton"
+        aria-label="Carregando DRE Gerencial"
+      >
         {/* KPI Skeleton Grid */}
         <div className="tp-kpi-grid">
           {[1, 2, 3, 4].map((i) => (
@@ -240,7 +416,9 @@ export function FinancialDreTab({
     return (
       <div className="tp-state-card tp-state-empty">
         <div className="tp-state-content">
-          <h3 className="tp-state-title">Nenhum movimento disponível para o período selecionado.</h3>
+          <h3 className="tp-state-title">
+            Nenhum movimento disponível para o período selecionado.
+          </h3>
           <p className="tp-state-message">
             Tente selecionar outro intervalo de datas para visualizar o resultado econômico da operação.
           </p>
@@ -251,16 +429,22 @@ export function FinancialDreTab({
 
   const isPositiveNet = totals.netManagerialResult > 0;
   const isNegativeNet = totals.netManagerialResult < 0;
+  const resolvedCompanyName = resolveActiveCompanyName(companyName);
+  const isExportBusy = exportingFormat !== null;
 
   return (
     <div className="tp-dre-module-content" aria-label="DRE Gerencial">
       {/* Context & Quality Header Banner */}
-      <section className="tp-dre-context-banner" aria-label="Informações do período">
+      <section
+        className="tp-dre-context-banner"
+        aria-label="Informações do período"
+      >
         <div className="tp-dre-context-left">
           <div className="tp-dre-period-tag">
             <Calendar size={13} />
             <span>
-              {formatDateBr(currentPeriod.from)} — {formatDateBr(currentPeriod.to)}
+              {formatDateBr(currentPeriod.from)} —{" "}
+              {formatDateBr(currentPeriod.to)}
             </span>
           </div>
 
@@ -312,7 +496,7 @@ export function FinancialDreTab({
           </div>
         </div>
 
-        {/* Coverage and Disclaimer */}
+        {/* Coverage, Disclaimer and Export Action */}
         <div className="tp-dre-context-right">
           <span
             className="tp-dre-coverage-pill"
@@ -325,11 +509,104 @@ export function FinancialDreTab({
               className="tp-dre-unknown-pill"
               title="Valores não classificados gerencialmente"
             >
-              Não classificado: {formatCurrency(summaryData.dataQuality.unknownAmount)}
+              Não classificado:{" "}
+              {formatCurrency(summaryData.dataQuality.unknownAmount)}
             </span>
           )}
+
+          {/* Export Dropdown Control */}
+          <div className="tp-dre-export-dropdown" ref={exportDropdownRef}>
+            <button
+              type="button"
+              className="tp-dre-export-btn"
+              data-testid="dre-export-button"
+              disabled={isExportBusy}
+              aria-haspopup="menu"
+              aria-expanded={isExportMenuOpen}
+              onClick={() => {
+                if (!isExportBusy) {
+                  setExportError(null);
+                  setIsExportMenuOpen((prev) => !prev);
+                }
+              }}
+            >
+              {exportingFormat === "pdf" ? (
+                <>
+                  <RefreshCw size={13} className="tp-spin" />
+                  <span>Gerando PDF...</span>
+                </>
+              ) : exportingFormat === "jpg" ? (
+                <>
+                  <RefreshCw size={13} className="tp-spin" />
+                  <span>Gerando imagem...</span>
+                </>
+              ) : (
+                <>
+                  <Download size={13} />
+                  <span>Exportar</span>
+                  <ChevronDown size={12} />
+                </>
+              )}
+            </button>
+
+            {isExportMenuOpen && !isExportBusy && (
+              <div
+                className="tp-dre-export-menu"
+                role="menu"
+                aria-label="Opções de exportação do DRE"
+                data-testid="dre-export-menu"
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="tp-dre-export-menu-item"
+                  data-testid="dre-export-pdf-option"
+                  onClick={() => void handleExport("pdf")}
+                >
+                  <FileText size={14} />
+                  <span>Exportar PDF</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="tp-dre-export-menu-item"
+                  data-testid="dre-export-jpg-option"
+                  onClick={() => void handleExport("jpg")}
+                >
+                  <ImageIcon size={14} />
+                  <span>Exportar JPG</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </section>
+
+      {/* Export Error Callout */}
+      {exportError && (
+        <div
+          className="tp-state-card tp-state-error tp-dre-export-error"
+          role="alert"
+          data-testid="dre-export-error"
+        >
+          <div className="tp-state-icon">
+            <AlertCircle size={18} />
+          </div>
+          <div className="tp-state-content">
+            <h4 className="tp-state-title">Não foi possível exportar o DRE</h4>
+            <p className="tp-state-message">{exportError}</p>
+          </div>
+          <button
+            type="button"
+            className="tp-btn-retry"
+            aria-label="Fechar aviso de erro"
+            onClick={() => setExportError(null)}
+          >
+            <X size={13} />
+            <span>Fechar</span>
+          </button>
+        </div>
+      )}
 
       {/* Provisional notice explanation if provisional */}
       {isProvisional && (
@@ -353,10 +630,14 @@ export function FinancialDreTab({
               </span>
             </div>
             <div className="tp-profit-kpi-value-wrap">
-              <span className="tp-kpi-value">{formatCurrency(totals.realizedRevenue)}</span>
+              <span className="tp-kpi-value">
+                {formatCurrency(totals.realizedRevenue)}
+              </span>
             </div>
             <div className="tp-profit-kpi-footer">
-              <span className="tp-profit-kpi-subtext">Faturamento líquido faturado no período</span>
+              <span className="tp-profit-kpi-subtext">
+                Faturamento líquido faturado no período
+              </span>
             </div>
           </article>
 
@@ -369,7 +650,9 @@ export function FinancialDreTab({
               </span>
             </div>
             <div className="tp-profit-kpi-value-wrap">
-              <span className="tp-kpi-value">{formatCurrency(totals.contributionMargin)}</span>
+              <span className="tp-kpi-value">
+                {formatCurrency(totals.contributionMargin)}
+              </span>
             </div>
             <div className="tp-profit-kpi-footer">
               <span className="tp-kpi-meta-badge tp-meta-teal">
@@ -377,7 +660,9 @@ export function FinancialDreTab({
                   ? formatPercent(totals.contributionMarginPercent, 2)
                   : "—"}
               </span>
-              <span className="tp-profit-kpi-subtext">Após CMV e desp. variáveis</span>
+              <span className="tp-profit-kpi-subtext">
+                Após CMV e desp. variáveis
+              </span>
             </div>
           </article>
 
@@ -392,10 +677,16 @@ export function FinancialDreTab({
             }`}
           >
             <div className="tp-profit-kpi-header">
-              <span className="tp-profit-kpi-label">Resultado Líquido Gerencial Estimado</span>
+              <span className="tp-profit-kpi-label">
+                Resultado Líquido Gerencial Estimado
+              </span>
               <span
                 className={`tp-kpi-icon-wrap ${
-                  isPositiveNet ? "tp-icon-teal" : isNegativeNet ? "tp-icon-magenta" : "tp-icon-blue"
+                  isPositiveNet
+                    ? "tp-icon-teal"
+                    : isNegativeNet
+                    ? "tp-icon-magenta"
+                    : "tp-icon-blue"
                 }`}
               >
                 {isPositiveNet ? (
@@ -423,7 +714,11 @@ export function FinancialDreTab({
             <div className="tp-profit-kpi-footer">
               <span
                 className={`tp-kpi-status-badge ${
-                  isPositiveNet ? "is-profit" : isNegativeNet ? "is-loss" : "is-even"
+                  isPositiveNet
+                    ? "is-profit"
+                    : isNegativeNet
+                    ? "is-loss"
+                    : "is-even"
                 }`}
               >
                 {totals.status === "PROFIT"
@@ -432,17 +727,25 @@ export function FinancialDreTab({
                   ? "Prejuízo"
                   : "Equilíbrio"}
               </span>
-              <span className="tp-profit-kpi-subtext">Resultado operacional líquido</span>
+              <span className="tp-profit-kpi-subtext">
+                Resultado operacional líquido
+              </span>
             </div>
           </article>
 
           {/* KPI 4 — Margem Líquida Gerencial Estimada */}
           <article className="tp-kpi-card tp-profit-kpi-card">
             <div className="tp-profit-kpi-header">
-              <span className="tp-profit-kpi-label">Margem Líquida Gerencial Estimada</span>
+              <span className="tp-profit-kpi-label">
+                Margem Líquida Gerencial Estimada
+              </span>
               <span
                 className={`tp-kpi-icon-wrap ${
-                  isPositiveNet ? "tp-icon-teal" : isNegativeNet ? "tp-icon-magenta" : "tp-icon-blue"
+                  isPositiveNet
+                    ? "tp-icon-teal"
+                    : isNegativeNet
+                    ? "tp-icon-magenta"
+                    : "tp-icon-blue"
                 }`}
               >
                 <Percent size={16} />
@@ -451,9 +754,11 @@ export function FinancialDreTab({
             <div className="tp-profit-kpi-value-wrap">
               <span
                 className={`tp-kpi-value ${
-                  totals.netManagerialMarginPercent !== null && totals.netManagerialMarginPercent < 0
+                  totals.netManagerialMarginPercent !== null &&
+                  totals.netManagerialMarginPercent < 0
                     ? "tp-value-negative"
-                    : totals.netManagerialMarginPercent !== null && totals.netManagerialMarginPercent > 0
+                    : totals.netManagerialMarginPercent !== null &&
+                      totals.netManagerialMarginPercent > 0
                     ? "tp-value-positive"
                     : ""
                 }`}
@@ -464,22 +769,33 @@ export function FinancialDreTab({
               </span>
             </div>
             <div className="tp-profit-kpi-footer">
-              <span className="tp-profit-kpi-subtext">Sobre a receita realizada</span>
+              <span className="tp-profit-kpi-subtext">
+                Sobre a receita realizada
+              </span>
             </div>
           </article>
         </div>
       </section>
 
       {/* Secondary Indicators Strip (5 Compact Metrics) */}
-      <section className="tp-dre-secondary-strip" aria-label="Indicadores Secundários">
+      <section
+        className="tp-dre-secondary-strip"
+        aria-label="Indicadores Secundários"
+      >
         <div className="tp-secondary-metric-item">
-          <span className="tp-secondary-label">CMV Estimado ao Custo Atual</span>
-          <span className="tp-secondary-value">{formatCurrency(totals.estimatedCOGS)}</span>
+          <span className="tp-secondary-label">
+            CMV Estimado ao Custo Atual
+          </span>
+          <span className="tp-secondary-value">
+            {formatCurrency(totals.estimatedCOGS)}
+          </span>
         </div>
         <div className="tp-secondary-divider" />
         <div className="tp-secondary-metric-item">
           <span className="tp-secondary-label">Lucro Bruto Estimado</span>
-          <span className="tp-secondary-value">{formatCurrency(totals.estimatedGrossProfit)}</span>
+          <span className="tp-secondary-value">
+            {formatCurrency(totals.estimatedGrossProfit)}
+          </span>
         </div>
         <div className="tp-secondary-divider" />
         <div className="tp-secondary-metric-item">
@@ -493,7 +809,9 @@ export function FinancialDreTab({
         <div className="tp-secondary-divider" />
         <div className="tp-secondary-metric-item">
           <span className="tp-secondary-label">Despesas Operacionais</span>
-          <span className="tp-secondary-value">{formatCurrency(totals.operatingExpenses.total)}</span>
+          <span className="tp-secondary-value">
+            {formatCurrency(totals.operatingExpenses.total)}
+          </span>
         </div>
         <div className="tp-secondary-divider" />
         <div className="tp-secondary-metric-item">
@@ -513,14 +831,19 @@ export function FinancialDreTab({
       </section>
 
       {/* 1. Full-Width Monthly Evolution Section */}
-      <section className="tp-dre-evolution-section" aria-label="Evolução Mensal do Resultado">
+      <section
+        className="tp-dre-evolution-section"
+        aria-label="Evolução Mensal do Resultado"
+      >
         {monthlyError ? (
           <div className="tp-state-card tp-state-error" role="alert">
             <div className="tp-state-icon">
               <AlertCircle size={18} />
             </div>
             <div className="tp-state-content">
-              <h4 className="tp-state-title">Falha ao carregar evolução mensal</h4>
+              <h4 className="tp-state-title">
+                Falha ao carregar evolução mensal
+              </h4>
               <p className="tp-state-message">{monthlyError}</p>
               <button
                 type="button"
@@ -542,24 +865,37 @@ export function FinancialDreTab({
       </section>
 
       {/* 2. Full-Width DRE Table Section */}
-      <section className="tp-dre-table-section" aria-label="Demonstrativo do Resultado do Exercício">
-        <FinancialDreTable totals={totals} realizedRevenue={totals.realizedRevenue} />
+      <section
+        className="tp-dre-table-section"
+        aria-label="Demonstrativo do Resultado do Exercício"
+      >
+        <FinancialDreTable
+          totals={totals}
+          realizedRevenue={totals.realizedRevenue}
+        />
       </section>
 
       {/* 3. Full-Width Expense Breakdown Section */}
-      <section className="tp-dre-breakdown-section" aria-label="Composição das Despesas">
+      <section
+        className="tp-dre-breakdown-section"
+        aria-label="Composição das Despesas"
+      >
         {breakdownError ? (
           <div className="tp-state-card tp-state-error" role="alert">
             <div className="tp-state-icon">
               <AlertCircle size={18} />
             </div>
             <div className="tp-state-content">
-              <h4 className="tp-state-title">Falha ao carregar composição de despesas</h4>
+              <h4 className="tp-state-title">
+                Falha ao carregar composição de despesas
+              </h4>
               <p className="tp-state-message">{breakdownError}</p>
               <button
                 type="button"
                 className="tp-btn-retry"
-                onClick={() => void loadBreakdown(currentPeriod.from, currentPeriod.to)}
+                onClick={() =>
+                  void loadBreakdown(currentPeriod.from, currentPeriod.to)
+                }
               >
                 <RefreshCw size={12} />
                 <span>Tentar novamente</span>
@@ -579,6 +915,24 @@ export function FinancialDreTab({
         <HelpCircle size={14} className="tp-disclaimer-icon" />
         <span>{summaryData.disclaimer || DRE_DISCLAIMER}</span>
       </footer>
+
+      {/* Offscreen Export Report Host (mounted when export menu is open or export is running) */}
+      {(isExportMenuOpen || isExportBusy) && (
+        <div
+          ref={exportReportHostRef}
+          className="tp-dre-export-offscreen-host"
+          aria-hidden="true"
+        >
+          <FinancialDreExportReport
+            companyName={resolvedCompanyName}
+            period={currentPeriod}
+            summaryData={summaryData}
+            monthlyData={monthlyData}
+            breakdownData={breakdownData}
+            layoutMode={exportLayoutMode}
+          />
+        </div>
+      )}
     </div>
   );
 }

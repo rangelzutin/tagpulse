@@ -11452,3 +11452,98 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* ==========================================================================
+   DRE GERENCIAL — EXPORT DROPDOWN & OFFSCREEN HOST (Phase 5D.6)
+   ========================================================================== */
+
+.tp-dre-export-dropdown {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.tp-dre-export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  background: rgba(14, 165, 233, 0.14);
+  border: 1px solid rgba(56, 189, 248, 0.38);
+  border-radius: var(--tp-radius-sm, 6px);
+  color: #e0f2fe;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.tp-dre-export-btn:hover:not(:disabled) {
+  background: rgba(14, 165, 233, 0.24);
+  border-color: rgba(56, 189, 248, 0.65);
+  color: #ffffff;
+}
+
+.tp-dre-export-btn:disabled {
+  opacity: 0.72;
+  cursor: wait;
+}
+
+.tp-dre-export-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 170px;
+  background: #0f172a;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: var(--tp-radius-md, 8px);
+  box-shadow: 0 14px 32px rgba(2, 6, 23, 0.75);
+  padding: 5px;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tp-dre-export-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-radius: var(--tp-radius-xs, 5px);
+  color: #e2e8f0;
+  font-size: 0.765rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.tp-dre-export-menu-item:hover {
+  background: rgba(56, 189, 248, 0.15);
+  color: #ffffff;
+}
+
+.tp-dre-export-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+}
+
+.tp-dre-export-offscreen-host {
+  position: fixed;
+  left: -99999px;
+  top: 0;
+  width: 840px;
+  overflow: visible;
+  pointer-events: none;
+  z-index: -1;
+}
