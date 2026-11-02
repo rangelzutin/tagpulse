@@ -18,13 +18,15 @@ describe("Financial DRE Classifier", () => {
     expect(res.baseAmount).toBe(5000);
   });
 
-  it("classifies Plano 1 payment fees by discountAmount and linked sale realizedDate", () => {
+  it("classifies Plano 1 payment fees by discountAmount and dueDate competence", () => {
     const res = classifyFinancialRecordForDre({
       id: "rec-2",
       sourceId: "102",
       budgetPlanSourceId: "1",
       description: "Recebível Cartão",
       dueDate: new Date("2026-01-15T00:00:00Z"),
+      confirmationDate: new Date("2026-02-10T00:00:00Z"),
+      sourceCompetenceDate: new Date("2025-12-28T00:00:00Z"),
       originalAmount: 100,
       discountAmount: 3.5,
       linkedSaleRealizedDate: new Date("2025-12-28T00:00:00Z"),
@@ -33,10 +35,11 @@ describe("Financial DRE Classifier", () => {
     expect(res.category).toBe("VARIABLE_PAYMENT_FEE");
     expect(res.isDeductibleInDre).toBe(true);
     expect(res.baseAmount).toBe(3.5);
-    expect(res.referenceMonth).toBe("2025-12");
+    expect(res.referenceMonth).toBe("2026-01");
+    expect(res.competenceDate).toEqual(new Date("2026-01-15T00:00:00Z"));
   });
 
-  it("classifies Plano 27 DAS as VARIABLE_TAX_ON_REVENUE with previous month competence", () => {
+  it("classifies Plano 27 DAS as VARIABLE_TAX_ON_REVENUE with previous month competence from dueDate", () => {
     const res = classifyFinancialRecordForDre({
       id: "rec-3",
       sourceId: "10540",
@@ -53,7 +56,7 @@ describe("Financial DRE Classifier", () => {
     expect(res.referenceMonth).toBe("2026-01");
   });
 
-  it("classifies Plano 27 GPS as OPERATING_PERSONNEL with previous month competence", () => {
+  it("classifies Plano 27 GPS as OPERATING_PERSONNEL with previous month competence from dueDate", () => {
     const res = classifyFinancialRecordForDre({
       id: "rec-4",
       sourceId: "10541",
@@ -70,7 +73,7 @@ describe("Financial DRE Classifier", () => {
     expect(res.referenceMonth).toBe("2026-01");
   });
 
-  it("classifies Plano 27 ICMS base as VARIABLE_TAX_ON_REVENUE and penalty as FINANCIAL_EXPENSE", () => {
+  it("classifies Plano 27 ICMS base as VARIABLE_TAX_ON_REVENUE and penalty as FINANCIAL_EXPENSE both in dueDate month", () => {
     const res = classifyFinancialRecordForDre({
       id: "rec-5",
       sourceId: "10906",
@@ -78,6 +81,7 @@ describe("Financial DRE Classifier", () => {
       description: "ICMS",
       dueDate: new Date("2026-05-29T00:00:00Z"),
       confirmationDate: new Date("2026-06-10T00:00:00Z"),
+      sourceCompetenceDate: new Date("2026-07-01T00:00:00Z"),
       originalAmount: 861.42,
       totalAmount: 878.64,
     });
@@ -89,6 +93,7 @@ describe("Financial DRE Classifier", () => {
     expect(res.financialAdjustment).toBeDefined();
     expect(res.financialAdjustment?.type).toBe("FINANCIAL_EXPENSE");
     expect(res.financialAdjustment?.amount).toBe(17.22);
+    expect(res.financialAdjustment?.date).toEqual(new Date("2026-05-29T00:00:00Z"));
   });
 
   it("classifies Plano 8 freight prefixes as VARIABLE_FREIGHT_LOGISTICS", () => {
@@ -254,5 +259,161 @@ describe("Financial DRE Classifier", () => {
     });
     expect(unknown.category).toBe("UNKNOWN");
     expect(unknown.isDeductibleInDre).toBe(false);
+  });
+
+  describe("Strict dueDate Precedence Contract for All Expense Categories", () => {
+    const dueDateAug = new Date("2026-08-15T00:00:00Z");
+    const confirmationSep = new Date("2026-09-10T00:00:00Z");
+    const sourceCompetenceOct = new Date("2026-10-05T00:00:00Z");
+    const linkedSaleJul = new Date("2026-07-20T00:00:00Z");
+
+    it("enforces referenceMonth = 2026-08 (dueDate) when confirmationDate is Sep, sourceCompetenceDate is Oct, and linkedSaleRealizedDate is Jul", () => {
+      const cases = [
+        // Taxa de pagamento (Plano 1)
+        classifyFinancialRecordForDre({
+          id: "c-pay",
+          sourceId: "2001",
+          budgetPlanSourceId: "1",
+          description: "Recebível Cartão Parcelado",
+          dueDate: dueDateAug,
+          confirmationDate: confirmationSep,
+          sourceCompetenceDate: sourceCompetenceOct,
+          linkedSaleRealizedDate: linkedSaleJul,
+          originalAmount: 500,
+          discountAmount: 25,
+        }),
+        // Frete (Plano 21)
+        classifyFinancialRecordForDre({
+          id: "c-fr-21",
+          sourceId: "2002",
+          budgetPlanSourceId: "21",
+          description: "Frete Transportadora",
+          dueDate: dueDateAug,
+          confirmationDate: confirmationSep,
+          sourceCompetenceDate: sourceCompetenceOct,
+          originalAmount: 180,
+        }),
+        // Frete (Plano 8 prefixo)
+        classifyFinancialRecordForDre({
+          id: "c-fr-8",
+          sourceId: "2003",
+          budgetPlanSourceId: "8",
+          description: "Melhor Envio Etiquetas",
+          dueDate: dueDateAug,
+          confirmationDate: confirmationSep,
+          sourceCompetenceDate: sourceCompetenceOct,
+          originalAmount: 120,
+        }),
+        // Despesa financeira (Plano 8 tarifa bancária)
+        classifyFinancialRecordForDre({
+          id: "c-fin-exp",
+          sourceId: "2004",
+          budgetPlanSourceId: "8",
+          description: "Conta Corrente Bradesco",
+          dueDate: dueDateAug,
+          confirmationDate: confirmationSep,
+          sourceCompetenceDate: sourceCompetenceOct,
+          originalAmount: 183.6,
+        }),
+        // Despesas operacionais (Ocupação, Utilidades, Software, Contabilidade, Administrativo, Marketing, Infraestrutura, Outras)
+        classifyFinancialRecordForDre({
+          id: "c-occ",
+          sourceId: "2005",
+          budgetPlanSourceId: "8",
+          description: "Aluguel Mensal",
+          dueDate: dueDateAug,
+          confirmationDate: confirmationSep,
+          sourceCompetenceDate: sourceCompetenceOct,
+          originalAmount: 1571.85,
+        }),
+        classifyFinancialRecordForDre({
+          id: "c-util",
+          sourceId: "2006",
+          budgetPlanSourceId: "8",
+          description: "Elektro Energia",
+          dueDate: dueDateAug,
+          confirmationDate: confirmationSep,
+          sourceCompetenceDate: sourceCompetenceOct,
+          originalAmount: 240,
+        }),
+        classifyFinancialRecordForDre({
+          id: "c-soft",
+          sourceId: "2007",
+          budgetPlanSourceId: "8",
+          description: "TagPlus ERP",
+          dueDate: dueDateAug,
+          confirmationDate: confirmationSep,
+          sourceCompetenceDate: sourceCompetenceOct,
+          originalAmount: 159,
+        }),
+        classifyFinancialRecordForDre({
+          id: "c-acc",
+          sourceId: "2008",
+          budgetPlanSourceId: "8",
+          description: "Contabilidade Ortiz",
+          dueDate: dueDateAug,
+          confirmationDate: confirmationSep,
+          sourceCompetenceDate: sourceCompetenceOct,
+          originalAmount: 770.3,
+        }),
+        classifyFinancialRecordForDre({
+          id: "c-adm",
+          sourceId: "2009",
+          budgetPlanSourceId: "8",
+          description: "Material de Escritório",
+          dueDate: dueDateAug,
+          confirmationDate: confirmationSep,
+          sourceCompetenceDate: sourceCompetenceOct,
+          originalAmount: 95,
+        }),
+        classifyFinancialRecordForDre({
+          id: "c-mkt",
+          sourceId: "2010",
+          budgetPlanSourceId: "32",
+          description: "Campanha Patrocínio",
+          dueDate: dueDateAug,
+          confirmationDate: confirmationSep,
+          sourceCompetenceDate: sourceCompetenceOct,
+          originalAmount: 350,
+        }),
+        classifyFinancialRecordForDre({
+          id: "c-inf",
+          sourceId: "2011",
+          budgetPlanSourceId: "40",
+          description: "Manutenção Predial",
+          dueDate: dueDateAug,
+          confirmationDate: confirmationSep,
+          sourceCompetenceDate: sourceCompetenceOct,
+          originalAmount: 129.5,
+        }),
+        classifyFinancialRecordForDre({
+          id: "c-op-other",
+          sourceId: "11447",
+          budgetPlanSourceId: "2",
+          description: "Café e insumos",
+          dueDate: dueDateAug,
+          confirmationDate: confirmationSep,
+          sourceCompetenceDate: sourceCompetenceOct,
+          originalAmount: 65,
+        }),
+        // Pró-labore (Plano 39)
+        classifyFinancialRecordForDre({
+          id: "c-pro-labore",
+          sourceId: "2012",
+          budgetPlanSourceId: "39",
+          description: "Retirada Sócio",
+          dueDate: dueDateAug,
+          confirmationDate: confirmationSep,
+          sourceCompetenceDate: sourceCompetenceOct,
+          originalAmount: 2000,
+        }),
+      ];
+
+      for (const classified of cases) {
+        expect(classified.isDeductibleInDre).toBe(true);
+        expect(classified.referenceMonth).toBe("2026-08");
+        expect(classified.competenceDate).toEqual(dueDateAug);
+      }
+    });
   });
 });

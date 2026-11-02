@@ -112,21 +112,14 @@ export function classifyFinancialRecordForDre(
     }
 
     if (discAmt > 0) {
-      let refMonth: string;
-      if (record.linkedSaleRealizedDate && !isNaN(record.linkedSaleRealizedDate.getTime())) {
-        refMonth = getMonthStr(record.linkedSaleRealizedDate);
-      } else {
-        refMonth = getMonthStr(record.sourceCompetenceDate ?? record.dueDate);
-      }
-
       return {
         recordId: record.id,
         sourceId: record.sourceId,
         category: "VARIABLE_PAYMENT_FEE",
         baseAmount: discAmt,
         financialAdjustment: finAdj,
-        competenceDate: record.linkedSaleRealizedDate ?? record.sourceCompetenceDate ?? record.dueDate,
-        referenceMonth: refMonth,
+        competenceDate: record.dueDate,
+        referenceMonth: getMonthStr(record.dueDate),
         isDeductibleInDre: true,
         notes: "Taxa de meio de pagamento (desconto de liquidação de cartão/gateway)",
       };
@@ -171,9 +164,7 @@ export function classifyFinancialRecordForDre(
         sourceId: record.sourceId,
         category: "OPERATING_PERSONNEL",
         baseAmount: totAmt,
-        competenceDate:
-          record.sourceCompetenceDate ??
-          resolveCompetenceDateFromMonth(referenceMonth, record.dueDate),
+        competenceDate: resolveCompetenceDateFromMonth(referenceMonth, record.dueDate),
         referenceMonth,
         isDeductibleInDre: true,
         requiresReview,
@@ -195,7 +186,7 @@ export function classifyFinancialRecordForDre(
         finAdj = {
           type: "FINANCIAL_EXPENSE",
           amount: penaltyDelta,
-          date: record.confirmationDate ?? record.dueDate,
+          date: record.dueDate,
           description: "Juros/multa moratória recolhimento ICMS",
         };
       }
@@ -206,7 +197,7 @@ export function classifyFinancialRecordForDre(
         category: "VARIABLE_TAX_ON_REVENUE",
         baseAmount: origAmt,
         financialAdjustment: finAdj,
-        competenceDate: record.sourceCompetenceDate ?? record.dueDate,
+        competenceDate: record.dueDate,
         referenceMonth,
         isDeductibleInDre: true,
         requiresReview: unresolved,
@@ -230,9 +221,7 @@ export function classifyFinancialRecordForDre(
         sourceId: record.sourceId,
         category: "VARIABLE_TAX_ON_REVENUE",
         baseAmount: totAmt,
-        competenceDate:
-          record.sourceCompetenceDate ??
-          resolveCompetenceDateFromMonth(referenceMonth, record.dueDate),
+        competenceDate: resolveCompetenceDateFromMonth(referenceMonth, record.dueDate),
         referenceMonth,
         isDeductibleInDre: true,
         requiresReview,
@@ -248,8 +237,8 @@ export function classifyFinancialRecordForDre(
       sourceId: record.sourceId,
       category: "VARIABLE_FREIGHT_LOGISTICS",
       baseAmount: totAmt,
-      competenceDate: record.sourceCompetenceDate ?? record.dueDate,
-      referenceMonth: getMonthStr(record.sourceCompetenceDate ?? record.dueDate),
+      competenceDate: record.dueDate,
+      referenceMonth: getMonthStr(record.dueDate),
       isDeductibleInDre: true,
       notes: "Frete sobre vendas (Plano 21)",
     };
@@ -264,8 +253,8 @@ export function classifyFinancialRecordForDre(
         sourceId: record.sourceId,
         category: "VARIABLE_FREIGHT_LOGISTICS",
         baseAmount: totAmt,
-        competenceDate: record.sourceCompetenceDate ?? record.dueDate,
-        referenceMonth: getMonthStr(record.sourceCompetenceDate ?? record.dueDate),
+        competenceDate: record.dueDate,
+        referenceMonth: getMonthStr(record.dueDate),
         isDeductibleInDre: true,
         notes: `Frete corporativo de expedição: ${desc}`,
       };
@@ -277,8 +266,8 @@ export function classifyFinancialRecordForDre(
         sourceId: record.sourceId,
         category: "FINANCIAL_EXPENSE",
         baseAmount: origAmt,
-        competenceDate: record.confirmationDate ?? record.sourceCompetenceDate ?? record.dueDate,
-        referenceMonth: getMonthStr(record.confirmationDate ?? record.sourceCompetenceDate ?? record.dueDate),
+        competenceDate: record.dueDate,
+        referenceMonth: getMonthStr(record.dueDate),
         isDeductibleInDre: true,
         notes: `Tarifa bancária / anuidade cartão: ${desc}`,
       };
@@ -290,8 +279,8 @@ export function classifyFinancialRecordForDre(
         sourceId: record.sourceId,
         category: "OPERATING_OCCUPANCY",
         baseAmount: totAmt,
-        competenceDate: record.sourceCompetenceDate ?? record.dueDate,
-        referenceMonth: getMonthStr(record.sourceCompetenceDate ?? record.dueDate),
+        competenceDate: record.dueDate,
+        referenceMonth: getMonthStr(record.dueDate),
         isDeductibleInDre: true,
         notes: "Aluguel predial / ocupação",
       };
@@ -303,8 +292,8 @@ export function classifyFinancialRecordForDre(
         sourceId: record.sourceId,
         category: "OPERATING_UTILITIES",
         baseAmount: totAmt,
-        competenceDate: record.sourceCompetenceDate ?? record.dueDate,
-        referenceMonth: getMonthStr(record.sourceCompetenceDate ?? record.dueDate),
+        competenceDate: record.dueDate,
+        referenceMonth: getMonthStr(record.dueDate),
         isDeductibleInDre: true,
         notes: `Utilidades públicas (energia / internet): ${desc}`,
       };
@@ -316,8 +305,8 @@ export function classifyFinancialRecordForDre(
         sourceId: record.sourceId,
         category: "OPERATING_SOFTWARE",
         baseAmount: totAmt,
-        competenceDate: record.sourceCompetenceDate ?? record.dueDate,
-        referenceMonth: getMonthStr(record.sourceCompetenceDate ?? record.dueDate),
+        competenceDate: record.dueDate,
+        referenceMonth: getMonthStr(record.dueDate),
         isDeductibleInDre: true,
         notes: `Software / assinaturas: ${desc}`,
       };
@@ -329,8 +318,8 @@ export function classifyFinancialRecordForDre(
         sourceId: record.sourceId,
         category: "OPERATING_ACCOUNTING",
         baseAmount: totAmt,
-        competenceDate: record.sourceCompetenceDate ?? record.dueDate,
-        referenceMonth: getMonthStr(record.sourceCompetenceDate ?? record.dueDate),
+        competenceDate: record.dueDate,
+        referenceMonth: getMonthStr(record.dueDate),
         isDeductibleInDre: true,
         notes: "Honorários contábeis Ortiz",
       };
@@ -349,8 +338,8 @@ export function classifyFinancialRecordForDre(
           date: record.confirmationDate ?? record.dueDate,
           description: "Desconto financeiro obtido no pagamento do seguro",
         },
-        competenceDate: record.sourceCompetenceDate ?? record.dueDate,
-        referenceMonth: getMonthStr(record.sourceCompetenceDate ?? record.dueDate),
+        competenceDate: record.dueDate,
+        referenceMonth: getMonthStr(record.dueDate),
         isDeductibleInDre: true,
         notes: "Seguro empresarial Tokio Marine",
       };
@@ -362,8 +351,8 @@ export function classifyFinancialRecordForDre(
       sourceId: record.sourceId,
       category: "OPERATING_ADMINISTRATIVE",
       baseAmount: totAmt,
-      competenceDate: record.sourceCompetenceDate ?? record.dueDate,
-      referenceMonth: getMonthStr(record.sourceCompetenceDate ?? record.dueDate),
+      competenceDate: record.dueDate,
+      referenceMonth: getMonthStr(record.dueDate),
       isDeductibleInDre: true,
       notes: `Despesa administrativa: ${desc}`,
     };
@@ -376,8 +365,8 @@ export function classifyFinancialRecordForDre(
       sourceId: record.sourceId,
       category: "OPERATING_MARKETING",
       baseAmount: totAmt,
-      competenceDate: record.sourceCompetenceDate ?? record.dueDate,
-      referenceMonth: getMonthStr(record.sourceCompetenceDate ?? record.dueDate),
+      competenceDate: record.dueDate,
+      referenceMonth: getMonthStr(record.dueDate),
       isDeductibleInDre: true,
       notes: `Despesa com marketing / publicidade: ${desc}`,
     };
@@ -390,8 +379,8 @@ export function classifyFinancialRecordForDre(
       sourceId: record.sourceId,
       category: "OPERATING_INFRASTRUCTURE",
       baseAmount: totAmt,
-      competenceDate: record.sourceCompetenceDate ?? record.dueDate,
-      referenceMonth: getMonthStr(record.sourceCompetenceDate ?? record.dueDate),
+      competenceDate: record.dueDate,
+      referenceMonth: getMonthStr(record.dueDate),
       isDeductibleInDre: true,
       notes: `Infraestrutura / manutenção: ${desc}`,
     };
@@ -404,8 +393,8 @@ export function classifyFinancialRecordForDre(
       sourceId: record.sourceId,
       category: "OPERATING_PARTNER_COMPENSATION",
       baseAmount: totAmt,
-      competenceDate: record.sourceCompetenceDate ?? record.dueDate,
-      referenceMonth: getMonthStr(record.sourceCompetenceDate ?? record.dueDate),
+      competenceDate: record.dueDate,
+      referenceMonth: getMonthStr(record.dueDate),
       isDeductibleInDre: true,
       notes: "Pró-labore dos sócios",
     };
@@ -429,8 +418,8 @@ export function classifyFinancialRecordForDre(
         sourceId: record.sourceId,
         category: "OPERATING_OTHER",
         baseAmount: totAmt,
-        competenceDate: record.sourceCompetenceDate ?? record.dueDate,
-        referenceMonth: getMonthStr(record.sourceCompetenceDate ?? record.dueDate),
+        competenceDate: record.dueDate,
+        referenceMonth: getMonthStr(record.dueDate),
         isDeductibleInDre: true,
         notes: `Despesa operacional auditada (Plano 2): ${desc}`,
       };
