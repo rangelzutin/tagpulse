@@ -73,6 +73,7 @@ export interface FinancialOperationalRepository {
   findConfirmedCashRecords(options?: {
     fromDate?: Date | undefined;
     toExclusiveDate?: Date | undefined;
+    undatedOnly?: boolean | undefined;
   }): Promise<ConfirmedCashDbRecord[]>;
 
   findUndatedConfirmedCashRecords(): Promise<UndatedConfirmedCashRecordItem[]>;
@@ -445,6 +446,7 @@ export function createPrismaFinancialOperationalRepository(
     async findConfirmedCashRecords(options?: {
       fromDate?: Date;
       toExclusiveDate?: Date;
+      undatedOnly?: boolean;
     }): Promise<ConfirmedCashDbRecord[]> {
       const where: Prisma.FinancialRecordWhereInput = {
         isConfirmed: true,
@@ -462,7 +464,9 @@ export function createPrismaFinancialOperationalRepository(
         },
       };
 
-      if (options?.fromDate || options?.toExclusiveDate) {
+      if (options?.undatedOnly) {
+        where.confirmationDate = null;
+      } else if (options?.fromDate || options?.toExclusiveDate) {
         where.confirmationDate = {
           ...(options.fromDate ? { gte: options.fromDate } : {}),
           ...(options.toExclusiveDate ? { lt: options.toExclusiveDate } : {}),
@@ -489,7 +493,6 @@ export function createPrismaFinancialOperationalRepository(
           installmentNumber: true,
           installmentCount: true,
           linkedInvoiceInstallmentSourceId: true,
-          sourcePayload: true,
         },
       });
     },
@@ -529,7 +532,6 @@ export function createPrismaFinancialOperationalRepository(
           installmentNumber: true,
           installmentCount: true,
           linkedInvoiceInstallmentSourceId: true,
-          sourcePayload: true,
         },
         orderBy: { dueDate: "asc" },
       });

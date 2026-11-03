@@ -311,8 +311,9 @@ export function createFinancialOperationalService(
           toExclusiveDate = new Date(toDate.getTime() + 86400000);
         }
 
-        const [records, excludedSummary] = await Promise.all([
-          repository.findConfirmedCashRecords(),
+        const [datedRecords, undatedRecords, excludedSummary] = await Promise.all([
+          repository.findConfirmedCashRecords({ fromDate, toExclusiveDate }),
+          repository.findConfirmedCashRecords({ undatedOnly: true }),
           repository.findExcludedNonCashStockAdjustmentSummary({
             fromDate,
             toExclusiveDate,
@@ -321,13 +322,13 @@ export function createFinancialOperationalService(
           }),
         ]);
 
-        const { totals, series, bankReconciliation } = aggregateCashFlowSeries(records, {
+        const { totals, series, bankReconciliation } = aggregateCashFlowSeries(datedRecords, {
           granularity,
           from: fromStr,
           to: toStr,
         });
 
-        const undated = aggregateUndatedConfirmedCash(records);
+        const undated = aggregateUndatedConfirmedCash(undatedRecords);
 
         return {
           success: true,
@@ -358,8 +359,8 @@ export function createFinancialOperationalService(
     > {
       try {
         const records = await repository.findUndatedConfirmedCashRecords();
-        const allConfirmed = await repository.findConfirmedCashRecords();
-        const summary = aggregateUndatedConfirmedCash(allConfirmed);
+        const undatedDbRecords = await repository.findConfirmedCashRecords({ undatedOnly: true });
+        const summary = aggregateUndatedConfirmedCash(undatedDbRecords);
 
         return {
           success: true,
