@@ -107,21 +107,12 @@ export function createSalesRepository(prisma: PrismaClient): SalesRepository {
         });
 
         if (pedido.items.length > 0) {
+          const productIdMap = await resolveProductIdMap(tx, connectionId, pedido.items);
           const itemsToCreate = [];
           for (const item of pedido.items) {
-            let productId: string | null = null;
-            if (item.sourceProductId) {
-              const product = await tx.product.findUnique({
-                where: {
-                  connectionId_sourceId: {
-                    connectionId,
-                    sourceId: item.sourceProductId,
-                  },
-                },
-                select: { id: true },
-              });
-              productId = product?.id ?? null;
-            }
+            const productId = item.sourceProductId
+              ? (productIdMap.get(item.sourceProductId) ?? null)
+              : null;
 
             itemsToCreate.push({
               saleId: sale.id,
@@ -338,21 +329,12 @@ export function createSalesRepository(prisma: PrismaClient): SalesRepository {
           });
 
           if (childSale.items.length > 0) {
+            const productIdMap = await resolveProductIdMap(tx, connectionId, childSale.items);
             const itemsToCreate = [];
             for (const item of childSale.items) {
-              let productId: string | null = null;
-              if (item.sourceProductId) {
-                const product = await tx.product.findUnique({
-                  where: {
-                    connectionId_sourceId: {
-                      connectionId,
-                      sourceId: item.sourceProductId,
-                    },
-                  },
-                  select: { id: true },
-                });
-                productId = product?.id ?? null;
-              }
+              const productId = item.sourceProductId
+                ? (productIdMap.get(item.sourceProductId) ?? null)
+                : null;
 
               itemsToCreate.push({
                 saleId: directSale.id,
@@ -499,6 +481,61 @@ export function createSalesRepository(prisma: PrismaClient): SalesRepository {
   };
 }
 
+async function resolveProductIdMap(
+  tx: Prisma.TransactionClient,
+  connectionId: string,
+  items: Array<{ sourceProductId?: string | null }>,
+): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  const uniqueSourceIds = Array.from(
+    new Set(
+      items
+        .map((it) => it.sourceProductId)
+        .filter((id): id is string => typeof id === 'string' && id.trim().length > 0),
+    ),
+  );
+
+  if (uniqueSourceIds.length === 0) {
+    return map;
+  }
+
+  if (typeof (tx.product as any)?.findMany === 'function') {
+    const products = await tx.product.findMany({
+      where: {
+        connectionId,
+        sourceId: { in: uniqueSourceIds },
+      },
+      select: {
+        id: true,
+        sourceId: true,
+      },
+    });
+
+    for (const p of products) {
+      if (p.sourceId) {
+        map.set(p.sourceId, p.id);
+      }
+    }
+  } else if (typeof (tx.product as any)?.findUnique === 'function') {
+    for (const sourceId of uniqueSourceIds) {
+      const product = await tx.product.findUnique({
+        where: {
+          connectionId_sourceId: {
+            connectionId,
+            sourceId,
+          },
+        },
+        select: { id: true },
+      });
+      if (product?.id) {
+        map.set(sourceId, product.id);
+      }
+    }
+  }
+
+  return map;
+}
+
 async function syncDocumentItems(
   tx: Prisma.TransactionClient,
   connectionId: string,
@@ -511,21 +548,12 @@ async function syncDocumentItems(
     return;
   }
 
+  const productIdMap = await resolveProductIdMap(tx, connectionId, items);
   const itemsToCreate = [];
   for (const item of items) {
-    let productId: string | null = null;
-    if (item.sourceProductId) {
-      const product = await tx.product.findUnique({
-        where: {
-          connectionId_sourceId: {
-            connectionId,
-            sourceId: item.sourceProductId,
-          },
-        },
-        select: { id: true },
-      });
-      productId = product?.id ?? null;
-    }
+    const productId = item.sourceProductId
+      ? (productIdMap.get(item.sourceProductId) ?? null)
+      : null;
 
     itemsToCreate.push({
       saleSourceDocumentId,
