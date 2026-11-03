@@ -835,5 +835,16 @@ describe("Phase 5K: Financial Module Frontend Tests (A through M)", () => {
       expect(htmlRunning).not.toContain("Pronto");
     });
   });
+
+  describe("P1.4: Inactive Tab Optimization", () => {
+    it("renders FinancialView with lazy cash flow support", () => {
+      const html = renderToString(<FinancialView />);
+      expect(html).toContain("Visão Geral");
+      expect(html).toContain("Contas a Receber");
+      expect(html).toContain("Contas a Pagar");
+      expect(html).toContain("Fluxo de Caixa");
+      expect(html).toContain("DRE Gerencial");
+    });
+  });
 });
 

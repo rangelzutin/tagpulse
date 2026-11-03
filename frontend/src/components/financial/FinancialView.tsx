@@ -73,6 +73,10 @@ export function FinancialView({
   const syncPollTimerRef = useRef<number | null>(null);
   const lastRefreshTriggerRef = useRef(refreshTrigger);
   const effectiveMinDate = minDate ?? "2015-05-05";
+  const activeTabRef = useRef(activeTab);
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -89,6 +93,7 @@ export function FinancialView({
     from?: string,
     to?: string,
     mode?: PeriodMode,
+    tab?: FinancialSubTab,
   ) => {
     if (!isBackground) {
       setIsLoading(true);
@@ -101,6 +106,10 @@ export function FinancialView({
       const activeMode = mode ?? periodMode;
       const activeFrom = from ?? currentPeriod.from;
       const activeTo = to ?? currentPeriod.to;
+      const effectiveTab = tab ?? activeTabRef.current;
+      const shouldFetchCashFlow = effectiveTab === "overview" || effectiveTab === "cash-flow";
+      const shouldFetchUndated = effectiveTab === "overview";
+
       const [recRes, payRes, cfRes, undRes] = await Promise.allSettled([
         fetchReceivablesOverview({
           referenceDate: activeTo,
@@ -110,12 +119,16 @@ export function FinancialView({
           referenceDate: activeTo,
           dueTo: activeMode === "allUpTo" ? activeTo : undefined,
         }),
-        fetchCashFlowOverview({
-          from: activeMode === "allUpTo" ? undefined : activeFrom,
-          to: activeTo,
-          granularity: "month",
-        }),
-        fetchUndatedConfirmedCash(),
+        shouldFetchCashFlow
+          ? fetchCashFlowOverview({
+              from: activeMode === "allUpTo" ? undefined : activeFrom,
+              to: activeTo,
+              granularity: "month",
+            })
+          : Promise.resolve(null),
+        shouldFetchUndated
+          ? fetchUndatedConfirmedCash()
+          : Promise.resolve(null),
       ]);
 
       if (!isMountedRef.current) return;
@@ -126,23 +139,27 @@ export function FinancialView({
       if (payRes.status === "fulfilled") {
         setPayablesOverview(payRes.value);
       }
-      if (cfRes.status === "fulfilled") {
+      if (cfRes.status === "fulfilled" && cfRes.value !== null) {
         setCashFlowOverview(cfRes.value);
+      } else if (!shouldFetchCashFlow) {
+        setCashFlowOverview(null);
       }
-      if (undRes.status === "fulfilled") {
+      if (undRes.status === "fulfilled" && undRes.value !== null) {
         setUndatedConfirmed(undRes.value);
+      } else if (!shouldFetchUndated) {
+        setUndatedConfirmed(null);
       }
 
-      // If all failed, show error
+      // If all relevant requests failed, show error
       if (
         recRes.status === "rejected" &&
         payRes.status === "rejected" &&
-        cfRes.status === "rejected"
+        (!shouldFetchCashFlow || cfRes.status === "rejected")
       ) {
         const firstError =
           recRes.reason?.message ||
           payRes.reason?.message ||
-          cfRes.reason?.message ||
+          (cfRes.status === "rejected" ? cfRes.reason?.message : null) ||
           "Erro ao consultar dados financeiros.";
         setOverviewError(firstError);
       }
@@ -157,6 +174,19 @@ export function FinancialView({
       }
     }
   }, [currentPeriod.from, currentPeriod.to, periodMode]);
+
+  // Lazy fetch of overview-specific or cashflow-specific data when switching to those tabs
+  useEffect(() => {
+    if (activeTab === "overview") {
+      if (!cashFlowOverview || !undatedConfirmed) {
+        void loadFinancialOverviewData(true, currentPeriod.from, currentPeriod.to, periodMode, "overview");
+      }
+    } else if (activeTab === "cash-flow") {
+      if (!cashFlowOverview) {
+        void loadFinancialOverviewData(true, currentPeriod.from, currentPeriod.to, periodMode, "cash-flow");
+      }
+    }
+  }, [activeTab, cashFlowOverview, undatedConfirmed, currentPeriod.from, currentPeriod.to, periodMode, loadFinancialOverviewData]);
 
   useEffect(() => {
     void loadFinancialOverviewData(false, currentPeriod.from, currentPeriod.to, periodMode);
