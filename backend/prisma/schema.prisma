@@ -14,7 +14,9 @@ model Company {
   slug               String              @unique
   createdAt          DateTime            @default(now()) @map("created_at")
   updatedAt          DateTime            @updatedAt @map("updated_at")
-  tagPlusConnections TagPlusConnection[]
+  tagPlusConnections         TagPlusConnection[]
+  historicalImportBatches    HistoricalImportBatch[]
+  historicalSourceIdentities HistoricalSourceIdentity[]
 
   @@map("companies")
 }
@@ -296,8 +298,16 @@ model Sale {
   items             SaleItem[]
   sourceDocs        SaleSourceDocument[]
 
+  sourceSystem      SourceSystem           @default(TAGPLUS_CURRENT) @map("source_system")
+  operationUnit     OperationUnit?         @map("operation_unit")
+  salesChannel      SalesChannel?          @map("sales_channel")
+  importBatchId     String?                @map("import_batch_id") @db.Uuid
+  importBatch       HistoricalImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+
   @@unique([connectionId, anchorType, anchorSourceId])
   @@index([connectionId, anchorType])
+  @@index([sourceSystem, operationUnit])
+  @@index([importBatchId])
   @@map("sales")
 }
 
@@ -340,9 +350,16 @@ model SaleSourceDocument {
   sale              Sale                     @relation(fields: [saleId], references: [id], onDelete: Cascade)
   items             SaleSourceDocumentItem[]
 
+  sourceSystem      SourceSystem           @default(TAGPLUS_CURRENT) @map("source_system")
+  operationUnit     OperationUnit?         @map("operation_unit")
+  importBatchId     String?                @map("import_batch_id") @db.Uuid
+  importBatch       HistoricalImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+
   @@unique([connectionId, docType, sourceId])
   @@index([saleId])
   @@index([connectionId, realizedDate])
+  @@index([sourceSystem, operationUnit])
+  @@index([importBatchId])
   @@map("sale_source_documents")
 }
 
@@ -579,12 +596,19 @@ model FinancialRecord {
   connection                       TagPlusConnection   @relation(fields: [connectionId], references: [id], onDelete: Cascade)
   stockAdjustmentFinancialLinks    StockAdjustmentFinancialLink[]
 
+  sourceSystem                     SourceSystem           @default(TAGPLUS_CURRENT) @map("source_system")
+  operationUnit                    OperationUnit?         @map("operation_unit")
+  importBatchId                    String?                @map("import_batch_id") @db.Uuid
+  importBatch                      HistoricalImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+
   @@unique([connectionId, sourceId])
   @@index([connectionId, type, isConfirmed, dueDate])
   @@index([connectionId, isConfirmed, confirmationDate])
   @@index([connectionId, budgetPlanSourceId])
   @@index([connectionId, entitySourceId])
   @@index([connectionId, sourcePresent])
+  @@index([sourceSystem, operationUnit])
+  @@index([importBatchId])
   @@map("financial_records")
 }
 
@@ -748,4 +772,75 @@ model StockAdjustmentFinancialLink {
   @@index([financialRecordSourceId])
   @@index([financialRecordId])
   @@map("stock_adjustment_financial_links")
+}
+
+
+enum SourceSystem {
+  TAGPLUS_CURRENT
+  HUSTLER_LEGACY_DUMP
+  GLOBALLINK_LEGACY_DUMP
+}
+
+enum OperationUnit {
+  HUSTLER
+  NINECLOUDS
+  SHARED
+  UNRESOLVED
+}
+
+enum SalesChannel {
+  VAREJO
+  ATACADO
+}
+
+enum HistoricalImportBatchStatus {
+  CREATED
+  STAGED
+  RECONCILED
+  ACTIVATED
+  FAILED
+  ROLLED_BACK
+}
+
+model HistoricalImportBatch {
+  id              String                      @id @default(uuid()) @db.Uuid
+  companyId       String                      @map("company_id") @db.Uuid
+  sourceSystem    SourceSystem                @map("source_system")
+  filename        String
+  checksumSha256  String                      @map("checksum_sha256")
+  status          HistoricalImportBatchStatus @default(CREATED)
+  recordsImported Int                         @default(0) @map("records_imported")
+  recordsRejected Int                         @default(0) @map("records_rejected")
+  metadata        Json?
+  createdAt       DateTime                    @default(now()) @map("created_at")
+  activatedAt     DateTime?                   @map("activated_at")
+
+  company          Company                    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  sourceIdentities HistoricalSourceIdentity[]
+  sales            Sale[]
+  sourceDocs       SaleSourceDocument[]
+  financialRecords FinancialRecord[]
+
+  @@index([companyId, sourceSystem, status])
+  @@map("historical_import_batches")
+}
+
+model HistoricalSourceIdentity {
+  id                  String                 @id @default(uuid()) @db.Uuid
+  companyId           String                 @map("company_id") @db.Uuid
+  importBatchId       String?                @map("import_batch_id") @db.Uuid
+  sourceSystem        SourceSystem           @map("source_system")
+  sourceEntity        String                 @map("source_entity")
+  sourcePrimaryKey    String                 @map("source_primary_key")
+  canonicalEntityType String                 @map("canonical_entity_type")
+  canonicalEntityId   String                 @map("canonical_entity_id") @db.Uuid
+  createdAt           DateTime               @default(now()) @map("created_at")
+
+  company             Company                @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  importBatch         HistoricalImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, sourceSystem, sourceEntity, sourcePrimaryKey], name: "companyId_sourceSystem_sourceEntity_sourcePrimaryKey")
+  @@index([canonicalEntityType, canonicalEntityId])
+  @@index([importBatchId])
+  @@map("historical_source_identities")
 }
