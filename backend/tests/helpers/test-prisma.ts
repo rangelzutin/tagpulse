@@ -5,12 +5,19 @@ const MISSING_TEST_DATABASE_URL =
 const INVALID_TEST_DATABASE_URL =
   "TEST_DATABASE_URL must be a PostgreSQL connection URL";
 const SHARED_DATABASE_URL = "TEST_DATABASE_URL must not match DATABASE_URL";
+const PRODUCTION_PROJECT_REF = "szahricoqxzckjytpnmg";
+const BLOCKED_PRODUCTION_MESSAGE =
+  "TEST EXECUTION BLOCKED: production database detected.";
 
 export function getTestDatabaseUrl(
   environment: NodeJS.ProcessEnv = process.env,
 ): string {
   const testDatabaseUrl = environment.TEST_DATABASE_URL?.trim();
   if (!testDatabaseUrl) throw new Error(MISSING_TEST_DATABASE_URL);
+
+  if (testDatabaseUrl.includes(PRODUCTION_PROJECT_REF)) {
+    throw new Error(BLOCKED_PRODUCTION_MESSAGE);
+  }
 
   let parsed: URL;
   try {

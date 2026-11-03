@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { prisma } from "../src/database/prisma.js";
+import { createTestPrismaClient } from "../helpers/test-prisma.js";
+const prisma = createTestPrismaClient();
 import {
   calculateEffectiveCashAmount,
   createFinancialOperationalService,
   createPrismaFinancialOperationalRepository,
   isBancoInterReconciliationEvent,
-} from "../src/modules/financial/index.js";
+} from "../../src/modules/financial/index.js";
 
 describe("Financial Operational Layer — Production Database Reconciliation", () => {
   const repository = createPrismaFinancialOperationalRepository(prisma);

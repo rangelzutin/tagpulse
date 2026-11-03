@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { prisma } from "../src/database/prisma.js";
-import { createBiRepository } from "../src/modules/bi/bi-repository.js";
+import { createTestPrismaClient } from "../helpers/test-prisma.js";
+const prisma = createTestPrismaClient();
+import { createBiRepository } from "../../src/modules/bi/bi-repository.js";
 import {
   createFinancialDreService,
   createPrismaFinancialDreRepository,
-} from "../src/modules/financial/index.js";
+} from "../../src/modules/financial/index.js";
 
 describe("Financial DRE Integration Tests (Canonical Baseline 2026)", () => {
   const biRepo = createBiRepository(prisma);
