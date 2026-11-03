@@ -300,7 +300,14 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
     async findCustomersMetadata(customerIds?: string[]): Promise<BiCustomerMetadata[]> {
       const records = await prisma.customer.findMany({
         ...(customerIds && customerIds.length > 0 ? { where: { id: { in: customerIds } } } : {}),
-        include: {
+        select: {
+          id: true,
+          sourceId: true,
+          code: true,
+          legalName: true,
+          tradeName: true,
+          cpf: true,
+          cnpj: true,
           addresses: {
             orderBy: [{ primary: "desc" }, { position: "asc" }],
             take: 1,
@@ -328,7 +335,14 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
     async findCustomerDetail(customerId: string): Promise<BiCustomerMetadata | null> {
       const c = await prisma.customer.findUnique({
         where: { id: customerId },
-        include: {
+        select: {
+          id: true,
+          sourceId: true,
+          code: true,
+          legalName: true,
+          tradeName: true,
+          cpf: true,
+          cnpj: true,
           addresses: {
             orderBy: [{ primary: "desc" }, { position: "asc" }],
             take: 1,
@@ -360,9 +374,24 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
         where: {
           customerId,
         },
-        include: {
+        select: {
+          id: true,
+          anchorType: true,
+          anchorSourceId: true,
+          commercialDate: true,
           sourceDocs: {
             orderBy: [{ realizedDate: "desc" }, { createdAt: "desc" }],
+            select: {
+              id: true,
+              docType: true,
+              sourceId: true,
+              status: true,
+              netAmount: true,
+              realizedDate: true,
+              sourceConfirmedAt: true,
+              sourceEmissaoAt: true,
+              sourcePresent: true,
+            },
           },
         },
         orderBy: [{ commercialDate: "desc" }, { createdAt: "desc" }],
@@ -414,13 +443,16 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
 
       const saleIds = Array.from(new Set(periodDocs.map((d) => d.saleId)));
 
-      // 2. Carrega as negociações correspondentes com seus itens e documentos realizados
+      // 2. Carrega as negociações correspondentes com seus itens e documentos realizados (select restrito para economia de egress)
       const sales = await prisma.sale.findMany({
         where: { id: { in: saleIds } },
-        include: {
+        select: {
+          id: true,
+          anchorType: true,
+          anchorSourceId: true,
+          customerId: true,
           customer: {
             select: {
-              id: true,
               cnpj: true,
               cpf: true,
               legalName: true,
@@ -449,7 +481,12 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
                 ],
               },
             },
-            include: {
+            select: {
+              id: true,
+              docType: true,
+              sourceId: true,
+              netAmount: true,
+              realizedDate: true,
               items: {
                 select: {
                   id: true,
@@ -661,18 +698,37 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
       });
 
       // 2. Busca contagem de produtos associados diretamente a cada categoria (connection-scoped)
-      const products = await prisma.product.findMany({
-        where: { connectionId },
-        select: { categorySourceId: true },
-      });
-
+      // Agregação executada no PostgreSQL via groupBy para evitar transferência massiva de produtos
       const directCountMap = new Map<string, number>();
-      for (const p of products) {
-        if (p.categorySourceId) {
-          directCountMap.set(
-            p.categorySourceId,
-            (directCountMap.get(p.categorySourceId) || 0) + 1,
-          );
+      if (typeof (prisma.product as any)?.groupBy === "function") {
+        const grouped = await prisma.product.groupBy({
+          by: ["categorySourceId"],
+          where: {
+            connectionId,
+            categorySourceId: { not: null },
+          },
+          _count: {
+            id: true,
+          },
+        });
+        for (const g of grouped) {
+          if (g.categorySourceId) {
+            directCountMap.set(g.categorySourceId, g._count.id);
+          }
+        }
+      } else {
+        const products = await prisma.product.findMany({
+          where: { connectionId },
+          select: { categorySourceId: true },
+        });
+
+        for (const p of products) {
+          if (p.categorySourceId) {
+            directCountMap.set(
+              p.categorySourceId,
+              (directCountMap.get(p.categorySourceId) || 0) + 1,
+            );
+          }
         }
       }
 
