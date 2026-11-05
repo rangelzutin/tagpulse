@@ -45,6 +45,13 @@ export enum OverlapClassification {
   AMBIGUOUS_OVERLAP = "AMBIGUOUS_OVERLAP",
 }
 
+export enum LegacyCustomerClassification {
+  CUSTOMER_REGISTERED_RESOLVED = "CUSTOMER_REGISTERED_RESOLVED",
+  CUSTOMER_GENERIC_LEGACY = "CUSTOMER_GENERIC_LEGACY",
+  CUSTOMER_BLANK_LEGACY = "CUSTOMER_BLANK_LEGACY",
+  CUSTOMER_REFERENCE_UNRESOLVED = "CUSTOMER_REFERENCE_UNRESOLVED",
+}
+
 export interface ReconciledSaleItem {
   legacyItemId: string;
   legacyProductId: string;
@@ -62,6 +69,7 @@ export interface ReconciledSale {
   legacyClienteId: string;
   canonicalCustomerId: string | null;
   isCustomerResolved: boolean;
+  customerClassification: LegacyCustomerClassification;
   legacyDate: string;
   realizedDate: string;
   total: number;
@@ -157,6 +165,22 @@ export interface HustlerSalesReconcileResult {
     ambiguousOverlaps: number;
   };
 
+  customerSemantics: {
+    registeredResolved: { sales: number; revenue: number; items: number };
+    genericLegacy: { sales: number; revenue: number; items: number; periodStart: string | null; periodEnd: string | null };
+    blankLegacy: { sales: number; revenue: number; items: number; periodStart: string | null; periodEnd: string | null };
+    referenceUnresolved: {
+      sales: number;
+      revenue: number;
+      uniqueLegacyCustomers: number;
+      items: number;
+      periodStart: string | null;
+      periodEnd: string | null;
+    };
+  };
+
+  readinessBefore: Record<SaleReadinessStatus, number>;
+
   samples: Record<string, ReconciledSale[]>;
 }
 
@@ -224,6 +248,26 @@ export function evaluateNfeValidity(
     return { status: NfeValidityStatus.VALID_NFE, accessKey: rawKey };
   }
   return { status: NfeValidityStatus.INVALID_NFE, accessKey: rawKey || null };
+}
+
+export function classifyLegacyCustomer(
+  legacyClienteId: string | null | undefined,
+  customerIdMap: Map<string, string>,
+): LegacyCustomerClassification {
+  const trimmed =
+    legacyClienteId !== null && legacyClienteId !== undefined
+      ? String(legacyClienteId).trim()
+      : "";
+  if (!trimmed || trimmed === "0" || trimmed.toLowerCase() === "null") {
+    return LegacyCustomerClassification.CUSTOMER_BLANK_LEGACY;
+  }
+  if (trimmed === "1") {
+    return LegacyCustomerClassification.CUSTOMER_GENERIC_LEGACY;
+  }
+  if (customerIdMap.has(trimmed)) {
+    return LegacyCustomerClassification.CUSTOMER_REGISTERED_RESOLVED;
+  }
+  return LegacyCustomerClassification.CUSTOMER_REFERENCE_UNRESOLVED;
 }
 
 export async function reconcileHustlerSales(
@@ -366,6 +410,41 @@ export async function reconcileHustlerSales(
     CANCELLED: 0,
     UNKNOWN: 0,
   };
+
+  const readinessBeforeCounts: Record<SaleReadinessStatus, number> = {
+    READY: 0,
+    READY_WITH_WARNING: 0,
+    BLOCKED_CUSTOMER: 0,
+    BLOCKED_PRODUCT: 0,
+    BLOCKED_NFE: 0,
+    BLOCKED_TOTAL: 0,
+    POSSIBLE_DUPLICATE: 0,
+    CANCELLED: 0,
+    UNKNOWN: 0,
+  };
+
+  let registeredResolvedSales = 0;
+  let registeredResolvedRev = 0;
+  let registeredResolvedItems = 0;
+
+  let genericLegacySales = 0;
+  let genericLegacyRev = 0;
+  let genericLegacyItems = 0;
+  let minDateGeneric: string | null = null;
+  let maxDateGeneric: string | null = null;
+
+  let blankLegacySales = 0;
+  let blankLegacyRev = 0;
+  let blankLegacyItems = 0;
+  let minDateBlank: string | null = null;
+  let maxDateBlank: string | null = null;
+
+  let referenceUnresolvedSales = 0;
+  let referenceUnresolvedRev = 0;
+  let referenceUnresolvedItems = 0;
+  let minDateUnresolved: string | null = null;
+  let maxDateUnresolved: string | null = null;
+  const unresolvedSpecificCustIds = new Set<string>();
 
   let activeVendasCount = 0;
   let cancelledVendasCount = 0;
@@ -510,11 +589,37 @@ export async function reconcileHustlerSales(
     const hasUnresolvedProducts =
       items.length === 0 || saleResolvedItemsCount < items.length;
 
-    // Customer Resolution
+    // Customer Resolution & Semantic Classification
     const canonicalCustomerId = customerIdMap.get(legacyClienteId) || null;
     const isCustomerResolved = Boolean(canonicalCustomerId);
+    const customerClassification = classifyLegacyCustomer(legacyClienteId, customerIdMap);
 
     if (status === "ACTIVE") {
+      if (customerClassification === LegacyCustomerClassification.CUSTOMER_REGISTERED_RESOLVED) {
+        registeredResolvedSales++;
+        registeredResolvedRev += vendaTotal;
+        registeredResolvedItems += items.length;
+      } else if (customerClassification === LegacyCustomerClassification.CUSTOMER_GENERIC_LEGACY) {
+        genericLegacySales++;
+        genericLegacyRev += vendaTotal;
+        genericLegacyItems += items.length;
+        if (!minDateGeneric || legacyDate < minDateGeneric) minDateGeneric = legacyDate;
+        if (!maxDateGeneric || legacyDate > maxDateGeneric) maxDateGeneric = legacyDate;
+      } else if (customerClassification === LegacyCustomerClassification.CUSTOMER_BLANK_LEGACY) {
+        blankLegacySales++;
+        blankLegacyRev += vendaTotal;
+        blankLegacyItems += items.length;
+        if (!minDateBlank || legacyDate < minDateBlank) minDateBlank = legacyDate;
+        if (!maxDateBlank || legacyDate > maxDateBlank) maxDateBlank = legacyDate;
+      } else {
+        referenceUnresolvedSales++;
+        referenceUnresolvedRev += vendaTotal;
+        referenceUnresolvedItems += items.length;
+        unresolvedSpecificCustIds.add(legacyClienteId);
+        if (!minDateUnresolved || legacyDate < minDateUnresolved) minDateUnresolved = legacyDate;
+        if (!maxDateUnresolved || legacyDate > maxDateUnresolved) maxDateUnresolved = legacyDate;
+      }
+
       if (isCustomerResolved) {
         salesCustResolved++;
         revCustResolved += vendaTotal;
@@ -579,7 +684,37 @@ export async function reconcileHustlerSales(
       }
     }
 
-    // Determine Readiness Category
+    // Determine Readiness Category (BEFORE - strict customer resolution required)
+    let rBefore: SaleReadinessStatus;
+    if (status === "CANCELLED") {
+      rBefore = SaleReadinessStatus.CANCELLED;
+    } else if (status === "UNKNOWN") {
+      rBefore = SaleReadinessStatus.UNKNOWN;
+    } else if (
+      overlapStatus === OverlapClassification.PROBABLE_DUPLICATE ||
+      overlapStatus === OverlapClassification.AMBIGUOUS_OVERLAP
+    ) {
+      rBefore = SaleReadinessStatus.POSSIBLE_DUPLICATE;
+    } else if (
+      nfeValidity === NfeValidityStatus.INVALID_NFE ||
+      nfeValidity === NfeValidityStatus.AMBIGUOUS_NFE
+    ) {
+      rBefore = SaleReadinessStatus.BLOCKED_NFE;
+    } else if (totalEval.status === TotalMatchClassification.TOTAL_MISMATCH) {
+      rBefore = SaleReadinessStatus.BLOCKED_TOTAL;
+    } else if (hasUnresolvedProducts) {
+      rBefore = SaleReadinessStatus.BLOCKED_PRODUCT;
+    } else if (!isCustomerResolved) {
+      rBefore = SaleReadinessStatus.BLOCKED_CUSTOMER;
+    } else if (totalEval.status === TotalMatchClassification.ROUNDING_DIFFERENCE) {
+      rBefore = SaleReadinessStatus.READY_WITH_WARNING;
+    } else {
+      rBefore = SaleReadinessStatus.READY;
+    }
+    readinessBeforeCounts[rBefore]++;
+
+    // Determine Readiness Category (AFTER - semantic customer rules)
+    const isCustomerBlocked = (customerClassification === LegacyCustomerClassification.CUSTOMER_REFERENCE_UNRESOLVED);
     let readiness: SaleReadinessStatus;
     let reason = "";
 
@@ -607,15 +742,15 @@ export async function reconcileHustlerSales(
     } else if (hasUnresolvedProducts) {
       readiness = SaleReadinessStatus.BLOCKED_PRODUCT;
       reason = `Contains ${items.length - saleResolvedItemsCount} unresolved product item(s).`;
-    } else if (!isCustomerResolved) {
+    } else if (isCustomerBlocked) {
       readiness = SaleReadinessStatus.BLOCKED_CUSTOMER;
-      reason = `Customer '${legacyClienteId}' not resolved to canonical Customer.`;
+      reason = `Customer '${legacyClienteId}' is a specific legacy customer without canonical identity.`;
     } else if (totalEval.status === TotalMatchClassification.ROUNDING_DIFFERENCE) {
       readiness = SaleReadinessStatus.READY_WITH_WARNING;
       reason = `Minor rounding difference of R$ ${totalEval.minDiff.toFixed(2)} detected within 5-cent tolerance.`;
     } else {
       readiness = SaleReadinessStatus.READY;
-      reason = "All validations passed: active, resolved customer and products, consistent totals.";
+      reason = "All validations passed: active, resolved customer (or legitimate generic/blank), resolved products, consistent totals.";
     }
 
     readinessCounts[readiness]++;
@@ -636,6 +771,7 @@ export async function reconcileHustlerSales(
       legacyClienteId,
       canonicalCustomerId,
       isCustomerResolved,
+      customerClassification,
       legacyDate,
       realizedDate,
       total: vendaTotal,
@@ -746,6 +882,38 @@ export async function reconcileHustlerSales(
       probableDuplicates: probableDuplicatesCount,
       ambiguousOverlaps: ambiguousOverlapsCount,
     },
+
+    customerSemantics: {
+      registeredResolved: {
+        sales: registeredResolvedSales,
+        revenue: registeredResolvedRev,
+        items: registeredResolvedItems,
+      },
+      genericLegacy: {
+        sales: genericLegacySales,
+        revenue: genericLegacyRev,
+        items: genericLegacyItems,
+        periodStart: minDateGeneric,
+        periodEnd: maxDateGeneric,
+      },
+      blankLegacy: {
+        sales: blankLegacySales,
+        revenue: blankLegacyRev,
+        items: blankLegacyItems,
+        periodStart: minDateBlank,
+        periodEnd: maxDateBlank,
+      },
+      referenceUnresolved: {
+        sales: referenceUnresolvedSales,
+        revenue: referenceUnresolvedRev,
+        uniqueLegacyCustomers: unresolvedSpecificCustIds.size,
+        items: referenceUnresolvedItems,
+        periodStart: minDateUnresolved,
+        periodEnd: maxDateUnresolved,
+      },
+    },
+
+    readinessBefore: readinessBeforeCounts,
 
     samples: samplesByStatus,
   };

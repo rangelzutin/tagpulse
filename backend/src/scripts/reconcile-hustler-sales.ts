@@ -116,10 +116,21 @@ async function main() {
     console.log(`Active Sales:                   ${result.sales.active}`);
     console.log(`Cancelled Sales:                ${result.sales.cancelled}`);
     console.log(`Unknown Sales:                  ${result.sales.unknown}`);
-    console.log("\nReadiness Breakdown:");
+    console.log("\nReadiness Breakdown (AFTER - Adjusted Customer Semantics):");
     for (const [status, count] of Object.entries(result.sales.readiness)) {
       console.log(`  ${status.padEnd(24)}: ${count}`);
     }
+
+    console.log("\nReadiness Comparison (BEFORE vs AFTER):");
+    console.log(`  READY:                   ${result.readinessBefore.READY} -> ${result.sales.readiness.READY} (+${result.sales.readiness.READY - result.readinessBefore.READY})`);
+    console.log(`  READY_WITH_WARNING:      ${result.readinessBefore.READY_WITH_WARNING} -> ${result.sales.readiness.READY_WITH_WARNING}`);
+    console.log(`  BLOCKED_CUSTOMER:        ${result.readinessBefore.BLOCKED_CUSTOMER} -> ${result.sales.readiness.BLOCKED_CUSTOMER} (${result.sales.readiness.BLOCKED_CUSTOMER - result.readinessBefore.BLOCKED_CUSTOMER})`);
+    console.log(`  BLOCKED_PRODUCT:         ${result.readinessBefore.BLOCKED_PRODUCT} -> ${result.sales.readiness.BLOCKED_PRODUCT}`);
+    console.log(`  BLOCKED_NFE:             ${result.readinessBefore.BLOCKED_NFE} -> ${result.sales.readiness.BLOCKED_NFE}`);
+    console.log(`  BLOCKED_TOTAL:           ${result.readinessBefore.BLOCKED_TOTAL} -> ${result.sales.readiness.BLOCKED_TOTAL}`);
+    console.log(`  POSSIBLE_DUPLICATE:      ${result.readinessBefore.POSSIBLE_DUPLICATE} -> ${result.sales.readiness.POSSIBLE_DUPLICATE}`);
+    console.log(`  CANCELLED:               ${result.readinessBefore.CANCELLED} -> ${result.sales.readiness.CANCELLED}`);
+    console.log(`  UNKNOWN:                 ${result.readinessBefore.UNKNOWN} -> ${result.sales.readiness.UNKNOWN}`);
 
     console.log("\n---------------- 2. REALIZATION DOCUMENTS ---------------------------");
     console.log(`Realized by Valid NF-e:         ${result.realization.realizedByValidNfe}`);
@@ -143,11 +154,15 @@ async function main() {
     console.log(`Sales Fully Unresolved:         ${result.productImpact.salesFullyUnresolved}`);
     console.log(`Revenue Unresolved Products:    ${formatCurrency(result.productImpact.revenueAffectedByUnresolvedProducts)}`);
 
-    console.log("\n---------------- 5. CUSTOMER RESOLUTION IMPACT ----------------------");
-    console.log(`Sales Customer Resolved:        ${result.customerImpact.salesCustomerResolved}`);
-    console.log(`Sales Customer Unresolved:      ${result.customerImpact.salesCustomerUnresolved}`);
-    console.log(`Revenue Customer Resolved:      ${formatCurrency(result.customerImpact.revenueCustomerResolved)}`);
-    console.log(`Revenue Customer Unresolved:    ${formatCurrency(result.customerImpact.revenueCustomerUnresolved)}`);
+    console.log("\n---------------- 5. CUSTOMER SEMANTICS & IMPACT ---------------------");
+    console.log(`1. Registered Resolved:         ${result.customerSemantics.registeredResolved.sales} sales | ${formatCurrency(result.customerSemantics.registeredResolved.revenue)} | ${result.customerSemantics.registeredResolved.items} items`);
+    console.log(`2. Generic ("Consumidor Hustler"): ${result.customerSemantics.genericLegacy.sales} sales | ${formatCurrency(result.customerSemantics.genericLegacy.revenue)} | ${result.customerSemantics.genericLegacy.items} items`);
+    console.log(`   Period: ${result.customerSemantics.genericLegacy.periodStart || "N/A"} to ${result.customerSemantics.genericLegacy.periodEnd || "N/A"}`);
+    console.log(`3. Blank Legacy (null / 0):     ${result.customerSemantics.blankLegacy.sales} sales | ${formatCurrency(result.customerSemantics.blankLegacy.revenue)} | ${result.customerSemantics.blankLegacy.items} items`);
+    console.log(`   Period: ${result.customerSemantics.blankLegacy.periodStart || "N/A"} to ${result.customerSemantics.blankLegacy.periodEnd || "N/A"}`);
+    console.log(`4. Specific Unresolved:         ${result.customerSemantics.referenceUnresolved.sales} sales | ${formatCurrency(result.customerSemantics.referenceUnresolved.revenue)} | ${result.customerSemantics.referenceUnresolved.uniqueLegacyCustomers} legacy customers`);
+    console.log(`   Period: ${result.customerSemantics.referenceUnresolved.periodStart || "N/A"} to ${result.customerSemantics.referenceUnresolved.periodEnd || "N/A"}`);
+    console.log(`Legacy Identity Customer Matches: ${result.customerImpact.salesCustomerResolved} sales resolved | ${result.customerImpact.salesCustomerUnresolved} unresolved`);
 
     console.log("\n---------------- 6. TOTAL RECONCILIATION ----------------------------");
     console.log(`Exact Total Matches:            ${result.totalReconciliation.totalMatch}`);
@@ -227,3 +242,4 @@ async function main() {
 }
 
 main();
+

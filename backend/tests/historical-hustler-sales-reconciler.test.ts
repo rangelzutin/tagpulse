@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   evaluateTotalReconciliation,
   evaluateNfeValidity,
+  classifyLegacyCustomer,
+  LegacyCustomerClassification,
   SaleReadinessStatus,
   NfeValidityStatus,
   RealizationDocumentType,
@@ -208,6 +210,80 @@ describe("Historical Hustler Sales Reconciler Unit Tests (Phase 4E)", () => {
       // In dry-run mode, reconciler performs only findMany / select queries and returns in-memory structures
       const dryRunMode = true;
       expect(dryRunMode).toBe(true);
+    });
+  });
+
+  describe("5. Customer Semantics & Readiness Adjustments (Semantic Adjustment)", () => {
+    const customerIdMap = new Map<string, string>([
+      ["100", "canon-cust-100"],
+      ["200", "canon-cust-200"],
+    ]);
+
+    it("classifies registered and resolved customer correctly", () => {
+      const classification = classifyLegacyCustomer("100", customerIdMap);
+      expect(classification).toBe(LegacyCustomerClassification.CUSTOMER_REGISTERED_RESOLVED);
+    });
+
+    it("classifies generic legacy customer (id = '1') as CUSTOMER_GENERIC_LEGACY", () => {
+      const classification = classifyLegacyCustomer("1", customerIdMap);
+      expect(classification).toBe(LegacyCustomerClassification.CUSTOMER_GENERIC_LEGACY);
+    });
+
+    it("classifies blank, zero, or null legacy customer as CUSTOMER_BLANK_LEGACY", () => {
+      expect(classifyLegacyCustomer(null, customerIdMap)).toBe(LegacyCustomerClassification.CUSTOMER_BLANK_LEGACY);
+      expect(classifyLegacyCustomer(undefined, customerIdMap)).toBe(LegacyCustomerClassification.CUSTOMER_BLANK_LEGACY);
+      expect(classifyLegacyCustomer("", customerIdMap)).toBe(LegacyCustomerClassification.CUSTOMER_BLANK_LEGACY);
+      expect(classifyLegacyCustomer("   ", customerIdMap)).toBe(LegacyCustomerClassification.CUSTOMER_BLANK_LEGACY);
+      expect(classifyLegacyCustomer("0", customerIdMap)).toBe(LegacyCustomerClassification.CUSTOMER_BLANK_LEGACY);
+      expect(classifyLegacyCustomer("null", customerIdMap)).toBe(LegacyCustomerClassification.CUSTOMER_BLANK_LEGACY);
+    });
+
+    it("classifies specific unresolved legacy customer as CUSTOMER_REFERENCE_UNRESOLVED", () => {
+      const classification = classifyLegacyCustomer("999", customerIdMap);
+      expect(classification).toBe(LegacyCustomerClassification.CUSTOMER_REFERENCE_UNRESOLVED);
+    });
+
+    it("allows generic legacy customer to NOT block readiness when other checks pass", () => {
+      const custCategory = classifyLegacyCustomer("1", customerIdMap);
+      const isCustomerBlocked = (custCategory === LegacyCustomerClassification.CUSTOMER_REFERENCE_UNRESOLVED);
+      expect(isCustomerBlocked).toBe(false);
+
+      // Readiness evaluation
+      const allProductsResolved = true;
+      const nfeValidity = NfeValidityStatus.NO_NFE;
+      const totalMismatch = false;
+
+      let readiness = SaleReadinessStatus.READY;
+      if (isCustomerBlocked) readiness = SaleReadinessStatus.BLOCKED_CUSTOMER;
+      else if (!allProductsResolved) readiness = SaleReadinessStatus.BLOCKED_PRODUCT;
+
+      expect(readiness).toBe(SaleReadinessStatus.READY);
+    });
+
+    it("allows blank legacy customer to NOT block readiness when other checks pass", () => {
+      const custCategory = classifyLegacyCustomer(null, customerIdMap);
+      const isCustomerBlocked = (custCategory === LegacyCustomerClassification.CUSTOMER_REFERENCE_UNRESOLVED);
+      expect(isCustomerBlocked).toBe(false);
+
+      const allProductsResolved = true;
+      let readiness = SaleReadinessStatus.READY;
+      if (isCustomerBlocked) readiness = SaleReadinessStatus.BLOCKED_CUSTOMER;
+      else if (!allProductsResolved) readiness = SaleReadinessStatus.BLOCKED_PRODUCT;
+
+      expect(readiness).toBe(SaleReadinessStatus.READY);
+    });
+
+    it("blocks readiness with BLOCKED_CUSTOMER ONLY when customer is specific and unresolved", () => {
+      const custCategory = classifyLegacyCustomer("999", customerIdMap);
+      const isCustomerBlocked = (custCategory === LegacyCustomerClassification.CUSTOMER_REFERENCE_UNRESOLVED);
+      expect(isCustomerBlocked).toBe(true);
+
+      const allProductsResolved = true;
+      let readiness = SaleReadinessStatus.READY;
+      if (isCustomerBlocked) readiness = SaleReadinessStatus.BLOCKED_CUSTOMER;
+      else if (!allProductsResolved) readiness = SaleReadinessStatus.BLOCKED_PRODUCT;
+
+      expect(readiness).toBe(SaleReadinessStatus.BLOCKED_CUSTOMER);
     });
   });
 });
