@@ -220,4 +220,45 @@ describe("Historical Provenance and Import Batch Schema (Phase 4A)", () => {
       expect(sourceSystem).toBeUndefined();
     });
   });
+  describe("HistoricalImportBatch Deletion Governance (ON DELETE RESTRICT)", () => {
+    it("configures HistoricalSourceIdentity -> HistoricalImportBatch relation with onDelete Restrict", () => {
+      const hsi = models.find((m) => m.name === "HistoricalSourceIdentity")!;
+      const importBatchRel = hsi.fields.find((f) => f.name === "importBatch")!;
+      expect(importBatchRel).toBeDefined();
+      expect(importBatchRel.relationOnDelete).toBe("Restrict");
+    });
+
+    it("configures Sale -> HistoricalImportBatch relation with onDelete Restrict", () => {
+      const sale = models.find((m) => m.name === "Sale")!;
+      const importBatchRel = sale.fields.find((f) => f.name === "importBatch")!;
+      expect(importBatchRel).toBeDefined();
+      expect(importBatchRel.relationOnDelete).toBe("Restrict");
+    });
+
+    it("configures SaleSourceDocument -> HistoricalImportBatch relation with onDelete Restrict", () => {
+      const doc = models.find((m) => m.name === "SaleSourceDocument")!;
+      const importBatchRel = doc.fields.find((f) => f.name === "importBatch")!;
+      expect(importBatchRel).toBeDefined();
+      expect(importBatchRel.relationOnDelete).toBe("Restrict");
+    });
+
+    it("configures FinancialRecord -> HistoricalImportBatch relation with onDelete Restrict", () => {
+      const fr = models.find((m) => m.name === "FinancialRecord")!;
+      const importBatchRel = fr.fields.find((f) => f.name === "importBatch")!;
+      expect(importBatchRel).toBeDefined();
+      expect(importBatchRel.relationOnDelete).toBe("Restrict");
+    });
+
+    it("preserves importBatchId as nullable across all referencing fact and identity tables", () => {
+      const hsi = models.find((m) => m.name === "HistoricalSourceIdentity")!;
+      const sale = models.find((m) => m.name === "Sale")!;
+      const doc = models.find((m) => m.name === "SaleSourceDocument")!;
+      const fr = models.find((m) => m.name === "FinancialRecord")!;
+
+      expect(hsi.fields.find((f) => f.name === "importBatchId")!.isRequired).toBe(false);
+      expect(sale.fields.find((f) => f.name === "importBatchId")!.isRequired).toBe(false);
+      expect(doc.fields.find((f) => f.name === "importBatchId")!.isRequired).toBe(false);
+      expect(fr.fields.find((f) => f.name === "importBatchId")!.isRequired).toBe(false);
+    });
+  });
 });

@@ -302,7 +302,7 @@ model Sale {
   operationUnit     OperationUnit?         @map("operation_unit")
   salesChannel      SalesChannel?          @map("sales_channel")
   importBatchId     String?                @map("import_batch_id") @db.Uuid
-  importBatch       HistoricalImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  importBatch       HistoricalImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: Restrict)
 
   @@unique([connectionId, anchorType, anchorSourceId])
   @@index([connectionId, anchorType])
@@ -353,7 +353,7 @@ model SaleSourceDocument {
   sourceSystem      SourceSystem           @default(TAGPLUS_CURRENT) @map("source_system")
   operationUnit     OperationUnit?         @map("operation_unit")
   importBatchId     String?                @map("import_batch_id") @db.Uuid
-  importBatch       HistoricalImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  importBatch       HistoricalImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: Restrict)
 
   @@unique([connectionId, docType, sourceId])
   @@index([saleId])
@@ -599,7 +599,7 @@ model FinancialRecord {
   sourceSystem                     SourceSystem           @default(TAGPLUS_CURRENT) @map("source_system")
   operationUnit                    OperationUnit?         @map("operation_unit")
   importBatchId                    String?                @map("import_batch_id") @db.Uuid
-  importBatch                      HistoricalImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  importBatch                      HistoricalImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: Restrict)
 
   @@unique([connectionId, sourceId])
   @@index([connectionId, type, isConfirmed, dueDate])
@@ -837,7 +837,7 @@ model HistoricalSourceIdentity {
   createdAt           DateTime               @default(now()) @map("created_at")
 
   company             Company                @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  importBatch         HistoricalImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  importBatch         HistoricalImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: Restrict)
 
   @@unique([companyId, sourceSystem, sourceEntity, sourcePrimaryKey], name: "companyId_sourceSystem_sourceEntity_sourcePrimaryKey")
   @@index([canonicalEntityType, canonicalEntityId])
