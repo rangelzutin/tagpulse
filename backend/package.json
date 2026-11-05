@@ -14,6 +14,7 @@
     "ensure:tagplus-connection": "tsx src/scripts/ensure-tagplus-connection.ts",
     "historical:hustler:profile": "tsx src/scripts/profile-hustler-dump.ts",
     "historical:hustler:reconcile": "tsx src/scripts/reconcile-hustler-entities.ts",
+    "historical:hustler:sales:reconcile": "tsx src/scripts/reconcile-hustler-sales.ts",
     "historical:hustler:stage": "tsx src/scripts/stage-hustler-dump.ts",
     "lint": "eslint .",
     "prisma:generate": "prisma generate",
