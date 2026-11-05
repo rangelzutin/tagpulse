@@ -13,6 +13,7 @@
     "audit:inventory": "tsx src/scripts/audit-inventory.ts",
     "ensure:tagplus-connection": "tsx src/scripts/ensure-tagplus-connection.ts",
     "historical:hustler:profile": "tsx src/scripts/profile-hustler-dump.ts",
+    "historical:hustler:stage": "tsx src/scripts/stage-hustler-dump.ts",
     "lint": "eslint .",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",

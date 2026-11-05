@@ -96,13 +96,47 @@ describe("Historical Provenance and Import Batch Schema (Phase 4A)", () => {
       expect(fieldNames).toContain("activatedAt");
     });
 
-    it("has back-relations to Company, facts, and source identities", () => {
+    it("has back-relations to Company, facts, source identities, and staging rows", () => {
       const fieldNames = hib!.fields.map((f) => f.name);
       expect(fieldNames).toContain("company");
       expect(fieldNames).toContain("sourceIdentities");
       expect(fieldNames).toContain("sales");
       expect(fieldNames).toContain("sourceDocs");
       expect(fieldNames).toContain("financialRecords");
+      expect(fieldNames).toContain("stagingRows");
+    });
+  });
+
+  describe("HistoricalStagingRow Model (Phase 4C)", () => {
+    const hsr = models.find((m) => m.name === "HistoricalStagingRow");
+
+    it("exists in the datamodel", () => {
+      expect(hsr).toBeDefined();
+    });
+
+    it("contains all required staging fields", () => {
+      const fieldNames = hsr!.fields.map((f) => f.name);
+      expect(fieldNames).toContain("id");
+      expect(fieldNames).toContain("importBatchId");
+      expect(fieldNames).toContain("sourceSystem");
+      expect(fieldNames).toContain("sourceTable");
+      expect(fieldNames).toContain("sourcePrimaryKey");
+      expect(fieldNames).toContain("rowIndex");
+      expect(fieldNames).toContain("payload");
+      expect(fieldNames).toContain("payloadHash");
+      expect(fieldNames).toContain("createdAt");
+    });
+
+    it("enforces compound unique constraint on [importBatchId, sourceTable, sourcePrimaryKey]", () => {
+      expect(hsr!.uniqueFields).toEqual([
+        ["importBatchId", "sourceTable", "sourcePrimaryKey"],
+      ]);
+    });
+
+    it("configures relation to HistoricalImportBatch with onDelete: Cascade", () => {
+      const batchField = hsr!.fields.find((f) => f.name === "importBatch");
+      expect(batchField).toBeDefined();
+      expect(batchField?.relationOnDelete).toBe("Cascade");
     });
   });
 

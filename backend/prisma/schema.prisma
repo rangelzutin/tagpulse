@@ -820,9 +820,28 @@ model HistoricalImportBatch {
   sales            Sale[]
   sourceDocs       SaleSourceDocument[]
   financialRecords FinancialRecord[]
+  stagingRows      HistoricalStagingRow[]
 
   @@index([companyId, sourceSystem, status])
   @@map("historical_import_batches")
+}
+
+model HistoricalStagingRow {
+  id               String                @id @default(uuid()) @db.Uuid
+  importBatchId    String                @map("import_batch_id") @db.Uuid
+  sourceSystem     SourceSystem          @map("source_system")
+  sourceTable      String                @map("source_table")
+  sourcePrimaryKey String                @map("source_primary_key")
+  rowIndex         Int                   @map("row_index")
+  payload          Json                  @map("payload")
+  payloadHash      String                @map("payload_hash")
+  createdAt        DateTime              @default(now()) @map("created_at")
+
+  importBatch      HistoricalImportBatch @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
+
+  @@unique([importBatchId, sourceTable, sourcePrimaryKey])
+  @@index([importBatchId, sourceTable])
+  @@map("historical_staging_rows")
 }
 
 model HistoricalSourceIdentity {
