@@ -1,8 +1,10 @@
 import type {
   DreMonthlyItemDto,
   DreEconomicStatus,
+  DreBreakEvenDto,
 } from "../../api/financial";
 import { formatMonthLabel, getLocalDateString } from "../../utils/formatters";
+import { calculateBreakEven } from "./dreBreakEvenHelper";
 
 export type DreChartGranularity = "monthly" | "quarterly" | "yearly";
 
@@ -39,6 +41,7 @@ export interface DreChartBucket {
   netManagerialResult: number;
   netManagerialMarginPercent: number | null;
   status: DreEconomicStatus;
+  breakEven: DreBreakEvenDto;
   dataQuality: {
     isProvisional: boolean;
     financiallyClosed: boolean;
@@ -283,6 +286,7 @@ function createZeroMonthlyItem(month: string): DreMonthlyItemDto {
     netManagerialResult: 0,
     netManagerialMarginPercent: null,
     status: "BREAK_EVEN",
+    breakEven: calculateBreakEven(0, 0, 0),
     dataQuality: {
       isProvisional: false,
       financiallyClosed: true,
@@ -320,6 +324,13 @@ function toMonthlyChartBucket(
     netManagerialResult: item.netManagerialResult,
     netManagerialMarginPercent: item.netManagerialMarginPercent,
     status: item.status,
+    breakEven:
+      item.breakEven ??
+      calculateBreakEven(
+        item.realizedRevenue,
+        item.contributionMargin,
+        item.netManagerialResult,
+      ),
     dataQuality: {
       isProvisional: item.dataQuality.isProvisional,
       financiallyClosed: item.dataQuality.financiallyClosed,
@@ -418,6 +429,11 @@ function aggregateMonthlyGroup(
     netManagerialResult,
     netManagerialMarginPercent,
     status,
+    breakEven: calculateBreakEven(
+      realizedRevenue,
+      contributionMargin,
+      netManagerialResult,
+    ),
     dataQuality: {
       isProvisional: anyProvisional,
       financiallyClosed: allClosed,

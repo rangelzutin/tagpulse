@@ -34,6 +34,7 @@ import {
 import { FinancialDreTable } from "./FinancialDreTable";
 import { FinancialDreMonthlyChart } from "./FinancialDreMonthlyChart";
 import { FinancialDreBreakdownCard } from "./FinancialDreBreakdownCard";
+import { FinancialDreBreakEvenSection } from "./FinancialDreBreakEvenSection";
 import { FinancialDreExportReport } from "./FinancialDreExportReport";
 import {
   buildDreExportFilename,
@@ -829,6 +830,9 @@ export function FinancialDreTab({
           </span>
         </div>
       </section>
+
+      {/* Break-Even Analysis Section */}
+      <FinancialDreBreakEvenSection totals={totals} />
 
       {/* 1. Full-Width Monthly Evolution Section */}
       <section

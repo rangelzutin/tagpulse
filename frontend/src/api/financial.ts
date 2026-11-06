@@ -585,6 +585,23 @@ export type DreEconomicCategory =
 
 export type DreEconomicStatus = "PROFIT" | "LOSS" | "BREAK_EVEN";
 
+export type DreBreakEvenStatus =
+  | "BELOW_BREAK_EVEN"
+  | "ABOVE_BREAK_EVEN"
+  | "UNVIABLE_MARGIN"
+  | "NO_REVENUE";
+
+export interface DreBreakEvenDto {
+  status: DreBreakEvenStatus;
+  realizedRevenue: number;
+  contributionMargin: number;
+  contributionMarginRate: number | null;
+  netResult: number;
+  additionalRevenueNeeded: number | null;
+  breakEvenRevenue: number | null;
+  additionalRevenuePercent: number | null;
+}
+
 export interface DreVariableExpensesDto {
   paymentFees: number;
   taxesOnRevenue: number;
@@ -644,6 +661,7 @@ export interface DreMonthlyItemDto {
   netManagerialResult: number;
   netManagerialMarginPercent: number | null;
   status: DreEconomicStatus;
+  breakEven?: DreBreakEvenDto;
   dataQuality: DreDataQualityDto;
 }
 
@@ -661,6 +679,7 @@ export interface DreSummaryTotalsDto {
   netManagerialResult: number;
   netManagerialMarginPercent: number | null;
   status: DreEconomicStatus;
+  breakEven?: DreBreakEvenDto;
 }
 
 export interface DreSummaryDto {
@@ -670,6 +689,7 @@ export interface DreSummaryDto {
   };
   totals: DreSummaryTotalsDto;
   months: DreMonthlyItemDto[];
+  breakEven?: DreBreakEvenDto;
   lastClosedMonth: string | null;
   dataQuality: DreDataQualityDto;
   disclaimer: string;

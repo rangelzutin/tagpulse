@@ -2,6 +2,8 @@ import type {
   DreBreakdownCategoryDetail,
   DreBreakdownDto,
   DreBreakdownItemDto,
+  DreBreakEvenDto,
+  DreBreakEvenStatus,
   DreClassificationResult,
   DreEconomicCategory,
   DreMonthlyItemDto,
@@ -26,8 +28,81 @@ export interface DreCalculatorOptions {
 }
 
 const r2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
+const r4 = (n: number): number => Math.round((n + Number.EPSILON) * 10000) / 10000;
 const toCents = (n: number): number => Math.round(n * 100);
 const fromCents = (c: number): number => c / 100;
+
+/**
+ * Calculates managerial break-even (ponto de equilíbrio / faturamento necessário)
+ * derived deterministically from realized revenue, contribution margin, and net managerial result.
+ * Pure function without side-effects.
+ */
+export function calculateBreakEven(
+  realizedRevenue: number,
+  contributionMargin: number,
+  netResult: number,
+): DreBreakEvenDto {
+  const rev = r2(realizedRevenue);
+  const cm = r2(contributionMargin);
+  const net = r2(netResult);
+
+  if (rev <= 0) {
+    return {
+      status: "NO_REVENUE",
+      realizedRevenue: rev,
+      contributionMargin: cm,
+      contributionMarginRate: null,
+      netResult: net,
+      additionalRevenueNeeded: null,
+      breakEvenRevenue: null,
+      additionalRevenuePercent: null,
+    };
+  }
+
+  const rate = cm / rev;
+
+  if (rate <= 0) {
+    return {
+      status: "UNVIABLE_MARGIN",
+      realizedRevenue: rev,
+      contributionMargin: cm,
+      contributionMarginRate: r4(rate),
+      netResult: net,
+      additionalRevenueNeeded: null,
+      breakEvenRevenue: null,
+      additionalRevenuePercent: null,
+    };
+  }
+
+  if (net >= 0) {
+    const implicitBreakEven = Math.max(0, r2(rev - (net / rate)));
+    return {
+      status: "ABOVE_BREAK_EVEN",
+      realizedRevenue: rev,
+      contributionMargin: cm,
+      contributionMarginRate: r4(rate),
+      netResult: net,
+      additionalRevenueNeeded: 0,
+      breakEvenRevenue: implicitBreakEven,
+      additionalRevenuePercent: 0,
+    };
+  }
+
+  const additionalRevenueNeeded = r2(Math.abs(net) / rate);
+  const breakEvenRevenue = r2(rev + additionalRevenueNeeded);
+  const additionalRevenuePercent = r4((additionalRevenueNeeded / rev) * 100);
+
+  return {
+    status: "BELOW_BREAK_EVEN",
+    realizedRevenue: rev,
+    contributionMargin: cm,
+    contributionMarginRate: r4(rate),
+    netResult: net,
+    additionalRevenueNeeded,
+    breakEvenRevenue,
+    additionalRevenuePercent,
+  };
+}
 
 export function calculateDreMonthly(
   commercialTrend: MonthlyCommercialTrend[],
@@ -331,6 +406,11 @@ export function calculateDreMonthly(
       netManagerialResult: fromCents(netResultCents),
       netManagerialMarginPercent: netMarginPercent,
       status,
+      breakEven: calculateBreakEven(
+        fromCents(revCents),
+        fromCents(cmCents),
+        fromCents(netResultCents),
+      ),
       dataQuality: {
         isProvisional,
         financiallyClosed,
@@ -493,12 +573,24 @@ export function calculateDreSummary(
     netManagerialResult: fromCents(netResultCents),
     netManagerialMarginPercent: netMarginPercent,
     status,
+    breakEven: calculateBreakEven(
+      fromCents(revCents),
+      fromCents(cmCents),
+      fromCents(netResultCents),
+    ),
   };
+
+  const breakEven = calculateBreakEven(
+    fromCents(revCents),
+    fromCents(cmCents),
+    fromCents(netResultCents),
+  );
 
   return {
     period,
     totals,
     months,
+    breakEven,
     lastClosedMonth,
     dataQuality: {
       isProvisional,

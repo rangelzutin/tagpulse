@@ -25,6 +25,7 @@ import {
   type DreChartBucket,
   type DreEvolutionPeriod,
 } from "./dreEvolutionHelper";
+import { formatMonthlyBreakEvenTooltip } from "./dreBreakEvenHelper";
 
 const DRE_PENDING_ACCRUAL_LABELS: Record<string, string> = {
   VARIABLE_TAX_ON_REVENUE: "Impostos sobre vendas",
@@ -121,6 +122,9 @@ export function DreMonthlyTooltip({
   const pendingLabels = formatDrePendingAccruals(
     item.dataQuality.pendingAccruals,
   );
+  const breakEvenHint = item.breakEven
+    ? formatMonthlyBreakEvenTooltip(item.breakEven, formatCurrency)
+    : null;
 
   return (
     <div className="tp-chart-tooltip tp-dre-tooltip">
@@ -208,6 +212,14 @@ export function DreMonthlyTooltip({
             )
           </span>
         </div>
+        {breakEvenHint && (
+          <div
+            className="tp-tooltip-breakeven-hint"
+            data-testid="dre-tooltip-breakeven"
+          >
+            {breakEvenHint}
+          </div>
+        )}
         {pendingLabels.length > 0 && (
           <div className="tp-tooltip-pending-hint">
             <span className="tp-tooltip-pending-label">Pendências:</span>{" "}
