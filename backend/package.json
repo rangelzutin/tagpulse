@@ -12,6 +12,7 @@
     "test:integration": "vitest run --passWithNoTests tests/integration",
     "audit:inventory": "tsx src/scripts/audit-inventory.ts",
     "ensure:tagplus-connection": "tsx src/scripts/ensure-tagplus-connection.ts",
+    "historical:hustler:blockers": "tsx src/scripts/analyze-hustler-blockers.ts",
     "historical:hustler:profile": "tsx src/scripts/profile-hustler-dump.ts",
     "historical:hustler:reconcile": "tsx src/scripts/reconcile-hustler-entities.ts",
     "historical:hustler:sales:reconcile": "tsx src/scripts/reconcile-hustler-sales.ts",
