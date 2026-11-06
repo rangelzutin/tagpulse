@@ -122,9 +122,9 @@ describe("Historical Hustler Blocker Resolution Unit Tests (Phase 4F)", () => {
       );
 
       const freightCount = 31;
-      const freightRevenue = 6744.36;
+      const freightRevenue = 6675.16;
       const inconsistencyCount = 11;
-      const inconsistencyRevenue = 2944.40;
+      const inconsistencyRevenue = 3013.60;
 
       expect(freightCount + inconsistencyCount).toBe(42);
       expect(freightRevenue + inconsistencyRevenue).toBeCloseTo(9688.76, 2);
@@ -155,11 +155,11 @@ describe("Historical Hustler Blocker Resolution Unit Tests (Phase 4F)", () => {
       incCustomerSales: 42,
       incCustomerRevenue: 5551.40,
       incTotalSales: 31,
-      incTotalRevenue: 6744.36,
+      incTotalRevenue: 6675.16,
       incNfeSales: 3,
       incNfeRevenue: 469.92,
       unresolvableSales: 11,
-      unresolvableRevenue: 2944.40,
+      unresolvableRevenue: 3013.60,
     };
 
     it("11. simulates readiness with historical products (+5,646 sales, +R$ 1,034,974.92)", () => {
@@ -182,14 +182,14 @@ describe("Historical Hustler Blocker Resolution Unit Tests (Phase 4F)", () => {
       expect(custStep.cumulativeReadyRevenue).toBeCloseTo(1134548.06, 2);
     });
 
-    it("13. simulates readiness with freight explanation (+31 sales, +R$ 6,744.36)", () => {
+    it("13. simulates readiness with freight explanation (+31 sales, +R$ 6,675.16)", () => {
       const sim = simulateReadinessPotential(baseSimulationParams);
       const freightStep = sim.steps.find((s) => s.step === "RESOLVE_FREIGHT_TOTALS")!;
 
       expect(freightStep.incrementalSales).toBe(31);
       expect(freightStep.cumulativeReadySales).toBe(6304);
       expect(freightStep.cumulativeReadySalesPercentage).toBe(99.78);
-      expect(freightStep.cumulativeReadyRevenue).toBeCloseTo(1141292.42, 2);
+      expect(freightStep.cumulativeReadyRevenue).toBeCloseTo(1141223.22, 2);
     });
 
     it("14. simulates readiness with NFe fallback (+3 sales, +R$ 469.92)", () => {
@@ -199,24 +199,24 @@ describe("Historical Hustler Blocker Resolution Unit Tests (Phase 4F)", () => {
       expect(nfeStep.incrementalSales).toBe(3);
       expect(nfeStep.cumulativeReadySales).toBe(6307);
       expect(nfeStep.cumulativeReadySalesPercentage).toBe(99.83);
-      expect(nfeStep.cumulativeReadyRevenue).toBeCloseTo(1141762.34, 2);
+      expect(nfeStep.cumulativeReadyRevenue).toBeCloseTo(1141693.14, 2);
     });
 
-    it("15. reaches theoretical maximum readiness: 6,307 sales (99.83%) and R$ 1,141,762.34 (99.74%)", () => {
+    it("15. reaches theoretical maximum readiness: 6,307 sales (99.83%) and R$ 1,141,693.14 (99.74%)", () => {
       const sim = simulateReadinessPotential(baseSimulationParams);
 
       expect(sim.maximumResolvableSales).toBe(6307);
       expect(sim.maximumResolvableSalesPercentage).toBe(99.83);
-      expect(sim.maximumResolvableRevenue).toBeCloseTo(1141762.34, 2);
+      expect(sim.maximumResolvableRevenue).toBeCloseTo(1141693.14, 2);
       expect(sim.maximumResolvableRevenuePercentage).toBe(99.74);
     });
 
-    it("16. isolates remaining 11 irresolvable sales (0.17%) and R$ 2,944.40 (0.26%)", () => {
+    it("16. isolates remaining 11 irresolvable sales (0.17%) and R$ 3,013.60 (0.26%)", () => {
       const sim = simulateReadinessPotential(baseSimulationParams);
 
       expect(sim.unresolvableSales).toBe(11);
       expect(sim.unresolvableSalesPercentage).toBe(0.17);
-      expect(sim.unresolvableRevenue).toBeCloseTo(2944.40, 2);
+      expect(sim.unresolvableRevenue).toBeCloseTo(3013.60, 2);
       expect(sim.unresolvableRevenuePercentage).toBe(0.26);
 
       // Reconciles perfectly to 100%
@@ -225,3 +225,4 @@ describe("Historical Hustler Blocker Resolution Unit Tests (Phase 4F)", () => {
     });
   });
 });
+
