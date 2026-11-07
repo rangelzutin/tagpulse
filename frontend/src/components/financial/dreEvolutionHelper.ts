@@ -42,6 +42,7 @@ export interface DreChartBucket {
   netManagerialMarginPercent: number | null;
   status: DreEconomicStatus;
   breakEven: DreBreakEvenDto;
+  breakEvenRevenue: number | null;
   dataQuality: {
     isProvisional: boolean;
     financiallyClosed: boolean;
@@ -303,6 +304,18 @@ function toMonthlyChartBucket(
   isContext: boolean,
 ): DreChartBucket {
   const label = formatMonthLabel(item.month);
+  const be =
+    item.breakEven ??
+    calculateBreakEven(
+      item.realizedRevenue,
+      item.contributionMargin,
+      item.netManagerialResult,
+    );
+  const breakEvenRevenue =
+    be.status === "UNVIABLE_MARGIN" || be.status === "NO_REVENUE"
+      ? null
+      : be.breakEvenRevenue;
+
   return {
     key: item.month,
     label,
@@ -324,13 +337,8 @@ function toMonthlyChartBucket(
     netManagerialResult: item.netManagerialResult,
     netManagerialMarginPercent: item.netManagerialMarginPercent,
     status: item.status,
-    breakEven:
-      item.breakEven ??
-      calculateBreakEven(
-        item.realizedRevenue,
-        item.contributionMargin,
-        item.netManagerialResult,
-      ),
+    breakEven: be,
+    breakEvenRevenue,
     dataQuality: {
       isProvisional: item.dataQuality.isProvisional,
       financiallyClosed: item.dataQuality.financiallyClosed,
@@ -408,6 +416,16 @@ function aggregateMonthlyGroup(
   const status: DreEconomicStatus =
     netCents > 0 ? "PROFIT" : netCents < 0 ? "LOSS" : "BREAK_EVEN";
 
+  const be = calculateBreakEven(
+    realizedRevenue,
+    contributionMargin,
+    netManagerialResult,
+  );
+  const breakEvenRevenue =
+    be.status === "UNVIABLE_MARGIN" || be.status === "NO_REVENUE"
+      ? null
+      : be.breakEvenRevenue;
+
   return {
     key,
     label,
@@ -429,11 +447,8 @@ function aggregateMonthlyGroup(
     netManagerialResult,
     netManagerialMarginPercent,
     status,
-    breakEven: calculateBreakEven(
-      realizedRevenue,
-      contributionMargin,
-      netManagerialResult,
-    ),
+    breakEven: be,
+    breakEvenRevenue,
     dataQuality: {
       isProvisional: anyProvisional,
       financiallyClosed: allClosed,
