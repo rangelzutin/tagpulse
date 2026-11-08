@@ -226,34 +226,57 @@ export function DreMonthlyTooltip({
             data-testid="dre-tooltip-breakeven"
           >
             <div className="tp-tooltip-row">
-              <span className="tp-tooltip-label">Ponto de equilíbrio:</span>
+              <span className="tp-tooltip-label">
+                {item.breakEven.calculationBasis === "COVERED_REVENUE"
+                  ? "Ponto de equilíbrio estimado:"
+                  : "Ponto de equilíbrio:"}
+              </span>
               <span className="tp-tooltip-value tp-color-amber">
                 {item.breakEven.breakEvenRevenue !== null
-                  ? formatCurrency(item.breakEven.breakEvenRevenue)
+                  ? `${formatCurrency(item.breakEven.breakEvenRevenue)}${
+                      item.breakEven.calculationBasis === "COVERED_REVENUE" && item.breakEven.costCoveragePercent != null
+                        ? ` (${formatPercent(item.breakEven.costCoveragePercent, 1)} cobertura)`
+                        : item.breakEven.calculationBasis === "COVERED_REVENUE"
+                        ? " (Provisório)"
+                        : ""
+                    }`
                   : "Indisponível"}
               </span>
             </div>
-            {item.breakEven.status === "BELOW_BREAK_EVEN" &&
-              item.breakEven.additionalRevenueNeeded !== null && (
+            {item.breakEven.breakEvenRevenue !== null &&
+              item.breakEven.additionalRevenueNeeded !== null &&
+              item.breakEven.additionalRevenueNeeded > 0 && (
                 <div className="tp-tooltip-row">
-                  <span className="tp-tooltip-label">Gap para equilíbrio:</span>
+                  <span className="tp-tooltip-label">
+                    {item.breakEven.calculationBasis === "COVERED_REVENUE"
+                      ? "Gap estimado:"
+                      : "Gap para equilíbrio:"}
+                  </span>
                   <span className="tp-tooltip-value tp-text-negative">
                     {formatCurrency(item.breakEven.additionalRevenueNeeded)}
                   </span>
                 </div>
               )}
-            {item.breakEven.status === "ABOVE_BREAK_EVEN" && (
-              <div className="tp-tooltip-row">
-                <span className="tp-tooltip-label">Gap para equilíbrio:</span>
-                <span className="tp-tooltip-value tp-text-positive">
-                  {formatCurrency(0)}
-                </span>
-              </div>
-            )}
+            {item.breakEven.breakEvenRevenue !== null &&
+              (item.breakEven.status === "ABOVE_BREAK_EVEN" ||
+                item.breakEven.additionalRevenueNeeded === 0) && (
+                <div className="tp-tooltip-row">
+                  <span className="tp-tooltip-label">
+                    {item.breakEven.calculationBasis === "COVERED_REVENUE"
+                      ? "Gap estimado:"
+                      : "Gap para equilíbrio:"}
+                  </span>
+                  <span className="tp-tooltip-value tp-text-positive">
+                    {formatCurrency(0)}
+                  </span>
+                </div>
+              )}
             <div className="tp-tooltip-row">
               <span className="tp-tooltip-label">Status:</span>
               <span className="tp-tooltip-value">
-                {item.breakEven.status === "ABOVE_BREAK_EVEN"
+                {item.breakEven.calculationBasis === "COVERED_REVENUE"
+                  ? `Provisório (cobertura ${item.breakEven.costCoveragePercent != null ? formatPercent(item.breakEven.costCoveragePercent, 1) : "parcial"})`
+                  : item.breakEven.status === "ABOVE_BREAK_EVEN"
                   ? "Acima do equilíbrio"
                   : item.breakEven.status === "BELOW_BREAK_EVEN"
                   ? "Abaixo do equilíbrio"
@@ -1165,7 +1188,14 @@ export function FinancialDreMonthlyChart({
                     m.realizedRevenue,
                     m.contributionMargin,
                     m.netManagerialResult,
-                    { fullManagerialResultAvailable: m.fullManagerialResultAvailable },
+                    {
+                      fullManagerialResultAvailable: m.fullManagerialResultAvailable,
+                      costCoveragePercent: m.costCoveragePercent,
+                      coveredRevenue: m.coveredRevenue,
+                      coveredContributionMargin: m.coveredContributionMargin,
+                      partialManagerialResult: m.partialManagerialResultOnCoveredRevenue,
+                      isProvisional: m.dataQuality?.isProvisional,
+                    },
                   );
                 const pendingLabels = formatDrePendingAccruals(
                   m.dataQuality.pendingAccruals,
@@ -1207,23 +1237,35 @@ export function FinancialDreMonthlyChart({
                         : "—"}
                     </td>
                     <td>
-                      {be.breakEvenRevenue !== null
-                        ? formatCurrency(be.breakEvenRevenue)
-                        : be.status === "UNVIABLE_MARGIN"
-                        ? "Inviável"
-                        : be.status === "INCOMPLETE_COST_COVERAGE"
-                        ? "Indisponível"
-                        : "—"}
+                      {be.breakEvenRevenue !== null ? (
+                        <>
+                          {formatCurrency(be.breakEvenRevenue)}
+                          {be.calculationBasis === "COVERED_REVENUE" && (
+                            <span title="Estimativa provisória sobre a receita coberta" style={{ color: "#38bdf8", fontWeight: 700 }}> *</span>
+                          )}
+                        </>
+                      ) : be.status === "UNVIABLE_MARGIN" ? (
+                        "Inviável"
+                      ) : be.status === "INCOMPLETE_COST_COVERAGE" ? (
+                        "Indisponível"
+                      ) : (
+                        "—"
+                      )}
                     </td>
                     <td>
-                      {be.status === "BELOW_BREAK_EVEN" &&
-                      be.additionalRevenueNeeded !== null
-                        ? formatCurrency(be.additionalRevenueNeeded)
-                        : be.status === "ABOVE_BREAK_EVEN"
-                        ? "Superado"
-                        : be.status === "INCOMPLETE_COST_COVERAGE"
-                        ? "Indisponível"
-                        : "—"}
+                      {be.breakEvenRevenue !== null ? (
+                        be.additionalRevenueNeeded !== null && be.additionalRevenueNeeded > 0 ? (
+                          formatCurrency(be.additionalRevenueNeeded)
+                        ) : be.additionalRevenueNeeded === 0 || be.status === "ABOVE_BREAK_EVEN" ? (
+                          "Superado"
+                        ) : (
+                          "—"
+                        )
+                      ) : be.status === "INCOMPLETE_COST_COVERAGE" ? (
+                        "Indisponível"
+                      ) : (
+                        "—"
+                      )}
                     </td>
                     <td>
                       <span

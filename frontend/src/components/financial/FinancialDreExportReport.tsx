@@ -791,13 +791,28 @@ export function FinancialDreExportReport({
 
   // 3B. PONTO DE EQUILÍBRIO
   const breakEven =
+    summaryData.breakEven ??
     totals.breakEven ??
     calculateBreakEven(
       totals.realizedRevenue,
       totals.contributionMargin,
       totals.netManagerialResult,
-      { fullManagerialResultAvailable: totals.fullManagerialResultAvailable },
+      {
+        fullManagerialResultAvailable: totals.fullManagerialResultAvailable,
+        costCoveragePercent: totals.costCoveragePercent,
+        coveredRevenue: totals.coveredRevenue,
+        coveredContributionMargin: totals.coveredContributionMargin,
+        partialManagerialResult: totals.partialManagerialResultOnCoveredRevenue,
+        isProvisional: summaryData.dataQuality?.isProvisional ?? false,
+      },
     );
+
+  const isCoveredBasis = breakEven.calculationBasis === "COVERED_REVENUE";
+  const hasValidBreakEven = breakEven.breakEvenRevenue !== null;
+  const isAboveBreakEven =
+    breakEven.status === "ABOVE_BREAK_EVEN" ||
+    (isCoveredBasis && hasValidBreakEven && breakEven.additionalRevenueNeeded === 0);
+  const costCoveragePercent = breakEven.costCoveragePercent ?? totals.costCoveragePercent;
 
   const breakEvenSection = (
     <section
@@ -807,13 +822,17 @@ export function FinancialDreExportReport({
       data-export-section="3b-breakeven"
     >
       <div className="tp-dre-export-breakeven-header">
-        <span className="tp-dre-export-breakeven-title">Ponto de Equilíbrio</span>
+        <span className="tp-dre-export-breakeven-title">
+          {isCoveredBasis ? "Ponto de Equilíbrio (Estimativa Provisória)" : "Ponto de Equilíbrio"}
+        </span>
         <span style={{ fontSize: "10px", color: "#64748b" }}>
-          Estimativa de faturamento para zerar o resultado gerencial
+          {isCoveredBasis && costCoveragePercent !== null && costCoveragePercent !== undefined
+            ? `Estimativa baseada na receita coberta (${formatPercent(costCoveragePercent, 1)} de cobertura)`
+            : "Estimativa de faturamento para zerar o resultado gerencial"}
         </span>
       </div>
 
-      {breakEven.status === "INCOMPLETE_COST_COVERAGE" ? (
+      {breakEven.status === "INCOMPLETE_COST_COVERAGE" && !hasValidBreakEven ? (
         <div style={{ padding: "4px 0", fontSize: "11px", color: "#475569", fontWeight: 600 }}>
           Ponto de equilíbrio indisponível no período devido à cobertura parcial de custos e despesas.
         </div>
@@ -829,16 +848,18 @@ export function FinancialDreExportReport({
         <>
           <div className="tp-dre-export-breakeven-grid">
             <div className="tp-dre-export-be-card">
-              <span className="tp-dre-export-be-label">Faturamento de Equilíbrio</span>
+              <span className="tp-dre-export-be-label">
+                {isCoveredBasis ? "Faturamento de Equilíbrio Estimado" : "Faturamento de Equilíbrio"}
+              </span>
               <span className="tp-dre-export-be-value">
                 {breakEven.breakEvenRevenue !== null
                   ? formatCurrency(breakEven.breakEvenRevenue)
                   : "—"}
               </span>
               <span className="tp-dre-export-be-subtext">
-                {breakEven.status === "ABOVE_BREAK_EVEN"
-                  ? "Superado no período"
-                  : "Meta para resultado zero"}
+                {isAboveBreakEven
+                  ? (isCoveredBasis ? "Superado sobre a receita coberta" : "Superado no período")
+                  : (isCoveredBasis ? "Estimativa sobre a receita coberta" : "Meta para resultado zero")}
               </span>
             </div>
 
@@ -847,47 +868,64 @@ export function FinancialDreExportReport({
               <span
                 className="tp-dre-export-be-value"
                 style={{
-                  color: breakEven.status === "ABOVE_BREAK_EVEN" ? "#15803d" : "#be123c",
+                  color: isAboveBreakEven ? "#15803d" : "#be123c",
                 }}
               >
-                {breakEven.status === "ABOVE_BREAK_EVEN"
+                {isAboveBreakEven
                   ? "R$ 0,00"
                   : breakEven.additionalRevenueNeeded !== null
                   ? formatCurrency(breakEven.additionalRevenueNeeded)
                   : "—"}
               </span>
               <span className="tp-dre-export-be-subtext">
-                {breakEven.status === "ABOVE_BREAK_EVEN"
-                  ? "Empresa acima do equilíbrio"
-                  : "Faturamento faltante"}
+                {isAboveBreakEven
+                  ? (isCoveredBasis ? "Empresa acima do equilíbrio coberto" : "Empresa acima do equilíbrio")
+                  : (isCoveredBasis ? "Faturamento faltante estimado" : "Faturamento faltante")}
               </span>
             </div>
 
             <div className="tp-dre-export-be-card">
               <span className="tp-dre-export-be-label">Aumento Necessário</span>
               <span className="tp-dre-export-be-value">
-                {breakEven.status === "ABOVE_BREAK_EVEN"
+                {isAboveBreakEven
                   ? "0,0%"
                   : breakEven.additionalRevenuePercent !== null
                   ? `+${formatPercent(breakEven.additionalRevenuePercent, 1)}`
                   : "—"}
               </span>
-              <span className="tp-dre-export-be-subtext">Sobre receita realizada</span>
+              <span className="tp-dre-export-be-subtext">
+                {isCoveredBasis ? "Sobre receita coberta" : "Sobre receita realizada"}
+              </span>
             </div>
           </div>
 
           <div className="tp-dre-export-breakeven-context">
             <span>
-              Faturamento realizado: <strong>{formatCurrency(breakEven.realizedRevenue)}</strong>
+              {isCoveredBasis ? "Faturamento realizado total:" : "Faturamento realizado:"}{" "}
+              <strong>{formatCurrency(breakEven.realizedRevenue)}</strong>
             </span>
+            {isCoveredBasis && (
+              <>
+                <span>•</span>
+                <span>
+                  Considerado:{" "}
+                  <strong>
+                    {formatCurrency(breakEven.coveredRevenue ?? totals.coveredRevenue ?? breakEven.realizedRevenue)}
+                  </strong>
+                  {costCoveragePercent !== null && costCoveragePercent !== undefined && (
+                    <> ({formatPercent(costCoveragePercent, 1)} de cobertura)</>
+                  )}
+                </span>
+              </>
+            )}
             <span>•</span>
             <span>
-              Margem de contribuição estimada:{" "}
+              {isCoveredBasis ? "Margem considerada:" : "Margem de contribuição estimada:"}{" "}
               <strong>
-                {totals.contributionMarginPercent !== null && totals.contributionMarginPercent !== undefined
-                  ? formatPercent(totals.contributionMarginPercent, 1)
-                  : breakEven.contributionMarginRate !== null
+                {breakEven.contributionMarginRate !== null
                   ? formatPercent(breakEven.contributionMarginRate * 100, 1)
+                  : totals.contributionMarginPercent !== null && totals.contributionMarginPercent !== undefined
+                  ? formatPercent(totals.contributionMarginPercent, 1)
                   : "—"}
               </strong>
             </span>

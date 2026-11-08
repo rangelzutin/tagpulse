@@ -22,12 +22,24 @@ describe("FinancialDreBreakEven — Frontend Components & Calculation", () => {
     options?: {
       costCoveragePercent?: number;
       fullManagerialResultAvailable?: boolean;
+      coveredRevenue?: number;
+      coveredContributionMargin?: number;
+      partialManagerialResultOnCoveredRevenue?: number;
     },
   ): DreSummaryTotalsDto => ({
     realizedRevenue,
     estimatedCOGS: realizedRevenue * 0.5,
     estimatedGrossProfit: realizedRevenue * 0.5,
     estimatedGrossMarginPercent: 50,
+    coveredRevenue: options?.coveredRevenue ?? realizedRevenue,
+    uncoveredRevenue: realizedRevenue - (options?.coveredRevenue ?? realizedRevenue),
+    costCoveragePercent: options?.costCoveragePercent ?? 100,
+    coveredGrossProfit: options?.coveredRevenue !== undefined ? options.coveredRevenue * 0.5 : realizedRevenue * 0.5,
+    coveredGrossMarginPercent: 50,
+    coveredContributionMargin: options?.coveredContributionMargin,
+    fullGrossProfitAvailable: options?.fullManagerialResultAvailable ?? (netManagerialResult !== null),
+    fullManagerialResultAvailable: options?.fullManagerialResultAvailable ?? (netManagerialResult !== null),
+    partialManagerialResultOnCoveredRevenue: options?.partialManagerialResultOnCoveredRevenue,
     variableExpenses: {
       paymentFees: 0,
       taxesOnRevenue: 0,
@@ -67,13 +79,17 @@ describe("FinancialDreBreakEven — Frontend Components & Calculation", () => {
           ? "LOSS"
           : "BREAK_EVEN"
         : "BREAK_EVEN",
-    costCoveragePercent: options?.costCoveragePercent ?? 100,
-    fullManagerialResultAvailable: options?.fullManagerialResultAvailable ?? (netManagerialResult !== null),
     breakEven: calculateBreakEven(
       realizedRevenue,
       contributionMargin,
       netManagerialResult,
-      { fullManagerialResultAvailable: options?.fullManagerialResultAvailable },
+      {
+        fullManagerialResultAvailable: options?.fullManagerialResultAvailable,
+        costCoveragePercent: options?.costCoveragePercent,
+        coveredRevenue: options?.coveredRevenue,
+        coveredContributionMargin: options?.coveredContributionMargin,
+        partialManagerialResult: options?.partialManagerialResultOnCoveredRevenue,
+      },
     ),
   });
 
@@ -198,5 +214,75 @@ describe("FinancialDreBreakEven — Frontend Components & Calculation", () => {
     expect(html).toContain(DRE_BREAK_EVEN_INCOMPLETE_MESSAGE);
     expect(html).toContain("Cobertura parcial de custos");
     expect(html).toContain("55,4%");
+  });
+
+  it("8. renders provisional break-even on covered revenue when cost coverage is partial (costCoveragePercent < 100%)", () => {
+    // DEV real values: Realized 236,046.97, Covered 228,481.75, Covered CM 63,444.28, Partial Net -34,025.79, Coverage 96.8%
+    const totals = createMockTotals(236046.97, 65000, null, {
+      costCoveragePercent: 96.8,
+      fullManagerialResultAvailable: false,
+      coveredRevenue: 228481.75,
+      coveredContributionMargin: 63444.28,
+      partialManagerialResultOnCoveredRevenue: -34025.79,
+    });
+    const html = renderToString(
+      React.createElement(FinancialDreBreakEvenSection, {
+        totals,
+        dataQuality: { isProvisional: true, pendingAccruals: ["VARIABLE_TAX_ON_REVENUE"] },
+      }),
+    );
+
+    // Cards should NOT be blocked
+    expect(html).toContain('data-testid="dre-breakeven-card-main"');
+    expect(html).toContain("Faturamento de equilíbrio estimado");
+    expect(html).toContain(formatCurrency(351018.75));
+
+    expect(html).toContain('data-testid="dre-breakeven-card-gap"');
+    expect(html).toContain(formatCurrency(122537.0));
+
+    expect(html).toContain('data-testid="dre-breakeven-card-percent"');
+    expect(html).toContain("+53,6%");
+
+    // Provisional Callout Banner
+    expect(html).toContain('data-testid="dre-breakeven-provisional-callout"');
+    expect(html).toContain("Cálculo provisório baseado na parcela da receita com cobertura de custos");
+    expect(html).toContain("Faturamento realizado total:");
+    expect(html).toContain(formatCurrency(236046.97));
+    expect(html).toContain("Considerado no cálculo:");
+    expect(html).toContain(formatCurrency(228481.75));
+    expect(html).toContain("96,8%");
+
+    // Status badge
+    expect(html).toContain("Provisório (cobertura 96,8%)");
+  });
+
+  it("9. formatMonthlyBreakEvenTooltip provides provisional narrative for covered revenue", () => {
+    // Loss on covered revenue
+    const beLoss = calculateBreakEven(100000, 40000, null, {
+      fullManagerialResultAvailable: false,
+      costCoveragePercent: 80,
+      coveredRevenue: 80000,
+      coveredContributionMargin: 40000,
+      partialManagerialResult: -20000,
+      isProvisional: true,
+    });
+    const lossText = formatMonthlyBreakEvenTooltip(beLoss, formatCurrency);
+    expect(lossText).toBe(
+      `Estimativa provisória: faltou faturar aproximadamente ${formatCurrency(40000)} sobre a receita coberta (80,0% de cobertura).`,
+    );
+
+    // Profit on covered revenue
+    const beProfit = calculateBreakEven(100000, 40000, null, {
+      fullManagerialResultAvailable: false,
+      costCoveragePercent: 80,
+      coveredRevenue: 80000,
+      coveredContributionMargin: 40000,
+      partialManagerialResult: 10000,
+      isProvisional: true,
+    });
+    const profitText = formatMonthlyBreakEvenTooltip(beProfit, formatCurrency);
+    expect(profitText).toBe(
+      "Estimativa provisória: ponto de equilíbrio superado sobre a parcela coberta (80,0% de cobertura).",
+    );
   });
 });

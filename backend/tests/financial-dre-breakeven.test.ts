@@ -211,28 +211,90 @@ describe("Financial DRE — Break-Even Analysis (calculateBreakEven)", () => {
     expect(months[1].breakEven?.breakEvenRevenue).toBe(60000); // 30k op / 0.5 = 60k
   });
 
-  it("K. handles partial cost coverage (INCOMPLETE_COST_COVERAGE) without artificial numbers", () => {
-    // If netResult is null due to incomplete cost coverage
-    const resultNullNet = calculateBreakEven(100000, 40000, null);
-    expect(resultNullNet.status).toBe("INCOMPLETE_COST_COVERAGE");
-    expect(resultNullNet.realizedRevenue).toBe(100000);
-    expect(resultNullNet.contributionMargin).toBe(40000);
-    expect(resultNullNet.contributionMarginRate).toBe(0.4);
-    expect(resultNullNet.netResult).toBeNull();
-    expect(resultNullNet.breakEvenRevenue).toBeNull();
-    expect(resultNullNet.additionalRevenueNeeded).toBeNull();
-    expect(resultNullNet.additionalRevenuePercent).toBeNull();
-
-    // If options.fullManagerialResultAvailable is explicitly false
-    const resultPartial = calculateBreakEven(100000, 40000, 15000, {
+  it("K. handles partial cost coverage with negative partial result (provisional break-even on covered revenue)", () => {
+    // Realized = 100k, Covered = 60k, Covered CM = 30k (rate = 0.5)
+    // Op expenses = 40k -> Partial Result = 30k - 40k = -10k
+    // Needed = 10k / 0.5 = 20k
+    // Break-even revenue = 60k + 20k = 80k
+    // Additional % = (20k / 60k) * 100 = 33.3333% (over covered revenue, NOT over realized 100k!)
+    const result = calculateBreakEven(100000, 50000, null, {
       fullManagerialResultAvailable: false,
+      costCoveragePercent: 60,
+      coveredRevenue: 60000,
+      coveredContributionMargin: 30000,
+      partialManagerialResult: -10000,
+      isProvisional: true,
     });
-    expect(resultPartial.status).toBe("INCOMPLETE_COST_COVERAGE");
-    expect(resultPartial.netResult).toBeNull();
-    expect(resultPartial.breakEvenRevenue).toBeNull();
+
+    expect(result.status).toBe("INCOMPLETE_COST_COVERAGE");
+    expect(result.isProvisional).toBe(true);
+    expect(result.calculationBasis).toBe("COVERED_REVENUE");
+    expect(result.realizedRevenue).toBe(100000);
+    expect(result.coveredRevenue).toBe(60000);
+    expect(result.coveredContributionMargin).toBe(30000);
+    expect(result.contributionMarginRate).toBe(0.5);
+    expect(result.netResult).toBe(-10000);
+    expect(result.additionalRevenueNeeded).toBe(20000);
+    expect(result.breakEvenRevenue).toBe(80000);
+    expect(result.additionalRevenuePercent).toBeCloseTo(33.33, 1);
   });
 
-  it("L. reflects INCOMPLETE_COST_COVERAGE when trend has partial cost coverage in monthly and summary", () => {
+  it("L. handles partial cost coverage with positive partial result (provisional above break-even)", () => {
+    // Realized = 100k, Covered = 60k, Covered CM = 30k (rate = 0.5)
+    // Op expenses = 20k -> Partial Result = 30k - 20k = +10k
+    // Implicit break-even revenue = 60k - 10k / 0.5 = 40k
+    const result = calculateBreakEven(100000, 50000, null, {
+      fullManagerialResultAvailable: false,
+      costCoveragePercent: 60,
+      coveredRevenue: 60000,
+      coveredContributionMargin: 30000,
+      partialManagerialResult: 10000,
+      isProvisional: true,
+    });
+
+    expect(result.status).toBe("INCOMPLETE_COST_COVERAGE");
+    expect(result.isProvisional).toBe(true);
+    expect(result.calculationBasis).toBe("COVERED_REVENUE");
+    expect(result.netResult).toBe(10000);
+    expect(result.additionalRevenueNeeded).toBe(0);
+    expect(result.breakEvenRevenue).toBe(40000);
+    expect(result.additionalRevenuePercent).toBe(0);
+  });
+
+  it("M. handles partial cost coverage with unviable covered margin (UNVIABLE_MARGIN)", () => {
+    const result = calculateBreakEven(100000, 50000, null, {
+      fullManagerialResultAvailable: false,
+      costCoveragePercent: 60,
+      coveredRevenue: 60000,
+      coveredContributionMargin: -5000,
+      partialManagerialResult: -15000,
+      isProvisional: true,
+    });
+
+    expect(result.status).toBe("UNVIABLE_MARGIN");
+    expect(result.isProvisional).toBe(true);
+    expect(result.calculationBasis).toBe("COVERED_REVENUE");
+    expect(result.breakEvenRevenue).toBeNull();
+    expect(result.additionalRevenueNeeded).toBeNull();
+  });
+
+  it("N. handles partial cost coverage with zero covered revenue (NO_REVENUE)", () => {
+    const result = calculateBreakEven(100000, 50000, null, {
+      fullManagerialResultAvailable: false,
+      costCoveragePercent: 0,
+      coveredRevenue: 0,
+      coveredContributionMargin: 0,
+      partialManagerialResult: -5000,
+      isProvisional: true,
+    });
+
+    expect(result.status).toBe("NO_REVENUE");
+    expect(result.isProvisional).toBe(true);
+    expect(result.calculationBasis).toBe("COVERED_REVENUE");
+    expect(result.breakEvenRevenue).toBeNull();
+  });
+
+  it("O. calculates provisional break-even in calculateDreMonthly and calculateDreSummary when coverage is partial", () => {
     const commercialTrend: MonthlyCommercialTrend[] = [
       {
         month: "2025-07",
@@ -240,7 +302,7 @@ describe("Financial DRE — Break-Even Analysis (calculateBreakEven)", () => {
         revenueWithCurrentCost: 60000,
         revenueWithoutCurrentCost: 40000,
         costCoveragePercent: 60,
-        estimatedCOGS: 30000,
+        estimatedCOGS: 30000, // on covered rev 60k -> covered gross = 30k
         estimatedGrossProfit: 30000,
         grossMarginPercent: 50,
       },
@@ -259,13 +321,29 @@ describe("Financial DRE — Break-Even Analysis (calculateBreakEven)", () => {
 
     const months = calculateDreMonthly(commercialTrend, records);
     expect(months[0].fullManagerialResultAvailable).toBe(false);
+    expect(months[0].costCoveragePercent).toBe(60);
+    expect(months[0].coveredRevenue).toBe(60000);
+    expect(months[0].coveredGrossProfit).toBe(30000);
+    expect(months[0].coveredContributionMargin).toBe(30000);
+    expect(months[0].partialManagerialResultOnCoveredRevenue).toBe(20000);
+
+    // Monthly breakEven should be provisional with calculationBasis = "COVERED_REVENUE"
     expect(months[0].breakEven.status).toBe("INCOMPLETE_COST_COVERAGE");
-    expect(months[0].breakEven.breakEvenRevenue).toBeNull();
+    expect(months[0].breakEven.calculationBasis).toBe("COVERED_REVENUE");
+    expect(months[0].breakEven.isProvisional).toBe(true);
+    // Rate = 30k / 60k = 0.5. Net = +20k. Implicit = 60k - 20k/0.5 = 20k
+    expect(months[0].breakEven.breakEvenRevenue).toBe(20000);
+    expect(months[0].breakEven.additionalRevenueNeeded).toBe(0);
 
     const summary = calculateDreSummary(months, { from: "2025-07-01", to: "2025-07-31" });
     expect(summary.totals.fullManagerialResultAvailable).toBe(false);
+    expect(summary.totals.costCoveragePercent).toBe(60);
+    expect(summary.totals.coveredContributionMargin).toBe(30000);
     expect(summary.totals.breakEven.status).toBe("INCOMPLETE_COST_COVERAGE");
+    expect(summary.totals.breakEven.calculationBasis).toBe("COVERED_REVENUE");
+    expect(summary.totals.breakEven.breakEvenRevenue).toBe(20000);
     expect(summary.breakEven.status).toBe("INCOMPLETE_COST_COVERAGE");
-    expect(summary.breakEven.breakEvenRevenue).toBeNull();
+    expect(summary.breakEven.calculationBasis).toBe("COVERED_REVENUE");
+    expect(summary.breakEven.breakEvenRevenue).toBe(20000);
   });
 });

@@ -310,12 +310,17 @@ function toMonthlyChartBucket(
       item.realizedRevenue,
       item.contributionMargin,
       item.netManagerialResult,
-      { fullManagerialResultAvailable: item.fullManagerialResultAvailable },
+      {
+        fullManagerialResultAvailable: item.fullManagerialResultAvailable,
+        costCoveragePercent: item.costCoveragePercent,
+        coveredRevenue: item.coveredRevenue,
+        coveredContributionMargin: item.coveredContributionMargin,
+        partialManagerialResult: item.partialManagerialResultOnCoveredRevenue,
+        isProvisional: item.dataQuality?.isProvisional,
+      },
     );
   const breakEvenRevenue =
-    be.status === "UNVIABLE_MARGIN" ||
-    be.status === "NO_REVENUE" ||
-    be.status === "INCOMPLETE_COST_COVERAGE"
+    be.status === "UNVIABLE_MARGIN" || be.status === "NO_REVENUE"
       ? null
       : be.breakEvenRevenue;
 
@@ -372,6 +377,9 @@ function aggregateMonthlyGroup(
   let finTotalCents = 0;
   let otherTotalCents = 0;
   let netCents = 0;
+  let coveredRevCents = 0;
+  let coveredGrossCents = 0;
+  let partialResultCents = 0;
 
   const pendingSet = new Set<string>();
   let anyProvisional = false;
@@ -387,6 +395,11 @@ function aggregateMonthlyGroup(
     opTotalCents += toCents(item.operatingExpenses.total);
     finTotalCents += toCents(item.financialResult.total);
     otherTotalCents += toCents(item.otherResult.total);
+    const itemCovRev = item.coveredRevenue !== undefined ? toCents(item.coveredRevenue) : toCents(item.realizedRevenue);
+    coveredRevCents += itemCovRev;
+    coveredGrossCents += item.coveredGrossProfit !== undefined ? toCents(item.coveredGrossProfit) : toCents(item.estimatedGrossProfit);
+    partialResultCents += toCents(item.partialManagerialResultOnCoveredRevenue ?? item.netManagerialResult ?? 0);
+
     if (item.netManagerialResult !== null) {
       netCents += toCents(item.netManagerialResult);
     } else {
@@ -413,6 +426,8 @@ function aggregateMonthlyGroup(
   const financialResultTotal = fromCents(finTotalCents);
   const otherResultTotal = fromCents(otherTotalCents);
   const netManagerialResult = hasIncompleteCostCoverage ? null : fromCents(netCents);
+  const coveredCmCents = coveredGrossCents - varTotalCents;
+  const coveragePercent = revCents > 0 ? r2((fromCents(coveredRevCents) / fromCents(revCents)) * 100) : 100;
 
   const estimatedGrossMarginPercent =
     revCents > 0 ? r2((estimatedGrossProfit / realizedRevenue) * 100) : null;
@@ -436,12 +451,17 @@ function aggregateMonthlyGroup(
     realizedRevenue,
     contributionMargin,
     netManagerialResult,
-    { fullManagerialResultAvailable: !hasIncompleteCostCoverage },
+    {
+      fullManagerialResultAvailable: !hasIncompleteCostCoverage,
+      costCoveragePercent: coveragePercent,
+      coveredRevenue: fromCents(coveredRevCents),
+      coveredContributionMargin: fromCents(coveredCmCents),
+      partialManagerialResult: fromCents(partialResultCents),
+      isProvisional: anyProvisional,
+    },
   );
   const breakEvenRevenue =
-    be.status === "UNVIABLE_MARGIN" ||
-    be.status === "NO_REVENUE" ||
-    be.status === "INCOMPLETE_COST_COVERAGE"
+    be.status === "UNVIABLE_MARGIN" || be.status === "NO_REVENUE"
       ? null
       : be.breakEvenRevenue;
 

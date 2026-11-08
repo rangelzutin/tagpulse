@@ -849,6 +849,7 @@ export function FinancialDreTab({
       <FinancialDreBreakEvenSection
         totals={totals}
         breakEvenOverride={summaryData.breakEven}
+        dataQuality={summaryData.dataQuality}
       />
 
       {/* 1. Full-Width Monthly Evolution Section */}

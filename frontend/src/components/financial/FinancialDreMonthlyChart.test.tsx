@@ -15,6 +15,7 @@ import {
   aggregateByYear,
   removeFutureMonths,
 } from "./dreEvolutionHelper";
+import { calculateBreakEven } from "./dreBreakEvenHelper";
 import type { DreMonthlyItemDto } from "../../api/financial";
 
 function makeMonthlyItem(
@@ -26,6 +27,11 @@ function makeMonthlyItem(
     operatingTotal: number;
     financialTotal: number;
     isProvisional: boolean;
+    costCoveragePercent: number | null;
+    fullManagerialResultAvailable: boolean;
+    coveredRevenue: number;
+    coveredContributionMargin: number;
+    partialManagerialResultOnCoveredRevenue: number;
   }>,
 ): DreMonthlyItemDto {
   const rev = overrides?.realizedRevenue ?? 30000;
@@ -40,12 +46,20 @@ function makeMonthlyItem(
 
   const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
+  const fullAvail = overrides?.fullManagerialResultAvailable ?? true;
+  const netResult = fullAvail ? net : null;
+
   return {
     month,
     realizedRevenue: rev,
     estimatedCOGS: cogs,
     estimatedGrossProfit: gross,
     estimatedGrossMarginPercent: rev > 0 ? r2((gross / rev) * 100) : null,
+    costCoveragePercent: overrides?.costCoveragePercent ?? 100,
+    fullManagerialResultAvailable: fullAvail,
+    coveredRevenue: overrides?.coveredRevenue ?? rev,
+    coveredContributionMargin: overrides?.coveredContributionMargin ?? cm,
+    partialManagerialResultOnCoveredRevenue: overrides?.partialManagerialResultOnCoveredRevenue,
     variableExpenses: {
       paymentFees: varTotal,
       taxesOnRevenue: 0,
@@ -79,9 +93,32 @@ function makeMonthlyItem(
       otherExpenses: 0,
       total: 0,
     },
-    netManagerialResult: net,
-    netManagerialMarginPercent: rev > 0 ? r2((net / rev) * 100) : null,
-    status: net > 0 ? "PROFIT" : net < 0 ? "LOSS" : "BREAK_EVEN",
+    netManagerialResult: netResult,
+    netManagerialMarginPercent: netResult !== null && rev > 0 ? r2((netResult / rev) * 100) : null,
+    status: fullAvail
+      ? net > 0
+        ? "PROFIT"
+        : net < 0
+        ? "LOSS"
+        : "BREAK_EVEN"
+      : (overrides?.partialManagerialResultOnCoveredRevenue ?? 0) > 0
+      ? "PROFIT"
+      : (overrides?.partialManagerialResultOnCoveredRevenue ?? 0) < 0
+      ? "LOSS"
+      : "BREAK_EVEN",
+    breakEven: calculateBreakEven(
+      rev,
+      cm,
+      netResult,
+      {
+        fullManagerialResultAvailable: fullAvail,
+        costCoveragePercent: overrides?.costCoveragePercent,
+        coveredRevenue: overrides?.coveredRevenue,
+        coveredContributionMargin: overrides?.coveredContributionMargin,
+        partialManagerialResult: overrides?.partialManagerialResultOnCoveredRevenue,
+        isProvisional,
+      },
+    ),
     dataQuality: {
       isProvisional,
       financiallyClosed: !isProvisional,
@@ -823,6 +860,33 @@ describe("Phase 5D.5: Adaptive DRE Evolution Chart & Faithful Monthly Table", ()
       // Negative month shows break-even and gap amount
       expect(tableHtml).toContain("70.000,00");
       expect(tableHtml).toContain("20.000,00");
+    });
+
+    it("E. Renderiza ponto de equilíbrio provisório com asterisco na tabela mensal quando houver cobertura parcial de custos", () => {
+      const partialItem = makeMonthlyItem("2026-05", {
+        realizedRevenue: 100000,
+        estimatedCOGS: 30000,
+        variableTotal: 10000,
+        operatingTotal: 40000,
+        costCoveragePercent: 60,
+        fullManagerialResultAvailable: false,
+        coveredRevenue: 60000,
+        coveredContributionMargin: 20000, // 30k covered gross - 10k var = 20k CM (rate 0.3333...)
+        partialManagerialResultOnCoveredRevenue: -20000, // 20k CM - 40k op = -20k
+      });
+
+      const tableHtml = renderToString(
+        <FinancialDreMonthlyChart
+          monthlyData={[partialItem]}
+          period={{ from: "2026-05-01", to: "2026-05-31" }}
+          initialViewMode="table"
+        />,
+      );
+
+      // Break-even revenue should be 60k + 20k / (20k/60k) = 60k + 60k = 120.000,00 with asterisk
+      expect(tableHtml).toContain("120.000,00");
+      expect(tableHtml).toContain("*");
+      expect(tableHtml).toContain("60.000,00"); // gap = 20k / (1/3) = 60.000,00
     });
   });
 });

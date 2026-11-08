@@ -9,6 +9,7 @@ import {
   HelpCircle,
   CheckCircle2,
   Info,
+  Clock,
 } from "lucide-react";
 import {
   calculateBreakEven,
@@ -19,15 +20,22 @@ import {
   DRE_BREAK_EVEN_INCOMPLETE_TITLE,
   DRE_BREAK_EVEN_INCOMPLETE_MESSAGE,
 } from "./dreBreakEvenHelper";
+import { formatPendingAccrualLabel } from "./FinancialDreTab";
 
 interface FinancialDreBreakEvenSectionProps {
   totals: DreSummaryTotalsDto;
   breakEvenOverride?: DreBreakEvenDto;
+  dataQuality?: {
+    isProvisional?: boolean;
+    financiallyClosed?: boolean;
+    pendingAccruals?: string[];
+  };
 }
 
 export function FinancialDreBreakEvenSection({
   totals,
   breakEvenOverride,
+  dataQuality,
 }: FinancialDreBreakEvenSectionProps) {
   const [showTooltip, setShowTooltip] = useState(false);
 
@@ -38,15 +46,28 @@ export function FinancialDreBreakEvenSection({
       totals.realizedRevenue,
       totals.contributionMargin,
       totals.netManagerialResult,
-      { fullManagerialResultAvailable: totals.fullManagerialResultAvailable },
+      {
+        fullManagerialResultAvailable: totals.fullManagerialResultAvailable,
+        costCoveragePercent: totals.costCoveragePercent,
+        coveredRevenue: totals.coveredRevenue,
+        coveredContributionMargin: totals.coveredContributionMargin,
+        partialManagerialResult: totals.partialManagerialResultOnCoveredRevenue,
+        isProvisional: dataQuality?.isProvisional ?? false,
+      },
     );
 
+  const isCoveredBasis = breakEven.calculationBasis === "COVERED_REVENUE";
+  const costCoveragePercent = breakEven.costCoveragePercent ?? totals.costCoveragePercent;
+  const isProvisional = breakEven.isProvisional || (dataQuality?.isProvisional ?? false);
+  const pendingAccruals = dataQuality?.pendingAccruals ?? [];
+
   const { status } = breakEven;
-  const isBelow = status === "BELOW_BREAK_EVEN";
-  const isAbove = status === "ABOVE_BREAK_EVEN";
+  const hasValidBreakEven = breakEven.breakEvenRevenue !== null;
+  const isBelow = status === "BELOW_BREAK_EVEN" || (isCoveredBasis && hasValidBreakEven && (breakEven.additionalRevenueNeeded ?? 0) > 0);
+  const isAbove = status === "ABOVE_BREAK_EVEN" || (isCoveredBasis && hasValidBreakEven && breakEven.additionalRevenueNeeded === 0);
   const isUnviable = status === "UNVIABLE_MARGIN";
   const isNoRevenue = status === "NO_REVENUE";
-  const isIncomplete = status === "INCOMPLETE_COST_COVERAGE";
+  const isIncompleteBlocked = status === "INCOMPLETE_COST_COVERAGE" && !hasValidBreakEven;
 
   return (
     <section
@@ -87,22 +108,25 @@ export function FinancialDreBreakEvenSection({
         </div>
 
         <div className="tp-dre-breakeven-status-wrap">
-          {isBelow && (
+          {isCoveredBasis && hasValidBreakEven ? (
+            <span className="tp-kpi-status-badge is-even" data-testid="dre-breakeven-status-badge">
+              {isAbove
+                ? `Provisório (superado • cobertura ${formatPercent(costCoveragePercent ?? 0, 1)})`
+                : `Provisório (cobertura ${formatPercent(costCoveragePercent ?? 0, 1)})`}
+            </span>
+          ) : isBelow ? (
             <span className="tp-kpi-status-badge is-loss" data-testid="dre-breakeven-status-badge">
-              Abaixo do equilíbrio
+              Abaixo do equilíbrio{isProvisional ? " (Provisório)" : ""}
             </span>
-          )}
-          {isAbove && (
+          ) : isAbove ? (
             <span className="tp-kpi-status-badge is-profit" data-testid="dre-breakeven-status-badge">
-              Ponto de equilíbrio superado
+              Ponto de equilíbrio superado{isProvisional ? " (Provisório)" : ""}
             </span>
-          )}
-          {isUnviable && (
+          ) : isUnviable ? (
             <span className="tp-kpi-status-badge is-even" data-testid="dre-breakeven-status-badge">
               Margem insuficiente
             </span>
-          )}
-          {isIncomplete && (
+          ) : (
             <span className="tp-kpi-status-badge is-even" data-testid="dre-breakeven-status-badge">
               Cobertura parcial de custos
             </span>
@@ -110,7 +134,7 @@ export function FinancialDreBreakEvenSection({
         </div>
       </div>
 
-      {isIncomplete ? (
+      {isIncompleteBlocked ? (
         <div className="tp-dre-breakeven-unviable-card" data-testid="dre-breakeven-incomplete-card">
           <div className="tp-unviable-icon-wrap">
             <Info size={20} className="tp-icon-blue" />
@@ -174,11 +198,80 @@ export function FinancialDreBreakEvenSection({
         </div>
       ) : (
         <>
+          {/* Callout de cobertura parcial de custos com cálculo provisório */}
+          {isCoveredBasis && (
+            <div
+              className="tp-dre-breakeven-unviable-card"
+              data-testid="dre-breakeven-provisional-callout"
+              style={{
+                background: "rgba(56, 189, 248, 0.08)",
+                borderColor: "rgba(56, 189, 248, 0.25)",
+              }}
+            >
+              <div className="tp-unviable-icon-wrap">
+                <Info size={18} className="tp-icon-blue" />
+              </div>
+              <div className="tp-unviable-content">
+                <h4 className="tp-unviable-title" style={{ color: "#38bdf8" }}>
+                  Cálculo provisório baseado na parcela da receita com cobertura de custos
+                </h4>
+                <div className="tp-unviable-metrics">
+                  <span>
+                    Faturamento realizado total: <strong>{formatCurrency(breakEven.realizedRevenue)}</strong>
+                  </span>
+                  <span className="tp-metric-sep">•</span>
+                  <span>
+                    Considerado no cálculo: <strong>{formatCurrency(breakEven.coveredRevenue ?? totals.coveredRevenue ?? breakEven.realizedRevenue)}</strong>
+                  </span>
+                  {costCoveragePercent !== null && costCoveragePercent !== undefined && (
+                    <>
+                      <span className="tp-metric-sep">•</span>
+                      <span>
+                        Cobertura de custos: <strong>{formatPercent(costCoveragePercent, 1)}</strong>
+                      </span>
+                    </>
+                  )}
+                </div>
+                {pendingAccruals.length > 0 && (
+                  <p className="tp-unviable-subtext" style={{ color: "#94a3b8", marginTop: 4 }}>
+                    Competências em aberto: {pendingAccruals.map(formatPendingAccrualLabel).join(", ")}.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Notice para competências provisórias com cobertura total (ex: DAS/GPS pendente) */}
+          {isProvisional && !isCoveredBasis && pendingAccruals.length > 0 && (
+            <div
+              className="tp-dre-breakeven-unviable-card"
+              data-testid="dre-breakeven-provisional-notice"
+              style={{
+                background: "rgba(56, 189, 248, 0.06)",
+                borderColor: "rgba(56, 189, 248, 0.2)",
+              }}
+            >
+              <div className="tp-unviable-icon-wrap">
+                <Clock size={16} className="tp-icon-blue" />
+              </div>
+              <div className="tp-unviable-content">
+                <h4 className="tp-unviable-title" style={{ color: "#38bdf8" }}>
+                  Estimativa provisória
+                </h4>
+                <p className="tp-unviable-message" style={{ color: "#cbd5e1" }}>
+                  Período com competências ainda em aberto ({pendingAccruals.map(formatPendingAccrualLabel).join(", ")}). O cálculo reflete os dados contábeis disponíveis no momento.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="tp-dre-breakeven-cards-grid">
             {/* Card 1 — Ponto de Equilíbrio */}
             <article className="tp-kpi-card tp-profit-kpi-card" data-testid="dre-breakeven-card-main">
               <div className="tp-profit-kpi-header">
-                <span className="tp-profit-kpi-label">Faturamento de equilíbrio</span>
+                <span className="tp-profit-kpi-label">
+                  {isCoveredBasis ? "Faturamento de equilíbrio estimado" : "Faturamento de equilíbrio"}
+                </span>
                 <span className="tp-kpi-icon-wrap tp-icon-teal">
                   <Target size={16} />
                 </span>
@@ -197,7 +290,7 @@ export function FinancialDreBreakEvenSection({
                   </span>
                 ) : (
                   <span className="tp-profit-kpi-subtext">
-                    Meta para zerar o resultado
+                    {isCoveredBasis ? "Estimativa sobre a receita coberta" : "Meta para zerar o resultado"}
                   </span>
                 )}
               </div>
@@ -205,7 +298,7 @@ export function FinancialDreBreakEvenSection({
 
             {/* Card 2 — Gap para Equilíbrio */}
             <article
-              className={`tp-kpi-card tp-profit-kpi-card ${isBelow ? "tp-card-loss" : ""}`}
+              className={`tp-kpi-card tp-profit-kpi-card ${!isAbove ? "tp-card-loss" : ""}`}
               data-testid="dre-breakeven-card-gap"
             >
               <div className="tp-profit-kpi-header">
@@ -220,7 +313,7 @@ export function FinancialDreBreakEvenSection({
               </div>
               <div className="tp-profit-kpi-value-wrap">
                 <span
-                  className={`tp-kpi-value ${isBelow ? "tp-value-negative" : "tp-value-positive"}`}
+                  className={`tp-kpi-value ${!isAbove ? "tp-value-negative" : "tp-value-positive"}`}
                   data-testid="dre-breakeven-gap"
                 >
                   {isAbove
@@ -233,8 +326,8 @@ export function FinancialDreBreakEvenSection({
               <div className="tp-profit-kpi-footer">
                 <span className="tp-profit-kpi-subtext">
                   {isAbove
-                    ? "Empresa acima do ponto de equilíbrio"
-                    : "Faturamento adicional necessário"}
+                    ? (isCoveredBasis ? "Superado sobre a receita coberta" : "Empresa acima do ponto de equilíbrio")
+                    : (isCoveredBasis ? "Faturamento adicional estimado" : "Faturamento adicional necessário")}
                 </span>
               </div>
             </article>
@@ -258,7 +351,11 @@ export function FinancialDreBreakEvenSection({
               </div>
               <div className="tp-profit-kpi-footer">
                 <span className="tp-profit-kpi-subtext">
-                  {isAbove ? "Resultado positivo atingido" : "Sobre o faturamento realizado"}
+                  {isAbove
+                    ? "Resultado positivo atingido"
+                    : isCoveredBasis
+                    ? "Sobre a receita coberta"
+                    : "Sobre o faturamento realizado"}
                 </span>
               </div>
             </article>
@@ -267,25 +364,47 @@ export function FinancialDreBreakEvenSection({
           {/* Contextual baseline footer strip */}
           <div className="tp-dre-breakeven-context-strip" data-testid="dre-breakeven-context">
             <div className="tp-breakeven-context-item">
-              <span className="tp-breakeven-context-label">Faturamento realizado:</span>
+              <span className="tp-breakeven-context-label">
+                {isCoveredBasis ? "Faturamento realizado total:" : "Faturamento realizado:"}
+              </span>
               <span className="tp-breakeven-context-value">
                 {formatCurrency(breakEven.realizedRevenue)}
               </span>
             </div>
+            {isCoveredBasis && (
+              <>
+                <div className="tp-secondary-divider" />
+                <div className="tp-breakeven-context-item">
+                  <span className="tp-breakeven-context-label">Considerado no cálculo:</span>
+                  <span className="tp-breakeven-context-value">
+                    {formatCurrency(breakEven.coveredRevenue ?? totals.coveredRevenue ?? breakEven.realizedRevenue)}
+                    {costCoveragePercent !== null && costCoveragePercent !== undefined && (
+                      <span style={{ fontSize: "11px", color: "var(--tp-cyan-400, #38bdf8)", marginLeft: "4px" }}>
+                        ({formatPercent(costCoveragePercent, 1)})
+                      </span>
+                    )}
+                  </span>
+                </div>
+              </>
+            )}
             <div className="tp-secondary-divider" />
             <div className="tp-breakeven-context-item">
-              <span className="tp-breakeven-context-label">Margem de contribuição gerencial estimada:</span>
+              <span className="tp-breakeven-context-label">
+                {isCoveredBasis ? "Margem de contribuição considerada:" : "Margem de contribuição gerencial estimada:"}
+              </span>
               <span className="tp-breakeven-context-value tp-color-teal">
-                {totals.contributionMarginPercent !== null && totals.contributionMarginPercent !== undefined
-                  ? formatPercent(totals.contributionMarginPercent, 1)
-                  : breakEven.contributionMarginRate !== null
+                {breakEven.contributionMarginRate !== null && breakEven.contributionMarginRate !== undefined
                   ? formatPercent(breakEven.contributionMarginRate * 100, 1)
+                  : totals.contributionMarginPercent !== null && totals.contributionMarginPercent !== undefined
+                  ? formatPercent(totals.contributionMarginPercent, 1)
                   : "—"}
               </span>
             </div>
             <div className="tp-secondary-divider" />
             <div className="tp-breakeven-context-item">
-              <span className="tp-breakeven-context-label">Resultado líquido gerencial estimado:</span>
+              <span className="tp-breakeven-context-label">
+                {isCoveredBasis ? "Resultado gerencial considerado:" : "Resultado líquido gerencial estimado:"}
+              </span>
               <span
                 className={`tp-breakeven-context-value ${
                   breakEven.netResult !== null && breakEven.netResult > 0
