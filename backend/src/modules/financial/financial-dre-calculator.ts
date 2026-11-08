@@ -13,6 +13,9 @@ import { DRE_DISCLAIMER } from "./financial-dre-types.js";
 export interface MonthlyCommercialTrend {
   month: string; // "YYYY-MM"
   realizedRevenue: number;
+  revenueWithCurrentCost?: number;
+  revenueWithoutCurrentCost?: number;
+  costCoveragePercent?: number | null;
   estimatedCOGS: number;
   estimatedGrossProfit: number;
   grossMarginPercent: number | null;
@@ -124,6 +127,32 @@ export function calculateDreMonthly(
     const cogsCents = toCents(trend.estimatedCOGS);
     const grossCents = revCents - cogsCents;
     const grossMarginPercent =
+      revCents > 0 ? r2((fromCents(grossCents) / fromCents(revCents)) * 100) : null;
+
+    // Cost Coverage & Semantics
+    let coveredRevCents: number;
+    let costCoveragePercent: number | null;
+    if (trend.costCoveragePercent !== undefined && trend.costCoveragePercent !== null) {
+      costCoveragePercent = trend.costCoveragePercent;
+      coveredRevCents = trend.revenueWithCurrentCost !== undefined
+        ? toCents(trend.revenueWithCurrentCost)
+        : Math.round(revCents * (costCoveragePercent / 100));
+    } else if (trend.revenueWithCurrentCost !== undefined) {
+      coveredRevCents = toCents(trend.revenueWithCurrentCost);
+      costCoveragePercent = revCents > 0 ? r2((fromCents(coveredRevCents) / fromCents(revCents)) * 100) : 100;
+    } else {
+      // Legacy mock fallback
+      coveredRevCents = revCents;
+      costCoveragePercent = 100;
+    }
+
+    const uncoveredRevCents = Math.max(0, revCents - coveredRevCents);
+    const fullCoverage = (costCoveragePercent >= 100 || revCents === 0) && uncoveredRevCents === 0;
+
+    const coveredGrossCents = coveredRevCents - cogsCents;
+    const coveredGrossMarginPercent =
+      coveredRevCents > 0 ? r2((fromCents(coveredGrossCents) / fromCents(coveredRevCents)) * 100) : null;
+    const fullGrossMarginPercent =
       revCents > 0 ? r2((fromCents(grossCents) / fromCents(revCents)) * 100) : null;
 
     let payFeesCents = 0;
@@ -258,8 +287,12 @@ export function calculateDreMonthly(
     const netMarginPercent =
       revCents > 0 ? r2((fromCents(netResultCents) / fromCents(revCents)) * 100) : null;
 
-    const status =
-      netResultCents > 0 ? "PROFIT" : netResultCents < 0 ? "LOSS" : "BREAK_EVEN";
+    const partialManagerialResultCents =
+      coveredGrossCents - varTotalCents - opTotalCents + finTotalCents + otherTotalCents;
+
+    const status = fullCoverage
+      ? (netResultCents > 0 ? "PROFIT" : netResultCents < 0 ? "LOSS" : "BREAK_EVEN")
+      : (partialManagerialResultCents > 0 ? "PROFIT" : partialManagerialResultCents < 0 ? "LOSS" : "BREAK_EVEN");
 
     // Qualidade Temporal e Fechamento Contábil
     // Avaliar se o mês civil já encerrou (último dia do mês < refDate)
@@ -293,8 +326,16 @@ export function calculateDreMonthly(
       month,
       realizedRevenue: fromCents(revCents),
       estimatedCOGS: fromCents(cogsCents),
-      estimatedGrossProfit: fromCents(grossCents),
-      estimatedGrossMarginPercent: grossMarginPercent,
+      estimatedGrossProfit: fullCoverage ? fromCents(grossCents) : fromCents(coveredGrossCents),
+      estimatedGrossMarginPercent: fullCoverage ? fullGrossMarginPercent : coveredGrossMarginPercent,
+      coveredRevenue: fromCents(coveredRevCents),
+      uncoveredRevenue: fromCents(uncoveredRevCents),
+      costCoveragePercent,
+      coveredGrossProfit: fromCents(coveredGrossCents),
+      coveredGrossMarginPercent,
+      fullGrossProfitAvailable: fullCoverage,
+      fullManagerialResultAvailable: fullCoverage,
+      partialManagerialResultOnCoveredRevenue: fromCents(partialManagerialResultCents),
       variableExpenses: {
         paymentFees: fromCents(payFeesCents),
         taxesOnRevenue: fromCents(taxesCents),
@@ -328,8 +369,8 @@ export function calculateDreMonthly(
         otherExpenses: 0,
         total: fromCents(otherTotalCents),
       },
-      netManagerialResult: fromCents(netResultCents),
-      netManagerialMarginPercent: netMarginPercent,
+      netManagerialResult: fullCoverage ? fromCents(netResultCents) : null,
+      netManagerialMarginPercent: fullCoverage ? netMarginPercent : null,
       status,
       dataQuality: {
         isProvisional,
@@ -350,6 +391,10 @@ export function calculateDreSummary(
   let revCents = 0;
   let cogsCents = 0;
   let grossCents = 0;
+  let coveredRevCents = 0;
+  let uncoveredRevCents = 0;
+  let coveredGrossCents = 0;
+  let partialResultCents = 0;
 
   let payFeesCents = 0;
   let taxesCents = 0;
@@ -390,6 +435,10 @@ export function calculateDreSummary(
     revCents += toCents(m.realizedRevenue);
     cogsCents += toCents(m.estimatedCOGS);
     grossCents += toCents(m.estimatedGrossProfit);
+    coveredRevCents += toCents(m.coveredRevenue);
+    uncoveredRevCents += toCents(m.uncoveredRevenue);
+    coveredGrossCents += toCents(m.coveredGrossProfit);
+    partialResultCents += toCents(m.partialManagerialResultOnCoveredRevenue ?? 0);
 
     payFeesCents += toCents(m.variableExpenses.paymentFees);
     taxesCents += toCents(m.variableExpenses.taxesOnRevenue);
@@ -420,7 +469,9 @@ export function calculateDreSummary(
     otherExpCents += toCents(m.otherResult.otherExpenses);
     otherTotalCents += toCents(m.otherResult.total);
 
-    netResultCents += toCents(m.netManagerialResult);
+    if (m.netManagerialResult !== null) {
+      netResultCents += toCents(m.netManagerialResult);
+    }
     unknownCents += toCents(m.dataQuality.unknownAmount);
 
     if (m.dataQuality.financiallyClosed) {
@@ -439,8 +490,24 @@ export function calculateDreSummary(
   const netMarginPercent =
     revCents > 0 ? r2((fromCents(netResultCents) / fromCents(revCents)) * 100) : null;
 
-  const status =
-    netResultCents > 0 ? "PROFIT" : netResultCents < 0 ? "LOSS" : "BREAK_EVEN";
+  const summaryCoveragePercent =
+    revCents > 0 ? r2((fromCents(coveredRevCents) / fromCents(revCents)) * 100) : 100;
+  const coveredGrossMarginPercent =
+    coveredRevCents > 0 ? r2((fromCents(coveredGrossCents) / fromCents(coveredRevCents)) * 100) : null;
+  const isFullCoverage =
+    summaryCoveragePercent >= 100 &&
+    uncoveredRevCents === 0 &&
+    months.every((m) => m.fullGrossProfitAvailable);
+
+  const fullGrossProfitAvailable = isFullCoverage;
+  const fullManagerialResultAvailable = isFullCoverage;
+  const netManagerialResult = isFullCoverage ? fromCents(netResultCents) : null;
+  const netManagerialMarginPercent = isFullCoverage ? netMarginPercent : null;
+  const partialManagerialResultOnCoveredRevenue = fromCents(partialResultCents);
+
+  const status = isFullCoverage
+    ? (netResultCents > 0 ? "PROFIT" : netResultCents < 0 ? "LOSS" : "BREAK_EVEN")
+    : (partialResultCents > 0 ? "PROFIT" : partialResultCents < 0 ? "LOSS" : "BREAK_EVEN");
 
   const totalEligibleCents = varTotalCents + opTotalCents + finExpCents;
   const totalAllCents = totalEligibleCents + unknownCents;
@@ -455,8 +522,16 @@ export function calculateDreSummary(
   const totals: DreSummaryTotalsDto = {
     realizedRevenue: fromCents(revCents),
     estimatedCOGS: fromCents(cogsCents),
-    estimatedGrossProfit: fromCents(grossCents),
-    estimatedGrossMarginPercent: grossMarginPercent,
+    estimatedGrossProfit: isFullCoverage ? fromCents(grossCents) : fromCents(coveredGrossCents),
+    estimatedGrossMarginPercent: isFullCoverage ? grossMarginPercent : coveredGrossMarginPercent,
+    coveredRevenue: fromCents(coveredRevCents),
+    uncoveredRevenue: fromCents(uncoveredRevCents),
+    costCoveragePercent: summaryCoveragePercent,
+    coveredGrossProfit: fromCents(coveredGrossCents),
+    coveredGrossMarginPercent,
+    fullGrossProfitAvailable,
+    fullManagerialResultAvailable,
+    partialManagerialResultOnCoveredRevenue,
     variableExpenses: {
       paymentFees: fromCents(payFeesCents),
       taxesOnRevenue: fromCents(taxesCents),
@@ -490,8 +565,8 @@ export function calculateDreSummary(
       otherExpenses: fromCents(otherExpCents),
       total: fromCents(otherTotalCents),
     },
-    netManagerialResult: fromCents(netResultCents),
-    netManagerialMarginPercent: netMarginPercent,
+    netManagerialResult,
+    netManagerialMarginPercent,
     status,
   };
 

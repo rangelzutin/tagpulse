@@ -427,8 +427,10 @@ export function FinancialDreTab({
     );
   }
 
-  const isPositiveNet = totals.netManagerialResult > 0;
-  const isNegativeNet = totals.netManagerialResult < 0;
+  const hasFullManagerialResult =
+    totals.fullManagerialResultAvailable !== false && totals.netManagerialResult !== null;
+  const isPositiveNet = hasFullManagerialResult && (totals.netManagerialResult ?? 0) > 0;
+  const isNegativeNet = hasFullManagerialResult && (totals.netManagerialResult ?? 0) < 0;
   const resolvedCompanyName = resolveActiveCompanyName(companyName);
   const isExportBusy = exportingFormat !== null;
 
@@ -708,27 +710,35 @@ export function FinancialDreTab({
                     : ""
                 }`}
               >
-                {formatCurrency(totals.netManagerialResult)}
+                {hasFullManagerialResult
+                  ? formatCurrency(totals.netManagerialResult as number)
+                  : "Indisponível"}
               </span>
             </div>
             <div className="tp-profit-kpi-footer">
               <span
                 className={`tp-kpi-status-badge ${
-                  isPositiveNet
+                  !hasFullManagerialResult
+                    ? "is-even"
+                    : isPositiveNet
                     ? "is-profit"
                     : isNegativeNet
                     ? "is-loss"
                     : "is-even"
                 }`}
               >
-                {totals.status === "PROFIT"
+                {!hasFullManagerialResult
+                  ? "Cobertura Parcial"
+                  : totals.status === "PROFIT"
                   ? "Lucro"
                   : totals.status === "LOSS"
                   ? "Prejuízo"
                   : "Equilíbrio"}
               </span>
               <span className="tp-profit-kpi-subtext">
-                Resultado operacional líquido
+                {!hasFullManagerialResult
+                  ? `Margem parcial: ${totals.partialManagerialResultOnCoveredRevenue !== undefined ? formatCurrency(totals.partialManagerialResultOnCoveredRevenue) : "—"} (cobertura CMV ${totals.costCoveragePercent != null ? totals.costCoveragePercent.toFixed(1) + "%" : "—"})`
+                  : "Resultado operacional líquido"}
               </span>
             </div>
           </article>
@@ -754,23 +764,27 @@ export function FinancialDreTab({
             <div className="tp-profit-kpi-value-wrap">
               <span
                 className={`tp-kpi-value ${
+                  hasFullManagerialResult &&
                   totals.netManagerialMarginPercent !== null &&
                   totals.netManagerialMarginPercent < 0
                     ? "tp-value-negative"
-                    : totals.netManagerialMarginPercent !== null &&
+                    : hasFullManagerialResult &&
+                      totals.netManagerialMarginPercent !== null &&
                       totals.netManagerialMarginPercent > 0
                     ? "tp-value-positive"
                     : ""
                 }`}
               >
-                {totals.netManagerialMarginPercent !== null
+                {hasFullManagerialResult && totals.netManagerialMarginPercent !== null
                   ? formatPercent(totals.netManagerialMarginPercent, 2)
                   : "—"}
               </span>
             </div>
             <div className="tp-profit-kpi-footer">
               <span className="tp-profit-kpi-subtext">
-                Sobre a receita realizada
+                {hasFullManagerialResult
+                  ? "Sobre a receita realizada"
+                  : "Indisponível devido à cobertura parcial de custo"}
               </span>
             </div>
           </article>

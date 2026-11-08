@@ -22,9 +22,14 @@ import type {
   ProfitabilityCostSnapshot,
   RealizedProductMovement,
 } from "./bi-types.js";
+import type { FilterOptions } from "../../shared/filters/filter-options.js";
 
 export interface BiRepository {
-  findRealizedSales(from: Date, toExclusive: Date): Promise<BiSaleRecord[]>;
+  findRealizedSales(
+    from: Date,
+    toExclusive: Date,
+    options?: FilterOptions,
+  ): Promise<BiSaleRecord[]>;
   findCategoryTree(): Promise<CategoryTreeResult>;
   findDataRange?(): Promise<BiDataRangeResult>;
   findPeriodCustomerDocuments?(
@@ -47,6 +52,7 @@ export interface BiRepository {
   findRealizedProductMovements?(
     from: Date,
     toExclusive: Date,
+    options?: FilterOptions,
   ): Promise<{
     movements: RealizedProductMovement[];
     adjustments: ProductReconciliationAdjustment[];
@@ -69,6 +75,7 @@ export interface BiRepository {
   findProfitabilityContext?(
     from: Date,
     toExclusive: Date,
+    options?: FilterOptions,
   ): Promise<{
     movements: RealizedProductMovement[];
     adjustments: ProductReconciliationAdjustment[];
@@ -126,7 +133,11 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
       };
     },
 
-    async findRealizedSales(from: Date, toExclusive: Date): Promise<BiSaleRecord[]> {
+    async findRealizedSales(
+      from: Date,
+      toExclusive: Date,
+      options?: FilterOptions,
+    ): Promise<BiSaleRecord[]> {
       const records = await prisma.saleSourceDocument.findMany({
         where: {
           sourcePresent: true,
@@ -140,6 +151,8 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
           netAmount: {
             not: null,
           },
+          ...(options?.sourceSystem ? { sourceSystem: options.sourceSystem } : {}),
+          ...(options?.operationUnit ? { sale: { operationUnit: options.operationUnit } } : {}),
         },
         select: {
           id: true,
@@ -419,6 +432,7 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
     async findRealizedProductMovements(
       from: Date,
       toExclusive: Date,
+      options?: FilterOptions,
     ): Promise<{
       movements: RealizedProductMovement[];
       adjustments: ProductReconciliationAdjustment[];
@@ -430,6 +444,8 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
           docType: { in: [SaleAnchorType.NFE, SaleAnchorType.VENDA_SIMPLES] },
           realizedDate: { gte: from, lt: toExclusive },
           netAmount: { not: null },
+          ...(options?.sourceSystem ? { sourceSystem: options.sourceSystem } : {}),
+          ...(options?.operationUnit ? { sale: { operationUnit: options.operationUnit } } : {}),
         },
         select: {
           id: true,
@@ -445,7 +461,11 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
 
       // 2. Carrega as negociações correspondentes com seus itens e documentos realizados (select restrito para economia de egress)
       const sales = await prisma.sale.findMany({
-        where: { id: { in: saleIds } },
+        where: {
+          id: { in: saleIds },
+          ...(options?.sourceSystem ? { sourceSystem: options.sourceSystem } : {}),
+          ...(options?.operationUnit ? { operationUnit: options.operationUnit } : {}),
+        },
         select: {
           id: true,
           anchorType: true,
@@ -862,7 +882,11 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
       }));
     },
 
-    async findProfitabilityContext(from: Date, toExclusive: Date) {
+    async findProfitabilityContext(
+      from: Date,
+      toExclusive: Date,
+      options?: FilterOptions,
+    ) {
       const connection = await prisma.tagPlusConnection.findFirst({
         where: { status: "ACTIVE" },
         select: { id: true },
@@ -882,7 +906,11 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
       const connectionId = connection.id;
 
       // 1. Movimentos realizados canônicos
-      const movementResult = await this.findRealizedProductMovements!(from, toExclusive);
+      const movementResult = await this.findRealizedProductMovements!(
+        from,
+        toExclusive,
+        options,
+      );
 
       // 2. Produtos do catálogo (connection-scoped)
       const products = await prisma.product.findMany({
@@ -921,7 +949,11 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
 
       if (saleIds.length > 0) {
         const salesWithMeta = await prisma.sale.findMany({
-          where: { id: { in: saleIds } },
+          where: {
+            id: { in: saleIds },
+            ...(options?.sourceSystem ? { sourceSystem: options.sourceSystem } : {}),
+            ...(options?.operationUnit ? { operationUnit: options.operationUnit } : {}),
+          },
           select: {
             id: true,
             anchorType: true,

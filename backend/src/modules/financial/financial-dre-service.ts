@@ -13,6 +13,11 @@ import {
   calculateDreMonthly,
   calculateDreSummary,
 } from "./financial-dre-calculator.js";
+import {
+  parseOperationUnit,
+  parseSourceSystem,
+  type FilterOptions,
+} from "../../shared/filters/filter-options.js";
 
 export interface FinancialDreServiceResult<T> {
   success: boolean;
@@ -58,6 +63,30 @@ function parseDateRange(
   };
 }
 
+function extractFilterOptions(query?: {
+  operationUnit?: unknown;
+  sourceSystem?: unknown;
+}): { options?: FilterOptions; error?: string } {
+  if (!query) return {};
+  const opParsed = parseOperationUnit(query.operationUnit);
+  if (!opParsed.valid) {
+    return { error: opParsed.error };
+  }
+  const srcParsed = parseSourceSystem(query.sourceSystem);
+  if (!srcParsed.valid) {
+    return { error: srcParsed.error };
+  }
+  if (!opParsed.value && !srcParsed.value) {
+    return {};
+  }
+  return {
+    options: {
+      ...(opParsed.value ? { operationUnit: opParsed.value } : {}),
+      ...(srcParsed.value ? { sourceSystem: srcParsed.value } : {}),
+    },
+  };
+}
+
 export function createFinancialDreService(
   repository: FinancialDreRepository,
 ): FinancialDreService {
@@ -66,12 +95,17 @@ export function createFinancialDreService(
       query?: DreSummaryQueryParams,
     ): Promise<FinancialDreServiceResult<DreSummaryDto>> {
       try {
+        const filterRes = extractFilterOptions(query);
+        if (filterRes.error) {
+          return { success: false, error: filterRes.error };
+        }
+
         const { from, toExclusive, fromFormatted, toFormatted } = parseDateRange(
           query?.from,
           query?.to,
         );
 
-        const data = await repository.findDreData(from, toExclusive);
+        const data = await repository.findDreData(from, toExclusive, filterRes.options);
         const classified = data.recordsForClassifier.map((r) =>
           classifyFinancialRecordForDre(r),
         );
@@ -99,6 +133,11 @@ export function createFinancialDreService(
       query?: DreMonthlyQueryParams,
     ): Promise<FinancialDreServiceResult<DreMonthlyItemDto[]>> {
       try {
+        const filterRes = extractFilterOptions(query);
+        if (filterRes.error) {
+          return { success: false, error: filterRes.error };
+        }
+
         const year = query?.year ? String(query.year).trim() : String(new Date().getUTCFullYear());
         const fromFormatted = `${year}-01-01`;
         const toFormatted = `${year}-12-31`;
@@ -106,7 +145,7 @@ export function createFinancialDreService(
         const from = new Date(`${fromFormatted}T00:00:00.000Z`);
         const toExclusive = new Date(`${parseInt(year, 10) + 1}-01-01T00:00:00.000Z`);
 
-        const data = await repository.findDreData(from, toExclusive);
+        const data = await repository.findDreData(from, toExclusive, filterRes.options);
         const classified = data.recordsForClassifier.map((r) =>
           classifyFinancialRecordForDre(r),
         );
@@ -129,12 +168,17 @@ export function createFinancialDreService(
       query?: DreBreakdownQueryParams,
     ): Promise<FinancialDreServiceResult<DreBreakdownDto>> {
       try {
+        const filterRes = extractFilterOptions(query);
+        if (filterRes.error) {
+          return { success: false, error: filterRes.error };
+        }
+
         const { from, toExclusive, fromFormatted, toFormatted } = parseDateRange(
           query?.from,
           query?.to,
         );
 
-        const data = await repository.findDreData(from, toExclusive);
+        const data = await repository.findDreData(from, toExclusive, filterRes.options);
         const classified = data.recordsForClassifier.map((r) =>
           classifyFinancialRecordForDre(r),
         );

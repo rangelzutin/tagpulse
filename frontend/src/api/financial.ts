@@ -641,10 +641,18 @@ export interface DreMonthlyItemDto {
   operatingExpenses: DreOperatingExpensesDto;
   financialResult: DreFinancialResultDto;
   otherResult: DreOtherResultDto;
-  netManagerialResult: number;
+  netManagerialResult: number | null;
   netManagerialMarginPercent: number | null;
   status: DreEconomicStatus;
   dataQuality: DreDataQualityDto;
+  coveredRevenue?: number;
+  uncoveredRevenue?: number;
+  costCoveragePercent?: number | null;
+  coveredGrossProfit?: number;
+  coveredGrossMarginPercent?: number | null;
+  fullGrossProfitAvailable?: boolean;
+  fullManagerialResultAvailable?: boolean;
+  partialManagerialResultOnCoveredRevenue?: number;
 }
 
 export interface DreSummaryTotalsDto {
@@ -658,9 +666,17 @@ export interface DreSummaryTotalsDto {
   operatingExpenses: DreOperatingExpensesDto;
   financialResult: DreFinancialResultDto;
   otherResult: DreOtherResultDto;
-  netManagerialResult: number;
+  netManagerialResult: number | null;
   netManagerialMarginPercent: number | null;
   status: DreEconomicStatus;
+  coveredRevenue?: number;
+  uncoveredRevenue?: number;
+  costCoveragePercent?: number | null;
+  coveredGrossProfit?: number;
+  coveredGrossMarginPercent?: number | null;
+  fullGrossProfitAvailable?: boolean;
+  fullManagerialResultAvailable?: boolean;
+  partialManagerialResultOnCoveredRevenue?: number;
 }
 
 export interface DreSummaryDto {
@@ -709,15 +725,21 @@ export interface DreBreakdownDto {
 export interface DreSummaryQueryParams {
   from?: string;
   to?: string;
+  operationUnit?: string;
+  sourceSystem?: string;
 }
 
 export interface DreMonthlyQueryParams {
   year?: string | number;
+  operationUnit?: string;
+  sourceSystem?: string;
 }
 
 export interface DreBreakdownQueryParams {
   from?: string;
   to?: string;
+  operationUnit?: string;
+  sourceSystem?: string;
 }
 
 export const DRE_DISCLAIMER =
@@ -729,6 +751,8 @@ export async function fetchFinancialDreSummary(
   const url = buildFinancialUrl("/financial/dre/summary", {
     from: params?.from,
     to: params?.to,
+    operationUnit: params?.operationUnit,
+    sourceSystem: params?.sourceSystem,
   });
 
   let response: Response;
@@ -755,6 +779,8 @@ export async function fetchFinancialDreMonthly(
 ): Promise<DreMonthlyItemDto[]> {
   const url = buildFinancialUrl("/financial/dre/monthly", {
     year: params?.year,
+    operationUnit: params?.operationUnit,
+    sourceSystem: params?.sourceSystem,
   });
 
   let response: Response;
@@ -782,6 +808,8 @@ export async function fetchFinancialDreBreakdown(
   const url = buildFinancialUrl("/financial/dre/breakdown", {
     from: params?.from,
     to: params?.to,
+    operationUnit: params?.operationUnit,
+    sourceSystem: params?.sourceSystem,
   });
 
   let response: Response;

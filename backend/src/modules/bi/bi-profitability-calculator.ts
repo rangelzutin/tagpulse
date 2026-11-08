@@ -285,6 +285,11 @@ export function calculateProfitabilityOverview(
       ? round2(((totalRealizedRevenue - revenueWithoutCurrentProduct) / totalRealizedRevenue) * 100)
       : null;
 
+  const fullGrossProfitAvailable =
+    costCoveragePercent !== null && costCoveragePercent >= 100 && revenueWithoutCurrentCost === 0;
+  const coveredGrossProfit = estimatedGrossProfit;
+  const coveredGrossMarginPercent = estimatedGrossMarginPercent;
+
   const summary: ProfitabilitySummary = {
     realizedRevenue: totalRealizedRevenue,
     revenueWithCurrentCost,
@@ -293,6 +298,9 @@ export function calculateProfitabilityOverview(
     estimatedCOGS,
     estimatedGrossProfit,
     estimatedGrossMarginPercent,
+    fullGrossProfitAvailable,
+    coveredGrossProfit,
+    coveredGrossMarginPercent,
   };
 
   const dataQuality: ProfitabilityDataQuality = {

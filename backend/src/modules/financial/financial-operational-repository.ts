@@ -1,4 +1,10 @@
-import { Prisma, type FinancialRecordType, type PrismaClient } from "@prisma/client";
+import {
+  Prisma,
+  type FinancialRecordType,
+  type OperationUnit,
+  type PrismaClient,
+  type SourceSystem,
+} from "@prisma/client";
 import type {
   ExcludedNonCashStockAdjustmentsSummary,
   FinancialBudgetPlanItem,
@@ -57,6 +63,8 @@ export interface FinancialOperationalRepository {
       budgetPlanSourceId?: string | undefined;
       dueFrom?: string | undefined;
       dueTo?: string | undefined;
+      operationUnit?: OperationUnit | undefined;
+      sourceSystem?: SourceSystem | undefined;
     },
   ): Promise<OperationalSummaryDbRecord[]>;
 
@@ -196,6 +204,8 @@ export function createPrismaFinancialOperationalRepository(
         budgetPlanSourceId?: string;
         dueFrom?: string;
         dueTo?: string;
+        operationUnit?: OperationUnit;
+        sourceSystem?: SourceSystem;
       },
     ): Promise<OperationalSummaryDbRecord[]> {
       const dueDateWhere = buildDateFilter(filters?.dueFrom, filters?.dueTo);
@@ -209,6 +219,8 @@ export function createPrismaFinancialOperationalRepository(
             ? { budgetPlanSourceId: filters.budgetPlanSourceId }
             : {}),
           ...(dueDateWhere ? { dueDate: dueDateWhere } : {}),
+          ...(filters?.operationUnit ? { operationUnit: filters.operationUnit } : {}),
+          ...(filters?.sourceSystem ? { sourceSystem: filters.sourceSystem } : {}),
         },
         select: {
           dueDate: true,
@@ -254,6 +266,8 @@ export function createPrismaFinancialOperationalRepository(
         ...(dueDateWhere ? { dueDate: dueDateWhere } : {}),
         ...(confirmationDateWhere ? { confirmationDate: confirmationDateWhere } : {}),
         ...(searchOR ? { OR: searchOR } : {}),
+        ...(params.operationUnit ? { operationUnit: params.operationUnit as OperationUnit } : {}),
+        ...(params.sourceSystem ? { sourceSystem: params.sourceSystem as SourceSystem } : {}),
       };
 
       const [total, rows] = await Promise.all([
@@ -356,6 +370,8 @@ export function createPrismaFinancialOperationalRepository(
         ...(dueDateWhere ? { dueDate: dueDateWhere } : {}),
         ...(confirmationDateWhere ? { confirmationDate: confirmationDateWhere } : {}),
         ...(searchOR ? { OR: searchOR } : {}),
+        ...(params.operationUnit ? { operationUnit: params.operationUnit as OperationUnit } : {}),
+        ...(params.sourceSystem ? { sourceSystem: params.sourceSystem as SourceSystem } : {}),
       };
 
       const [total, rows] = await Promise.all([

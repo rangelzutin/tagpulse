@@ -538,14 +538,17 @@ export function FinancialDreExportReport({
     return formatPercent((val / safeRevenue) * 100, 2);
   };
 
-  const isProfit = totals.netManagerialResult > 0;
-  const isLoss = totals.netManagerialResult < 0;
-  const statusLabel =
-    totals.status === "PROFIT"
-      ? "Lucro"
-      : totals.status === "LOSS"
-      ? "Prejuízo"
-      : "Equilíbrio";
+  const hasFullManagerialResult =
+    totals.fullManagerialResultAvailable !== false && totals.netManagerialResult !== null;
+  const isProfit = hasFullManagerialResult && (totals.netManagerialResult ?? 0) > 0;
+  const isLoss = hasFullManagerialResult && (totals.netManagerialResult ?? 0) < 0;
+  const statusLabel = !hasFullManagerialResult
+    ? "Parcial"
+    : totals.status === "PROFIT"
+    ? "Lucro"
+    : totals.status === "LOSS"
+    ? "Prejuízo"
+    : "Equilíbrio";
 
   // 1. CABEÇALHO
   const headerSection = (
@@ -636,10 +639,15 @@ export function FinancialDreExportReport({
             isProfit ? "is-positive" : isLoss ? "is-negative" : ""
           }`}
         >
-          {formatCurrency(totals.netManagerialResult)}
+          {hasFullManagerialResult
+            ? formatCurrency(totals.netManagerialResult as number)
+            : "Indisponível"}
         </span>
         <div className="tp-dre-export-kpi-foot">
           <strong>{statusLabel}</strong>
+          {!hasFullManagerialResult && (
+            <span>• Cobertura parcial</span>
+          )}
           {isProvisional && <span>• Provisório</span>}
         </div>
       </div>
@@ -1031,10 +1039,12 @@ export function FinancialDreExportReport({
               (=) Resultado Líquido Gerencial Estimado ({statusLabel})
             </td>
             <td className="is-right">
-              {formatCurrency(totals.netManagerialResult)}
+              {hasFullManagerialResult
+                ? formatCurrency(totals.netManagerialResult as number)
+                : "Indisponível (cobertura parcial)"}
             </td>
             <td className="is-right">
-              {totals.netManagerialMarginPercent !== null
+              {hasFullManagerialResult && totals.netManagerialMarginPercent !== null
                 ? formatPercent(totals.netManagerialMarginPercent, 2)
                 : "—"}
             </td>

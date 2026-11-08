@@ -109,6 +109,8 @@ export interface FinancialOverviewQueryParams {
   dueDateFrom?: string;
   dueDateTo?: string;
   budgetPlanSourceId?: string;
+  operationUnit?: string;
+  sourceSystem?: string;
 }
 
 export interface FinancialListQueryParams {
@@ -122,6 +124,8 @@ export interface FinancialListQueryParams {
   budgetPlanSourceId?: string;
   confirmationDateFrom?: string;
   confirmationDateTo?: string;
+  operationUnit?: string;
+  sourceSystem?: string;
   page?: number | string;
   pageSize?: number | string;
   sort?:

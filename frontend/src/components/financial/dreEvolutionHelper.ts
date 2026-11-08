@@ -36,7 +36,7 @@ export interface DreChartBucket {
   operatingExpensesTotal: number;
   financialResultTotal: number;
   otherResultTotal: number;
-  netManagerialResult: number;
+  netManagerialResult: number | null;
   netManagerialMarginPercent: number | null;
   status: DreEconomicStatus;
   dataQuality: {
@@ -58,7 +58,7 @@ export interface AdaptiveDreEvolutionResult {
 }
 
 const r2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
-const toCents = (n: number): number => Math.round(n * 100);
+const toCents = (n: number | null | undefined): number => Math.round((n ?? 0) * 100);
 const fromCents = (c: number): number => c / 100;
 
 export function toYearMonth(dateOrMonth: string): string {
@@ -354,6 +354,7 @@ function aggregateMonthlyGroup(
   const pendingSet = new Set<string>();
   let anyProvisional = false;
   let allClosed = items.length > 0;
+  let hasIncompleteCostCoverage = false;
 
   for (const item of items) {
     revCents += toCents(item.realizedRevenue);
@@ -364,7 +365,11 @@ function aggregateMonthlyGroup(
     opTotalCents += toCents(item.operatingExpenses.total);
     finTotalCents += toCents(item.financialResult.total);
     otherTotalCents += toCents(item.otherResult.total);
-    netCents += toCents(item.netManagerialResult);
+    if (item.netManagerialResult !== null) {
+      netCents += toCents(item.netManagerialResult);
+    } else {
+      hasIncompleteCostCoverage = true;
+    }
 
     if (item.dataQuality.isProvisional) {
       anyProvisional = true;
@@ -385,17 +390,25 @@ function aggregateMonthlyGroup(
   const operatingExpensesTotal = fromCents(opTotalCents);
   const financialResultTotal = fromCents(finTotalCents);
   const otherResultTotal = fromCents(otherTotalCents);
-  const netManagerialResult = fromCents(netCents);
+  const netManagerialResult = hasIncompleteCostCoverage ? null : fromCents(netCents);
 
   const estimatedGrossMarginPercent =
     revCents > 0 ? r2((estimatedGrossProfit / realizedRevenue) * 100) : null;
   const contributionMarginPercent =
     revCents > 0 ? r2((contributionMargin / realizedRevenue) * 100) : null;
   const netManagerialMarginPercent =
-    revCents > 0 ? r2((netManagerialResult / realizedRevenue) * 100) : null;
+    netManagerialResult !== null && revCents > 0
+      ? r2((netManagerialResult / realizedRevenue) * 100)
+      : null;
 
   const status: DreEconomicStatus =
-    netCents > 0 ? "PROFIT" : netCents < 0 ? "LOSS" : "BREAK_EVEN";
+    hasIncompleteCostCoverage
+      ? "BREAK_EVEN"
+      : netCents > 0
+      ? "PROFIT"
+      : netCents < 0
+      ? "LOSS"
+      : "BREAK_EVEN";
 
   return {
     key,

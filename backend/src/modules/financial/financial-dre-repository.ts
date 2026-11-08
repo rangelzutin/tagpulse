@@ -3,6 +3,7 @@ import type { BiRepository } from "../bi/bi-repository.js";
 import { calculateProfitabilityOverview } from "../bi/bi-profitability-calculator.js";
 import type { MonthlyCommercialTrend } from "./financial-dre-calculator.js";
 import type { ClassifierRecordInput } from "./financial-dre-classifier.js";
+import type { FilterOptions } from "../../shared/filters/filter-options.js";
 
 export interface DreRepositoryData {
   commercialTrend: MonthlyCommercialTrend[];
@@ -12,7 +13,11 @@ export interface DreRepositoryData {
 }
 
 export interface FinancialDreRepository {
-  findDreData(from: Date, toExclusive: Date): Promise<DreRepositoryData>;
+  findDreData(
+    from: Date,
+    toExclusive: Date,
+    options?: FilterOptions,
+  ): Promise<DreRepositoryData>;
 }
 
 export function createPrismaFinancialDreRepository(
@@ -20,7 +25,11 @@ export function createPrismaFinancialDreRepository(
   biRepository: BiRepository,
 ): FinancialDreRepository {
   return {
-    async findDreData(from: Date, toExclusive: Date): Promise<DreRepositoryData> {
+    async findDreData(
+      from: Date,
+      toExclusive: Date,
+      options?: FilterOptions,
+    ): Promise<DreRepositoryData> {
       const connection = await prisma.tagPlusConnection.findFirst({
         where: { status: "ACTIVE" },
         select: { id: true },
@@ -46,7 +55,7 @@ export function createPrismaFinancialDreRepository(
         const fromStr = from.toISOString().slice(0, 10);
         const toStr = new Date(toExclusive.getTime() - 1).toISOString().slice(0, 10);
 
-        const biCtx = await biRepository.findProfitabilityContext(from, toExclusive);
+        const biCtx = await biRepository.findProfitabilityContext(from, toExclusive, options);
         const overview = calculateProfitabilityOverview({
           movements: biCtx.movements,
           catalogProductsMap: biCtx.catalogProductsMap,
@@ -69,16 +78,25 @@ export function createPrismaFinancialDreRepository(
             monthlyTrendMap.set(monthKey, {
               month: monthKey,
               realizedRevenue: t.realizedRevenue,
+              revenueWithCurrentCost: t.revenueWithCurrentCost,
+              revenueWithoutCurrentCost: t.revenueWithoutCurrentCost,
+              costCoveragePercent: t.costCoveragePercent,
               estimatedCOGS: t.estimatedCOGS,
               estimatedGrossProfit: t.estimatedGrossProfit,
               grossMarginPercent: t.estimatedGrossMarginPercent,
             });
           } else {
             const rev = Math.round((existing.realizedRevenue + t.realizedRevenue) * 100) / 100;
+            const revWithCost = Math.round(((existing.revenueWithCurrentCost ?? 0) + (t.revenueWithCurrentCost ?? 0)) * 100) / 100;
+            const revWithoutCost = Math.round((rev - revWithCost) * 100) / 100;
             const cogs = Math.round((existing.estimatedCOGS + t.estimatedCOGS) * 100) / 100;
-            const gp = Math.round((rev - cogs) * 100) / 100;
-            const gm = rev > 0 ? Math.round((gp / rev) * 10000) / 100 : null;
+            const gp = Math.round((revWithCost - cogs) * 100) / 100;
+            const gm = revWithCost > 0 ? Math.round((gp / revWithCost) * 10000) / 100 : null;
+            const cov = rev > 0 ? Math.round((revWithCost / rev) * 10000) / 100 : null;
             existing.realizedRevenue = rev;
+            existing.revenueWithCurrentCost = revWithCost;
+            existing.revenueWithoutCurrentCost = revWithoutCost;
+            existing.costCoveragePercent = cov;
             existing.estimatedCOGS = cogs;
             existing.estimatedGrossProfit = gp;
             existing.grossMarginPercent = gm;
@@ -95,6 +113,8 @@ export function createPrismaFinancialDreRepository(
         where: {
           connectionId,
           sourcePresent: true,
+          ...(options?.operationUnit ? { operationUnit: options.operationUnit } : {}),
+          ...(options?.sourceSystem ? { sourceSystem: options.sourceSystem } : {}),
           OR: [
             { dueDate: { gte: bufferStart, lte: bufferEnd } },
             { sourceCompetenceDate: { gte: bufferStart, lte: bufferEnd } },
@@ -135,7 +155,11 @@ export function createPrismaFinancialDreRepository(
       );
 
       const allSales = await prisma.sale.findMany({
-        where: { connectionId },
+        where: {
+          connectionId,
+          ...(options?.operationUnit ? { operationUnit: options.operationUnit } : {}),
+          ...(options?.sourceSystem ? { sourceSystem: options.sourceSystem } : {}),
+        },
         select: {
           id: true,
           customerId: true,

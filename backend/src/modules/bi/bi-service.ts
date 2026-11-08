@@ -54,6 +54,35 @@ import {
 } from "./bi-inventory-calculator.js";
 import { calculateDecisionsOverview } from "./bi-decision-calculator.js";
 import type { FlatCategoryInfo } from "./bi-profitability-calculator.js";
+import {
+  parseOperationUnit,
+  parseSourceSystem,
+  type FilterOptions,
+} from "../../shared/filters/filter-options.js";
+
+function extractBiFilterOptions(query?: Record<string, unknown>): {
+  options?: FilterOptions;
+  error?: string;
+} {
+  if (!query) return {};
+  const opParsed = parseOperationUnit(query.operationUnit);
+  if (!opParsed.valid) {
+    return { error: opParsed.error };
+  }
+  const srcParsed = parseSourceSystem(query.sourceSystem);
+  if (!srcParsed.valid) {
+    return { error: srcParsed.error };
+  }
+  if (!opParsed.value && !srcParsed.value) {
+    return {};
+  }
+  return {
+    options: {
+      ...(opParsed.value ? { operationUnit: opParsed.value } : {}),
+      ...(srcParsed.value ? { sourceSystem: srcParsed.value } : {}),
+    },
+  };
+}
 
 export type BiInventoryOverviewResult =
   | { success: true; data: InventoryOverviewResult }
@@ -105,8 +134,16 @@ export type BiCustomerSalesServiceResult =
 
 export interface BiService {
   getDataRange(): Promise<BiDataRangeServiceResult>;
-  getSalesOverview(from: unknown, to: unknown): Promise<BiSalesOverviewResult>;
-  getProductsOverview(from: unknown, to: unknown): Promise<BiProductsOverviewResult>;
+  getSalesOverview(
+    from: unknown,
+    to: unknown,
+    extraQuery?: Record<string, unknown>,
+  ): Promise<BiSalesOverviewResult>;
+  getProductsOverview(
+    from: unknown,
+    to: unknown,
+    extraQuery?: Record<string, unknown>,
+  ): Promise<BiProductsOverviewResult>;
   getProfitabilityOverview(
     query: Record<string, unknown>,
   ): Promise<BiProfitabilityOverviewResult>;
@@ -239,7 +276,13 @@ export function createBiService(
     async getSalesOverview(
       from: unknown,
       to: unknown,
+      extraQuery?: Record<string, unknown>,
     ): Promise<BiSalesOverviewResult> {
+      const filterRes = extractBiFilterOptions(extraQuery);
+      if (filterRes.error) {
+        return { success: false, error: filterRes.error };
+      }
+
       const parsedRange = parseOverviewDateRange(from, to);
       if (!parsedRange.success) {
         return { success: false, error: parsedRange.error };
@@ -251,6 +294,7 @@ export function createBiService(
       const sales = await repository.findRealizedSales(
         fromDate,
         toExclusiveDate,
+        filterRes.options,
       );
 
       const data = calculateSalesOverview(
@@ -269,7 +313,13 @@ export function createBiService(
     async getProductsOverview(
       from: unknown,
       to: unknown,
+      extraQuery?: Record<string, unknown>,
     ): Promise<BiProductsOverviewResult> {
+      const filterRes = extractBiFilterOptions(extraQuery);
+      if (filterRes.error) {
+        return { success: false, error: filterRes.error };
+      }
+
       const parsedRange = parseOverviewDateRange(from, to);
       if (!parsedRange.success) {
         return { success: false, error: parsedRange.error };
@@ -296,8 +346,8 @@ export function createBiService(
         categoriesFlat,
         activeStockProducts,
       ] = await Promise.all([
-        repository.findRealizedProductMovements(fromDate, toExclusiveDate),
-        repository.findRealizedSales(fromDate, toExclusiveDate),
+        repository.findRealizedProductMovements(fromDate, toExclusiveDate, filterRes.options),
+        repository.findRealizedSales(fromDate, toExclusiveDate, filterRes.options),
         repository.findCatalogProductSummary(),
         repository.findFlatCategories
           ? repository.findFlatCategories()
@@ -367,6 +417,11 @@ export function createBiService(
     async getProfitabilityOverview(
       query: Record<string, unknown>,
     ): Promise<BiProfitabilityOverviewResult> {
+      const filterRes = extractBiFilterOptions(query);
+      if (filterRes.error) {
+        return { success: false, error: filterRes.error };
+      }
+
       const parsedRange = parseOverviewDateRange(query.from, query.to);
       if (!parsedRange.success) {
         return { success: false, error: parsedRange.error };
@@ -406,6 +461,7 @@ export function createBiService(
       const context = await repository.findProfitabilityContext(
         fromDate,
         toExclusiveDate,
+        filterRes.options,
       );
 
       const data = calculateProfitabilityOverview({
@@ -427,6 +483,11 @@ export function createBiService(
     async getProfitabilityProducts(
       query: Record<string, unknown>,
     ): Promise<BiProfitabilityProductsServiceResult> {
+      const filterRes = extractBiFilterOptions(query);
+      if (filterRes.error) {
+        return { success: false, error: filterRes.error };
+      }
+
       const parsedRange = parseOverviewDateRange(query.from, query.to);
       if (!parsedRange.success) {
         return { success: false, error: parsedRange.error };
@@ -466,6 +527,7 @@ export function createBiService(
       const context = await repository.findProfitabilityContext(
         fromDate,
         toExclusiveDate,
+        filterRes.options,
       );
 
       const data = calculateProfitabilityProducts({
@@ -490,6 +552,11 @@ export function createBiService(
     async getProfitabilitySales(
       query: Record<string, unknown>,
     ): Promise<BiProfitabilitySalesServiceResult> {
+      const filterRes = extractBiFilterOptions(query);
+      if (filterRes.error) {
+        return { success: false, error: filterRes.error };
+      }
+
       const parsedRange = parseOverviewDateRange(query.from, query.to);
       if (!parsedRange.success) {
         return { success: false, error: parsedRange.error };
@@ -521,6 +588,7 @@ export function createBiService(
       const context = await repository.findProfitabilityContext(
         fromDate,
         toExclusiveDate,
+        filterRes.options,
       );
 
       const data = calculateProfitabilitySales({
@@ -544,6 +612,11 @@ export function createBiService(
     async getProfitabilityCustomers(
       query: Record<string, unknown>,
     ): Promise<BiProfitabilityCustomersServiceResult> {
+      const filterRes = extractBiFilterOptions(query);
+      if (filterRes.error) {
+        return { success: false, error: filterRes.error };
+      }
+
       const parsedRange = parseOverviewDateRange(query.from, query.to);
       if (!parsedRange.success) {
         return { success: false, error: parsedRange.error };
@@ -575,6 +648,7 @@ export function createBiService(
       const context = await repository.findProfitabilityContext(
         fromDate,
         toExclusiveDate,
+        filterRes.options,
       );
 
       const data = calculateProfitabilityCustomers({

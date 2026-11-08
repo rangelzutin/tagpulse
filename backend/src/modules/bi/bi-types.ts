@@ -672,6 +672,9 @@ export interface ProfitabilitySummary {
   estimatedCOGS: number;
   estimatedGrossProfit: number;
   estimatedGrossMarginPercent: number | null;
+  fullGrossProfitAvailable?: boolean;
+  coveredGrossProfit?: number;
+  coveredGrossMarginPercent?: number | null;
 }
 
 export interface ProfitabilityCostSnapshot {

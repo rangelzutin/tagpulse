@@ -23,7 +23,7 @@ export function registerBiRoutes(
 
   app.get("/bi/sales/overview", async (request, reply) => {
     const query = (request.query ?? {}) as Record<string, unknown>;
-    const result = await service.getSalesOverview(query.from, query.to);
+    const result = await service.getSalesOverview(query.from, query.to, query);
 
     if (!result.success) {
       return reply.code(400).send({
@@ -37,7 +37,7 @@ export function registerBiRoutes(
 
   app.get("/bi/products/overview", async (request, reply) => {
     const query = (request.query ?? {}) as Record<string, unknown>;
-    const result = await service.getProductsOverview(query.from, query.to);
+    const result = await service.getProductsOverview(query.from, query.to, query);
 
     if (!result.success) {
       return reply.code(400).send({

@@ -16,6 +16,10 @@ import {
   aggregateOperationalSummary,
   aggregateUndatedConfirmedCash,
 } from "./financial-operational-calculator.js";
+import {
+  parseOperationUnit,
+  parseSourceSystem,
+} from "../../shared/filters/filter-options.js";
 
 export interface ServiceResult<T> {
   success: boolean;
@@ -98,6 +102,16 @@ export function createFinancialOperationalService(
       try {
         const params: FinancialOverviewQueryParams =
           typeof query === "string" ? { referenceDate: query } : (query ?? {});
+
+        const opParsed = parseOperationUnit(params.operationUnit);
+        if (!opParsed.valid) {
+          return { success: false, error: opParsed.error };
+        }
+        const srcParsed = parseSourceSystem(params.sourceSystem);
+        if (!srcParsed.valid) {
+          return { success: false, error: srcParsed.error };
+        }
+
         const refDate = resolveReferenceDate(params.referenceDate);
         if (
           params.referenceDate &&
@@ -115,6 +129,8 @@ export function createFinancialOperationalService(
         const openRecords = await repository.findOpenRecordsForSummary("ENTRADA", {
           dueFrom,
           dueTo,
+          operationUnit: opParsed.value,
+          sourceSystem: srcParsed.value,
         });
         const summary = aggregateOperationalSummary(openRecords, refDate);
 
@@ -140,6 +156,15 @@ export function createFinancialOperationalService(
       params: FinancialListQueryParams,
     ): Promise<ServiceResult<PaginatedResult<ReceivablesListItem>>> {
       try {
+        const opParsed = parseOperationUnit(params.operationUnit);
+        if (!opParsed.valid) {
+          return { success: false, error: opParsed.error };
+        }
+        const srcParsed = parseSourceSystem(params.sourceSystem);
+        if (!srcParsed.valid) {
+          return { success: false, error: srcParsed.error };
+        }
+
         const refDate = resolveReferenceDate(params.referenceDate);
         if (
           params.referenceDate &&
@@ -173,6 +198,16 @@ export function createFinancialOperationalService(
       try {
         const params: FinancialOverviewQueryParams =
           typeof query === "string" ? { referenceDate: query } : (query ?? {});
+
+        const opParsed = parseOperationUnit(params.operationUnit);
+        if (!opParsed.valid) {
+          return { success: false, error: opParsed.error };
+        }
+        const srcParsed = parseSourceSystem(params.sourceSystem);
+        if (!srcParsed.valid) {
+          return { success: false, error: srcParsed.error };
+        }
+
         const refDate = resolveReferenceDate(params.referenceDate);
         if (
           params.referenceDate &&
@@ -191,6 +226,8 @@ export function createFinancialOperationalService(
           budgetPlanSourceId: params.budgetPlanSourceId,
           dueFrom,
           dueTo,
+          operationUnit: opParsed.value,
+          sourceSystem: srcParsed.value,
         });
         const summary = aggregateOperationalSummary(openRecords, refDate);
 
@@ -232,6 +269,15 @@ export function createFinancialOperationalService(
       params: FinancialListQueryParams,
     ): Promise<ServiceResult<PaginatedResult<PayablesListItem>>> {
       try {
+        const opParsed = parseOperationUnit(params.operationUnit);
+        if (!opParsed.valid) {
+          return { success: false, error: opParsed.error };
+        }
+        const srcParsed = parseSourceSystem(params.sourceSystem);
+        if (!srcParsed.valid) {
+          return { success: false, error: srcParsed.error };
+        }
+
         const refDate = resolveReferenceDate(params.referenceDate);
         if (
           params.referenceDate &&

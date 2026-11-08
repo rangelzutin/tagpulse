@@ -97,6 +97,15 @@ export interface DreMonthlyItemDto {
   estimatedGrossProfit: number;
   estimatedGrossMarginPercent: number | null;
 
+  coveredRevenue: number;
+  uncoveredRevenue: number;
+  costCoveragePercent: number | null;
+  coveredGrossProfit: number;
+  coveredGrossMarginPercent: number | null;
+  fullGrossProfitAvailable: boolean;
+  fullManagerialResultAvailable: boolean;
+  partialManagerialResultOnCoveredRevenue: number | null;
+
   variableExpenses: DreVariableExpensesDto;
 
   contributionMargin: number;
@@ -108,7 +117,7 @@ export interface DreMonthlyItemDto {
 
   otherResult: DreOtherResultDto;
 
-  netManagerialResult: number;
+  netManagerialResult: number | null;
   netManagerialMarginPercent: number | null;
 
   status: DreEconomicStatus;
@@ -122,6 +131,15 @@ export interface DreSummaryTotalsDto {
   estimatedGrossProfit: number;
   estimatedGrossMarginPercent: number | null;
 
+  coveredRevenue: number;
+  uncoveredRevenue: number;
+  costCoveragePercent: number | null;
+  coveredGrossProfit: number;
+  coveredGrossMarginPercent: number | null;
+  fullGrossProfitAvailable: boolean;
+  fullManagerialResultAvailable: boolean;
+  partialManagerialResultOnCoveredRevenue: number | null;
+
   variableExpenses: DreVariableExpensesDto;
 
   contributionMargin: number;
@@ -133,7 +151,7 @@ export interface DreSummaryTotalsDto {
 
   otherResult: DreOtherResultDto;
 
-  netManagerialResult: number;
+  netManagerialResult: number | null;
   netManagerialMarginPercent: number | null;
 
   status: DreEconomicStatus;
@@ -191,15 +209,21 @@ export interface DreBreakdownDto {
 export interface DreSummaryQueryParams {
   from?: string;
   to?: string;
+  operationUnit?: string;
+  sourceSystem?: string;
 }
 
 export interface DreMonthlyQueryParams {
   year?: string | number;
+  operationUnit?: string;
+  sourceSystem?: string;
 }
 
 export interface DreBreakdownQueryParams {
   from?: string;
   to?: string;
+  operationUnit?: string;
+  sourceSystem?: string;
 }
 
 export const DRE_DISCLAIMER =

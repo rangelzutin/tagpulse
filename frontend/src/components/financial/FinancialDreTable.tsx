@@ -21,8 +21,10 @@ export function FinancialDreTable({ totals, realizedRevenue }: FinancialDreTable
     return formatPercent((val / safeRevenue) * 100, 2);
   };
 
-  const isNetPositive = totals.netManagerialResult > 0;
-  const isNetNegative = totals.netManagerialResult < 0;
+  const hasFullManagerialResult =
+    totals.fullManagerialResultAvailable !== false && totals.netManagerialResult !== null;
+  const isNetPositive = hasFullManagerialResult && (totals.netManagerialResult ?? 0) > 0;
+  const isNetNegative = hasFullManagerialResult && (totals.netManagerialResult ?? 0) < 0;
 
   return (
     <div className="tp-dre-table-card tp-card">
@@ -393,7 +395,9 @@ export function FinancialDreTable({ totals, realizedRevenue }: FinancialDreTable
                     Resultado Líquido Gerencial Estimado
                   </strong>
                   <span className="tp-final-status-pill">
-                    {totals.status === "PROFIT"
+                    {!hasFullManagerialResult
+                      ? "Parcial"
+                      : totals.status === "PROFIT"
                       ? "Lucro"
                       : totals.status === "LOSS"
                       ? "Prejuízo"
@@ -403,12 +407,14 @@ export function FinancialDreTable({ totals, realizedRevenue }: FinancialDreTable
               </td>
               <td className="tp-cell-amount">
                 <strong className="tp-final-amount">
-                  {formatCurrency(totals.netManagerialResult)}
+                  {hasFullManagerialResult
+                    ? formatCurrency(totals.netManagerialResult as number)
+                    : "Indisponível (cobertura parcial)"}
                 </strong>
               </td>
               <td className="tp-cell-percent">
                 <strong className="tp-final-percent">
-                  {totals.netManagerialMarginPercent !== null
+                  {hasFullManagerialResult && totals.netManagerialMarginPercent !== null
                     ? formatPercent(totals.netManagerialMarginPercent, 2)
                     : "—"}
                 </strong>

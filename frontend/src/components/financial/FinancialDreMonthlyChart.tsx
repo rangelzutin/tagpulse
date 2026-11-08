@@ -116,8 +116,8 @@ export function DreMonthlyTooltip({
   const item = payload[0]?.payload;
   if (!item) return null;
 
-  const isProfit = item.netManagerialResult > 0;
-  const isLoss = item.netManagerialResult < 0;
+  const isProfit = item.netManagerialResult !== null && item.netManagerialResult > 0;
+  const isLoss = item.netManagerialResult !== null && item.netManagerialResult < 0;
   const pendingLabels = formatDrePendingAccruals(
     item.dataQuality.pendingAccruals,
   );
@@ -201,7 +201,10 @@ export function DreMonthlyTooltip({
                 : ""
             }`}
           >
-            {formatCurrency(item.netManagerialResult)} (
+            {item.netManagerialResult !== null
+              ? formatCurrency(item.netManagerialResult)
+              : "Indisponível"}{" "}
+            (
             {item.netManagerialMarginPercent !== null
               ? formatPercent(item.netManagerialMarginPercent, 1)
               : "—"}
@@ -992,8 +995,8 @@ export function FinancialDreMonthlyChart({
             </thead>
             <tbody>
               {tableRows.map((m) => {
-                const isProfit = m.netManagerialResult > 0;
-                const isLoss = m.netManagerialResult < 0;
+                const isProfit = m.netManagerialResult !== null && m.netManagerialResult > 0;
+                const isLoss = m.netManagerialResult !== null && m.netManagerialResult < 0;
                 const pendingLabels = formatDrePendingAccruals(
                   m.dataQuality.pendingAccruals,
                 );
@@ -1022,7 +1025,11 @@ export function FinancialDreMonthlyChart({
                           : ""
                       }
                     >
-                      <strong>{formatCurrency(m.netManagerialResult)}</strong>
+                      <strong>
+                        {m.netManagerialResult !== null
+                          ? formatCurrency(m.netManagerialResult)
+                          : "Indisponível"}
+                      </strong>
                     </td>
                     <td>
                       {m.netManagerialMarginPercent !== null
