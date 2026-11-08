@@ -19,6 +19,7 @@
     "historical:hustler:sales:import": "tsx src/scripts/import-hustler-sales.ts",
     "historical:hustler:sales:plan": "tsx src/scripts/plan-hustler-sales-import.ts",
     "historical:hustler:sales:reconcile": "tsx src/scripts/reconcile-hustler-sales.ts",
+    "historical:hustler:bi:validate": "tsx src/scripts/validate-hustler-commercial-bi.ts",
     "historical:hustler:stage": "tsx src/scripts/stage-hustler-dump.ts",
     "lint": "eslint .",
     "prisma:generate": "prisma generate",
