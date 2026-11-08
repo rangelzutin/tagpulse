@@ -23,6 +23,7 @@
     "historical:hustler:current:classify": "tsx src/scripts/classify-current-hustler-sales.ts",
     "historical:hustler:current-operation": "tsx src/scripts/persist-current-hustler-operation.ts",
     "historical:hustler:financial:plan": "tsx src/scripts/plan-hustler-financial-import.ts",
+    "historical:hustler:financial:import": "tsx src/scripts/import-hustler-financial.ts",
     "historical:hustler:stage": "tsx src/scripts/stage-hustler-dump.ts",
     "lint": "eslint .",
     "prisma:generate": "prisma generate",

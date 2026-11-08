@@ -60,6 +60,9 @@ export interface PlannedFinancialRecord {
   importable: boolean;
   skipReason: string | null;
   warnings: string[];
+  description?: string;
+  documentNumber?: string | null;
+  rawPayload?: any;
 }
 
 export interface HustlerFinancialClassSummary {
@@ -104,6 +107,9 @@ export interface HustlerFinancialPlanSummary {
 }
 
 export interface HustlerFinancialImportPlan {
+  batchId: string;
+  companyId: string;
+  connectionId: string;
   summary: HustlerFinancialPlanSummary;
   plannedRecords: PlannedFinancialRecord[];
   samples: {
@@ -283,12 +289,19 @@ export async function planHustlerFinancialImport(
   prisma: PrismaClient,
   batchId: string,
 ): Promise<HustlerFinancialImportPlan> {
-  // 1. Verify batch
+  // 1. Verify batch and active connection
   const batch = await prisma.historicalImportBatch.findUnique({
     where: { id: batchId },
   });
   if (!batch) {
     throw new Error(`Batch '${batchId}' not found.`);
+  }
+
+  const connection = await prisma.tagPlusConnection.findFirst({
+    where: { companyId: batch.companyId },
+  });
+  if (!connection) {
+    throw new Error(`No active TagPlusConnection found for Company '${batch.companyId}'.`);
   }
 
   // 2. Load canonical sales for HUSTLER_LEGACY_DUMP
@@ -311,25 +324,23 @@ export async function planHustlerFinancialImport(
     });
   }
 
-  // 3. Load staging data: venda, nota_fiscal, pagamento, financeiro_lancamento
-  const [flRows, pRows, nfRows, vRows] = await Promise.all([
-    prisma.historicalStagingRow.findMany({
-      where: { importBatchId: batchId, sourceTable: "financeiro_lancamento" },
-      select: { sourcePrimaryKey: true, payload: true },
-    }),
-    prisma.historicalStagingRow.findMany({
-      where: { importBatchId: batchId, sourceTable: "pagamento" },
-      select: { sourcePrimaryKey: true, payload: true },
-    }),
-    prisma.historicalStagingRow.findMany({
-      where: { importBatchId: batchId, sourceTable: "nota_fiscal" },
-      select: { sourcePrimaryKey: true, payload: true },
-    }),
-    prisma.historicalStagingRow.findMany({
-      where: { importBatchId: batchId, sourceTable: "venda" },
-      select: { sourcePrimaryKey: true, payload: true },
-    }),
-  ]);
+  // 3. Load staging data: venda, nota_fiscal, pagamento, financeiro_lancamento sequentially
+  const flRows = await prisma.historicalStagingRow.findMany({
+    where: { importBatchId: batchId, sourceTable: "financeiro_lancamento" },
+    select: { sourcePrimaryKey: true, payload: true },
+  });
+  const pRows = await prisma.historicalStagingRow.findMany({
+    where: { importBatchId: batchId, sourceTable: "pagamento" },
+    select: { sourcePrimaryKey: true, payload: true },
+  });
+  const nfRows = await prisma.historicalStagingRow.findMany({
+    where: { importBatchId: batchId, sourceTable: "nota_fiscal" },
+    select: { sourcePrimaryKey: true, payload: true },
+  });
+  const vRows = await prisma.historicalStagingRow.findMany({
+    where: { importBatchId: batchId, sourceTable: "venda" },
+    select: { sourcePrimaryKey: true, payload: true },
+  });
 
   // Index pagamento by PK
   const pagMap = new Map<string, any>();
@@ -567,6 +578,9 @@ export async function planHustlerFinancialImport(
       importable,
       skipReason,
       warnings: [],
+      description: desc,
+      documentNumber: payload.documento ? String(payload.documento) : null,
+      rawPayload: payload,
     };
 
     plannedRecords.push(plannedRecord);
@@ -630,6 +644,9 @@ export async function planHustlerFinancialImport(
     summary.totalAccountedAmount === round2(summary.entryAmount + summary.exitAmount);
 
   return {
+    batchId,
+    companyId: batch.companyId,
+    connectionId: connection.id,
     summary,
     plannedRecords,
     samples,
