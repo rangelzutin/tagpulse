@@ -16,6 +16,7 @@
     "historical:hustler:entities": "tsx src/scripts/create-hustler-entities.ts",
     "historical:hustler:profile": "tsx src/scripts/profile-hustler-dump.ts",
     "historical:hustler:reconcile": "tsx src/scripts/reconcile-hustler-entities.ts",
+    "historical:hustler:sales:import": "tsx src/scripts/import-hustler-sales.ts",
     "historical:hustler:sales:plan": "tsx src/scripts/plan-hustler-sales-import.ts",
     "historical:hustler:sales:reconcile": "tsx src/scripts/reconcile-hustler-sales.ts",
     "historical:hustler:stage": "tsx src/scripts/stage-hustler-dump.ts",
