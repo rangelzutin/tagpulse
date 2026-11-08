@@ -66,7 +66,7 @@ describe("Historical Hustler Current Classification (Phase 4K)", () => {
   });
 
   describe("2. Current Sale Dry-Run Classification", () => {
-    it("4. classifies sales to CONSUMIDOR HUSTLER as HUSTLER / EXACT", () => {
+    it("4. classifies sales to CONSUMIDOR HUSTLER as HUSTLER / EXACT (LEVEL A)", () => {
       const sale: ClassificationSaleInput = {
         id: "sale-1",
         anchorType: SaleAnchorType.VENDA_SIMPLES,
@@ -84,10 +84,11 @@ describe("Historical Hustler Current Classification (Phase 4K)", () => {
       const result = classifyCurrentSale(sale, catalog);
       expect(result.candidateUnit).toBe(OperationUnit.HUSTLER);
       expect(result.confidence).toBe("EXACT");
+      expect(result.evidenceLevel).toBe("LEVEL_A");
       expect(result.reason).toContain("Consumidor Hustler");
     });
 
-    it("5. classifies wholesale B2B sales (PEDIDO or CNPJ) as NINECLOUDS / STRONG", () => {
+    it("5. classifies wholesale B2B sales with 100% Nineclouds goods as NINECLOUDS / EXACT (LEVEL A)", () => {
       const sale: ClassificationSaleInput = {
         id: "sale-2",
         anchorType: SaleAnchorType.PEDIDO,
@@ -103,11 +104,12 @@ describe("Historical Hustler Current Classification (Phase 4K)", () => {
 
       const result = classifyCurrentSale(sale, catalog);
       expect(result.candidateUnit).toBe(OperationUnit.NINECLOUDS);
-      expect(result.confidence).toBe("STRONG");
-      expect(result.reason).toContain("Wholesale");
+      expect(result.confidence).toBe("EXACT");
+      expect(result.evidenceLevel).toBe("LEVEL_A");
+      expect(result.reason).toContain("Wholesale B2B distribution of 100% Nineclouds");
     });
 
-    it("6. classifies retail sales with third-party skate shop brands as HUSTLER / STRONG", () => {
+    it("6. classifies retail sales with third-party skate shop brands as HUSTLER / STRONG (LEVEL C HEURISTIC)", () => {
       const sale: ClassificationSaleInput = {
         id: "sale-3",
         anchorType: SaleAnchorType.VENDA_SIMPLES,
@@ -125,6 +127,7 @@ describe("Historical Hustler Current Classification (Phase 4K)", () => {
       const result = classifyCurrentSale(sale, catalog);
       expect(result.candidateUnit).toBe(OperationUnit.HUSTLER);
       expect(result.confidence).toBe("STRONG");
+      expect(result.evidenceLevel).toBe("LEVEL_C_HEURISTIC");
       expect(result.reason).toContain("third-party skate shop brands");
     });
 

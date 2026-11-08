@@ -31,11 +31,18 @@ export interface ClassificationSaleInput {
   items: ClassificationSaleItemInput[];
 }
 
+export type AttributionEvidenceLevel =
+  | "LEVEL_A" // Deterministic operational evidence (safe for automatic persistence)
+  | "LEVEL_B" // Multiple independent strong signals (candidate, requires formal rule)
+  | "LEVEL_C_HEURISTIC" // Business pattern / heuristic (do NOT persist automatically)
+  | "LEVEL_D_UNRESOLVED"; // Inconclusive / unassigned
+
 export type ClassificationConfidence = "EXACT" | "STRONG" | "WEAK" | "UNRESOLVED";
 
 export interface SaleClassificationOutput {
   candidateUnit: OperationUnit;
   confidence: ClassificationConfidence;
+  evidenceLevel: AttributionEvidenceLevel;
   reason: string;
 }
 
@@ -88,10 +95,11 @@ export function classifyProductOwnership(
 }
 
 /**
- * Classifies a current TagPlus sale deterministically based on:
- * 1. Customer evidence (e.g. CONSUMIDOR HUSTLER -> EXACT)
- * 2. Channel / Document evidence (PEDIDO or CNPJ -> NINECLOUDS Wholesale)
- * 3. Item composition (Hustler skate shop multi-brand vs Nineclouds brand)
+ * Classifies a current TagPlus sale deterministically with explicit evidence hierarchy:
+ * - LEVEL A: Institutional identity (CONSUMIDOR HUSTLER) or 100% manufacturer B2B wholesale
+ * - LEVEL B: Multiple strong signals (Wholesale order with Nineclouds brand + shared hardware)
+ * - LEVEL C (Heuristic): Commercial patterns (Venda Simples + third-party skate shoes / hardware to individual)
+ * - LEVEL D (Unresolved): 0 items or inconclusive evidence
  */
 export function classifyCurrentSale(
   sale: ClassificationSaleInput,
@@ -124,12 +132,13 @@ export function classifyCurrentSale(
   const totalItems = sale.items.length;
   const isWholesale = sale.hasPedido || sale.anchorType === SaleAnchorType.PEDIDO || sale.hasCnpj;
 
-  // 1. Direct Consumidor Hustler retail counter sale
+  // 1. Direct Consumidor Hustler retail counter sale (LEVEL A - Deterministic)
   if (isConsumidorHustler) {
     return {
       candidateUnit: OperationUnit.HUSTLER,
       confidence: "EXACT",
-      reason: "Consumidor Hustler customer match",
+      evidenceLevel: "LEVEL_A",
+      reason: "Consumidor Hustler institutional customer match (LEVEL A)",
     };
   }
 
@@ -139,31 +148,43 @@ export function classifyCurrentSale(
       return {
         candidateUnit: OperationUnit.SHARED,
         confidence: "STRONG",
-        reason: "Wholesale sale containing Hustler-exclusive items",
+        evidenceLevel: "LEVEL_B",
+        reason: "Wholesale sale containing Hustler-exclusive items (LEVEL B)",
+      };
+    }
+    if (ninecloudsExclCount === totalItems && totalItems > 0) {
+      return {
+        candidateUnit: OperationUnit.NINECLOUDS,
+        confidence: "EXACT",
+        evidenceLevel: "LEVEL_A",
+        reason: "Wholesale B2B distribution of 100% Nineclouds manufactured goods (LEVEL A)",
       };
     }
     return {
       candidateUnit: OperationUnit.NINECLOUDS,
       confidence: "STRONG",
-      reason: "Wholesale B2B distribution of Nineclouds products",
+      evidenceLevel: "LEVEL_B",
+      reason: "Wholesale B2B distribution of Nineclouds with shared hardware (LEVEL B)",
     };
   }
 
-  // 3. No items
+  // 3. No items (LEVEL D - Unresolved)
   if (totalItems === 0) {
     return {
       candidateUnit: OperationUnit.UNRESOLVED,
       confidence: "UNRESOLVED",
-      reason: "0 items in sale",
+      evidenceLevel: "LEVEL_D_UNRESOLVED",
+      reason: "0 items in sale (LEVEL D)",
     };
   }
 
-  // 4. Retail sale with 100% Hustler products
+  // 4. Retail sale with 100% Hustler-exclusive products
   if (hustlerExclCount > 0 && ninecloudsExclCount === 0) {
     return {
       candidateUnit: OperationUnit.HUSTLER,
       confidence: "STRONG",
-      reason: "Retail sale with Hustler-exclusive products",
+      evidenceLevel: "LEVEL_C_HEURISTIC",
+      reason: "Retail sale with Hustler-exclusive products (heuristic LEVEL C)",
     };
   }
 
@@ -172,16 +193,18 @@ export function classifyCurrentSale(
     return {
       candidateUnit: OperationUnit.HUSTLER,
       confidence: "STRONG",
-      reason: "Retail sale with third-party skate shop brands (DC/YourFace/Öus/etc.)",
+      evidenceLevel: "LEVEL_C_HEURISTIC",
+      reason: "Retail sale with third-party skate shop brands (heuristic LEVEL C)",
     };
   }
 
-  // 6. 100% Nineclouds products in retail
+  // 6. Retail sale of pure Nineclouds products to individual
   if (ninecloudsExclCount > 0 && hustlerExclCount === 0 && !hasThirdParty) {
     return {
       candidateUnit: OperationUnit.NINECLOUDS,
       confidence: "STRONG",
-      reason: "Retail sale of pure Nineclouds brand products",
+      evidenceLevel: "LEVEL_C_HEURISTIC",
+      reason: "Retail sale of pure Nineclouds brand products (heuristic LEVEL C)",
     };
   }
 
@@ -190,7 +213,8 @@ export function classifyCurrentSale(
     return {
       candidateUnit: OperationUnit.SHARED,
       confidence: "STRONG",
-      reason: "Mixed retail basket (Nineclouds items + Hustler/third-party items)",
+      evidenceLevel: "LEVEL_B",
+      reason: "Mixed retail basket (Nineclouds items + Hustler/third-party items) (LEVEL B)",
     };
   }
 
@@ -200,19 +224,22 @@ export function classifyCurrentSale(
       return {
         candidateUnit: OperationUnit.HUSTLER,
         confidence: "WEAK",
-        reason: "Retail Venda Simples of general skate hardware/accessories",
+        evidenceLevel: "LEVEL_C_HEURISTIC",
+        reason: "Retail Venda Simples of general skate hardware/accessories (heuristic LEVEL C)",
       };
     }
     return {
       candidateUnit: OperationUnit.SHARED,
       confidence: "WEAK",
-      reason: "Direct NFE of general skate hardware/accessories",
+      evidenceLevel: "LEVEL_C_HEURISTIC",
+      reason: "Direct NFE of general skate hardware/accessories (heuristic LEVEL C)",
     };
   }
 
   return {
     candidateUnit: OperationUnit.UNRESOLVED,
     confidence: "UNRESOLVED",
-    reason: "Unresolved basket composition",
+    evidenceLevel: "LEVEL_D_UNRESOLVED",
+    reason: "Unresolved basket composition (LEVEL D)",
   };
 }
