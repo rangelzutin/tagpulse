@@ -1,8 +1,10 @@
 import type {
   DreMonthlyItemDto,
   DreEconomicStatus,
+  DreBreakEvenDto,
 } from "../../api/financial";
 import { formatMonthLabel, getLocalDateString } from "../../utils/formatters";
+import { calculateBreakEven } from "./dreBreakEvenHelper";
 
 export type DreChartGranularity = "monthly" | "quarterly" | "yearly";
 
@@ -39,6 +41,8 @@ export interface DreChartBucket {
   netManagerialResult: number | null;
   netManagerialMarginPercent: number | null;
   status: DreEconomicStatus;
+  breakEven: DreBreakEvenDto;
+  breakEvenRevenue: number | null;
   dataQuality: {
     isProvisional: boolean;
     financiallyClosed: boolean;
@@ -283,6 +287,7 @@ function createZeroMonthlyItem(month: string): DreMonthlyItemDto {
     netManagerialResult: 0,
     netManagerialMarginPercent: null,
     status: "BREAK_EVEN",
+    breakEven: calculateBreakEven(0, 0, 0),
     dataQuality: {
       isProvisional: false,
       financiallyClosed: true,
@@ -299,6 +304,21 @@ function toMonthlyChartBucket(
   isContext: boolean,
 ): DreChartBucket {
   const label = formatMonthLabel(item.month);
+  const be =
+    item.breakEven ??
+    calculateBreakEven(
+      item.realizedRevenue,
+      item.contributionMargin,
+      item.netManagerialResult,
+      { fullManagerialResultAvailable: item.fullManagerialResultAvailable },
+    );
+  const breakEvenRevenue =
+    be.status === "UNVIABLE_MARGIN" ||
+    be.status === "NO_REVENUE" ||
+    be.status === "INCOMPLETE_COST_COVERAGE"
+      ? null
+      : be.breakEvenRevenue;
+
   return {
     key: item.month,
     label,
@@ -320,6 +340,8 @@ function toMonthlyChartBucket(
     netManagerialResult: item.netManagerialResult,
     netManagerialMarginPercent: item.netManagerialMarginPercent,
     status: item.status,
+    breakEven: be,
+    breakEvenRevenue,
     dataQuality: {
       isProvisional: item.dataQuality.isProvisional,
       financiallyClosed: item.dataQuality.financiallyClosed,
@@ -410,6 +432,19 @@ function aggregateMonthlyGroup(
       ? "LOSS"
       : "BREAK_EVEN";
 
+  const be = calculateBreakEven(
+    realizedRevenue,
+    contributionMargin,
+    netManagerialResult,
+    { fullManagerialResultAvailable: !hasIncompleteCostCoverage },
+  );
+  const breakEvenRevenue =
+    be.status === "UNVIABLE_MARGIN" ||
+    be.status === "NO_REVENUE" ||
+    be.status === "INCOMPLETE_COST_COVERAGE"
+      ? null
+      : be.breakEvenRevenue;
+
   return {
     key,
     label,
@@ -431,6 +466,8 @@ function aggregateMonthlyGroup(
     netManagerialResult,
     netManagerialMarginPercent,
     status,
+    breakEven: be,
+    breakEvenRevenue,
     dataQuality: {
       isProvisional: anyProvisional,
       financiallyClosed: allClosed,

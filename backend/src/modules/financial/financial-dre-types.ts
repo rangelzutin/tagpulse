@@ -89,6 +89,24 @@ export interface DreDataQualityDto {
   unknownAmount: number;
 }
 
+export type DreBreakEvenStatus =
+  | "BELOW_BREAK_EVEN"
+  | "ABOVE_BREAK_EVEN"
+  | "UNVIABLE_MARGIN"
+  | "NO_REVENUE"
+  | "INCOMPLETE_COST_COVERAGE";
+
+export interface DreBreakEvenDto {
+  status: DreBreakEvenStatus;
+  realizedRevenue: number;
+  contributionMargin: number;
+  contributionMarginRate: number | null;
+  netResult: number | null;
+  additionalRevenueNeeded: number | null;
+  breakEvenRevenue: number | null;
+  additionalRevenuePercent: number | null;
+}
+
 export interface DreMonthlyItemDto {
   month: string; // "YYYY-MM"
 
@@ -121,6 +139,8 @@ export interface DreMonthlyItemDto {
   netManagerialMarginPercent: number | null;
 
   status: DreEconomicStatus;
+
+  breakEven: DreBreakEvenDto;
 
   dataQuality: DreDataQualityDto;
 }
@@ -155,6 +175,8 @@ export interface DreSummaryTotalsDto {
   netManagerialMarginPercent: number | null;
 
   status: DreEconomicStatus;
+
+  breakEven: DreBreakEvenDto;
 }
 
 export interface DreSummaryDto {
@@ -164,6 +186,7 @@ export interface DreSummaryDto {
   };
   totals: DreSummaryTotalsDto;
   months: DreMonthlyItemDto[];
+  breakEven: DreBreakEvenDto;
   lastClosedMonth: string | null;
   dataQuality: {
     isProvisional: boolean;
