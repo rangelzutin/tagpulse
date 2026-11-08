@@ -94,6 +94,12 @@ export interface HustlerFinancialPlanSummary {
   plannedFinancialRecordsAmount: number;
   quarantinedCount: number;
   unresolvedCount: number;
+  skippedOtherIncomeCount: number;
+  skippedOtherIncomeAmount: number;
+  totalSkippedCount: number;
+  totalSkippedAmount: number;
+  totalAccountedRows: number;
+  totalAccountedAmount: number;
   reconciliationPassed: boolean;
 }
 
@@ -381,6 +387,12 @@ export async function planHustlerFinancialImport(
     plannedFinancialRecordsAmount: 0,
     quarantinedCount: 0,
     unresolvedCount: 0,
+    skippedOtherIncomeCount: 0,
+    skippedOtherIncomeAmount: 0,
+    totalSkippedCount: 0,
+    totalSkippedAmount: 0,
+    totalAccountedRows: 0,
+    totalAccountedAmount: 0,
     reconciliationPassed: false,
   };
 
@@ -522,6 +534,9 @@ export async function planHustlerFinancialImport(
       summary.quarantinedCount++;
     } else if (classification === "UNRESOLVED") {
       summary.unresolvedCount++;
+    } else if (classification === "OTHER_FINANCIAL_INCOME") {
+      summary.skippedOtherIncomeCount++;
+      summary.skippedOtherIncomeAmount += amountTotal;
     }
 
     const plannedRecord: PlannedFinancialRecord = {
@@ -585,6 +600,18 @@ export async function planHustlerFinancialImport(
   summary.quarantineSalesFinancialAmount = round2(summary.quarantineSalesFinancialAmount);
   summary.cancelledSalesFinancialAmount = round2(summary.cancelledSalesFinancialAmount);
   summary.plannedFinancialRecordsAmount = round2(summary.plannedFinancialRecordsAmount);
+  summary.skippedOtherIncomeAmount = round2(summary.skippedOtherIncomeAmount);
+  summary.totalSkippedCount =
+    summary.quarantinedCount + summary.unresolvedCount + summary.skippedOtherIncomeCount;
+  summary.totalSkippedAmount = round2(
+    summary.quarantineSalesFinancialAmount +
+      summary.classes.UNRESOLVED.total +
+      summary.skippedOtherIncomeAmount
+  );
+  summary.totalAccountedRows = summary.plannedFinancialRecordsCount + summary.totalSkippedCount;
+  summary.totalAccountedAmount = round2(
+    summary.plannedFinancialRecordsAmount + summary.totalSkippedAmount
+  );
 
   for (const key of Object.keys(summary.classes) as HustlerFinancialClass[]) {
     summary.classes[key].total = round2(summary.classes[key].total);
@@ -595,10 +622,12 @@ export async function planHustlerFinancialImport(
   summary.reconciliationPassed =
     summary.totalSourceRows === 11152 &&
     sumClassRows === 11152 &&
+    summary.totalAccountedRows === 11152 &&
     summary.entryCount === 9021 &&
     summary.entryAmount === 1121885.31 &&
     summary.exitCount === 2131 &&
-    summary.exitAmount === 1085759.45;
+    summary.exitAmount === 1085759.45 &&
+    summary.totalAccountedAmount === round2(summary.entryAmount + summary.exitAmount);
 
   return {
     summary,
@@ -606,3 +635,4 @@ export async function planHustlerFinancialImport(
     samples,
   };
 }
+

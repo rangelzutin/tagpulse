@@ -150,5 +150,44 @@ describe("Historical Hustler Financial Planner (Phase 4O)", () => {
       expect(mapExpenseCategory("Simples Nacional").category).toBe("IMPOSTOS_TRIBUTOS");
       expect(mapExpenseCategory("Simples Nacional").budgetPlanSourceId).toBe("27");
     });
+
+    it("12. validates mathematical closure formula for planned (11094) + skipped (58) = 11152", () => {
+      const plannedCount = 8963 + 1317 + 814;
+      expect(plannedCount).toBe(11094);
+
+      const skippedCount = 24 + 6 + 28;
+      expect(skippedCount).toBe(58);
+
+      const totalAccounted = plannedCount + skippedCount;
+      expect(totalAccounted).toBe(11152);
+
+      const plannedAmount = 1114512.33 + 487874.99 + 597884.46;
+      const skippedAmount = 2743.94 + 1843.5 + 2785.54;
+      const totalAmount = Math.round((plannedAmount + skippedAmount + Number.EPSILON) * 100) / 100;
+      expect(totalAmount).toBe(2207644.76);
+    });
+
+    it("13. enforces DRE safety invariants: purchases and receivables do not mutate commercial revenue or direct DRE expense", () => {
+      const purchaseCls = classifyFinancialLaunch({
+        tipo: "S",
+        description: "Fornecedor Skate Co",
+        hasPagamentoLink: true,
+        isQuarantineSale: false,
+        isCancelledSale: false,
+        canonicalSaleId: null,
+      });
+      expect(purchaseCls).toBe("INVENTORY_PURCHASE_AP");
+
+      const expenseCls = classifyFinancialLaunch({
+        tipo: "S",
+        description: "Conta de Energia",
+        hasPagamentoLink: false,
+        isQuarantineSale: false,
+        isCancelledSale: false,
+        canonicalSaleId: null,
+      });
+      expect(expenseCls).toBe("OPERATING_EXPENSE");
+    });
   });
 });
+

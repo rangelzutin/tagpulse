@@ -66,10 +66,17 @@ async function main() {
   console.log(`Cancelled-sale financial rows:   ${summary.cancelledSalesFinancialRows} (R$ ${summary.cancelledSalesFinancialAmount.toFixed(2)})`);
   console.log("");
 
-  console.log("--- 4. IMPORT PLAN TOTALS ---");
+  console.log("--- 4. IMPORT PLAN TOTALS & MATHEMATICAL CLOSURE ---");
   console.log(`Planned FinancialRecords:        ${summary.plannedFinancialRecordsCount} (R$ ${summary.plannedFinancialRecordsAmount.toFixed(2)})`);
-  console.log(`Quarantined records:             ${summary.quarantinedCount}`);
-  console.log(`Unresolved records:              ${summary.unresolvedCount}`);
+  console.log(`  - SALE_RECEIVABLE:             ${summary.classes.SALE_RECEIVABLE.count} (R$ ${summary.classes.SALE_RECEIVABLE.total.toFixed(2)})`);
+  console.log(`  - OPERATING_EXPENSE:           ${summary.classes.OPERATING_EXPENSE.count} (R$ ${summary.classes.OPERATING_EXPENSE.total.toFixed(2)})`);
+  console.log(`  - INVENTORY_PURCHASE_AP:       ${summary.classes.INVENTORY_PURCHASE_AP.count} (R$ ${summary.classes.INVENTORY_PURCHASE_AP.total.toFixed(2)})`);
+  console.log(`Skipped / Quarantined rows:      ${summary.totalSkippedCount} (R$ ${summary.totalSkippedAmount.toFixed(2)})`);
+  console.log(`  - QUARANTINE:                  ${summary.quarantinedCount} (R$ ${summary.quarantineSalesFinancialAmount.toFixed(2)})`);
+  console.log(`  - UNRESOLVED:                  ${summary.unresolvedCount} (R$ ${summary.classes.UNRESOLVED.total.toFixed(2)})`);
+  console.log(`  - OTHER_FINANCIAL_INCOME:      ${summary.skippedOtherIncomeCount} (R$ ${summary.skippedOtherIncomeAmount.toFixed(2)})`);
+  console.log(`Total Accounted (Planned+Skip):  ${summary.totalAccountedRows} / R$ ${summary.totalAccountedAmount.toFixed(2)} (Expected: 11152 / R$ 2207644.76)`);
+  console.log(`Closure Reconciled:              ${summary.reconciliationPassed ? "YES" : "NO"}`);
   console.log("");
 
   console.log("--- 5. REPRESENTATIVE SAMPLES ---");
@@ -136,3 +143,4 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
+
