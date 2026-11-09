@@ -16,6 +16,7 @@ import {
 } from "./FinancialDreMonthlyChart";
 import { buildAdaptiveDreEvolution } from "./dreEvolutionHelper";
 import { formatExportGeneratedAt } from "./dreExportService";
+import { calculateBreakEven } from "./dreBreakEvenHelper";
 
 export const DRE_EXPORT_DISCLAIMER_TEXT =
   "Relatório gerencial elaborado a partir dos dados disponíveis no TagPulse. CMV e margens utilizam custo atual estimado quando indicado. Não substitui demonstrações contábeis oficiais.";
@@ -246,6 +247,63 @@ const DRE_EXPORT_REPORT_CSS = `
   }
   .tp-dre-export-sec-value.is-positive {
     color: #15803d;
+  }
+  .tp-dre-export-breakeven-box {
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #f8fafc;
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .tp-dre-export-breakeven-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .tp-dre-export-breakeven-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #334155;
+    letter-spacing: 0.04em;
+  }
+  .tp-dre-export-breakeven-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  .tp-dre-export-be-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .tp-dre-export-be-label {
+    font-size: 10px;
+    color: #64748b;
+    font-weight: 600;
+  }
+  .tp-dre-export-be-value {
+    font-size: 14px;
+    font-weight: 700;
+    color: #0f172a;
+  }
+  .tp-dre-export-be-subtext {
+    font-size: 9.5px;
+    color: #64748b;
+  }
+  .tp-dre-export-breakeven-context {
+    font-size: 10.5px;
+    color: #475569;
+    border-top: 1px solid #e2e8f0;
+    padding-top: 6px;
+    display: flex;
+    gap: 12px;
   }
   .tp-dre-export-section-box {
     border: 1px solid #cbd5e1;
@@ -731,6 +789,146 @@ export function FinancialDreExportReport({
     </section>
   );
 
+  // 3B. PONTO DE EQUILÍBRIO
+  const breakEven =
+    totals.breakEven ??
+    calculateBreakEven(
+      totals.realizedRevenue,
+      totals.contributionMargin,
+      totals.fullManagerialResultAvailable ? totals.netManagerialResult : null,
+      {
+        costCoveragePercent: totals.costCoveragePercent,
+        fullCoverage: totals.fullManagerialResultAvailable,
+      },
+    );
+
+  const isBeAbove =
+    breakEven.status === "PROFITABLE" || breakEven.status === "ABOVE_BREAK_EVEN";
+  const isBeBelow =
+    breakEven.status === "UNREACHED" || breakEven.status === "BELOW_BREAK_EVEN";
+  const isBeUnviable =
+    breakEven.status === "UNDETERMINED_ZERO_MARGIN" ||
+    breakEven.status === "UNVIABLE_MARGIN";
+  const isBeNoRevenue =
+    breakEven.status === "UNDETERMINED_ZERO_REVENUE" ||
+    breakEven.status === "UNDETERMINED_NO_REVENUE_WITH_COSTS" ||
+    breakEven.status === "NO_REVENUE";
+  const isBePartial = breakEven.status === "UNDETERMINED_PARTIAL_COST_COVERAGE";
+
+  const breakEvenSection = (
+    <section
+      className="tp-dre-export-breakeven-box"
+      aria-label="Ponto de Equilíbrio no Relatório"
+      data-testid="dre-export-breakeven"
+      data-export-section="3b-breakeven"
+    >
+      <div className="tp-dre-export-breakeven-header">
+        <span className="tp-dre-export-breakeven-title">Ponto de Equilíbrio</span>
+        <span style={{ fontSize: "10px", color: "#64748b" }}>
+          Estimativa de faturamento para zerar o resultado gerencial
+        </span>
+      </div>
+
+      {isBePartial ? (
+        <div style={{ padding: "4px 0", fontSize: "11px", color: "#0284c7", fontWeight: 600 }}>
+          Ponto de equilíbrio indisponível por cobertura parcial de custos (CMV incompleto no período).
+        </div>
+      ) : isBeUnviable ? (
+        <div style={{ padding: "4px 0", fontSize: "11px", color: "#be123c", fontWeight: 600 }}>
+          Margem de contribuição insuficiente para calcular o ponto de equilíbrio (aumento de faturamento isoladamente não elimina o prejuízo).
+        </div>
+      ) : isBeNoRevenue ? (
+        <div style={{ padding: "4px 0", fontSize: "11px", color: "#64748b" }}>
+          Sem faturamento realizado no período para estimar ponto de equilíbrio.
+        </div>
+      ) : (
+        <>
+          <div className="tp-dre-export-breakeven-grid">
+            <div className="tp-dre-export-be-card">
+              <span className="tp-dre-export-be-label">Faturamento de Equilíbrio</span>
+              <span className="tp-dre-export-be-value">
+                {breakEven.breakEvenRevenue !== null
+                  ? formatCurrency(breakEven.breakEvenRevenue)
+                  : "—"}
+              </span>
+              <span className="tp-dre-export-be-subtext">
+                {isBeAbove ? "Superado no período" : "Meta para resultado zero"}
+              </span>
+            </div>
+
+            <div className="tp-dre-export-be-card">
+              <span className="tp-dre-export-be-label">Gap para Equilíbrio</span>
+              <span
+                className="tp-dre-export-be-value"
+                style={{
+                  color: isBeAbove ? "#15803d" : "#be123c",
+                }}
+              >
+                {isBeAbove
+                  ? "R$ 0,00"
+                  : breakEven.additionalRevenueNeeded !== null
+                  ? formatCurrency(breakEven.additionalRevenueNeeded)
+                  : "—"}
+              </span>
+              <span className="tp-dre-export-be-subtext">
+                {isBeAbove ? "Resultado positivo atingido" : "Faturamento adicional necessário"}
+              </span>
+            </div>
+
+            <div className="tp-dre-export-be-card">
+              <span className="tp-dre-export-be-label">Aumento Necessário</span>
+              <span className="tp-dre-export-be-value">
+                {isBeAbove
+                  ? "0,0%"
+                  : breakEven.additionalRevenuePercent !== null
+                  ? `+${formatPercent(breakEven.additionalRevenuePercent, 1)}`
+                  : "—"}
+              </span>
+              <span className="tp-dre-export-be-subtext">
+                {isBeAbove ? "Acima da meta de equilíbrio" : "Sobre o faturamento realizado"}
+              </span>
+            </div>
+          </div>
+
+          <div className="tp-dre-export-breakeven-context">
+            <span>
+              Faturamento: <strong>{formatCurrency(breakEven.realizedRevenue)}</strong>
+            </span>
+            <span>•</span>
+            <span>
+              Margem de Contribuição:{" "}
+              <strong style={{ color: "#0d9488" }}>
+                {totals.contributionMarginPercent !== null
+                  ? formatPercent(totals.contributionMarginPercent, 1)
+                  : breakEven.contributionMarginRate !== null
+                  ? formatPercent(breakEven.contributionMarginRate * 100, 1)
+                  : "—"}
+              </strong>
+            </span>
+            <span>•</span>
+            <span>
+              Resultado Gerencial:{" "}
+              <strong
+                style={{
+                  color:
+                    breakEven.netResult !== null && breakEven.netResult > 0
+                      ? "#15803d"
+                      : breakEven.netResult !== null && breakEven.netResult < 0
+                      ? "#be123c"
+                      : "#334155",
+                }}
+              >
+                {breakEven.netResult !== null
+                  ? formatCurrency(breakEven.netResult)
+                  : "Indisponível"}
+              </strong>
+            </span>
+          </div>
+        </>
+      )}
+    </section>
+  );
+
   // 4. EVOLUÇÃO MENSAL DO RESULTADO — GRÁFICO
   const chartSection = (
     <section
@@ -1190,6 +1388,7 @@ export function FinancialDreExportReport({
             {headerSection}
             {kpisSection}
             {secondaryMetricsSection}
+            {breakEvenSection}
             {chartSection}
             {dreTableSection}
             {breakdownSection}
@@ -1214,6 +1413,7 @@ export function FinancialDreExportReport({
           {headerSection}
           {kpisSection}
           {secondaryMetricsSection}
+          {breakEvenSection}
           {chartSection}
         </div>
         <div className="tp-dre-export-page-footer">

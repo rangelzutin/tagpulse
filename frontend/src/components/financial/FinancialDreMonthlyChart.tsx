@@ -25,6 +25,10 @@ import {
   type DreChartBucket,
   type DreEvolutionPeriod,
 } from "./dreEvolutionHelper";
+import {
+  formatMonthlyBreakEvenTooltip,
+  calculateBreakEven,
+} from "./dreBreakEvenHelper";
 
 const DRE_PENDING_ACCRUAL_LABELS: Record<string, string> = {
   VARIABLE_TAX_ON_REVENUE: "Impostos sobre vendas",
@@ -105,12 +109,14 @@ export interface CustomTooltipProps {
   active?: boolean;
   payload?: Array<{ payload?: DreChartBucket }>;
   hasContextWindow?: boolean;
+  showBreakEven?: boolean;
 }
 
 export function DreMonthlyTooltip({
   active,
   payload,
   hasContextWindow,
+  showBreakEven = true,
 }: CustomTooltipProps) {
   if (!active || !payload || payload.length === 0) return null;
   const item = payload[0]?.payload;
@@ -121,6 +127,16 @@ export function DreMonthlyTooltip({
   const pendingLabels = formatDrePendingAccruals(
     item.dataQuality.pendingAccruals,
   );
+  const breakEvenHint = item.breakEven
+    ? formatMonthlyBreakEvenTooltip(item.breakEven, formatCurrency)
+    : null;
+
+  const beStatus = item.breakEven?.status;
+  const isBeAbove = beStatus === "PROFITABLE" || beStatus === "ABOVE_BREAK_EVEN";
+  const isBeBelow = beStatus === "UNREACHED" || beStatus === "BELOW_BREAK_EVEN";
+  const isBeUnviable =
+    beStatus === "UNDETERMINED_ZERO_MARGIN" || beStatus === "UNVIABLE_MARGIN";
+  const isBePartial = beStatus === "UNDETERMINED_PARTIAL_COST_COVERAGE";
 
   return (
     <div className="tp-chart-tooltip tp-dre-tooltip">
@@ -211,6 +227,58 @@ export function DreMonthlyTooltip({
             )
           </span>
         </div>
+        {showBreakEven && item.breakEven && (
+          <div
+            className="tp-tooltip-breakeven-section"
+            data-testid="dre-tooltip-breakeven"
+          >
+            <div className="tp-tooltip-row">
+              <span className="tp-tooltip-label">Ponto de equilíbrio:</span>
+              <span className="tp-tooltip-value tp-color-amber">
+                {item.breakEven.breakEvenRevenue !== null
+                  ? formatCurrency(item.breakEven.breakEvenRevenue)
+                  : isBePartial
+                  ? "Cobertura parcial"
+                  : "Indisponível"}
+              </span>
+            </div>
+            {isBeBelow && item.breakEven.additionalRevenueNeeded !== null && (
+              <div className="tp-tooltip-row">
+                <span className="tp-tooltip-label">Gap para equilíbrio:</span>
+                <span className="tp-tooltip-value tp-text-negative">
+                  {formatCurrency(item.breakEven.additionalRevenueNeeded)}
+                </span>
+              </div>
+            )}
+            {isBeAbove && (
+              <div className="tp-tooltip-row">
+                <span className="tp-tooltip-label">Gap para equilíbrio:</span>
+                <span className="tp-tooltip-value tp-text-positive">
+                  {formatCurrency(0)}
+                </span>
+              </div>
+            )}
+            <div className="tp-tooltip-row">
+              <span className="tp-tooltip-label">Status:</span>
+              <span className="tp-tooltip-value">
+                {isBeAbove
+                  ? "Acima do equilíbrio"
+                  : isBeBelow
+                  ? "Abaixo do equilíbrio"
+                  : isBeUnviable
+                  ? "Margem insuficiente para estimar equilíbrio"
+                  : isBePartial
+                  ? "Cobertura parcial de custos (CMV incompleto)"
+                  : "Sem faturamento no período"}
+              </span>
+            </div>
+            {breakEvenHint && (
+              <div className="tp-tooltip-breakeven-hint">
+                {breakEvenHint}
+              </div>
+            )}
+          </div>
+        )}
         {pendingLabels.length > 0 && (
           <div className="tp-tooltip-pending-hint">
             <span className="tp-tooltip-pending-label">Pendências:</span>{" "}
@@ -236,6 +304,7 @@ export function FinancialDreMonthlyChart({
   const [chartViewMode, setChartViewMode] = useState<"chart" | "table">(
     initialViewMode,
   );
+  const [showBreakEven, setShowBreakEven] = useState(true);
   const effectiveViewMode = isExport ? "chart" : chartViewMode;
 
   const evolution = useMemo(
@@ -347,6 +416,9 @@ export function FinancialDreMonthlyChart({
         b.contributionMargin || 0,
         b.netManagerialResult || 0,
       );
+      if (b.breakEvenRevenue != null) {
+        allValues.push(b.breakEvenRevenue);
+      }
     }
     const rawMin = Math.min(...allValues, 0);
     const rawMax = Math.max(...allValues, 1000);
@@ -411,6 +483,17 @@ export function FinancialDreMonthlyChart({
       y: yToPx(b.netManagerialResult || 0),
       bucket: b,
     }));
+
+    const bePoints = chartBuckets
+      .map((b, idx) => ({
+        x: xCenter(idx),
+        y: b.breakEvenRevenue != null ? yToPx(b.breakEvenRevenue) : null,
+        bucket: b,
+      }))
+      .filter(
+        (pt): pt is { x: number; y: number; bucket: DreChartBucket } =>
+          pt.y !== null,
+      );
 
     const buildPath = (pts: Array<{ x: number; y: number }>) =>
       pts
@@ -604,6 +687,31 @@ export function FinancialDreMonthlyChart({
             );
           })}
 
+          {/* Line: Ponto de Equilíbrio */}
+          {showBreakEven && bePoints.length > 0 && (
+            <g>
+              {bePoints.length > 1 && (
+                <path
+                  d={buildPath(bePoints)}
+                  fill="none"
+                  stroke="#d97706"
+                  strokeWidth={1.75}
+                  strokeDasharray="4 4"
+                />
+              )}
+              {bePoints.map((pt) => (
+                <circle
+                  key={`be-dot-${pt.bucket.key}`}
+                  cx={pt.x}
+                  cy={pt.y}
+                  r={2.5}
+                  fill="#d97706"
+                  stroke="none"
+                />
+              ))}
+            </g>
+          )}
+
           {/* X-Axis Baseline & Ticks */}
           <line
             x1={padLeft}
@@ -693,7 +801,12 @@ export function FinancialDreMonthlyChart({
       {!isExport && (
         <Tooltip
           wrapperStyle={{ zIndex: 60, pointerEvents: "none" }}
-          content={<DreMonthlyTooltip hasContextWindow={hasContextWindow} />}
+          content={
+            <DreMonthlyTooltip
+              hasContextWindow={hasContextWindow}
+              showBreakEven={showBreakEven}
+            />
+          }
         />
       )}
       <Legend
@@ -853,6 +966,43 @@ export function FinancialDreMonthlyChart({
           );
         }}
       />
+
+      {/* Ponto de Equilíbrio Mensal */}
+      {showBreakEven && (
+        <Line
+          type="monotone"
+          name="Ponto de equilíbrio"
+          dataKey="breakEvenRevenue"
+          stroke={isExport ? "#d97706" : "#f59e0b"}
+          strokeWidth={1.75}
+          strokeDasharray="4 4"
+          isAnimationActive={!isExport}
+          dot={(dotProps: {
+            cx?: number;
+            cy?: number;
+            payload?: DreChartBucket;
+          }) => {
+            const { cx = 0, cy = 0, payload } = dotProps;
+            if (
+              !payload ||
+              payload.breakEvenRevenue === null ||
+              payload.breakEvenRevenue === undefined
+            ) {
+              return <g key={`be-null-${cx}-${cy}`} />;
+            }
+            return (
+              <circle
+                key={`be-${payload.key ?? `${cx}-${cy}`}`}
+                cx={cx}
+                cy={cy}
+                r={2.5}
+                fill={isExport ? "#d97706" : "#f59e0b"}
+                stroke="none"
+              />
+            );
+          }}
+        />
+      )}
     </ComposedChart>
   );
 
@@ -891,6 +1041,22 @@ export function FinancialDreMonthlyChart({
                 ? "Há competências provisórias no período."
                 : "Há meses provisórios na série"}
             </span>
+          )}
+
+          {!isExport && effectiveViewMode === "chart" && (
+            <label
+              className="tp-chart-toggle-check"
+              title="Exibir ou ocultar a linha de ponto de equilíbrio no gráfico"
+              data-testid="dre-toggle-breakeven-wrap"
+            >
+              <input
+                type="checkbox"
+                checked={showBreakEven}
+                onChange={(e) => setShowBreakEven(e.target.checked)}
+                data-testid="dre-toggle-breakeven"
+              />
+              <span>Exibir ponto de equilíbrio</span>
+            </label>
           )}
 
           {!isExport && (
@@ -956,6 +1122,11 @@ export function FinancialDreMonthlyChart({
                 <span>
                   <strong style={{ color: "#e11d48" }}>●</strong> Resultado Líquido (Lucro &gt; R$ 0 / Prejuízo &lt; R$ 0)
                 </span>
+                {showBreakEven && (
+                  <span>
+                    <strong style={{ color: "#d97706" }}>┅</strong> Ponto de equilíbrio
+                  </span>
+                )}
                 <span>
                   <strong style={{ color: "#15803d" }}>✓</strong> Mês fechado
                 </span>
@@ -989,6 +1160,8 @@ export function FinancialDreMonthlyChart({
                 <th scope="col">MC (%)</th>
                 <th scope="col">Resultado Líquido</th>
                 <th scope="col">Margem Líq.</th>
+                <th scope="col">Ponto de Equilíbrio</th>
+                <th scope="col">Gap Equilíbrio</th>
                 <th scope="col">Status</th>
                 <th scope="col">Qualidade</th>
               </tr>
@@ -997,6 +1170,26 @@ export function FinancialDreMonthlyChart({
               {tableRows.map((m) => {
                 const isProfit = m.netManagerialResult !== null && m.netManagerialResult > 0;
                 const isLoss = m.netManagerialResult !== null && m.netManagerialResult < 0;
+                const be =
+                  m.breakEven ??
+                  calculateBreakEven(
+                    m.realizedRevenue,
+                    m.contributionMargin,
+                    m.fullManagerialResultAvailable ? m.netManagerialResult : null,
+                    {
+                      costCoveragePercent: m.costCoveragePercent,
+                      fullCoverage: m.fullManagerialResultAvailable,
+                    },
+                  );
+                const isBeAbove =
+                  be.status === "PROFITABLE" || be.status === "ABOVE_BREAK_EVEN";
+                const isBeBelow =
+                  be.status === "UNREACHED" || be.status === "BELOW_BREAK_EVEN";
+                const isBeUnviable =
+                  be.status === "UNDETERMINED_ZERO_MARGIN" ||
+                  be.status === "UNVIABLE_MARGIN";
+                const isBePartial =
+                  be.status === "UNDETERMINED_PARTIAL_COST_COVERAGE";
                 const pendingLabels = formatDrePendingAccruals(
                   m.dataQuality.pendingAccruals,
                 );
@@ -1034,6 +1227,22 @@ export function FinancialDreMonthlyChart({
                     <td>
                       {m.netManagerialMarginPercent !== null
                         ? formatPercent(m.netManagerialMarginPercent, 1)
+                        : "—"}
+                    </td>
+                    <td>
+                      {be.breakEvenRevenue !== null
+                        ? formatCurrency(be.breakEvenRevenue)
+                        : isBeUnviable
+                        ? "Inviável"
+                        : isBePartial
+                        ? "Cobertura parcial"
+                        : "—"}
+                    </td>
+                    <td>
+                      {isBeBelow && be.additionalRevenueNeeded !== null
+                        ? formatCurrency(be.additionalRevenueNeeded)
+                        : isBeAbove
+                        ? "Superado"
                         : "—"}
                     </td>
                     <td>

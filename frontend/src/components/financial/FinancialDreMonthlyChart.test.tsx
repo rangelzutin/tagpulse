@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import React from "react";
 import { renderToString } from "react-dom/server";
+import { formatCurrency } from "../../utils/formatters";
 import {
   FinancialDreMonthlyChart,
   DreMonthlyTooltip,
@@ -81,6 +82,9 @@ function makeMonthlyItem(
     netManagerialResult: net,
     netManagerialMarginPercent: rev > 0 ? r2((net / rev) * 100) : null,
     status: net > 0 ? "PROFIT" : net < 0 ? "LOSS" : "BREAK_EVEN",
+    fullGrossProfitAvailable: true,
+    fullManagerialResultAvailable: true,
+    costCoveragePercent: 100,
     dataQuality: {
       isProvisional,
       financiallyClosed: !isProvisional,
@@ -592,6 +596,264 @@ describe("Phase 5D.5: Adaptive DRE Evolution Chart & Faithful Monthly Table", ()
       // 9. Pendências
       expect(html).toContain("Pendências:");
       expect(html).toContain("DAS / Simples Nacional • ICMS");
+    });
+  });
+
+  describe("Break-Even Line & Tooltip on Evolution Chart", () => {
+    it("A & B: Renders toggle checkbox and legend indicator for Ponto de Equilíbrio", () => {
+      const singleMonth = makeMonthlyItem("2026-09", {
+        realizedRevenue: 80000,
+        estimatedCOGS: 40000,
+        variableTotal: 8000,
+        operatingTotal: 20000,
+      });
+
+      const html = renderToString(
+        <FinancialDreMonthlyChart
+          monthlyData={[singleMonth]}
+          period={{ from: "2026-09-01", to: "2026-09-30" }}
+        />,
+      );
+
+      expect(html).toContain('data-testid="dre-toggle-breakeven"');
+      expect(html).toContain("Exibir ponto de equilíbrio");
+
+      const exportHtml = renderToString(
+        <FinancialDreMonthlyChart
+          monthlyData={[singleMonth]}
+          period={{ from: "2026-09-01", to: "2026-09-30" }}
+          mode="export"
+        />,
+      );
+      expect(exportHtml).toContain("Ponto de equilíbrio");
+    });
+
+    it("C: Tooltip includes break-even section when enabled, hides when disabled", () => {
+      const bucket = {
+        key: "2026-09",
+        label: "Set/26",
+        formattedMonth: "Set/26",
+        granularity: "monthly" as const,
+        isSelected: true,
+        isContext: false,
+        months: ["2026-09"],
+        realizedRevenue: 100000,
+        estimatedCOGS: 50000,
+        estimatedGrossProfit: 50000,
+        estimatedGrossMarginPercent: 50,
+        variableExpensesTotal: 10000,
+        contributionMargin: 40000,
+        contributionMarginPercent: 40,
+        operatingExpensesTotal: 60000,
+        financialResultTotal: 0,
+        otherResultTotal: 0,
+        netManagerialResult: -20000,
+        netManagerialMarginPercent: -20,
+        status: "LOSS" as const,
+        breakEven: {
+          status: "UNREACHED" as const,
+          realizedRevenue: 100000,
+          contributionMargin: 40000,
+          contributionMarginRate: 0.4,
+          netResult: -20000,
+          additionalRevenueNeeded: 50000,
+          breakEvenRevenue: 150000,
+          additionalRevenuePercent: 50,
+        },
+        breakEvenRevenue: 150000,
+        dataQuality: {
+          isProvisional: false,
+          financiallyClosed: true,
+          pendingAccruals: [],
+        },
+      };
+
+      const tooltipOnHtml = renderToString(
+        React.createElement(DreMonthlyTooltip, {
+          active: true,
+          payload: [{ payload: bucket }],
+          showBreakEven: true,
+        }),
+      );
+      expect(tooltipOnHtml).toContain('data-testid="dre-tooltip-breakeven"');
+      expect(tooltipOnHtml).toContain("Ponto de equilíbrio:");
+      expect(tooltipOnHtml).toContain(formatCurrency(150000));
+      expect(tooltipOnHtml).toContain("Gap para equilíbrio:");
+      expect(tooltipOnHtml).toContain(formatCurrency(50000));
+      expect(tooltipOnHtml).toContain("Abaixo do equilíbrio");
+
+      const tooltipOffHtml = renderToString(
+        React.createElement(DreMonthlyTooltip, {
+          active: true,
+          payload: [{ payload: bucket }],
+          showBreakEven: false,
+        }),
+      );
+      expect(tooltipOffHtml).not.toContain('data-testid="dre-tooltip-breakeven"');
+      expect(tooltipOffHtml).not.toContain("Ponto de equilíbrio:");
+    });
+
+    it("F & H: Positive month shows revenue above break-even with correct tooltip", () => {
+      const marchItem = makeMonthlyItem("2026-03", {
+        realizedRevenue: 69230.25,
+        estimatedCOGS: 40000,
+        variableTotal: 8985.01,
+        operatingTotal: 12228.96,
+      });
+
+      const evolution = buildAdaptiveDreEvolution(
+        [marchItem],
+        { from: "2026-03-01", to: "2026-03-31" },
+        new Date("2026-10-29T12:00:00Z"),
+      );
+      const bucket = evolution.chartBuckets.find((b) => b.isSelected)!;
+
+      expect(bucket.realizedRevenue).toBe(69230.25);
+      expect(bucket.breakEven.status).toBe("PROFITABLE");
+      expect(Math.abs(bucket.breakEvenRevenue! - 41816.97)).toBeLessThan(2);
+      expect(bucket.realizedRevenue).toBeGreaterThan(bucket.breakEvenRevenue!);
+
+      const tooltipHtml = renderToString(
+        React.createElement(DreMonthlyTooltip, {
+          active: true,
+          payload: [{ payload: bucket }],
+        }),
+      );
+
+      expect(tooltipHtml).toContain("Ponto de equilíbrio:");
+      expect(tooltipHtml).toContain(formatCurrency(bucket.breakEvenRevenue!));
+      expect(tooltipHtml).toContain("Gap para equilíbrio:");
+      expect(tooltipHtml).toContain(formatCurrency(0));
+      expect(tooltipHtml).toContain("Status:");
+      expect(tooltipHtml).toContain("Acima do equilíbrio");
+      expect(tooltipHtml).toContain("Ponto de equilíbrio superado.");
+    });
+
+    it("G: Negative month tooltip clearly indicates gap, status, and narrative", () => {
+      const negItem = makeMonthlyItem("2026-02", {
+        realizedRevenue: 50000,
+        estimatedCOGS: 20000,
+        variableTotal: 5000,
+        operatingTotal: 35000,
+      });
+
+      const evolution = buildAdaptiveDreEvolution(
+        [negItem],
+        { from: "2026-02-01", to: "2026-02-28" },
+        new Date("2026-10-29T12:00:00Z"),
+      );
+      const bucket = evolution.chartBuckets.find((b) => b.isSelected)!;
+
+      expect(bucket.breakEven.status).toBe("UNREACHED");
+      expect(bucket.breakEvenRevenue).toBe(70000);
+      expect(bucket.breakEven.additionalRevenueNeeded).toBe(20000);
+
+      const tooltipHtml = renderToString(
+        React.createElement(DreMonthlyTooltip, {
+          active: true,
+          payload: [{ payload: bucket }],
+        }),
+      );
+
+      expect(tooltipHtml).toContain("Ponto de equilíbrio:");
+      expect(tooltipHtml).toContain(formatCurrency(70000));
+      expect(tooltipHtml).toContain("Gap para equilíbrio:");
+      expect(tooltipHtml).toContain(formatCurrency(20000));
+      expect(tooltipHtml).toContain("Status:");
+      expect(tooltipHtml).toContain("Abaixo do equilíbrio");
+      expect(tooltipHtml).toContain("Faltou faturar aproximadamente");
+    });
+
+    it("I: Export chart accommodates break-even higher than revenue without clipping", () => {
+      const negItem = makeMonthlyItem("2026-02", {
+        realizedRevenue: 50000,
+        estimatedCOGS: 20000,
+        variableTotal: 5000,
+        operatingTotal: 35000,
+      });
+
+      const exportHtml = renderToString(
+        <FinancialDreMonthlyChart
+          monthlyData={[negItem]}
+          period={{ from: "2026-02-01", to: "2026-02-28" }}
+          mode="export"
+        />,
+      );
+
+      expect(exportHtml).toContain("Ponto de equilíbrio");
+      expect(exportHtml).toMatch(/R\$ 70k|R\$ 80k/);
+    });
+
+    it("Table view includes Ponto de Equilíbrio and Gap Equilíbrio columns", () => {
+      const pos = makeMonthlyItem("2026-03", {
+        realizedRevenue: 100000,
+        estimatedCOGS: 50000,
+        variableTotal: 10000,
+        operatingTotal: 30000,
+      });
+      const neg = makeMonthlyItem("2026-04", {
+        realizedRevenue: 50000,
+        estimatedCOGS: 20000,
+        variableTotal: 5000,
+        operatingTotal: 35000,
+      });
+
+      const tableHtml = renderToString(
+        <FinancialDreMonthlyChart
+          monthlyData={[pos, neg]}
+          period={{ from: "2026-03-01", to: "2026-04-30" }}
+          initialViewMode="table"
+        />,
+      );
+
+      expect(tableHtml).toContain("Ponto de Equilíbrio");
+      expect(tableHtml).toContain("Gap Equilíbrio");
+      expect(tableHtml).toContain("75.000,00");
+      expect(tableHtml).toContain("Superado");
+      expect(tableHtml).toContain("70.000,00");
+      expect(tableHtml).toContain("20.000,00");
+    });
+
+    it("Partial cost coverage month shows Cobertura parcial and avoids false target in table and tooltip", () => {
+      const partialItem = makeMonthlyItem("2026-05", {
+        realizedRevenue: 50000,
+        estimatedCOGS: 20000,
+        variableTotal: 5000,
+        operatingTotal: 10000,
+      });
+      partialItem.fullManagerialResultAvailable = false;
+      partialItem.costCoveragePercent = 45;
+      partialItem.netManagerialResult = null;
+
+      const evolution = buildAdaptiveDreEvolution(
+        [partialItem],
+        { from: "2026-05-01", to: "2026-05-31" },
+        new Date("2026-10-29T12:00:00Z"),
+      );
+      const bucket = evolution.chartBuckets.find((b) => b.isSelected)!;
+
+      expect(bucket.breakEven.status).toBe("UNDETERMINED_PARTIAL_COST_COVERAGE");
+      expect(bucket.breakEvenRevenue).toBeNull();
+
+      const tooltipHtml = renderToString(
+        React.createElement(DreMonthlyTooltip, {
+          active: true,
+          payload: [{ payload: bucket }],
+        }),
+      );
+
+      expect(tooltipHtml).toContain("Cobertura parcial");
+      expect(tooltipHtml).toContain("Cobertura parcial de custos (CMV incompleto)");
+
+      const tableHtml = renderToString(
+        <FinancialDreMonthlyChart
+          monthlyData={[partialItem]}
+          period={{ from: "2026-05-01", to: "2026-05-31" }}
+          initialViewMode="table"
+        />,
+      );
+
+      expect(tableHtml).toContain("Cobertura parcial");
     });
   });
 });
