@@ -272,9 +272,49 @@ export function DreMonthlyTooltip({
                   : "Sem faturamento no período"}
               </span>
             </div>
-            {breakEvenHint && (
+            {isBePartial && (
+              <>
+                <div className="tp-tooltip-row">
+                  <span className="tp-tooltip-label">Cobertura de custo:</span>
+                  <span className="tp-tooltip-value tp-color-cyan">
+                    {formatPercent(item.costCoveragePercent ?? 0, 1)}
+                  </span>
+                </div>
+                <div className="tp-tooltip-row">
+                  <span className="tp-tooltip-label">Receita coberta:</span>
+                  <span className="tp-tooltip-value">
+                    {formatCurrency(
+                      item.coveredRevenue ??
+                        (item.realizedRevenue *
+                          ((item.costCoveragePercent ?? 0) / 100)),
+                    )}
+                  </span>
+                </div>
+                <div className="tp-tooltip-row">
+                  <span className="tp-tooltip-label">Receita sem custo:</span>
+                  <span className="tp-tooltip-value tp-text-negative">
+                    {formatCurrency(
+                      item.uncoveredRevenue ??
+                        Math.max(
+                          0,
+                          item.realizedRevenue -
+                            (item.coveredRevenue ??
+                              (item.realizedRevenue *
+                                ((item.costCoveragePercent ?? 0) / 100))),
+                        ),
+                    )}
+                  </span>
+                </div>
+              </>
+            )}
+            {breakEvenHint && !isBePartial && (
               <div className="tp-tooltip-breakeven-hint">
                 {breakEvenHint}
+              </div>
+            )}
+            {isBePartial && (
+              <div className="tp-tooltip-breakeven-hint">
+                Ponto de Equilíbrio indisponível até cobertura atingir 100%.
               </div>
             )}
           </div>
@@ -1194,6 +1234,35 @@ export function FinancialDreMonthlyChart({
                   m.dataQuality.pendingAccruals,
                 );
 
+                const mUncovered =
+                  m.uncoveredRevenue ??
+                  Math.max(
+                    0,
+                    m.realizedRevenue -
+                      (m.coveredRevenue ??
+                        (m.costCoveragePercent != null
+                          ? m.realizedRevenue * (m.costCoveragePercent / 100)
+                          : 0)),
+                  );
+                const mCovered =
+                  m.coveredRevenue ?? Math.max(0, m.realizedRevenue - mUncovered);
+                const mCovPct =
+                  m.costCoveragePercent ??
+                  (m.realizedRevenue > 0
+                    ? (mCovered / m.realizedRevenue) * 100
+                    : 0);
+
+                const partialTooltip = isBePartial
+                  ? [
+                      `Cobertura: ${formatPercent(mCovPct, 1)}`,
+                      `Receita coberta: ${formatCurrency(mCovered)}`,
+                      `Receita sem custo: ${formatCurrency(mUncovered)}`,
+                      "",
+                      `Faltam dados de custo para ${formatCurrency(mUncovered)} da receita deste mês.`,
+                      "O Ponto de Equilíbrio só é calculado com cobertura de 100%.",
+                    ].join("\n")
+                  : undefined;
+
                 return (
                   <tr
                     key={m.month}
@@ -1230,13 +1299,22 @@ export function FinancialDreMonthlyChart({
                         : "—"}
                     </td>
                     <td>
-                      {be.breakEvenRevenue !== null
-                        ? formatCurrency(be.breakEvenRevenue)
-                        : isBeUnviable
-                        ? "Inviável"
-                        : isBePartial
-                        ? "Cobertura parcial"
-                        : "—"}
+                      {be.breakEvenRevenue !== null ? (
+                        formatCurrency(be.breakEvenRevenue)
+                      ) : isBeUnviable ? (
+                        "Inviável"
+                      ) : isBePartial ? (
+                        <div
+                          className="tp-be-partial-cell"
+                          title={partialTooltip}
+                          aria-label={`Cobertura parcial: ${formatPercent(mCovPct, 1)}`}
+                        >
+                          <span className="tp-be-partial-title">Cobertura parcial</span>
+                          <span className="tp-be-partial-sub">{formatPercent(mCovPct, 1)}</span>
+                        </div>
+                      ) : (
+                        "—"
+                      )}
                     </td>
                     <td>
                       {isBeBelow && be.additionalRevenueNeeded !== null

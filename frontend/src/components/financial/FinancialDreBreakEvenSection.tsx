@@ -56,6 +56,16 @@ export function FinancialDreBreakEvenSection({
     status === "NO_REVENUE";
   const isPartialCoverage = status === "UNDETERMINED_PARTIAL_COST_COVERAGE";
 
+  const uncoveredRevenue =
+    totals.uncoveredRevenue ??
+    Math.max(
+      0,
+      totals.realizedRevenue -
+        (totals.coveredRevenue ??
+          totals.realizedRevenue *
+            (((totals.costCoveragePercent ?? 0) / 100))),
+    );
+
   return (
     <section
       className="tp-dre-breakeven-section"
@@ -150,15 +160,20 @@ export function FinancialDreBreakEvenSection({
             </p>
             <div className="tp-unviable-metrics">
               <span>
-                Faturamento realizado: <strong>{formatCurrency(breakEven.realizedRevenue)}</strong>
+                Ponto de Equilíbrio: <strong>Indisponível</strong>
               </span>
               <span className="tp-metric-sep">•</span>
               <span>
-                Cobertura de custos atual:{" "}
+                Cobertura de custo:{" "}
                 <strong>
-                  {totals.costCoveragePercent !== null && totals.costCoveragePercent !== undefined
-                    ? `${totals.costCoveragePercent.toFixed(1)}%`
-                    : "0,0%"}
+                  {formatPercent(totals.costCoveragePercent ?? 0, 1)}
+                </strong>
+              </span>
+              <span className="tp-metric-sep">•</span>
+              <span>
+                Receita sem custo:{" "}
+                <strong>
+                  {formatCurrency(uncoveredRevenue)}
                 </strong>
               </span>
             </div>

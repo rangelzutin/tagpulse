@@ -572,15 +572,62 @@ describe("Phase 5D.6: DRE Gerencial Shareable Export (PDF / JPG)", () => {
       />,
     );
 
-    // Mês 1: Resultado Líquido Indisponível e Ponto de Equilíbrio Cobertura parcial
+    // Mês 1: Resultado Líquido Indisponível e Ponto de Equilíbrio Cobertura parcial com percentual
     expect(html).toContain("Indisponível");
-    expect(html).toContain("Cobertura parcial");
+    expect(html).toContain("Cobertura parcial (45,0%)");
 
     // Mês 2: Ponto de Equilíbrio Inviável
     expect(html).toContain("Inviável");
 
     // Mês 3: Gap Equilíbrio Superado
     expect(html).toContain("Superado");
+
+    // Nota explicativa abaixo da tabela
+    expect(html).toContain('data-testid="dre-export-table-coverage-note"');
+    expect(html).toContain(
+      "Meses com cobertura de custo inferior a 100% não possuem Ponto de Equilíbrio calculado. O percentual entre parênteses indica a cobertura de custo disponível no período.",
+    );
+  });
+
+  // R. Cenário Real Jun/26 (99,47% parcial) vs Jul/26 (100% equilíbrio) no export
+  it("R. renders Jun/26 partial coverage (99,5%) and Jul/26 normal break-even in export report", () => {
+    const junJulMonthly: DreMonthlyItemDto[] = [
+      makeMonthlyItem("2026-06", {
+        realizedRevenue: 32768.14,
+        costCoveragePercent: 99.47,
+        fullManagerialResultAvailable: false,
+        netManagerialResult: null,
+      }),
+      makeMonthlyItem("2026-07", {
+        realizedRevenue: 38283.00,
+        costCoveragePercent: 100,
+        fullManagerialResultAvailable: true,
+        netManagerialResult: 0,
+        operatingTotal: 19141.50,
+      }),
+    ];
+
+    const html = renderToString(
+      <FinancialDreExportReport
+        companyName="Nineclouds"
+        period={{ from: "2026-06-01", to: "2026-07-31" }}
+        summaryData={{
+          ...sampleSummary,
+          period: { from: "2026-06-01", to: "2026-07-31" },
+        }}
+        monthlyData={junJulMonthly}
+        breakdownData={sampleBreakdown}
+      />,
+    );
+
+    // Jun/26 shows partial coverage with formatted percent
+    expect(html).toContain("Cobertura parcial (99,5%)");
+
+    // Jul/26 shows break-even target
+    expect(html).toContain("38.283,00");
+
+    // Explanatory note is present
+    expect(html).toContain('data-testid="dre-export-table-coverage-note"');
   });
 
   // Q. Tabela presente no layout contínuo (JPG) e paginado (PDF Page 1)

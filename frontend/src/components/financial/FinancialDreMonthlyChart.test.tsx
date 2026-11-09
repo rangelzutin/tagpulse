@@ -823,6 +823,8 @@ describe("Phase 5D.5: Adaptive DRE Evolution Chart & Faithful Monthly Table", ()
       });
       partialItem.fullManagerialResultAvailable = false;
       partialItem.costCoveragePercent = 45;
+      partialItem.coveredRevenue = 22500;
+      partialItem.uncoveredRevenue = 27500;
       partialItem.netManagerialResult = null;
 
       const evolution = buildAdaptiveDreEvolution(
@@ -844,6 +846,11 @@ describe("Phase 5D.5: Adaptive DRE Evolution Chart & Faithful Monthly Table", ()
 
       expect(tooltipHtml).toContain("Cobertura parcial");
       expect(tooltipHtml).toContain("Cobertura parcial de custos (CMV incompleto)");
+      expect(tooltipHtml).toContain("Cobertura de custo:");
+      expect(tooltipHtml).toContain("45,0%");
+      expect(tooltipHtml).toContain(formatCurrency(22500));
+      expect(tooltipHtml).toContain(formatCurrency(27500));
+      expect(tooltipHtml).toContain("Ponto de Equilíbrio indisponível até cobertura atingir 100%.");
 
       const tableHtml = renderToString(
         <FinancialDreMonthlyChart
@@ -854,6 +861,62 @@ describe("Phase 5D.5: Adaptive DRE Evolution Chart & Faithful Monthly Table", ()
       );
 
       expect(tableHtml).toContain("Cobertura parcial");
+      expect(tableHtml).toContain("45,0%");
+      expect(tableHtml).toContain("tp-be-partial-title");
+      expect(tableHtml).toContain("tp-be-partial-sub");
+      expect(tableHtml).toContain("Faltam dados de custo para");
+      expect(tableHtml).toContain(formatCurrency(27500));
+      // Gap must not be calculated
+      expect(tableHtml).toContain("<td>—</td>");
+    });
+
+    it("Real case scenario: Jun/26 (99,47% partial coverage) vs Jul/26 (100% full coverage R$ 38.283,00)", () => {
+      // Jun/26: 99.47% coverage, uncovered R$ 169.90, break-even undetermined
+      const junItem = makeMonthlyItem("2026-06", {
+        realizedRevenue: 32768.14,
+        estimatedCOGS: 15000,
+        variableTotal: 3000,
+        operatingTotal: 8000,
+        isProvisional: false,
+      });
+      junItem.fullManagerialResultAvailable = false;
+      junItem.costCoveragePercent = 99.47;
+      junItem.coveredRevenue = 32598.24;
+      junItem.uncoveredRevenue = 169.90;
+      junItem.netManagerialResult = null;
+
+      // Jul/26: 100% coverage, net result 0 (break-even exactly 38283.00)
+      const julItem = makeMonthlyItem("2026-07", {
+        realizedRevenue: 38283.00,
+        estimatedCOGS: 19141.50,
+        variableTotal: 0,
+        operatingTotal: 19141.50,
+        isProvisional: false,
+      });
+      julItem.fullManagerialResultAvailable = true;
+      julItem.costCoveragePercent = 100;
+      julItem.coveredRevenue = 38283.00;
+      julItem.uncoveredRevenue = 0;
+      julItem.netManagerialResult = 0;
+
+      const tableHtml = renderToString(
+        <FinancialDreMonthlyChart
+          monthlyData={[junItem, julItem]}
+          period={{ from: "2026-06-01", to: "2026-07-31" }}
+          initialViewMode="table"
+        />,
+      );
+
+      // Jun/26 shows partial coverage with 99,5% and uncovered R$ 169,90 in tooltip
+      expect(tableHtml).toContain("Cobertura parcial");
+      expect(tableHtml).toContain("99,5%");
+      expect(tableHtml).toContain(formatCurrency(169.90));
+
+      // Jul/26 shows normal break-even R$ 38.283,00
+      expect(tableHtml).toContain(formatCurrency(38283.00));
+
+      // Both retain closed quality status
+      expect(tableHtml).toContain("Fechado");
     });
   });
 });

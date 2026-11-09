@@ -43,6 +43,9 @@ export interface DreChartBucket {
   status: DreEconomicStatus;
   breakEven: DreBreakEvenDto;
   breakEvenRevenue: number | null;
+  costCoveragePercent?: number | null;
+  coveredRevenue?: number;
+  uncoveredRevenue?: number;
   dataQuality: {
     isProvisional: boolean;
     financiallyClosed: boolean;
@@ -325,6 +328,24 @@ function toMonthlyChartBucket(
       ? null
       : be.breakEvenRevenue;
 
+  const uncoveredRevenue =
+    item.uncoveredRevenue ??
+    Math.max(
+      0,
+      item.realizedRevenue -
+        (item.coveredRevenue ??
+          (item.costCoveragePercent != null
+            ? item.realizedRevenue * (item.costCoveragePercent / 100)
+            : 0)),
+    );
+  const coveredRevenue =
+    item.coveredRevenue ?? Math.max(0, item.realizedRevenue - uncoveredRevenue);
+  const costCoveragePercent =
+    item.costCoveragePercent ??
+    (item.realizedRevenue > 0
+      ? (coveredRevenue / item.realizedRevenue) * 100
+      : null);
+
   return {
     key: item.month,
     label,
@@ -348,6 +369,9 @@ function toMonthlyChartBucket(
     status: item.status,
     breakEven: be,
     breakEvenRevenue,
+    costCoveragePercent,
+    coveredRevenue,
+    uncoveredRevenue,
     dataQuality: {
       isProvisional: item.dataQuality.isProvisional,
       financiallyClosed: item.dataQuality.financiallyClosed,
@@ -378,6 +402,8 @@ function aggregateMonthlyGroup(
   let finTotalCents = 0;
   let otherTotalCents = 0;
   let netCents = 0;
+  let coveredRevCents = 0;
+  let uncoveredRevCents = 0;
 
   const pendingSet = new Set<string>();
   let anyProvisional = false;
@@ -393,6 +419,23 @@ function aggregateMonthlyGroup(
     opTotalCents += toCents(item.operatingExpenses.total);
     finTotalCents += toCents(item.financialResult.total);
     otherTotalCents += toCents(item.otherResult.total);
+
+    const itemUncovered =
+      item.uncoveredRevenue ??
+      Math.max(
+        0,
+        item.realizedRevenue -
+          (item.coveredRevenue ??
+            (item.costCoveragePercent != null
+              ? item.realizedRevenue * (item.costCoveragePercent / 100)
+              : 0)),
+      );
+    const itemCovered =
+      item.coveredRevenue ??
+      Math.max(0, item.realizedRevenue - itemUncovered);
+    coveredRevCents += toCents(itemCovered);
+    uncoveredRevCents += toCents(itemUncovered);
+
     if (item.netManagerialResult !== null) {
       netCents += toCents(item.netManagerialResult);
     } else {
@@ -479,6 +522,12 @@ function aggregateMonthlyGroup(
     status,
     breakEven: be,
     breakEvenRevenue,
+    costCoveragePercent:
+      revCents > 0
+        ? r2((fromCents(coveredRevCents) / realizedRevenue) * 100)
+        : null,
+    coveredRevenue: fromCents(coveredRevCents),
+    uncoveredRevenue: fromCents(uncoveredRevCents),
     dataQuality: {
       isProvisional: anyProvisional,
       financiallyClosed: allClosed,

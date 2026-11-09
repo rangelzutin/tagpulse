@@ -11079,6 +11079,24 @@ body {
   color: #94a3b8;
 }
 
+.tp-be-partial-cell {
+  display: inline-flex;
+  flex-direction: column;
+  line-height: 1.25;
+  cursor: help;
+}
+
+.tp-be-partial-title {
+  font-size: 0.775rem;
+  color: #38bdf8;
+  font-weight: 500;
+}
+
+.tp-be-partial-sub {
+  font-size: 0.675rem;
+  color: var(--tp-text-muted, #94a3b8);
+}
+
 /* Tooltip */
 .tp-chart-tooltip {
   position: relative;

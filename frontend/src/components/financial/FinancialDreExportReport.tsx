@@ -917,8 +917,34 @@ export function FinancialDreExportReport({
       </div>
 
       {isBePartial ? (
-        <div style={{ padding: "4px 0", fontSize: "11px", color: "#0284c7", fontWeight: 600 }}>
-          Ponto de equilíbrio indisponível por cobertura parcial de custos (CMV incompleto no período).
+        <div
+          className="tp-dre-export-breakeven-partial"
+          style={{ padding: "6px 0", fontSize: "11px", color: "#0369a1" }}
+          data-testid="dre-export-breakeven-partial"
+        >
+          <div style={{ fontWeight: 600, marginBottom: "4px" }}>
+            Ponto de Equilíbrio: Indisponível
+          </div>
+          <div style={{ fontSize: "10.5px", color: "#475569" }}>
+            Cobertura de custo:{" "}
+            <strong>{formatPercent(totals.costCoveragePercent ?? 0, 1)}</strong>{" "}
+            • Receita sem custo:{" "}
+            <strong>
+              {formatCurrency(
+                totals.uncoveredRevenue ??
+                  Math.max(
+                    0,
+                    totals.realizedRevenue -
+                      (totals.coveredRevenue ??
+                        totals.realizedRevenue *
+                          (((totals.costCoveragePercent ?? 0) / 100))),
+                  ),
+              )}
+            </strong>
+          </div>
+          <div style={{ fontSize: "10px", color: "#64748b", marginTop: "2px" }}>
+            O cálculo é liberado quando 100% da receita possui custo disponível.
+          </div>
         </div>
       ) : isBeUnviable ? (
         <div style={{ padding: "4px 0", fontSize: "11px", color: "#be123c", fontWeight: 600 }}>
@@ -1155,7 +1181,13 @@ export function FinancialDreExportReport({
                       : isBeUnviable
                       ? "Inviável"
                       : isBePartial
-                      ? "Cobertura parcial"
+                      ? `Cobertura parcial (${formatPercent(
+                          m.costCoveragePercent ??
+                            (m.realizedRevenue > 0 && m.coveredRevenue != null
+                              ? (m.coveredRevenue / m.realizedRevenue) * 100
+                              : 0),
+                          1,
+                        )})`
                       : "—"}
                   </td>
                   <td className="is-right">
@@ -1202,6 +1234,18 @@ export function FinancialDreExportReport({
           </tbody>
         </table>
       )}
+      <div
+        className="tp-dre-export-table-note"
+        style={{
+          fontSize: "9px",
+          color: "#64748b",
+          marginTop: "6px",
+          lineHeight: 1.35,
+        }}
+        data-testid="dre-export-table-coverage-note"
+      >
+        Meses com cobertura de custo inferior a 100% não possuem Ponto de Equilíbrio calculado. O percentual entre parênteses indica a cobertura de custo disponível no período.
+      </div>
     </section>
   );
 

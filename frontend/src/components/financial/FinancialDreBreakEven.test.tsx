@@ -26,14 +26,17 @@ describe("FinancialDreBreakEven — Frontend Components & Calculation", () => {
   ): DreSummaryTotalsDto => {
     const isFull = options?.fullCoverage ?? (options?.costCoveragePercent === undefined || options?.costCoveragePercent === 100);
     const net = isFull ? netManagerialResult : null;
+    const cov = options?.costCoveragePercent ?? (isFull ? 100 : 50);
+    const coveredRev = isFull ? realizedRevenue : (realizedRevenue * cov) / 100;
+    const uncoveredRev = isFull ? 0 : realizedRevenue - coveredRev;
 
     return {
       realizedRevenue,
       estimatedCOGS: realizedRevenue * 0.5,
       estimatedGrossProfit: realizedRevenue * 0.5,
       estimatedGrossMarginPercent: 50,
-      coveredRevenue: realizedRevenue,
-      uncoveredRevenue: 0,
+      coveredRevenue: coveredRev,
+      uncoveredRevenue: uncoveredRev,
       costCoveragePercent: options?.costCoveragePercent ?? 100,
       coveredGrossProfit: realizedRevenue * 0.5,
       coveredGrossMarginPercent: 50,
@@ -162,8 +165,11 @@ describe("FinancialDreBreakEven — Frontend Components & Calculation", () => {
     expect(html).toContain('data-testid="dre-breakeven-partial-coverage-card"');
     expect(html).toContain(DRE_BREAK_EVEN_PARTIAL_COVERAGE_TITLE);
     expect(html).toContain(DRE_BREAK_EVEN_PARTIAL_COVERAGE_MESSAGE);
+    expect(html).toContain("O cálculo é liberado quando 100% da receita possui custo disponível.");
     expect(html).toContain("Cobertura parcial de custos");
-    expect(html).toContain("78.4%");
+    expect(html).toContain("Indisponível");
+    expect(html).toContain("78,4%");
+    expect(html).toContain(formatCurrency(21600));
     expect(html).not.toContain("Faturamento de equilíbrio"); // No false cards
   });
 

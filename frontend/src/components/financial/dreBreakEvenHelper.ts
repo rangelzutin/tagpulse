@@ -27,7 +27,7 @@ export const DRE_BREAK_EVEN_PARTIAL_COVERAGE_TITLE =
   "Ponto de equilíbrio indisponível por cobertura parcial de custos";
 
 export const DRE_BREAK_EVEN_PARTIAL_COVERAGE_MESSAGE =
-  "Para calcular o ponto de equilíbrio de forma fidedigna, é necessário 100% de cobertura de custos dos produtos vendidos.";
+  "O cálculo é liberado quando 100% da receita possui custo disponível.";
 
 export const DRE_BREAK_EVEN_PARTIAL_COVERAGE_SUBTEXT =
   "No período selecionado, parte das vendas não possui custo histórico cadastrado. Exibir uma estimativa sem o CMV completo geraria uma meta artificialmente baixa e incorreta.";
