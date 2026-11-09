@@ -9,6 +9,7 @@ import {
   formatCurrency,
   formatPercent,
   formatDateBr,
+  formatMonthLabel,
 } from "../../utils/formatters";
 import {
   FinancialDreMonthlyChart,
@@ -489,6 +490,92 @@ const DRE_EXPORT_REPORT_CSS = `
     background: #0284c7;
     border-radius: 999px;
   }
+  .tp-dre-export-monthly-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10px;
+    line-height: 1.25;
+    table-layout: fixed;
+  }
+  .tp-dre-export-monthly-table th {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #475569;
+    border-bottom: 2px solid #cbd5e1;
+    padding: 5px 4px;
+    background: #f8fafc;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .tp-dre-export-monthly-table th.is-left,
+  .tp-dre-export-monthly-table td.is-left {
+    text-align: left;
+  }
+  .tp-dre-export-monthly-table th.is-right,
+  .tp-dre-export-monthly-table td.is-right {
+    text-align: right;
+  }
+  .tp-dre-export-monthly-table th.is-center,
+  .tp-dre-export-monthly-table td.is-center {
+    text-align: center;
+  }
+  .tp-dre-export-monthly-table td {
+    padding: 3.5px 4px;
+    border-bottom: 1px solid #e2e8f0;
+    color: #1e293b;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .tp-dre-export-monthly-table tr.is-provisional td {
+    background: #fffdf5;
+  }
+  .tp-dre-export-monthly-table td.tp-text-positive {
+    color: #15803d;
+    font-weight: 700;
+  }
+  .tp-dre-export-monthly-table td.tp-text-negative {
+    color: #be123c;
+    font-weight: 700;
+  }
+  .tp-export-pill-sm {
+    display: inline-block;
+    padding: 1px 5px;
+    border-radius: 999px;
+    font-size: 8.5px;
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+  .tp-export-pill-sm.is-profit {
+    background: #dcfce7;
+    color: #166534;
+    border: 1px solid #86efac;
+  }
+  .tp-export-pill-sm.is-loss {
+    background: #ffe4e6;
+    color: #9f1239;
+    border: 1px solid #fda4af;
+  }
+  .tp-export-pill-sm.is-even {
+    background: #f1f5f9;
+    color: #334155;
+    border: 1px solid #cbd5e1;
+  }
+  .tp-export-pill-sm.is-provisional {
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fcd34d;
+  }
+  .tp-export-pill-sm.is-closed {
+    background: #e0f2fe;
+    color: #075985;
+    border: 1px solid #7dd3fc;
+  }
   .tp-dre-export-quality-box {
     border-radius: 8px;
     padding: 12px 14px;
@@ -942,8 +1029,179 @@ export function FinancialDreExportReport({
         period={period}
         mode="export"
         exportWidth={736}
-        exportHeight={240}
+        exportHeight={210}
       />
+    </section>
+  );
+
+  // 4B. EVOLUÇÃO MENSAL DO RESULTADO — TABELA
+  const monthlyTableSection = (
+    <section
+      className="tp-dre-export-section-box"
+      aria-label="Tabela de Evolução Mensal do Resultado no Relatório"
+      data-testid="dre-export-monthly-table"
+      data-export-section="4b-monthly-table"
+    >
+      <h3 className="tp-dre-export-section-title">
+        Evolução Mensal do Resultado — Tabela
+      </h3>
+      <p className="tp-dre-export-section-subtitle">
+        Demonstrativo sintético mês a mês com margens, resultado líquido, ponto de equilíbrio e qualidade temporal.
+      </p>
+
+      {evolution.tableRows.length === 0 ? (
+        <p style={{ fontSize: 11, color: "#64748b", margin: 0 }}>
+          Nenhum dado mensal disponível no período selecionado.
+        </p>
+      ) : (
+        <table
+          className="tp-dre-export-monthly-table"
+          aria-label="Tabela Mensal Exportável"
+        >
+          <colgroup>
+            <col style={{ width: "8%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "11%" }} />
+            <col style={{ width: "7%" }} />
+            <col style={{ width: "13%" }} />
+            <col style={{ width: "8%" }} />
+            <col style={{ width: "13%" }} />
+            <col style={{ width: "11%" }} />
+            <col style={{ width: "8%" }} />
+            <col style={{ width: "9%" }} />
+          </colgroup>
+          <thead>
+            <tr>
+              <th scope="col" className="is-left">Mês</th>
+              <th scope="col" className="is-right">Receita</th>
+              <th scope="col" className="is-right">MC (R$)</th>
+              <th scope="col" className="is-right">MC (%)</th>
+              <th scope="col" className="is-right">Resultado Líquido</th>
+              <th scope="col" className="is-right">Margem Líq.</th>
+              <th scope="col" className="is-right">Ponto de Equilíbrio</th>
+              <th scope="col" className="is-right">Gap Equilíbrio</th>
+              <th scope="col" className="is-center">Status</th>
+              <th scope="col" className="is-center">Qualidade</th>
+            </tr>
+          </thead>
+          <tbody>
+            {evolution.tableRows.map((m) => {
+              const isProfit =
+                m.netManagerialResult !== null && m.netManagerialResult > 0;
+              const isLoss =
+                m.netManagerialResult !== null && m.netManagerialResult < 0;
+              const be =
+                m.breakEven ??
+                calculateBreakEven(
+                  m.realizedRevenue,
+                  m.contributionMargin,
+                  m.fullManagerialResultAvailable ? m.netManagerialResult : null,
+                  {
+                    costCoveragePercent: m.costCoveragePercent,
+                    fullCoverage: m.fullManagerialResultAvailable,
+                  },
+                );
+              const isBeAbove =
+                be.status === "PROFITABLE" || be.status === "ABOVE_BREAK_EVEN";
+              const isBeBelow =
+                be.status === "UNREACHED" || be.status === "BELOW_BREAK_EVEN";
+              const isBeUnviable =
+                be.status === "UNDETERMINED_ZERO_MARGIN" ||
+                be.status === "UNVIABLE_MARGIN";
+              const isBePartial =
+                be.status === "UNDETERMINED_PARTIAL_COST_COVERAGE";
+              const pendingLabels = formatDrePendingAccruals(
+                m.dataQuality.pendingAccruals,
+              );
+
+              return (
+                <tr
+                  key={m.month}
+                  className={m.dataQuality.isProvisional ? "is-provisional" : ""}
+                >
+                  <td className="is-left">
+                    <strong>{formatMonthLabel(m.month)}</strong>
+                  </td>
+                  <td className="is-right">{formatCurrency(m.realizedRevenue)}</td>
+                  <td className="is-right">{formatCurrency(m.contributionMargin)}</td>
+                  <td className="is-right">
+                    {m.contributionMarginPercent !== null
+                      ? formatPercent(m.contributionMarginPercent, 1)
+                      : "—"}
+                  </td>
+                  <td
+                    className={`is-right ${
+                      isProfit
+                        ? "tp-text-positive"
+                        : isLoss
+                        ? "tp-text-negative"
+                        : ""
+                    }`}
+                  >
+                    <strong>
+                      {m.netManagerialResult !== null
+                        ? formatCurrency(m.netManagerialResult)
+                        : "Indisponível"}
+                    </strong>
+                  </td>
+                  <td className="is-right">
+                    {m.netManagerialMarginPercent !== null
+                      ? formatPercent(m.netManagerialMarginPercent, 1)
+                      : "—"}
+                  </td>
+                  <td className="is-right">
+                    {be.breakEvenRevenue !== null
+                      ? formatCurrency(be.breakEvenRevenue)
+                      : isBeUnviable
+                      ? "Inviável"
+                      : isBePartial
+                      ? "Cobertura parcial"
+                      : "—"}
+                  </td>
+                  <td className="is-right">
+                    {isBeBelow && be.additionalRevenueNeeded !== null
+                      ? formatCurrency(be.additionalRevenueNeeded)
+                      : isBeAbove
+                      ? "Superado"
+                      : "—"}
+                  </td>
+                  <td className="is-center">
+                    <span
+                      className={`tp-export-pill-sm ${
+                        isProfit ? "is-profit" : isLoss ? "is-loss" : "is-even"
+                      }`}
+                    >
+                      {m.status === "PROFIT"
+                        ? "Lucro"
+                        : m.status === "LOSS"
+                        ? "Prejuízo"
+                        : "Equilíbrio"}
+                    </span>
+                  </td>
+                  <td className="is-center">
+                    {m.dataQuality.isProvisional ? (
+                      <span
+                        className="tp-export-pill-sm is-provisional"
+                        title={
+                          pendingLabels.length > 0
+                            ? `Aguardando conciliação: ${pendingLabels.join(" • ")}`
+                            : "Competência provisória"
+                        }
+                      >
+                        Provisório
+                      </span>
+                    ) : (
+                      <span className="tp-export-pill-sm is-closed">
+                        Fechado
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
     </section>
   );
 
@@ -1007,7 +1265,7 @@ export function FinancialDreExportReport({
             </td>
           </tr>
           <tr className="is-subitem">
-            <td className="is-indent">Taxas de Pagamento</td>
+            <td className="is-indent">Taxas de Meio de Pagamento</td>
             <td className="is-right">
               {formatCurrency(totals.variableExpenses.paymentFees)}
             </td>
@@ -1390,6 +1648,7 @@ export function FinancialDreExportReport({
             {secondaryMetricsSection}
             {breakEvenSection}
             {chartSection}
+            {monthlyTableSection}
             {dreTableSection}
             {breakdownSection}
             {qualitySection}
@@ -1406,7 +1665,7 @@ export function FinancialDreExportReport({
       data-testid="dre-export-report"
       data-layout-mode="paginated"
     >
-      {/* PÁGINA 1: Cabeçalho, KPIs Principais, Métricas Secundárias, Gráfico */}
+      {/* PÁGINA 1: Cabeçalho, KPIs Principais, Métricas Secundárias, Break-Even, Gráfico e Tabela Mensal */}
       <div className="tp-dre-export-page" data-export-page="1">
         <style>{DRE_EXPORT_REPORT_CSS}</style>
         <div className="tp-dre-export-page-body">
@@ -1415,6 +1674,7 @@ export function FinancialDreExportReport({
           {secondaryMetricsSection}
           {breakEvenSection}
           {chartSection}
+          {monthlyTableSection}
         </div>
         <div className="tp-dre-export-page-footer">
           <span>
