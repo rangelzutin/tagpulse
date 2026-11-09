@@ -80,9 +80,21 @@ export function formatProductCode(legacyId: string, rawSku?: string | null): str
   return norm ? norm : `HIST-HUSTLER-${legacyId}`;
 }
 
+export interface HustlerEntityPlanOptions {
+  preloadedStaging?: {
+    produtoRows?: Array<{ payload: unknown }>;
+    vendaRows?: Array<{ payload: unknown }>;
+    nflRows?: Array<{ payload: unknown }>;
+    clienteRows?: Array<{ payload: unknown }>;
+    entidadeRows?: Array<{ payload: unknown }>;
+    contatoRows?: Array<{ payload: unknown }>;
+  };
+}
+
 export async function planHustlerHistoricalEntities(
   prisma: PrismaClient,
-  batchId: string
+  batchId: string,
+  options?: HustlerEntityPlanOptions
 ): Promise<HustlerEntityCandidatePlan> {
   // 1. Validate Batch
   const batch = await prisma.historicalImportBatch.findUnique({
@@ -124,7 +136,7 @@ export async function planHustlerHistoricalEntities(
     }
   }
 
-  // 3. Load Staging Data
+  // 3. Load Staging Data (or reuse preloadedStaging to eliminate redundant network egress)
   const [
     produtoRows,
     vendaRows,
@@ -134,30 +146,42 @@ export async function planHustlerHistoricalEntities(
     contatoRows,
     canonicalCustomers,
   ] = await Promise.all([
-    prisma.historicalStagingRow.findMany({
-      where: { importBatchId: batchId, sourceTable: "produto_base" },
-      select: { payload: true },
-    }),
-    prisma.historicalStagingRow.findMany({
-      where: { importBatchId: batchId, sourceTable: "venda" },
-      select: { payload: true },
-    }),
-    prisma.historicalStagingRow.findMany({
-      where: { importBatchId: batchId, sourceTable: "nota_fiscal_lancamento" },
-      select: { payload: true },
-    }),
-    prisma.historicalStagingRow.findMany({
-      where: { importBatchId: batchId, sourceTable: "cliente" },
-      select: { payload: true },
-    }),
-    prisma.historicalStagingRow.findMany({
-      where: { importBatchId: batchId, sourceTable: "entidade" },
-      select: { payload: true },
-    }),
-    prisma.historicalStagingRow.findMany({
-      where: { importBatchId: batchId, sourceTable: "contato" },
-      select: { payload: true },
-    }),
+    options?.preloadedStaging?.produtoRows
+      ? Promise.resolve(options.preloadedStaging.produtoRows as Array<{ payload: Record<string, any> }>)
+      : prisma.historicalStagingRow.findMany({
+          where: { importBatchId: batchId, sourceTable: "produto_base" },
+          select: { payload: true },
+        }),
+    options?.preloadedStaging?.vendaRows
+      ? Promise.resolve(options.preloadedStaging.vendaRows as Array<{ payload: Record<string, any> }>)
+      : prisma.historicalStagingRow.findMany({
+          where: { importBatchId: batchId, sourceTable: "venda" },
+          select: { payload: true },
+        }),
+    options?.preloadedStaging?.nflRows
+      ? Promise.resolve(options.preloadedStaging.nflRows as Array<{ payload: Record<string, any> }>)
+      : prisma.historicalStagingRow.findMany({
+          where: { importBatchId: batchId, sourceTable: "nota_fiscal_lancamento" },
+          select: { payload: true },
+        }),
+    options?.preloadedStaging?.clienteRows
+      ? Promise.resolve(options.preloadedStaging.clienteRows as Array<{ payload: Record<string, any> }>)
+      : prisma.historicalStagingRow.findMany({
+          where: { importBatchId: batchId, sourceTable: "cliente" },
+          select: { payload: true },
+        }),
+    options?.preloadedStaging?.entidadeRows
+      ? Promise.resolve(options.preloadedStaging.entidadeRows as Array<{ payload: Record<string, any> }>)
+      : prisma.historicalStagingRow.findMany({
+          where: { importBatchId: batchId, sourceTable: "entidade" },
+          select: { payload: true },
+        }),
+    options?.preloadedStaging?.contatoRows
+      ? Promise.resolve(options.preloadedStaging.contatoRows as Array<{ payload: Record<string, any> }>)
+      : prisma.historicalStagingRow.findMany({
+          where: { importBatchId: batchId, sourceTable: "contato" },
+          select: { payload: true },
+        }),
     prisma.customer.findMany({
       where: { connectionId },
       select: { id: true, cpf: true, cnpj: true },
@@ -371,9 +395,9 @@ export async function planHustlerHistoricalEntities(
 export async function persistHustlerHistoricalEntities(
   prisma: PrismaClient,
   batchId: string,
-  options: { persist: boolean; chunkSize?: number }
+  options: { persist: boolean; chunkSize?: number; plan?: HustlerEntityCandidatePlan }
 ): Promise<HustlerEntityPersistenceResult> {
-  const plan = await planHustlerHistoricalEntities(prisma, batchId);
+  const plan = options.plan || (await planHustlerHistoricalEntities(prisma, batchId));
 
   if (!options.persist) {
     return {

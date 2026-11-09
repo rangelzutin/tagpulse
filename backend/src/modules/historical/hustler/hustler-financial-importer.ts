@@ -16,6 +16,7 @@ export interface HustlerFinancialImportOptions {
   batchId: string;
   dryRun?: boolean;
   chunkSize?: number;
+  plan?: HustlerFinancialImportPlan;
 }
 
 export interface HustlerFinancialImportResult {
@@ -134,8 +135,9 @@ export async function importHustlerFinancial(
     );
   }
 
-  // 2. Pre-flight Validation using Phase 4O authoritative planner
-  const plan: HustlerFinancialImportPlan = await planHustlerFinancialImport(prisma, batchId);
+  // 2. Pre-flight Validation using Phase 4O authoritative planner (or reuse provided plan to eliminate redundant egress)
+  const plan: HustlerFinancialImportPlan =
+    options.plan || (await planHustlerFinancialImport(prisma, batchId));
   const s = plan.summary;
 
   const preflightPassed =
