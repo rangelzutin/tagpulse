@@ -670,4 +670,286 @@ describe("Phase 5D.6: DRE Gerencial Shareable Export (PDF / JPG)", () => {
     expect(page1Html).toContain('data-export-section="4-chart"');
     expect(page1Html).toContain('data-export-section="4b-monthly-table"');
   });
+
+  describe("Phase 5D.7: Deterministic Monthly Table Pagination Across Pages", () => {
+    function generateMonths(count: number, startYear = 2026, startMonth = 1): DreMonthlyItemDto[] {
+      const items: DreMonthlyItemDto[] = [];
+      for (let i = 0; i < count; i++) {
+        const totalM = (startMonth - 1) + i;
+        const y = startYear + Math.floor(totalM / 12);
+        const m = (totalM % 12) + 1;
+        const monthStr = `${y}-${String(m).padStart(2, "0")}`;
+        items.push(
+          makeMonthlyItem(monthStr, {
+            realizedRevenue: 30000 + i * 1000,
+            estimatedCOGS: 18000 + i * 600,
+            variableTotal: 3000 + i * 100,
+            operatingTotal: 7000,
+            costCoveragePercent: 100,
+            fullManagerialResultAvailable: true,
+          }),
+        );
+      }
+      return items;
+    }
+
+    // A. 3 meses cabem integralmente na primeira página
+    it("A. renders 3 months completely on Page 1 without continuation", () => {
+      const threeMonths = generateMonths(3);
+      const html = renderToString(
+        <FinancialDreExportReport
+          companyName="Nineclouds"
+          period={{ from: "2026-01-01", to: "2026-03-31" }}
+          summaryData={{
+            ...sampleSummary,
+            period: { from: "2026-01-01", to: "2026-03-31" },
+          }}
+          monthlyData={threeMonths}
+          breakdownData={sampleBreakdown}
+        />,
+      );
+
+      // Page 1 contains all 3 months
+      const page1 = html.slice(
+        html.indexOf('data-export-page="1"'),
+        html.indexOf('data-export-page="2"'),
+      );
+      expect(page1).toContain("Jan/26");
+      expect(page1).toContain("Fev/26");
+      expect(page1).toContain("Mar/26");
+
+      // No continuation table generated
+      expect(html).not.toContain("dre-export-monthly-table-continuation");
+      expect(html).not.toContain("Tabela (continuação)");
+
+      // Page 2 contains DRE
+      const page2 = html.slice(
+        html.indexOf('data-export-page="2"'),
+        html.indexOf('data-export-page="3"'),
+      );
+      expect(page2).toContain('data-testid="dre-export-dre-table"');
+
+      // Exactly 3 pages
+      expect(html).toContain("Página 1 de 3");
+      expect(html).toContain("Página 2 de 3");
+      expect(html).toContain("Página 3 de 3");
+      expect(html).not.toContain('data-export-page="4"');
+    });
+
+    // B, C, D, E, F. 10 meses divididos sem perda (Jan-Oct 2026 real)
+    it("B, C, D, E, F. splits 10-month period cleanly: Jan..Jul on Page 1, Ago..Out on Page 2, repeats headers and integrates DRE on Page 2", () => {
+      const tenMonths = generateMonths(10);
+      const html = renderToString(
+        <FinancialDreExportReport
+          companyName="Nineclouds"
+          period={{ from: "2026-01-01", to: "2026-10-31" }}
+          summaryData={sampleSummary}
+          monthlyData={tenMonths}
+          breakdownData={sampleBreakdown}
+        />,
+      );
+
+      const p1Idx = html.indexOf('data-export-page="1"');
+      const p2Idx = html.indexOf('data-export-page="2"');
+      const p3Idx = html.indexOf('data-export-page="3"');
+
+      expect(p1Idx).toBeGreaterThan(-1);
+      expect(p2Idx).toBeGreaterThan(p1Idx);
+      expect(p3Idx).toBeGreaterThan(p2Idx);
+
+      const page1 = html.slice(p1Idx, p2Idx);
+      const page2 = html.slice(p2Idx, p3Idx);
+
+      const p1Table = page1.slice(
+        page1.indexOf('data-export-section="4b-monthly-table"'),
+      );
+      const p2Table = page2.slice(
+        page2.indexOf('data-export-section="4b-monthly-table-continuation"'),
+      );
+
+      // B & E. Page 1 monthly table takes first 7 months without cutting rows
+      expect(p1Table).toContain("Jan/26");
+      expect(p1Table).toContain("Fev/26");
+      expect(p1Table).toContain("Mar/26");
+      expect(p1Table).toContain("Abr/26");
+      expect(p1Table).toContain("Mai/26");
+      expect(p1Table).toContain("Jun/26");
+      expect(p1Table).toContain("Jul/26");
+      expect(p1Table).not.toContain("Ago/26");
+      expect(p1Table).not.toContain("Set/26");
+      expect(p1Table).not.toContain("Out/26");
+
+      // C. Set/26 and Out/26 appear safely on Page 2
+      expect(p2Table).toContain("Ago/26");
+      expect(p2Table).toContain("Set/26");
+      expect(p2Table).toContain("Out/26");
+
+      // D. Column headers repeat on Page 2 continuation
+      expect(page2).toContain('data-testid="dre-export-monthly-table-continuation"');
+      expect(page2).toContain("Evolução Mensal do Resultado — Tabela (continuação)");
+      expect(page2).toContain(">Mês<");
+      expect(page2).toContain(">Receita<");
+      expect(page2).toContain(">MC (R$)<");
+      expect(page2).toContain(">MC (%)<");
+      expect(page2).toContain(">Resultado Líquido<");
+      expect(page2).toContain(">Margem Líq.<");
+      expect(page2).toContain(">Ponto de Equilíbrio<");
+      expect(page2).toContain(">Gap Equilíbrio<");
+      expect(page2).toContain(">Status<");
+      expect(page2).toContain(">Qualidade<");
+
+      // F. DRE vertical table starts on Page 2 directly below continuation table
+      expect(page2).toContain('data-testid="dre-export-dre-table"');
+      const continuationIdx = page2.indexOf(
+        'data-testid="dre-export-monthly-table-continuation"',
+      );
+      const dreIdx = page2.indexOf('data-testid="dre-export-dre-table"');
+      expect(dreIdx).toBeGreaterThan(continuationIdx);
+
+      // Page 3 contains Expense breakdown, Quality and Disclaimer
+      const page3 = html.slice(p3Idx);
+      expect(page3).toContain('data-testid="dre-export-breakdown"');
+      expect(page3).toContain('data-testid="dre-export-quality"');
+      expect(page3).toContain('data-testid="dre-export-disclaimer"');
+
+      // Exactly 3 pages total with full space utilization
+      expect(html).toContain("Página 1 de 3");
+      expect(html).toContain("Página 2 de 3");
+      expect(html).toContain("Página 3 de 3");
+      expect(html).not.toContain('data-export-page="4"');
+    });
+
+    // G. 12 meses completos
+    it("G. handles full 12 months with Page 1 (7) and Page 2 (5 + DRE) in 3 pages", () => {
+      // 12 months from 2025-11 to 2026-10
+      const twelveMonths = generateMonths(12, 2025, 11);
+      const html = renderToString(
+        <FinancialDreExportReport
+          companyName="Nineclouds"
+          period={{ from: "2025-11-01", to: "2026-10-31" }}
+          summaryData={{
+            ...sampleSummary,
+            period: { from: "2025-11-01", to: "2026-10-31" },
+          }}
+          monthlyData={twelveMonths}
+          breakdownData={sampleBreakdown}
+        />,
+      );
+
+      const p1Idx = html.indexOf('data-export-page="1"');
+      const p2Idx = html.indexOf('data-export-page="2"');
+      const p3Idx = html.indexOf('data-export-page="3"');
+
+      const page1 = html.slice(p1Idx, p2Idx);
+      const page2 = html.slice(p2Idx, p3Idx);
+
+      const p1Table = page1.slice(
+        page1.indexOf('data-export-section="4b-monthly-table"'),
+      );
+      const p2Table = page2.slice(
+        page2.indexOf('data-export-section="4b-monthly-table-continuation"'),
+      );
+
+      expect(p1Table).toContain("Nov/25");
+      expect(p1Table).toContain("Mai/26");
+      expect(p2Table).toContain("Jun/26");
+      expect(p2Table).toContain("Out/26");
+      expect(page2).toContain('data-testid="dre-export-dre-table"');
+
+      expect(html).toContain("Página 1 de 3");
+      expect(html).toContain("Página 2 de 3");
+      expect(html).toContain("Página 3 de 3");
+      expect(html).not.toContain('data-export-page="4"');
+    });
+
+    // H. 24 meses geram paginação determinística em 4 páginas
+    it("H. handles 24 months dynamically expanding to 4 pages without DRE truncation", () => {
+      // 24 months from 2024-11 to 2026-10
+      const twentyFourMonths = generateMonths(24, 2024, 11);
+      const html = renderToString(
+        <FinancialDreExportReport
+          companyName="Nineclouds"
+          period={{ from: "2024-11-01", to: "2026-10-31" }}
+          summaryData={{
+            ...sampleSummary,
+            period: { from: "2024-11-01", to: "2026-10-31" },
+          }}
+          monthlyData={twentyFourMonths}
+          breakdownData={sampleBreakdown}
+        />,
+      );
+
+      expect(html).toContain('data-export-page="1"');
+      expect(html).toContain('data-export-page="2"');
+      expect(html).toContain('data-export-page="3"');
+      expect(html).toContain('data-export-page="4"');
+
+      // Page 1 has first 7 months
+      const p1 = html.slice(
+        html.indexOf('data-export-page="1"'),
+        html.indexOf('data-export-page="2"'),
+      );
+      const p1Table = p1.slice(
+        p1.indexOf('data-export-section="4b-monthly-table"'),
+      );
+      expect(p1Table).toContain("Nov/24");
+      expect(p1Table).toContain("Mai/25");
+
+      // Page 2 has continuation with remaining 17 months
+      const p2 = html.slice(
+        html.indexOf('data-export-page="2"'),
+        html.indexOf('data-export-page="3"'),
+      );
+      const p2Table = p2.slice(
+        p2.indexOf('data-export-section="4b-monthly-table-continuation"'),
+      );
+      expect(p2Table).toContain("Jun/25");
+      expect(p2Table).toContain("Out/26");
+
+      // Page 3 has DRE vertical table
+      const p3 = html.slice(
+        html.indexOf('data-export-page="3"'),
+        html.indexOf('data-export-page="4"'),
+      );
+      expect(p3).toContain('data-testid="dre-export-dre-table"');
+
+      // Page 4 has breakdown + quality + disclaimer
+      const p4 = html.slice(html.indexOf('data-export-page="4"'));
+      expect(p4).toContain('data-testid="dre-export-breakdown"');
+
+      expect(html).toContain("Página 1 de 4");
+      expect(html).toContain("Página 4 de 4");
+    });
+
+    // I. JPG continua completo e sem paginação
+    it("I. preserves single continuous sheet with complete unchunked monthly table in JPG mode", () => {
+      const tenMonths = generateMonths(10);
+      const html = renderToString(
+        <FinancialDreExportReport
+          companyName="Nineclouds"
+          period={{ from: "2026-01-01", to: "2026-10-31" }}
+          summaryData={sampleSummary}
+          monthlyData={tenMonths}
+          breakdownData={sampleBreakdown}
+          layoutMode="continuous"
+        />,
+      );
+
+      expect(html).toContain('data-layout-mode="continuous"');
+      expect(html).toContain('data-export-continuous="true"');
+      expect(html).not.toContain("data-export-page=");
+      expect(html).not.toContain("dre-export-monthly-table-continuation");
+
+      // All 10 months are present in single sheet
+      expect(html).toContain("Jan/26");
+      expect(html).toContain("Jul/26");
+      expect(html).toContain("Ago/26");
+      expect(html).toContain("Set/26");
+      expect(html).toContain("Out/26");
+
+      // DRE and Breakdown are in the same flow
+      expect(html).toContain('data-testid="dre-export-dre-table"');
+      expect(html).toContain('data-testid="dre-export-breakdown"');
+    });
+  });
 });
