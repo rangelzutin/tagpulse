@@ -282,12 +282,22 @@ export function classifyFinancialLaunch(params: {
   return "OPERATING_EXPENSE";
 }
 
+export interface HustlerFinancialPlanOptions {
+  preloadedStaging?: {
+    flRows?: Array<{ sourcePrimaryKey: string; payload: unknown }>;
+    pRows?: Array<{ sourcePrimaryKey: string; payload: unknown }>;
+    nfRows?: Array<{ sourcePrimaryKey: string; payload: unknown }>;
+    vRows?: Array<{ sourcePrimaryKey: string; payload: unknown }>;
+  };
+}
+
 /**
  * Builds the complete financial import plan for Hustler legacy dump.
  */
 export async function planHustlerFinancialImport(
   prisma: PrismaClient,
   batchId: string,
+  options?: HustlerFinancialPlanOptions
 ): Promise<HustlerFinancialImportPlan> {
   // 1. Verify batch and active connection
   const batch = await prisma.historicalImportBatch.findUnique({
@@ -324,23 +334,32 @@ export async function planHustlerFinancialImport(
     });
   }
 
-  // 3. Load staging data: venda, nota_fiscal, pagamento, financeiro_lancamento sequentially
-  const flRows = await prisma.historicalStagingRow.findMany({
-    where: { importBatchId: batchId, sourceTable: "financeiro_lancamento" },
-    select: { sourcePrimaryKey: true, payload: true },
-  });
-  const pRows = await prisma.historicalStagingRow.findMany({
-    where: { importBatchId: batchId, sourceTable: "pagamento" },
-    select: { sourcePrimaryKey: true, payload: true },
-  });
-  const nfRows = await prisma.historicalStagingRow.findMany({
-    where: { importBatchId: batchId, sourceTable: "nota_fiscal" },
-    select: { sourcePrimaryKey: true, payload: true },
-  });
-  const vRows = await prisma.historicalStagingRow.findMany({
-    where: { importBatchId: batchId, sourceTable: "venda" },
-    select: { sourcePrimaryKey: true, payload: true },
-  });
+  // 3. Load staging data in parallel (or reuse preloadedStaging to eliminate redundant network egress)
+  const [flRows, pRows, nfRows, vRows] = options?.preloadedStaging
+    ? [
+        (options.preloadedStaging.flRows || []) as Array<{ sourcePrimaryKey: string; payload: any }>,
+        (options.preloadedStaging.pRows || []) as Array<{ sourcePrimaryKey: string; payload: any }>,
+        (options.preloadedStaging.nfRows || []) as Array<{ sourcePrimaryKey: string; payload: any }>,
+        (options.preloadedStaging.vRows || []) as Array<{ sourcePrimaryKey: string; payload: any }>,
+      ]
+    : await Promise.all([
+        prisma.historicalStagingRow.findMany({
+          where: { importBatchId: batchId, sourceTable: "financeiro_lancamento" },
+          select: { sourcePrimaryKey: true, payload: true },
+        }),
+        prisma.historicalStagingRow.findMany({
+          where: { importBatchId: batchId, sourceTable: "pagamento" },
+          select: { sourcePrimaryKey: true, payload: true },
+        }),
+        prisma.historicalStagingRow.findMany({
+          where: { importBatchId: batchId, sourceTable: "nota_fiscal" },
+          select: { sourcePrimaryKey: true, payload: true },
+        }),
+        prisma.historicalStagingRow.findMany({
+          where: { importBatchId: batchId, sourceTable: "venda" },
+          select: { sourcePrimaryKey: true, payload: true },
+        }),
+      ]);
 
   // Index pagamento by PK
   const pagMap = new Map<string, any>();

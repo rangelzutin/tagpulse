@@ -10992,28 +10992,6 @@ body {
   font-weight: 600;
 }
 
-.tp-chart-toggle-check {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.725rem;
-  color: var(--tp-text-secondary, #94a3b8);
-  cursor: pointer;
-  user-select: none;
-  padding: 3px 6px;
-  border-radius: var(--tp-radius-xs, 3px);
-  transition: color 0.15s ease;
-}
-
-.tp-chart-toggle-check:hover {
-  color: var(--tp-text-primary, #f8fafc);
-}
-
-.tp-chart-toggle-check input[type="checkbox"] {
-  cursor: pointer;
-  accent-color: #f59e0b;
-}
-
 .tp-dre-chart-wrap {
   padding: 12px 14px;
 }
@@ -11099,6 +11077,24 @@ body {
 .tp-badge-status.is-even {
   background: rgba(148, 163, 184, 0.15);
   color: #94a3b8;
+}
+
+.tp-be-partial-cell {
+  display: inline-flex;
+  flex-direction: column;
+  line-height: 1.25;
+  cursor: help;
+}
+
+.tp-be-partial-title {
+  font-size: 0.775rem;
+  color: #38bdf8;
+  font-weight: 500;
+}
+
+.tp-be-partial-sub {
+  font-size: 0.675rem;
+  color: var(--tp-text-muted, #94a3b8);
 }
 
 /* Tooltip */
@@ -11203,10 +11199,6 @@ body {
 
 .tp-color-magenta {
   color: var(--tp-magenta-400, #fb7185);
-}
-
-.tp-color-amber {
-  color: var(--tp-amber-400, #fbbf24);
 }
 
 .tp-tooltip-badges {
@@ -11578,6 +11570,32 @@ body {
    DRE Gerencial — Ponto de Equilíbrio (Break-Even)
    ========================================================================== */
 
+.tp-chart-toggle-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: var(--tp-text-secondary, #94a3b8);
+  cursor: pointer;
+  user-select: none;
+  padding: 3px 6px;
+  border-radius: var(--tp-radius-xs, 3px);
+  transition: color 0.15s ease;
+}
+
+.tp-chart-toggle-check:hover {
+  color: var(--tp-text-primary, #f8fafc);
+}
+
+.tp-chart-toggle-check input[type="checkbox"] {
+  cursor: pointer;
+  accent-color: #f59e0b;
+}
+
+.tp-color-amber {
+  color: var(--tp-amber-400, #fbbf24);
+}
+
 .tp-dre-breakeven-section {
   display: flex;
   flex-direction: column;
@@ -11714,6 +11732,11 @@ body {
   border-radius: var(--tp-radius-md, 8px);
 }
 
+.tp-dre-breakeven-partial-card {
+  background: rgba(56, 189, 248, 0.06);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+}
+
 .tp-unviable-icon-wrap {
   flex-shrink: 0;
   margin-top: 2px;
@@ -11739,11 +11762,19 @@ body {
   font-weight: 500;
 }
 
+.tp-dre-breakeven-partial-card .tp-unviable-message {
+  color: #bae6fd;
+}
+
 .tp-unviable-subtext {
   font-size: 0.72rem;
   color: #fda4af;
   margin: 0;
   line-height: 1.35;
+}
+
+.tp-dre-breakeven-partial-card .tp-unviable-subtext {
+  color: #7dd3fc;
 }
 
 .tp-unviable-metrics {

@@ -131,6 +131,13 @@ export function DreMonthlyTooltip({
     ? formatMonthlyBreakEvenTooltip(item.breakEven, formatCurrency)
     : null;
 
+  const beStatus = item.breakEven?.status;
+  const isBeAbove = beStatus === "PROFITABLE" || beStatus === "ABOVE_BREAK_EVEN";
+  const isBeBelow = beStatus === "UNREACHED" || beStatus === "BELOW_BREAK_EVEN";
+  const isBeUnviable =
+    beStatus === "UNDETERMINED_ZERO_MARGIN" || beStatus === "UNVIABLE_MARGIN";
+  const isBePartial = beStatus === "UNDETERMINED_PARTIAL_COST_COVERAGE";
+
   return (
     <div className="tp-chart-tooltip tp-dre-tooltip">
       <div className="tp-tooltip-header">
@@ -226,70 +233,88 @@ export function DreMonthlyTooltip({
             data-testid="dre-tooltip-breakeven"
           >
             <div className="tp-tooltip-row">
-              <span className="tp-tooltip-label">
-                {item.breakEven.calculationBasis === "COVERED_REVENUE"
-                  ? "Ponto de equilíbrio estimado:"
-                  : "Ponto de equilíbrio:"}
-              </span>
+              <span className="tp-tooltip-label">Ponto de equilíbrio:</span>
               <span className="tp-tooltip-value tp-color-amber">
                 {item.breakEven.breakEvenRevenue !== null
-                  ? `${formatCurrency(item.breakEven.breakEvenRevenue)}${
-                      item.breakEven.calculationBasis === "COVERED_REVENUE" && item.breakEven.costCoveragePercent != null
-                        ? ` (${formatPercent(item.breakEven.costCoveragePercent, 1)} cobertura)`
-                        : item.breakEven.calculationBasis === "COVERED_REVENUE"
-                        ? " (Provisório)"
-                        : ""
-                    }`
+                  ? formatCurrency(item.breakEven.breakEvenRevenue)
+                  : isBePartial
+                  ? "Cobertura parcial"
                   : "Indisponível"}
               </span>
             </div>
-            {item.breakEven.breakEvenRevenue !== null &&
-              item.breakEven.additionalRevenueNeeded !== null &&
-              item.breakEven.additionalRevenueNeeded > 0 && (
-                <div className="tp-tooltip-row">
-                  <span className="tp-tooltip-label">
-                    {item.breakEven.calculationBasis === "COVERED_REVENUE"
-                      ? "Gap estimado:"
-                      : "Gap para equilíbrio:"}
-                  </span>
-                  <span className="tp-tooltip-value tp-text-negative">
-                    {formatCurrency(item.breakEven.additionalRevenueNeeded)}
-                  </span>
-                </div>
-              )}
-            {item.breakEven.breakEvenRevenue !== null &&
-              (item.breakEven.status === "ABOVE_BREAK_EVEN" ||
-                item.breakEven.additionalRevenueNeeded === 0) && (
-                <div className="tp-tooltip-row">
-                  <span className="tp-tooltip-label">
-                    {item.breakEven.calculationBasis === "COVERED_REVENUE"
-                      ? "Gap estimado:"
-                      : "Gap para equilíbrio:"}
-                  </span>
-                  <span className="tp-tooltip-value tp-text-positive">
-                    {formatCurrency(0)}
-                  </span>
-                </div>
-              )}
+            {isBeBelow && item.breakEven.additionalRevenueNeeded !== null && (
+              <div className="tp-tooltip-row">
+                <span className="tp-tooltip-label">Gap para equilíbrio:</span>
+                <span className="tp-tooltip-value tp-text-negative">
+                  {formatCurrency(item.breakEven.additionalRevenueNeeded)}
+                </span>
+              </div>
+            )}
+            {isBeAbove && (
+              <div className="tp-tooltip-row">
+                <span className="tp-tooltip-label">Gap para equilíbrio:</span>
+                <span className="tp-tooltip-value tp-text-positive">
+                  {formatCurrency(0)}
+                </span>
+              </div>
+            )}
             <div className="tp-tooltip-row">
               <span className="tp-tooltip-label">Status:</span>
               <span className="tp-tooltip-value">
-                {item.breakEven.calculationBasis === "COVERED_REVENUE"
-                  ? `Provisório (cobertura ${item.breakEven.costCoveragePercent != null ? formatPercent(item.breakEven.costCoveragePercent, 1) : "parcial"})`
-                  : item.breakEven.status === "ABOVE_BREAK_EVEN"
+                {isBeAbove
                   ? "Acima do equilíbrio"
-                  : item.breakEven.status === "BELOW_BREAK_EVEN"
+                  : isBeBelow
                   ? "Abaixo do equilíbrio"
-                  : item.breakEven.status === "UNVIABLE_MARGIN"
+                  : isBeUnviable
                   ? "Margem insuficiente para estimar equilíbrio"
-                  : item.breakEven.status === "INCOMPLETE_COST_COVERAGE"
-                  ? "Cobertura parcial de custos"
+                  : isBePartial
+                  ? "Cobertura parcial de custos (CMV incompleto)"
                   : "Sem faturamento no período"}
               </span>
             </div>
-            {breakEvenHint && (
+            {isBePartial && (
+              <>
+                <div className="tp-tooltip-row">
+                  <span className="tp-tooltip-label">Cobertura de custo:</span>
+                  <span className="tp-tooltip-value tp-color-cyan">
+                    {formatPercent(item.costCoveragePercent ?? 0, 1)}
+                  </span>
+                </div>
+                <div className="tp-tooltip-row">
+                  <span className="tp-tooltip-label">Receita coberta:</span>
+                  <span className="tp-tooltip-value">
+                    {formatCurrency(
+                      item.coveredRevenue ??
+                        (item.realizedRevenue *
+                          ((item.costCoveragePercent ?? 0) / 100)),
+                    )}
+                  </span>
+                </div>
+                <div className="tp-tooltip-row">
+                  <span className="tp-tooltip-label">Receita sem custo:</span>
+                  <span className="tp-tooltip-value tp-text-negative">
+                    {formatCurrency(
+                      item.uncoveredRevenue ??
+                        Math.max(
+                          0,
+                          item.realizedRevenue -
+                            (item.coveredRevenue ??
+                              (item.realizedRevenue *
+                                ((item.costCoveragePercent ?? 0) / 100))),
+                        ),
+                    )}
+                  </span>
+                </div>
+              </>
+            )}
+            {breakEvenHint && !isBePartial && (
               <div className="tp-tooltip-breakeven-hint">
                 {breakEvenHint}
+              </div>
+            )}
+            {isBePartial && (
+              <div className="tp-tooltip-breakeven-hint">
+                Ponto de Equilíbrio indisponível até cobertura atingir 100%.
               </div>
             )}
           </div>
@@ -506,8 +531,8 @@ export function FinancialDreMonthlyChart({
         bucket: b,
       }))
       .filter(
-        (p): p is { x: number; y: number; bucket: DreChartBucket } =>
-          p.y !== null,
+        (pt): pt is { x: number; y: number; bucket: DreChartBucket } =>
+          pt.y !== null,
       );
 
     const buildPath = (pts: Array<{ x: number; y: number }>) =>
@@ -702,29 +727,30 @@ export function FinancialDreMonthlyChart({
             );
           })}
 
-          {/* Line: Ponto de equilíbrio */}
-          {showBreakEven && bePoints.length > 1 && (
-            <path
-              d={buildPath(bePoints)}
-              fill="none"
-              stroke="#d97706"
-              strokeWidth={1.75}
-              strokeDasharray="4 3"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
+          {/* Line: Ponto de Equilíbrio */}
+          {showBreakEven && bePoints.length > 0 && (
+            <g>
+              {bePoints.length > 1 && (
+                <path
+                  d={buildPath(bePoints)}
+                  fill="none"
+                  stroke="#d97706"
+                  strokeWidth={1.75}
+                  strokeDasharray="4 4"
+                />
+              )}
+              {bePoints.map((pt) => (
+                <circle
+                  key={`be-dot-${pt.bucket.key}`}
+                  cx={pt.x}
+                  cy={pt.y}
+                  r={2.5}
+                  fill="#d97706"
+                  stroke="none"
+                />
+              ))}
+            </g>
           )}
-          {showBreakEven &&
-            bePoints.map((pt) => (
-              <circle
-                key={`be-dot-${pt.bucket.key}`}
-                cx={pt.x}
-                cy={pt.y}
-                r={2.5}
-                fill="#d97706"
-                stroke="none"
-              />
-            ))}
 
           {/* X-Axis Baseline & Ticks */}
           <line
@@ -980,14 +1006,16 @@ export function FinancialDreMonthlyChart({
           );
         }}
       />
+
+      {/* Ponto de Equilíbrio Mensal */}
       {showBreakEven && (
         <Line
           type="monotone"
-          dataKey="breakEvenRevenue"
           name="Ponto de equilíbrio"
+          dataKey="breakEvenRevenue"
           stroke={isExport ? "#d97706" : "#f59e0b"}
-          strokeWidth={1.8}
-          strokeDasharray="4 3"
+          strokeWidth={1.75}
+          strokeDasharray="4 4"
           isAnimationActive={!isExport}
           dot={(dotProps: {
             cx?: number;
@@ -1187,19 +1215,53 @@ export function FinancialDreMonthlyChart({
                   calculateBreakEven(
                     m.realizedRevenue,
                     m.contributionMargin,
-                    m.netManagerialResult,
+                    m.fullManagerialResultAvailable ? m.netManagerialResult : null,
                     {
-                      fullManagerialResultAvailable: m.fullManagerialResultAvailable,
                       costCoveragePercent: m.costCoveragePercent,
-                      coveredRevenue: m.coveredRevenue,
-                      coveredContributionMargin: m.coveredContributionMargin,
-                      partialManagerialResult: m.partialManagerialResultOnCoveredRevenue,
-                      isProvisional: m.dataQuality?.isProvisional,
+                      fullCoverage: m.fullManagerialResultAvailable,
                     },
                   );
+                const isBeAbove =
+                  be.status === "PROFITABLE" || be.status === "ABOVE_BREAK_EVEN";
+                const isBeBelow =
+                  be.status === "UNREACHED" || be.status === "BELOW_BREAK_EVEN";
+                const isBeUnviable =
+                  be.status === "UNDETERMINED_ZERO_MARGIN" ||
+                  be.status === "UNVIABLE_MARGIN";
+                const isBePartial =
+                  be.status === "UNDETERMINED_PARTIAL_COST_COVERAGE";
                 const pendingLabels = formatDrePendingAccruals(
                   m.dataQuality.pendingAccruals,
                 );
+
+                const mUncovered =
+                  m.uncoveredRevenue ??
+                  Math.max(
+                    0,
+                    m.realizedRevenue -
+                      (m.coveredRevenue ??
+                        (m.costCoveragePercent != null
+                          ? m.realizedRevenue * (m.costCoveragePercent / 100)
+                          : 0)),
+                  );
+                const mCovered =
+                  m.coveredRevenue ?? Math.max(0, m.realizedRevenue - mUncovered);
+                const mCovPct =
+                  m.costCoveragePercent ??
+                  (m.realizedRevenue > 0
+                    ? (mCovered / m.realizedRevenue) * 100
+                    : 0);
+
+                const partialTooltip = isBePartial
+                  ? [
+                      `Cobertura: ${formatPercent(mCovPct, 1)}`,
+                      `Receita coberta: ${formatCurrency(mCovered)}`,
+                      `Receita sem custo: ${formatCurrency(mUncovered)}`,
+                      "",
+                      `Faltam dados de custo para ${formatCurrency(mUncovered)} da receita deste mês.`,
+                      "O Ponto de Equilíbrio só é calculado com cobertura de 100%.",
+                    ].join("\n")
+                  : undefined;
 
                 return (
                   <tr
@@ -1238,34 +1300,28 @@ export function FinancialDreMonthlyChart({
                     </td>
                     <td>
                       {be.breakEvenRevenue !== null ? (
-                        <>
-                          {formatCurrency(be.breakEvenRevenue)}
-                          {be.calculationBasis === "COVERED_REVENUE" && (
-                            <span title="Estimativa provisória sobre a receita coberta" style={{ color: "#38bdf8", fontWeight: 700 }}> *</span>
-                          )}
-                        </>
-                      ) : be.status === "UNVIABLE_MARGIN" ? (
+                        formatCurrency(be.breakEvenRevenue)
+                      ) : isBeUnviable ? (
                         "Inviável"
-                      ) : be.status === "INCOMPLETE_COST_COVERAGE" ? (
-                        "Indisponível"
+                      ) : isBePartial ? (
+                        <div
+                          className="tp-be-partial-cell"
+                          title={partialTooltip}
+                          aria-label={`Cobertura parcial: ${formatPercent(mCovPct, 1)}`}
+                        >
+                          <span className="tp-be-partial-title">Cobertura parcial</span>
+                          <span className="tp-be-partial-sub">{formatPercent(mCovPct, 1)}</span>
+                        </div>
                       ) : (
                         "—"
                       )}
                     </td>
                     <td>
-                      {be.breakEvenRevenue !== null ? (
-                        be.additionalRevenueNeeded !== null && be.additionalRevenueNeeded > 0 ? (
-                          formatCurrency(be.additionalRevenueNeeded)
-                        ) : be.additionalRevenueNeeded === 0 || be.status === "ABOVE_BREAK_EVEN" ? (
-                          "Superado"
-                        ) : (
-                          "—"
-                        )
-                      ) : be.status === "INCOMPLETE_COST_COVERAGE" ? (
-                        "Indisponível"
-                      ) : (
-                        "—"
-                      )}
+                      {isBeBelow && be.additionalRevenueNeeded !== null
+                        ? formatCurrency(be.additionalRevenueNeeded)
+                        : isBeAbove
+                        ? "Superado"
+                        : "—"}
                     </td>
                     <td>
                       <span

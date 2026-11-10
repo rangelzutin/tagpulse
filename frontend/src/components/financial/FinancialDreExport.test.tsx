@@ -28,6 +28,9 @@ function makeMonthlyItem(
     financialTotal: number;
     isProvisional: boolean;
     pendingAccruals: string[];
+    costCoveragePercent: number;
+    fullManagerialResultAvailable: boolean;
+    netManagerialResult: number | null;
   }>,
 ): DreMonthlyItemDto {
   const rev = overrides?.realizedRevenue ?? 30000;
@@ -37,7 +40,11 @@ function makeMonthlyItem(
   const cm = gross - varTotal;
   const opTotal = overrides?.operatingTotal ?? 7000;
   const finTotal = overrides?.financialTotal ?? 0;
-  const net = cm - opTotal + finTotal;
+  const calculatedNet = cm - opTotal + finTotal;
+  const net =
+    overrides?.netManagerialResult !== undefined
+      ? overrides.netManagerialResult
+      : calculatedNet;
   const isProvisional = overrides?.isProvisional ?? false;
   const pendingAccruals =
     overrides?.pendingAccruals ??
@@ -51,6 +58,9 @@ function makeMonthlyItem(
     estimatedCOGS: cogs,
     estimatedGrossProfit: gross,
     estimatedGrossMarginPercent: rev > 0 ? r2((gross / rev) * 100) : null,
+    costCoveragePercent: overrides?.costCoveragePercent ?? 100,
+    fullManagerialResultAvailable:
+      overrides?.fullManagerialResultAvailable ?? (overrides?.netManagerialResult !== null),
     variableExpenses: {
       paymentFees: varTotal * 0.1,
       taxesOnRevenue: varTotal * 0.5,
@@ -85,8 +95,10 @@ function makeMonthlyItem(
       total: 0,
     },
     netManagerialResult: net,
-    netManagerialMarginPercent: rev > 0 ? r2((net / rev) * 100) : null,
-    status: net > 0 ? "PROFIT" : net < 0 ? "LOSS" : "BREAK_EVEN",
+    netManagerialMarginPercent:
+      net !== null && rev > 0 ? r2((net / rev) * 100) : null,
+    status:
+      net === null ? "BREAK_EVEN" : net > 0 ? "PROFIT" : net < 0 ? "LOSS" : "BREAK_EVEN",
     dataQuality: {
       isProvisional,
       financiallyClosed: !isProvisional,
@@ -277,11 +289,16 @@ describe("Phase 5D.6: DRE Gerencial Shareable Export (PDF / JPG)", () => {
     expect(html).toContain("20,16%");
     expect(html).not.toContain("Compras de Estoque");
 
-    // Mandatory order of sections (1..8)
+    // Taxas de Meio de Pagamento (corrected nomenclature)
+    expect(html).toContain("Taxas de Meio de Pagamento");
+    expect(html).not.toContain(">Taxas de Pagamento<");
+
+    // Mandatory order of sections (1..8 including 4b-monthly-table)
     const idxHeader = html.indexOf('data-export-section="1-header"');
     const idxKpis = html.indexOf('data-export-section="2-kpis"');
     const idxSec = html.indexOf('data-export-section="3-secondary"');
     const idxChart = html.indexOf('data-export-section="4-chart"');
+    const idxMonthlyTable = html.indexOf('data-export-section="4b-monthly-table"');
     const idxTable = html.indexOf('data-export-section="5-dre-table"');
     const idxBreakdown = html.indexOf('data-export-section="6-breakdown"');
     const idxQuality = html.indexOf('data-export-section="7-quality"');
@@ -291,7 +308,8 @@ describe("Phase 5D.6: DRE Gerencial Shareable Export (PDF / JPG)", () => {
     expect(idxKpis).toBeGreaterThan(idxHeader);
     expect(idxSec).toBeGreaterThan(idxKpis);
     expect(idxChart).toBeGreaterThan(idxSec);
-    expect(idxTable).toBeGreaterThan(idxChart);
+    expect(idxMonthlyTable).toBeGreaterThan(idxChart);
+    expect(idxTable).toBeGreaterThan(idxMonthlyTable);
     expect(idxBreakdown).toBeGreaterThan(idxTable);
     expect(idxQuality).toBeGreaterThan(idxBreakdown);
     expect(idxDisclaimer).toBeGreaterThan(idxQuality);
@@ -454,5 +472,202 @@ describe("Phase 5D.6: DRE Gerencial Shareable Export (PDF / JPG)", () => {
     expect(pdfText).toContain("/MediaBox [ 0 0 595.28 841.89 ]");
     expect(pdfText).toContain("/Filter /DCTDecode");
     expect(pdfText.trim().endsWith("%%EOF")).toBe(true);
+  });
+
+  // N. Tabela mensal presente nos exportáveis com todas as 10 colunas
+  it("N. renders the monthly results table with all 10 canonical columns", () => {
+    const html = renderToString(
+      <FinancialDreExportReport
+        companyName="Nineclouds"
+        period={{ from: "2026-04-01", to: "2026-10-31" }}
+        summaryData={sampleSummary}
+        monthlyData={sampleMonthly}
+        breakdownData={sampleBreakdown}
+      />,
+    );
+
+    expect(html).toContain('data-testid="dre-export-monthly-table"');
+    expect(html).toContain('data-export-section="4b-monthly-table"');
+    expect(html).toContain("Evolução Mensal do Resultado — Tabela");
+
+    // All 10 column headers
+    expect(html).toContain(">Mês<");
+    expect(html).toContain(">Receita<");
+    expect(html).toContain(">MC (R$)<");
+    expect(html).toContain(">MC (%)<");
+    expect(html).toContain(">Resultado Líquido<");
+    expect(html).toContain(">Margem Líq.<");
+    expect(html).toContain(">Ponto de Equilíbrio<");
+    expect(html).toContain(">Gap Equilíbrio<");
+    expect(html).toContain(">Status<");
+    expect(html).toContain(">Qualidade<");
+  });
+
+  // O. Renderiza todos os meses do período selecionado e formatações monetárias/percentuais
+  it("O. renders all selected months with accurate values and badges", () => {
+    const html = renderToString(
+      <FinancialDreExportReport
+        companyName="Nineclouds"
+        period={{ from: "2026-04-01", to: "2026-10-31" }}
+        summaryData={sampleSummary}
+        monthlyData={sampleMonthly}
+        breakdownData={sampleBreakdown}
+      />,
+    );
+
+    // 7 months rendered in the monthly table
+    expect(html).toContain("Abr/26");
+    expect(html).toContain("Mai/26");
+    expect(html).toContain("Jun/26");
+    expect(html).toContain("Jul/26");
+    expect(html).toContain("Ago/26");
+    expect(html).toContain("Set/26");
+    expect(html).toContain("Out/26");
+
+    // Status badges
+    expect(html).toContain("Lucro");
+    // Quality badges
+    expect(html).toContain("Fechado");
+    expect(html).toContain("Provisório");
+  });
+
+  // P. Semântica de null-safety, cobertura parcial e inviabilidade
+  it("P. handles null safety, partial cost coverage, and unviable margin in the monthly table", () => {
+    const customMonthly: DreMonthlyItemDto[] = [
+      // 1. Mês com resultado nulo (cobertura parcial)
+      makeMonthlyItem("2026-01", {
+        realizedRevenue: 50000,
+        estimatedCOGS: 25000,
+        variableTotal: 5000,
+        netManagerialResult: null,
+        costCoveragePercent: 45,
+        fullManagerialResultAvailable: false,
+      }),
+      // 2. Mês com margem de contribuição zero/negativa (ponto de equilíbrio inviável)
+      makeMonthlyItem("2026-02", {
+        realizedRevenue: 20000,
+        estimatedCOGS: 25000,
+        variableTotal: 5000,
+        operatingTotal: 4000,
+      }),
+      // 3. Mês lucrativo (gap equilíbrio superado)
+      makeMonthlyItem("2026-03", {
+        realizedRevenue: 60000,
+        estimatedCOGS: 20000,
+        variableTotal: 5000,
+        operatingTotal: 10000,
+      }),
+    ];
+
+    const html = renderToString(
+      <FinancialDreExportReport
+        companyName="Nineclouds"
+        period={{ from: "2026-01-01", to: "2026-03-31" }}
+        summaryData={{
+          ...sampleSummary,
+          period: { from: "2026-01-01", to: "2026-03-31" },
+        }}
+        monthlyData={customMonthly}
+        breakdownData={sampleBreakdown}
+      />,
+    );
+
+    // Mês 1: Resultado Líquido Indisponível e Ponto de Equilíbrio Cobertura parcial com percentual
+    expect(html).toContain("Indisponível");
+    expect(html).toContain("Cobertura parcial (45,0%)");
+
+    // Mês 2: Ponto de Equilíbrio Inviável
+    expect(html).toContain("Inviável");
+
+    // Mês 3: Gap Equilíbrio Superado
+    expect(html).toContain("Superado");
+
+    // Nota explicativa abaixo da tabela
+    expect(html).toContain('data-testid="dre-export-table-coverage-note"');
+    expect(html).toContain(
+      "Meses com cobertura de custo inferior a 100% não possuem Ponto de Equilíbrio calculado. O percentual entre parênteses indica a cobertura de custo disponível no período.",
+    );
+  });
+
+  // R. Cenário Real Jun/26 (99,47% parcial) vs Jul/26 (100% equilíbrio) no export
+  it("R. renders Jun/26 partial coverage (99,5%) and Jul/26 normal break-even in export report", () => {
+    const junJulMonthly: DreMonthlyItemDto[] = [
+      makeMonthlyItem("2026-06", {
+        realizedRevenue: 32768.14,
+        costCoveragePercent: 99.47,
+        fullManagerialResultAvailable: false,
+        netManagerialResult: null,
+      }),
+      makeMonthlyItem("2026-07", {
+        realizedRevenue: 38283.00,
+        costCoveragePercent: 100,
+        fullManagerialResultAvailable: true,
+        netManagerialResult: 0,
+        operatingTotal: 19141.50,
+      }),
+    ];
+
+    const html = renderToString(
+      <FinancialDreExportReport
+        companyName="Nineclouds"
+        period={{ from: "2026-06-01", to: "2026-07-31" }}
+        summaryData={{
+          ...sampleSummary,
+          period: { from: "2026-06-01", to: "2026-07-31" },
+        }}
+        monthlyData={junJulMonthly}
+        breakdownData={sampleBreakdown}
+      />,
+    );
+
+    // Jun/26 shows partial coverage with formatted percent
+    expect(html).toContain("Cobertura parcial (99,5%)");
+
+    // Jul/26 shows break-even target
+    expect(html).toContain("38.283,00");
+
+    // Explanatory note is present
+    expect(html).toContain('data-testid="dre-export-table-coverage-note"');
+  });
+
+  // Q. Tabela presente no layout contínuo (JPG) e paginado (PDF Page 1)
+  it("Q. positions monthly table directly below chart in both continuous and paginated layouts", () => {
+    const continuousHtml = renderToString(
+      <FinancialDreExportReport
+        companyName="Nineclouds"
+        period={{ from: "2026-05-01", to: "2026-07-31" }}
+        summaryData={sampleSummary}
+        monthlyData={sampleMonthly}
+        breakdownData={sampleBreakdown}
+        layoutMode="continuous"
+      />,
+    );
+    expect(continuousHtml).toContain('data-layout-mode="continuous"');
+    const contChartIdx = continuousHtml.indexOf('data-export-section="4-chart"');
+    const contTableIdx = continuousHtml.indexOf(
+      'data-export-section="4b-monthly-table"',
+    );
+    const contDreIdx = continuousHtml.indexOf('data-export-section="5-dre-table"');
+    expect(contTableIdx).toBeGreaterThan(contChartIdx);
+    expect(contDreIdx).toBeGreaterThan(contTableIdx);
+
+    const paginatedHtml = renderToString(
+      <FinancialDreExportReport
+        companyName="Nineclouds"
+        period={{ from: "2026-05-01", to: "2026-07-31" }}
+        summaryData={sampleSummary}
+        monthlyData={sampleMonthly}
+        breakdownData={sampleBreakdown}
+        layoutMode="paginated"
+      />,
+    );
+    expect(paginatedHtml).toContain('data-layout-mode="paginated"');
+    // Ensure both chart and monthly table are inside page 1
+    const page1Html = paginatedHtml.slice(
+      paginatedHtml.indexOf('data-export-page="1"'),
+      paginatedHtml.indexOf('data-export-page="2"'),
+    );
+    expect(page1Html).toContain('data-export-section="4-chart"');
+    expect(page1Html).toContain('data-export-section="4b-monthly-table"');
   });
 });

@@ -15,7 +15,6 @@ import {
   aggregateByYear,
   removeFutureMonths,
 } from "./dreEvolutionHelper";
-import { calculateBreakEven } from "./dreBreakEvenHelper";
 import type { DreMonthlyItemDto } from "../../api/financial";
 
 function makeMonthlyItem(
@@ -27,11 +26,6 @@ function makeMonthlyItem(
     operatingTotal: number;
     financialTotal: number;
     isProvisional: boolean;
-    costCoveragePercent: number | null;
-    fullManagerialResultAvailable: boolean;
-    coveredRevenue: number;
-    coveredContributionMargin: number;
-    partialManagerialResultOnCoveredRevenue: number;
   }>,
 ): DreMonthlyItemDto {
   const rev = overrides?.realizedRevenue ?? 30000;
@@ -46,20 +40,12 @@ function makeMonthlyItem(
 
   const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
-  const fullAvail = overrides?.fullManagerialResultAvailable ?? true;
-  const netResult = fullAvail ? net : null;
-
   return {
     month,
     realizedRevenue: rev,
     estimatedCOGS: cogs,
     estimatedGrossProfit: gross,
     estimatedGrossMarginPercent: rev > 0 ? r2((gross / rev) * 100) : null,
-    costCoveragePercent: overrides?.costCoveragePercent ?? 100,
-    fullManagerialResultAvailable: fullAvail,
-    coveredRevenue: overrides?.coveredRevenue ?? rev,
-    coveredContributionMargin: overrides?.coveredContributionMargin ?? cm,
-    partialManagerialResultOnCoveredRevenue: overrides?.partialManagerialResultOnCoveredRevenue,
     variableExpenses: {
       paymentFees: varTotal,
       taxesOnRevenue: 0,
@@ -93,32 +79,12 @@ function makeMonthlyItem(
       otherExpenses: 0,
       total: 0,
     },
-    netManagerialResult: netResult,
-    netManagerialMarginPercent: netResult !== null && rev > 0 ? r2((netResult / rev) * 100) : null,
-    status: fullAvail
-      ? net > 0
-        ? "PROFIT"
-        : net < 0
-        ? "LOSS"
-        : "BREAK_EVEN"
-      : (overrides?.partialManagerialResultOnCoveredRevenue ?? 0) > 0
-      ? "PROFIT"
-      : (overrides?.partialManagerialResultOnCoveredRevenue ?? 0) < 0
-      ? "LOSS"
-      : "BREAK_EVEN",
-    breakEven: calculateBreakEven(
-      rev,
-      cm,
-      netResult,
-      {
-        fullManagerialResultAvailable: fullAvail,
-        costCoveragePercent: overrides?.costCoveragePercent,
-        coveredRevenue: overrides?.coveredRevenue,
-        coveredContributionMargin: overrides?.coveredContributionMargin,
-        partialManagerialResult: overrides?.partialManagerialResultOnCoveredRevenue,
-        isProvisional,
-      },
-    ),
+    netManagerialResult: net,
+    netManagerialMarginPercent: rev > 0 ? r2((net / rev) * 100) : null,
+    status: net > 0 ? "PROFIT" : net < 0 ? "LOSS" : "BREAK_EVEN",
+    fullGrossProfitAvailable: true,
+    fullManagerialResultAvailable: true,
+    costCoveragePercent: 100,
     dataQuality: {
       isProvisional,
       financiallyClosed: !isProvisional,
@@ -633,86 +599,75 @@ describe("Phase 5D.5: Adaptive DRE Evolution Chart & Faithful Monthly Table", ()
     });
   });
 
-  describe("Phase 5D.7: Break-Even Visual Integration in Monthly Chart & Faithful Table", () => {
-    it("A, B, C: Generates correct breakEvenRevenue in chart buckets and uses null (not zero) for unviable margin", () => {
-      // 1. Positive month: Rev 100k, CM 40k, Net +10k -> break-even 75k
-      const positiveMonth = makeMonthlyItem("2026-03", {
-        realizedRevenue: 100000,
-        estimatedCOGS: 50000,
-        variableTotal: 10000, // CM = 40000 (rate 0.4)
-        operatingTotal: 30000, // Net = +10000
-      });
-
-      // 2. Negative month: Rev 50k, CM 25k, Net -10k -> rate 0.5, gap 20k, break-even 70k
-      const negativeMonth = makeMonthlyItem("2026-04", {
-        realizedRevenue: 50000,
-        estimatedCOGS: 20000,
-        variableTotal: 5000, // CM = 25000 (rate 0.5)
-        operatingTotal: 35000, // Net = -10000
-      });
-
-      // 3. Unviable margin month: Rev 100k, CM -5k -> UNVIABLE_MARGIN
-      const unviableMonth = makeMonthlyItem("2026-05", {
-        realizedRevenue: 100000,
-        estimatedCOGS: 90000,
-        variableTotal: 15000, // CM = -5000
-        operatingTotal: 20000, // Net = -25000
-      });
-
-      const evolution = buildAdaptiveDreEvolution(
-        [positiveMonth, negativeMonth, unviableMonth],
-        { from: "2026-03-01", to: "2026-05-31" },
-        new Date("2026-10-29T12:00:00Z"),
-      );
-
-      const [bPos, bNeg, bUnv] = evolution.chartBuckets;
-
-      // Positive month: breakEvenRevenue is 75000
-      expect(bPos.breakEven.status).toBe("ABOVE_BREAK_EVEN");
-      expect(bPos.breakEvenRevenue).toBe(75000);
-      expect(bPos.realizedRevenue).toBe(100000);
-      expect(bPos.realizedRevenue).toBeGreaterThan(bPos.breakEvenRevenue!);
-
-      // Negative month: breakEvenRevenue is 70000
-      expect(bNeg.breakEven.status).toBe("BELOW_BREAK_EVEN");
-      expect(bNeg.breakEvenRevenue).toBe(70000);
-      expect(bNeg.breakEvenRevenue!).toBeGreaterThan(bNeg.realizedRevenue);
-
-      // Unviable month: breakEvenRevenue is strictly null, NEVER zero
-      expect(bUnv.breakEven.status).toBe("UNVIABLE_MARGIN");
-      expect(bUnv.breakEvenRevenue).toBeNull();
-      expect(bUnv.breakEvenRevenue).not.toBe(0);
-    });
-
-    it("D & E: Toggle defaults to ON and OFF hides break-even in tooltip and chart", () => {
-      const month = makeMonthlyItem("2026-03", {
-        realizedRevenue: 69230.25,
+  describe("Break-Even Line & Tooltip on Evolution Chart", () => {
+    it("A & B: Renders toggle checkbox and legend indicator for Ponto de Equilíbrio", () => {
+      const singleMonth = makeMonthlyItem("2026-09", {
+        realizedRevenue: 80000,
         estimatedCOGS: 40000,
-        variableTotal: 8984.99,
-        operatingTotal: 12228.98,
+        variableTotal: 8000,
+        operatingTotal: 20000,
       });
 
-      const chartHtml = renderToString(
+      const html = renderToString(
         <FinancialDreMonthlyChart
-          monthlyData={[month]}
-          period={{ from: "2026-03-01", to: "2026-03-31" }}
-          initialViewMode="chart"
+          monthlyData={[singleMonth]}
+          period={{ from: "2026-09-01", to: "2026-09-30" }}
         />,
       );
 
-      // Toggle checkbox exists, labeled, and checked by default
-      expect(chartHtml).toContain('data-testid="dre-toggle-breakeven"');
-      expect(chartHtml).toContain("Exibir ponto de equilíbrio");
-      expect(chartHtml).toContain("checked");
+      expect(html).toContain('data-testid="dre-toggle-breakeven"');
+      expect(html).toContain("Exibir ponto de equilíbrio");
 
-      const evolution = buildAdaptiveDreEvolution(
-        [month],
-        { from: "2026-03-01", to: "2026-03-31" },
-        new Date("2026-10-29T12:00:00Z"),
+      const exportHtml = renderToString(
+        <FinancialDreMonthlyChart
+          monthlyData={[singleMonth]}
+          period={{ from: "2026-09-01", to: "2026-09-30" }}
+          mode="export"
+        />,
       );
-      const bucket = evolution.chartBuckets[0];
+      expect(exportHtml).toContain("Ponto de equilíbrio");
+    });
 
-      // With showBreakEven=true (default):
+    it("C: Tooltip includes break-even section when enabled, hides when disabled", () => {
+      const bucket = {
+        key: "2026-09",
+        label: "Set/26",
+        formattedMonth: "Set/26",
+        granularity: "monthly" as const,
+        isSelected: true,
+        isContext: false,
+        months: ["2026-09"],
+        realizedRevenue: 100000,
+        estimatedCOGS: 50000,
+        estimatedGrossProfit: 50000,
+        estimatedGrossMarginPercent: 50,
+        variableExpensesTotal: 10000,
+        contributionMargin: 40000,
+        contributionMarginPercent: 40,
+        operatingExpensesTotal: 60000,
+        financialResultTotal: 0,
+        otherResultTotal: 0,
+        netManagerialResult: -20000,
+        netManagerialMarginPercent: -20,
+        status: "LOSS" as const,
+        breakEven: {
+          status: "UNREACHED" as const,
+          realizedRevenue: 100000,
+          contributionMargin: 40000,
+          contributionMarginRate: 0.4,
+          netResult: -20000,
+          additionalRevenueNeeded: 50000,
+          breakEvenRevenue: 150000,
+          additionalRevenuePercent: 50,
+        },
+        breakEvenRevenue: 150000,
+        dataQuality: {
+          isProvisional: false,
+          financiallyClosed: true,
+          pendingAccruals: [],
+        },
+      };
+
       const tooltipOnHtml = renderToString(
         React.createElement(DreMonthlyTooltip, {
           active: true,
@@ -722,8 +677,11 @@ describe("Phase 5D.5: Adaptive DRE Evolution Chart & Faithful Monthly Table", ()
       );
       expect(tooltipOnHtml).toContain('data-testid="dre-tooltip-breakeven"');
       expect(tooltipOnHtml).toContain("Ponto de equilíbrio:");
+      expect(tooltipOnHtml).toContain(formatCurrency(150000));
+      expect(tooltipOnHtml).toContain("Gap para equilíbrio:");
+      expect(tooltipOnHtml).toContain(formatCurrency(50000));
+      expect(tooltipOnHtml).toContain("Abaixo do equilíbrio");
 
-      // With showBreakEven=false:
       const tooltipOffHtml = renderToString(
         React.createElement(DreMonthlyTooltip, {
           active: true,
@@ -735,13 +693,12 @@ describe("Phase 5D.5: Adaptive DRE Evolution Chart & Faithful Monthly Table", ()
       expect(tooltipOffHtml).not.toContain("Ponto de equilíbrio:");
     });
 
-    it("F & H: Positive month (Mar/26 simulation) shows revenue above break-even with correct tooltip", () => {
-      // Mar/26 numbers: Rev ~69230.25, CM ~20245.24, Net ~+8016.28 -> Break-even ~41816.97
+    it("F & H: Positive month shows revenue above break-even with correct tooltip", () => {
       const marchItem = makeMonthlyItem("2026-03", {
         realizedRevenue: 69230.25,
         estimatedCOGS: 40000,
-        variableTotal: 8985.01, // CM = 20245.24 (rate ~0.292434)
-        operatingTotal: 12228.96, // Net = +8016.28
+        variableTotal: 8985.01,
+        operatingTotal: 12228.96,
       });
 
       const evolution = buildAdaptiveDreEvolution(
@@ -752,7 +709,7 @@ describe("Phase 5D.5: Adaptive DRE Evolution Chart & Faithful Monthly Table", ()
       const bucket = evolution.chartBuckets.find((b) => b.isSelected)!;
 
       expect(bucket.realizedRevenue).toBe(69230.25);
-      expect(bucket.breakEven.status).toBe("ABOVE_BREAK_EVEN");
+      expect(bucket.breakEven.status).toBe("PROFITABLE");
       expect(Math.abs(bucket.breakEvenRevenue! - 41816.97)).toBeLessThan(2);
       expect(bucket.realizedRevenue).toBeGreaterThan(bucket.breakEvenRevenue!);
 
@@ -773,7 +730,6 @@ describe("Phase 5D.5: Adaptive DRE Evolution Chart & Faithful Monthly Table", ()
     });
 
     it("G: Negative month tooltip clearly indicates gap, status, and narrative", () => {
-      // Negative month: Rev 50k, CM 25k, Net -10k -> gap 20k, break-even 70k
       const negItem = makeMonthlyItem("2026-02", {
         realizedRevenue: 50000,
         estimatedCOGS: 20000,
@@ -788,7 +744,7 @@ describe("Phase 5D.5: Adaptive DRE Evolution Chart & Faithful Monthly Table", ()
       );
       const bucket = evolution.chartBuckets.find((b) => b.isSelected)!;
 
-      expect(bucket.breakEven.status).toBe("BELOW_BREAK_EVEN");
+      expect(bucket.breakEven.status).toBe("UNREACHED");
       expect(bucket.breakEvenRevenue).toBe(70000);
       expect(bucket.breakEven.additionalRevenueNeeded).toBe(20000);
 
@@ -813,7 +769,7 @@ describe("Phase 5D.5: Adaptive DRE Evolution Chart & Faithful Monthly Table", ()
         realizedRevenue: 50000,
         estimatedCOGS: 20000,
         variableTotal: 5000,
-        operatingTotal: 35000, // break-even is 70000
+        operatingTotal: 35000,
       });
 
       const exportHtml = renderToString(
@@ -824,9 +780,7 @@ describe("Phase 5D.5: Adaptive DRE Evolution Chart & Faithful Monthly Table", ()
         />,
       );
 
-      // SVG contains the break-even legend item
       expect(exportHtml).toContain("Ponto de equilíbrio");
-      // Check that Y-ticks span up to 70k or higher
       expect(exportHtml).toMatch(/R\$ 70k|R\$ 80k/);
     });
 
@@ -854,26 +808,49 @@ describe("Phase 5D.5: Adaptive DRE Evolution Chart & Faithful Monthly Table", ()
 
       expect(tableHtml).toContain("Ponto de Equilíbrio");
       expect(tableHtml).toContain("Gap Equilíbrio");
-      // Positive month shows break-even and Superado
       expect(tableHtml).toContain("75.000,00");
       expect(tableHtml).toContain("Superado");
-      // Negative month shows break-even and gap amount
       expect(tableHtml).toContain("70.000,00");
       expect(tableHtml).toContain("20.000,00");
     });
 
-    it("E. Renderiza ponto de equilíbrio provisório com asterisco na tabela mensal quando houver cobertura parcial de custos", () => {
+    it("Partial cost coverage month shows Cobertura parcial and avoids false target in table and tooltip", () => {
       const partialItem = makeMonthlyItem("2026-05", {
-        realizedRevenue: 100000,
-        estimatedCOGS: 30000,
-        variableTotal: 10000,
-        operatingTotal: 40000,
-        costCoveragePercent: 60,
-        fullManagerialResultAvailable: false,
-        coveredRevenue: 60000,
-        coveredContributionMargin: 20000, // 30k covered gross - 10k var = 20k CM (rate 0.3333...)
-        partialManagerialResultOnCoveredRevenue: -20000, // 20k CM - 40k op = -20k
+        realizedRevenue: 50000,
+        estimatedCOGS: 20000,
+        variableTotal: 5000,
+        operatingTotal: 10000,
       });
+      partialItem.fullManagerialResultAvailable = false;
+      partialItem.costCoveragePercent = 45;
+      partialItem.coveredRevenue = 22500;
+      partialItem.uncoveredRevenue = 27500;
+      partialItem.netManagerialResult = null;
+
+      const evolution = buildAdaptiveDreEvolution(
+        [partialItem],
+        { from: "2026-05-01", to: "2026-05-31" },
+        new Date("2026-10-29T12:00:00Z"),
+      );
+      const bucket = evolution.chartBuckets.find((b) => b.isSelected)!;
+
+      expect(bucket.breakEven.status).toBe("UNDETERMINED_PARTIAL_COST_COVERAGE");
+      expect(bucket.breakEvenRevenue).toBeNull();
+
+      const tooltipHtml = renderToString(
+        React.createElement(DreMonthlyTooltip, {
+          active: true,
+          payload: [{ payload: bucket }],
+        }),
+      );
+
+      expect(tooltipHtml).toContain("Cobertura parcial");
+      expect(tooltipHtml).toContain("Cobertura parcial de custos (CMV incompleto)");
+      expect(tooltipHtml).toContain("Cobertura de custo:");
+      expect(tooltipHtml).toContain("45,0%");
+      expect(tooltipHtml).toContain(formatCurrency(22500));
+      expect(tooltipHtml).toContain(formatCurrency(27500));
+      expect(tooltipHtml).toContain("Ponto de Equilíbrio indisponível até cobertura atingir 100%.");
 
       const tableHtml = renderToString(
         <FinancialDreMonthlyChart
@@ -883,10 +860,63 @@ describe("Phase 5D.5: Adaptive DRE Evolution Chart & Faithful Monthly Table", ()
         />,
       );
 
-      // Break-even revenue should be 60k + 20k / (20k/60k) = 60k + 60k = 120.000,00 with asterisk
-      expect(tableHtml).toContain("120.000,00");
-      expect(tableHtml).toContain("*");
-      expect(tableHtml).toContain("60.000,00"); // gap = 20k / (1/3) = 60.000,00
+      expect(tableHtml).toContain("Cobertura parcial");
+      expect(tableHtml).toContain("45,0%");
+      expect(tableHtml).toContain("tp-be-partial-title");
+      expect(tableHtml).toContain("tp-be-partial-sub");
+      expect(tableHtml).toContain("Faltam dados de custo para");
+      expect(tableHtml).toContain(formatCurrency(27500));
+      // Gap must not be calculated
+      expect(tableHtml).toContain("<td>—</td>");
+    });
+
+    it("Real case scenario: Jun/26 (99,47% partial coverage) vs Jul/26 (100% full coverage R$ 38.283,00)", () => {
+      // Jun/26: 99.47% coverage, uncovered R$ 169.90, break-even undetermined
+      const junItem = makeMonthlyItem("2026-06", {
+        realizedRevenue: 32768.14,
+        estimatedCOGS: 15000,
+        variableTotal: 3000,
+        operatingTotal: 8000,
+        isProvisional: false,
+      });
+      junItem.fullManagerialResultAvailable = false;
+      junItem.costCoveragePercent = 99.47;
+      junItem.coveredRevenue = 32598.24;
+      junItem.uncoveredRevenue = 169.90;
+      junItem.netManagerialResult = null;
+
+      // Jul/26: 100% coverage, net result 0 (break-even exactly 38283.00)
+      const julItem = makeMonthlyItem("2026-07", {
+        realizedRevenue: 38283.00,
+        estimatedCOGS: 19141.50,
+        variableTotal: 0,
+        operatingTotal: 19141.50,
+        isProvisional: false,
+      });
+      julItem.fullManagerialResultAvailable = true;
+      julItem.costCoveragePercent = 100;
+      julItem.coveredRevenue = 38283.00;
+      julItem.uncoveredRevenue = 0;
+      julItem.netManagerialResult = 0;
+
+      const tableHtml = renderToString(
+        <FinancialDreMonthlyChart
+          monthlyData={[junItem, julItem]}
+          period={{ from: "2026-06-01", to: "2026-07-31" }}
+          initialViewMode="table"
+        />,
+      );
+
+      // Jun/26 shows partial coverage with 99,5% and uncovered R$ 169,90 in tooltip
+      expect(tableHtml).toContain("Cobertura parcial");
+      expect(tableHtml).toContain("99,5%");
+      expect(tableHtml).toContain(formatCurrency(169.90));
+
+      // Jul/26 shows normal break-even R$ 38.283,00
+      expect(tableHtml).toContain(formatCurrency(38283.00));
+
+      // Both retain closed quality status
+      expect(tableHtml).toContain("Fechado");
     });
   });
 });

@@ -586,8 +586,14 @@ export type DreEconomicCategory =
 export type DreEconomicStatus = "PROFIT" | "LOSS" | "BREAK_EVEN";
 
 export type DreBreakEvenStatus =
-  | "BELOW_BREAK_EVEN"
+  | "PROFITABLE"
+  | "UNREACHED"
+  | "UNDETERMINED_ZERO_MARGIN"
+  | "UNDETERMINED_ZERO_REVENUE"
+  | "UNDETERMINED_NO_REVENUE_WITH_COSTS"
+  | "UNDETERMINED_PARTIAL_COST_COVERAGE"
   | "ABOVE_BREAK_EVEN"
+  | "BELOW_BREAK_EVEN"
   | "UNVIABLE_MARGIN"
   | "NO_REVENUE"
   | "INCOMPLETE_COST_COVERAGE";
@@ -601,6 +607,9 @@ export interface DreBreakEvenDto {
   additionalRevenueNeeded: number | null;
   breakEvenRevenue: number | null;
   additionalRevenuePercent: number | null;
+  safetyMarginPercent?: number | null;
+  currentCoveragePercent?: number | null;
+  coverageNotice?: string | null;
   isProvisional?: boolean;
   calculationBasis?: "FULL" | "COVERED_REVENUE";
   coveredRevenue?: number;

@@ -17,6 +17,7 @@ export interface HustlerSalesImportOptions {
   batchId: string;
   dryRun?: boolean;
   chunkSize?: number;
+  plan?: HustlerSalesImportPlan;
 }
 
 export interface HustlerSalesImportResult {
@@ -130,8 +131,9 @@ export async function importHustlerSales(
     );
   }
 
-  // 2. Pre-flight Validation using Phase 4H authoritative planner
-  const plan: HustlerSalesImportPlan = await planHustlerSalesImport(prisma, batchId);
+  // 2. Pre-flight Validation using Phase 4H authoritative planner (or reuse provided plan to eliminate redundant egress)
+  const plan: HustlerSalesImportPlan =
+    options.plan || (await planHustlerSalesImport(prisma, batchId));
   const s = plan.summary;
 
   // Check how many identities for this batch already exist (for resume / idempotency)

@@ -8,8 +8,8 @@ import {
   DRE_BREAK_EVEN_HELP_TEXT,
   DRE_BREAK_EVEN_UNVIABLE_TITLE,
   DRE_BREAK_EVEN_UNVIABLE_MESSAGE,
-  DRE_BREAK_EVEN_INCOMPLETE_TITLE,
-  DRE_BREAK_EVEN_INCOMPLETE_MESSAGE,
+  DRE_BREAK_EVEN_PARTIAL_COVERAGE_TITLE,
+  DRE_BREAK_EVEN_PARTIAL_COVERAGE_MESSAGE,
 } from "./dreBreakEvenHelper";
 import { formatCurrency } from "../../utils/formatters";
 import type { DreSummaryTotalsDto } from "../../api/financial";
@@ -20,81 +20,76 @@ describe("FinancialDreBreakEven — Frontend Components & Calculation", () => {
     contributionMargin: number,
     netManagerialResult: number | null,
     options?: {
-      costCoveragePercent?: number;
-      fullManagerialResultAvailable?: boolean;
-      coveredRevenue?: number;
-      coveredContributionMargin?: number;
-      partialManagerialResultOnCoveredRevenue?: number;
+      costCoveragePercent?: number | null;
+      fullCoverage?: boolean;
     },
-  ): DreSummaryTotalsDto => ({
-    realizedRevenue,
-    estimatedCOGS: realizedRevenue * 0.5,
-    estimatedGrossProfit: realizedRevenue * 0.5,
-    estimatedGrossMarginPercent: 50,
-    coveredRevenue: options?.coveredRevenue ?? realizedRevenue,
-    uncoveredRevenue: realizedRevenue - (options?.coveredRevenue ?? realizedRevenue),
-    costCoveragePercent: options?.costCoveragePercent ?? 100,
-    coveredGrossProfit: options?.coveredRevenue !== undefined ? options.coveredRevenue * 0.5 : realizedRevenue * 0.5,
-    coveredGrossMarginPercent: 50,
-    coveredContributionMargin: options?.coveredContributionMargin,
-    fullGrossProfitAvailable: options?.fullManagerialResultAvailable ?? (netManagerialResult !== null),
-    fullManagerialResultAvailable: options?.fullManagerialResultAvailable ?? (netManagerialResult !== null),
-    partialManagerialResultOnCoveredRevenue: options?.partialManagerialResultOnCoveredRevenue,
-    variableExpenses: {
-      paymentFees: 0,
-      taxesOnRevenue: 0,
-      freightLogistics: 0,
-      salesCommissions: 0,
-      other: 0,
-      total: realizedRevenue * 0.5 - contributionMargin,
-    },
-    contributionMargin,
-    contributionMarginPercent:
-      realizedRevenue > 0 ? (contributionMargin / realizedRevenue) * 100 : null,
-    operatingExpenses: {
-      personnel: 0,
-      partnerCompensation: 0,
-      marketing: 0,
-      occupancy: 0,
-      utilities: 0,
-      software: 0,
-      accounting: 0,
-      infrastructure: 0,
-      administrative: 0,
-      other: 0,
-      total: netManagerialResult !== null ? contributionMargin - netManagerialResult : 0,
-    },
-    financialResult: { financialIncome: 0, financialExpenses: 0, total: 0 },
-    otherResult: { otherIncome: 0, otherExpenses: 0, total: 0 },
-    netManagerialResult,
-    netManagerialMarginPercent:
-      netManagerialResult !== null && realizedRevenue > 0
-        ? (netManagerialResult / realizedRevenue) * 100
-        : null,
-    status:
-      netManagerialResult !== null
-        ? netManagerialResult > 0
-          ? "PROFIT"
-          : netManagerialResult < 0
-          ? "LOSS"
-          : "BREAK_EVEN"
-        : "BREAK_EVEN",
-    breakEven: calculateBreakEven(
-      realizedRevenue,
-      contributionMargin,
-      netManagerialResult,
-      {
-        fullManagerialResultAvailable: options?.fullManagerialResultAvailable,
-        costCoveragePercent: options?.costCoveragePercent,
-        coveredRevenue: options?.coveredRevenue,
-        coveredContributionMargin: options?.coveredContributionMargin,
-        partialManagerialResult: options?.partialManagerialResultOnCoveredRevenue,
-      },
-    ),
-  });
+  ): DreSummaryTotalsDto => {
+    const isFull = options?.fullCoverage ?? (options?.costCoveragePercent === undefined || options?.costCoveragePercent === 100);
+    const net = isFull ? netManagerialResult : null;
+    const cov = options?.costCoveragePercent ?? (isFull ? 100 : 50);
+    const coveredRev = isFull ? realizedRevenue : (realizedRevenue * cov) / 100;
+    const uncoveredRev = isFull ? 0 : realizedRevenue - coveredRev;
 
-  it("1. renders break-even section with 3 main metrics for negative net result (BELOW_BREAK_EVEN)", () => {
-    // Example 1: Rev 100k, CM 40k, Net -20k -> Break-even 150k, Gap 50k, +50.0%
+    return {
+      realizedRevenue,
+      estimatedCOGS: realizedRevenue * 0.5,
+      estimatedGrossProfit: realizedRevenue * 0.5,
+      estimatedGrossMarginPercent: 50,
+      coveredRevenue: coveredRev,
+      uncoveredRevenue: uncoveredRev,
+      costCoveragePercent: options?.costCoveragePercent ?? 100,
+      coveredGrossProfit: realizedRevenue * 0.5,
+      coveredGrossMarginPercent: 50,
+      fullGrossProfitAvailable: isFull,
+      fullManagerialResultAvailable: isFull,
+      variableExpenses: {
+        paymentFees: 0,
+        taxesOnRevenue: 0,
+        freightLogistics: 0,
+        salesCommissions: 0,
+        other: 0,
+        total: realizedRevenue * 0.5 - contributionMargin,
+      },
+      contributionMargin,
+      contributionMarginPercent:
+        realizedRevenue > 0 ? (contributionMargin / realizedRevenue) * 100 : null,
+      operatingExpenses: {
+        personnel: 0,
+        partnerCompensation: 0,
+        marketing: 0,
+        occupancy: 0,
+        utilities: 0,
+        software: 0,
+        accounting: 0,
+        infrastructure: 0,
+        administrative: 0,
+        other: 0,
+        total: contributionMargin - (netManagerialResult ?? 0),
+      },
+      financialResult: { financialIncome: 0, financialExpenses: 0, total: 0 },
+      otherResult: { otherIncome: 0, otherExpenses: 0, total: 0 },
+      netManagerialResult: net,
+      netManagerialMarginPercent:
+        net !== null && realizedRevenue > 0 ? (net / realizedRevenue) * 100 : null,
+      status:
+        net !== null && net > 0
+          ? "PROFIT"
+          : net !== null && net < 0
+          ? "LOSS"
+          : "BREAK_EVEN",
+      breakEven: calculateBreakEven(
+        realizedRevenue,
+        contributionMargin,
+        net,
+        {
+          costCoveragePercent: options?.costCoveragePercent ?? (isFull ? 100 : 50),
+          fullCoverage: isFull,
+        },
+      ),
+    };
+  };
+
+  it("1. renders break-even section with 3 main metrics for negative net result (UNREACHED)", () => {
     const totals = createMockTotals(100000, 40000, -20000);
     const html = renderToString(
       React.createElement(FinancialDreBreakEvenSection, { totals }),
@@ -123,8 +118,7 @@ describe("FinancialDreBreakEven — Frontend Components & Calculation", () => {
     expect(html).toContain(formatCurrency(-20000));
   });
 
-  it("2. renders positive net result with Gap R$ 0,00 and superado status (ABOVE_BREAK_EVEN)", () => {
-    // Rev 100k, CM 40k, Net +10k -> Above break even
+  it("2. renders positive net result with Gap R$ 0,00 and superado status (PROFITABLE)", () => {
     const totals = createMockTotals(100000, 40000, 10000);
     const html = renderToString(
       React.createElement(FinancialDreBreakEvenSection, { totals }),
@@ -136,8 +130,7 @@ describe("FinancialDreBreakEven — Frontend Components & Calculation", () => {
     expect(html).toContain("Empresa acima do ponto de equilíbrio");
   });
 
-  it("3. renders informative state when contribution margin is <= 0 (UNVIABLE_MARGIN)", () => {
-    // Rev 100k, CM -5k, Net -30k -> Unviable margin
+  it("3. renders informative state when contribution margin is <= 0 (UNDETERMINED_ZERO_MARGIN)", () => {
     const totals = createMockTotals(100000, -5000, -30000);
     const html = renderToString(
       React.createElement(FinancialDreBreakEvenSection, { totals }),
@@ -149,7 +142,7 @@ describe("FinancialDreBreakEven — Frontend Components & Calculation", () => {
     expect(html).toContain("Margem insuficiente");
   });
 
-  it("4. renders informative state when revenue is zero (NO_REVENUE)", () => {
+  it("4. renders informative state when revenue is zero (UNDETERMINED_ZERO_REVENUE)", () => {
     const totals = createMockTotals(0, 0, -5000);
     const html = renderToString(
       React.createElement(FinancialDreBreakEvenSection, { totals }),
@@ -159,7 +152,28 @@ describe("FinancialDreBreakEven — Frontend Components & Calculation", () => {
     expect(html).toContain("Sem faturamento no período");
   });
 
-  it("5. includes title attribute with executive explanation on help button", () => {
+  it("5. renders informative state when cost coverage is partial (< 100%) without creating false targets", () => {
+    const totals = createMockTotals(100000, 40000, null, {
+      costCoveragePercent: 78.4,
+      fullCoverage: false,
+    });
+
+    const html = renderToString(
+      React.createElement(FinancialDreBreakEvenSection, { totals }),
+    );
+
+    expect(html).toContain('data-testid="dre-breakeven-partial-coverage-card"');
+    expect(html).toContain(DRE_BREAK_EVEN_PARTIAL_COVERAGE_TITLE);
+    expect(html).toContain(DRE_BREAK_EVEN_PARTIAL_COVERAGE_MESSAGE);
+    expect(html).toContain("O cálculo é liberado quando 100% da receita possui custo disponível.");
+    expect(html).toContain("Cobertura parcial de custos");
+    expect(html).toContain("Indisponível");
+    expect(html).toContain("78,4%");
+    expect(html).toContain(formatCurrency(21600));
+    expect(html).not.toContain("Faturamento de equilíbrio"); // No false cards
+  });
+
+  it("6. includes title attribute with executive explanation on help button", () => {
     const totals = createMockTotals(100000, 40000, -20000);
     const html = renderToString(
       React.createElement(FinancialDreBreakEvenSection, { totals }),
@@ -169,120 +183,34 @@ describe("FinancialDreBreakEven — Frontend Components & Calculation", () => {
     expect(html).toContain(DRE_BREAK_EVEN_HELP_TEXT);
   });
 
-  it("6. formatMonthlyBreakEvenTooltip produces exact expected narrative for charts", () => {
+  it("7. formatMonthlyBreakEvenTooltip produces exact expected narrative for charts", () => {
     // Negative month
-    const below = calculateBreakEven(50000, 25000, -10000);
+    const below = calculateBreakEven(50000, 25000, -10000, { fullCoverage: true });
     const belowText = formatMonthlyBreakEvenTooltip(below, formatCurrency);
     expect(belowText).toBe(
       `Faltou faturar aproximadamente ${formatCurrency(20000)} para atingir o equilíbrio.`,
     );
 
     // Positive month
-    const above = calculateBreakEven(50000, 25000, 5000);
+    const above = calculateBreakEven(50000, 25000, 5000, { fullCoverage: true });
     const aboveText = formatMonthlyBreakEvenTooltip(above, formatCurrency);
     expect(aboveText).toBe("Ponto de equilíbrio superado.");
 
     // Unviable margin
-    const unviable = calculateBreakEven(50000, -1000, -15000);
+    const unviable = calculateBreakEven(50000, -1000, -15000, { fullCoverage: true });
     const unviableText = formatMonthlyBreakEvenTooltip(unviable, formatCurrency);
     expect(unviableText).toBe(
       "Margem insuficiente para estimar equilíbrio por aumento de vendas.",
     );
 
-    // Incomplete cost coverage
-    const incomplete = calculateBreakEven(50000, 25000, null);
-    const incompleteText = formatMonthlyBreakEvenTooltip(incomplete, formatCurrency);
-    expect(incompleteText).toBe("Cobertura de custos parcial: equilíbrio indisponível.");
+    // Partial coverage
+    const partial = calculateBreakEven(50000, 25000, null, { fullCoverage: false });
+    const partialText = formatMonthlyBreakEvenTooltip(partial, formatCurrency);
+    expect(partialText).toContain("Cobertura parcial de CMV");
 
     // No revenue
-    const noRev = calculateBreakEven(0, 0, 0);
+    const noRev = calculateBreakEven(0, 0, 0, { fullCoverage: true });
     const noRevText = formatMonthlyBreakEvenTooltip(noRev, formatCurrency);
     expect(noRevText).toBeNull();
-  });
-
-  it("7. renders informative state when cost coverage is incomplete (INCOMPLETE_COST_COVERAGE)", () => {
-    const totals = createMockTotals(100000, 40000, null, {
-      costCoveragePercent: 55.4,
-      fullManagerialResultAvailable: false,
-    });
-    const html = renderToString(
-      React.createElement(FinancialDreBreakEvenSection, { totals }),
-    );
-
-    expect(html).toContain('data-testid="dre-breakeven-incomplete-card"');
-    expect(html).toContain(DRE_BREAK_EVEN_INCOMPLETE_TITLE);
-    expect(html).toContain(DRE_BREAK_EVEN_INCOMPLETE_MESSAGE);
-    expect(html).toContain("Cobertura parcial de custos");
-    expect(html).toContain("55,4%");
-  });
-
-  it("8. renders provisional break-even on covered revenue when cost coverage is partial (costCoveragePercent < 100%)", () => {
-    // DEV real values: Realized 236,046.97, Covered 228,481.75, Covered CM 63,444.28, Partial Net -34,025.79, Coverage 96.8%
-    const totals = createMockTotals(236046.97, 65000, null, {
-      costCoveragePercent: 96.8,
-      fullManagerialResultAvailable: false,
-      coveredRevenue: 228481.75,
-      coveredContributionMargin: 63444.28,
-      partialManagerialResultOnCoveredRevenue: -34025.79,
-    });
-    const html = renderToString(
-      React.createElement(FinancialDreBreakEvenSection, {
-        totals,
-        dataQuality: { isProvisional: true, pendingAccruals: ["VARIABLE_TAX_ON_REVENUE"] },
-      }),
-    );
-
-    // Cards should NOT be blocked
-    expect(html).toContain('data-testid="dre-breakeven-card-main"');
-    expect(html).toContain("Faturamento de equilíbrio estimado");
-    expect(html).toContain(formatCurrency(351018.75));
-
-    expect(html).toContain('data-testid="dre-breakeven-card-gap"');
-    expect(html).toContain(formatCurrency(122537.0));
-
-    expect(html).toContain('data-testid="dre-breakeven-card-percent"');
-    expect(html).toContain("+53,6%");
-
-    // Provisional Callout Banner
-    expect(html).toContain('data-testid="dre-breakeven-provisional-callout"');
-    expect(html).toContain("Cálculo provisório baseado na parcela da receita com cobertura de custos");
-    expect(html).toContain("Faturamento realizado total:");
-    expect(html).toContain(formatCurrency(236046.97));
-    expect(html).toContain("Considerado no cálculo:");
-    expect(html).toContain(formatCurrency(228481.75));
-    expect(html).toContain("96,8%");
-
-    // Status badge
-    expect(html).toContain("Provisório (cobertura 96,8%)");
-  });
-
-  it("9. formatMonthlyBreakEvenTooltip provides provisional narrative for covered revenue", () => {
-    // Loss on covered revenue
-    const beLoss = calculateBreakEven(100000, 40000, null, {
-      fullManagerialResultAvailable: false,
-      costCoveragePercent: 80,
-      coveredRevenue: 80000,
-      coveredContributionMargin: 40000,
-      partialManagerialResult: -20000,
-      isProvisional: true,
-    });
-    const lossText = formatMonthlyBreakEvenTooltip(beLoss, formatCurrency);
-    expect(lossText).toBe(
-      `Estimativa provisória: faltou faturar aproximadamente ${formatCurrency(40000)} sobre a receita coberta (80,0% de cobertura).`,
-    );
-
-    // Profit on covered revenue
-    const beProfit = calculateBreakEven(100000, 40000, null, {
-      fullManagerialResultAvailable: false,
-      costCoveragePercent: 80,
-      coveredRevenue: 80000,
-      coveredContributionMargin: 40000,
-      partialManagerialResult: 10000,
-      isProvisional: true,
-    });
-    const profitText = formatMonthlyBreakEvenTooltip(beProfit, formatCurrency);
-    expect(profitText).toBe(
-      "Estimativa provisória: ponto de equilíbrio superado sobre a parcela coberta (80,0% de cobertura).",
-    );
   });
 });

@@ -11,6 +11,16 @@ import type {
 } from "./financial-dre-types.js";
 import { DRE_DISCLAIMER } from "./financial-dre-types.js";
 
+export interface BreakEvenOptions {
+  costCoveragePercent?: number | null;
+  fullCoverage?: boolean;
+  fullManagerialResultAvailable?: boolean;
+  coveredRevenue?: number;
+  coveredContributionMargin?: number;
+  partialManagerialResult?: number | null;
+  isProvisional?: boolean;
+}
+
 export interface MonthlyCommercialTrend {
   month: string; // "YYYY-MM"
   realizedRevenue: number;
@@ -37,129 +47,32 @@ const fromCents = (c: number): number => c / 100;
 /**
  * Calculates managerial break-even (ponto de equilíbrio / faturamento necessário)
  * derived deterministically from realized revenue, contribution margin, and net managerial result.
+ * Strictly respects cost coverage semantics: when cost coverage is incomplete (< 100%),
+ * netManagerialResult is null or fullCoverage is false, break-even cannot be calculated
+ * reliably and returns UNDETERMINED_PARTIAL_COST_COVERAGE to avoid false projections.
  * Pure function without side-effects.
- * When cost coverage is partial, computes a provisional break-even restricted strictly
- * to the economically covered revenue, preserving data quality without false precision.
  */
 export function calculateBreakEven(
   realizedRevenue: number,
   contributionMargin: number,
   netResult: number | null,
-  options?: {
-    fullManagerialResultAvailable?: boolean;
-    costCoveragePercent?: number | null;
-    coveredRevenue?: number;
-    coveredContributionMargin?: number;
-    partialManagerialResult?: number | null;
-    isProvisional?: boolean;
-  },
+  options?: BreakEvenOptions,
 ): DreBreakEvenDto {
   const rev = r2(realizedRevenue);
   const cm = r2(contributionMargin);
-  const isFull = options?.fullManagerialResultAvailable !== false && netResult !== null;
 
-  if (isFull) {
-    if (rev <= 0) {
-      return {
-        status: "NO_REVENUE",
-        realizedRevenue: rev,
-        contributionMargin: cm,
-        contributionMarginRate: null,
-        netResult: r2(netResult),
-        additionalRevenueNeeded: null,
-        breakEvenRevenue: null,
-        additionalRevenuePercent: null,
-        isProvisional: options?.isProvisional ?? false,
-        calculationBasis: "FULL",
-        costCoveragePercent: options?.costCoveragePercent ?? 100,
-      };
-    }
+  // Check cost coverage guardrail
+  const hasIncompleteCoverage =
+    options?.fullCoverage === false ||
+    options?.fullManagerialResultAvailable === false ||
+    (options?.costCoveragePercent != null && options.costCoveragePercent < 100) ||
+    netResult === null;
 
-    const rate = cm / rev;
-
-    if (rate <= 0) {
-      return {
-        status: "UNVIABLE_MARGIN",
-        realizedRevenue: rev,
-        contributionMargin: cm,
-        contributionMarginRate: r4(rate),
-        netResult: r2(netResult),
-        additionalRevenueNeeded: null,
-        breakEvenRevenue: null,
-        additionalRevenuePercent: null,
-        isProvisional: options?.isProvisional ?? false,
-        calculationBasis: "FULL",
-        costCoveragePercent: options?.costCoveragePercent ?? 100,
-      };
-    }
-
-    const net = r2(netResult);
-
-    if (net >= 0) {
-      const implicitBreakEven = Math.max(0, r2(rev - net / rate));
-      return {
-        status: "ABOVE_BREAK_EVEN",
-        realizedRevenue: rev,
-        contributionMargin: cm,
-        contributionMarginRate: r4(rate),
-        netResult: net,
-        additionalRevenueNeeded: 0,
-        breakEvenRevenue: implicitBreakEven,
-        additionalRevenuePercent: 0,
-        isProvisional: options?.isProvisional ?? false,
-        calculationBasis: "FULL",
-        costCoveragePercent: options?.costCoveragePercent ?? 100,
-      };
-    }
-
-    const additionalRevenueNeeded = r2(Math.abs(net) / rate);
-    const breakEvenRevenue = r2(rev + additionalRevenueNeeded);
-    const additionalRevenuePercent = r4((additionalRevenueNeeded / rev) * 100);
-
+  if (hasIncompleteCoverage) {
+    const covRev = options?.coveredRevenue !== undefined ? r2(options.coveredRevenue) : null;
+    const covCm = options?.coveredContributionMargin !== undefined ? r2(options.coveredContributionMargin) : null;
     return {
-      status: "BELOW_BREAK_EVEN",
-      realizedRevenue: rev,
-      contributionMargin: cm,
-      contributionMarginRate: r4(rate),
-      netResult: net,
-      additionalRevenueNeeded,
-      breakEvenRevenue,
-      additionalRevenuePercent,
-      isProvisional: options?.isProvisional ?? false,
-      calculationBasis: "FULL",
-      costCoveragePercent: options?.costCoveragePercent ?? 100,
-    };
-  }
-
-  // Cobertura Parcial de Custos (Cálculo Provisório sobre a parcela coberta)
-  const covRev = options?.coveredRevenue !== undefined ? r2(options.coveredRevenue) : null;
-  const covCm = options?.coveredContributionMargin !== undefined ? r2(options.coveredContributionMargin) : null;
-  const covNet = options?.partialManagerialResult !== undefined && options.partialManagerialResult !== null
-    ? r2(options.partialManagerialResult)
-    : (netResult !== null ? r2(netResult) : null);
-  const costCoveragePercent = options?.costCoveragePercent ?? null;
-
-  if (rev <= 0 || (covRev !== null && covRev <= 0)) {
-    return {
-      status: "NO_REVENUE",
-      realizedRevenue: rev,
-      contributionMargin: cm,
-      contributionMarginRate: null,
-      netResult: covNet,
-      additionalRevenueNeeded: null,
-      breakEvenRevenue: null,
-      additionalRevenuePercent: null,
-      isProvisional: true,
-      calculationBasis: "COVERED_REVENUE",
-      ...(covRev !== null ? { coveredRevenue: covRev } : {}),
-      ...(covCm !== null ? { coveredContributionMargin: covCm } : {}),
-      costCoveragePercent,
-    };
-  }
-
-  if (covRev === null || covCm === null || covNet === null) {
-    return {
-      status: "INCOMPLETE_COST_COVERAGE",
+      status: "UNDETERMINED_PARTIAL_COST_COVERAGE",
       realizedRevenue: rev,
       contributionMargin: cm,
       contributionMarginRate: rev > 0 ? r4(cm / rev) : null,
@@ -167,71 +80,91 @@ export function calculateBreakEven(
       additionalRevenueNeeded: null,
       breakEvenRevenue: null,
       additionalRevenuePercent: null,
+      safetyMarginPercent: null,
+      currentCoveragePercent: null,
+      coverageNotice:
+        "Cobertura de custos parcial: não é possível estimar o ponto de equilíbrio com precisão sem 100% de cobertura de CMV.",
       isProvisional: true,
       calculationBasis: "COVERED_REVENUE",
       ...(covRev !== null ? { coveredRevenue: covRev } : {}),
       ...(covCm !== null ? { coveredContributionMargin: covCm } : {}),
-      costCoveragePercent,
+      costCoveragePercent: options?.costCoveragePercent ?? null,
     };
   }
 
-  const rate = covCm / covRev;
+  const net = r2(netResult);
 
-  if (rate <= 0) {
+  if (rev <= 0) {
+    const status =
+      net < 0 ? "UNDETERMINED_NO_REVENUE_WITH_COSTS" : "UNDETERMINED_ZERO_REVENUE";
     return {
-      status: "UNVIABLE_MARGIN",
+      status,
       realizedRevenue: rev,
-      contributionMargin: covCm,
-      contributionMarginRate: r4(rate),
-      netResult: covNet,
+      contributionMargin: cm,
+      contributionMarginRate: null,
+      netResult: net,
       additionalRevenueNeeded: null,
       breakEvenRevenue: null,
       additionalRevenuePercent: null,
-      isProvisional: true,
-      calculationBasis: "COVERED_REVENUE",
-      coveredRevenue: covRev,
-      coveredContributionMargin: covCm,
-      costCoveragePercent,
+      safetyMarginPercent: null,
+      currentCoveragePercent: null,
     };
   }
 
-  if (covNet >= 0) {
-    const implicitBreakEven = Math.max(0, r2(covRev - covNet / rate));
+  const rate = cm / rev;
+
+  if (rate <= 0) {
     return {
-      status: "INCOMPLETE_COST_COVERAGE",
+      status: "UNDETERMINED_ZERO_MARGIN",
       realizedRevenue: rev,
-      contributionMargin: covCm,
+      contributionMargin: cm,
       contributionMarginRate: r4(rate),
-      netResult: covNet,
+      netResult: net,
+      additionalRevenueNeeded: null,
+      breakEvenRevenue: null,
+      additionalRevenuePercent: null,
+      safetyMarginPercent: null,
+      currentCoveragePercent: null,
+    };
+  }
+
+  if (net >= 0) {
+    const implicitBreakEven = Math.max(0, r2(rev - net / rate));
+    const safetyMargin =
+      rev > 0 ? r2(((rev - implicitBreakEven) / rev) * 100) : null;
+    const currentCoverage =
+      implicitBreakEven > 0 ? r2((rev / implicitBreakEven) * 100) : null;
+    return {
+      status: "PROFITABLE",
+      realizedRevenue: rev,
+      contributionMargin: cm,
+      contributionMarginRate: r4(rate),
+      netResult: net,
       additionalRevenueNeeded: 0,
       breakEvenRevenue: implicitBreakEven,
       additionalRevenuePercent: 0,
-      isProvisional: true,
-      calculationBasis: "COVERED_REVENUE",
-      coveredRevenue: covRev,
-      coveredContributionMargin: covCm,
-      costCoveragePercent,
+      safetyMarginPercent: safetyMargin,
+      currentCoveragePercent: currentCoverage,
     };
   }
 
-  const additionalRevenueNeeded = r2(Math.abs(covNet) / rate);
-  const breakEvenRevenue = r2(covRev + additionalRevenueNeeded);
-  const additionalRevenuePercent = r4((additionalRevenueNeeded / covRev) * 100);
+  const additionalRevenueNeeded = r2(Math.abs(net) / rate);
+  const breakEvenRevenue = r2(rev + additionalRevenueNeeded);
+  const additionalRevenuePercent = r4((additionalRevenueNeeded / rev) * 100);
+  const currentCoverage =
+    breakEvenRevenue > 0 ? r2((rev / breakEvenRevenue) * 100) : null;
 
   return {
-    status: "INCOMPLETE_COST_COVERAGE",
+    status: "UNREACHED",
     realizedRevenue: rev,
-    contributionMargin: covCm,
+    contributionMargin: cm,
     contributionMarginRate: r4(rate),
-    netResult: covNet,
+    netResult: net,
     additionalRevenueNeeded,
     breakEvenRevenue,
     additionalRevenuePercent,
-    isProvisional: true,
-    calculationBasis: "COVERED_REVENUE",
-    coveredRevenue: covRev,
-    coveredContributionMargin: covCm,
-    costCoveragePercent,
+    safetyMarginPercent: null,
+    currentCoveragePercent: currentCoverage,
   };
 }
 
@@ -582,8 +515,8 @@ export function calculateDreMonthly(
         fromCents(cmCents),
         fullCoverage ? fromCents(netResultCents) : null,
         {
-          fullManagerialResultAvailable: fullCoverage,
           costCoveragePercent,
+          fullCoverage,
           coveredRevenue: fromCents(coveredRevCents),
           coveredContributionMargin: fromCents(coveredCmCents),
           partialManagerialResult: fromCents(partialManagerialResultCents),
@@ -742,10 +675,10 @@ export function calculateDreSummary(
   const breakEven = calculateBreakEven(
     fromCents(revCents),
     fromCents(cmCents),
-    netManagerialResult,
+    isFullCoverage ? fromCents(netResultCents) : null,
     {
-      fullManagerialResultAvailable,
       costCoveragePercent: summaryCoveragePercent,
+      fullCoverage: isFullCoverage,
       coveredRevenue: fromCents(coveredRevCents),
       coveredContributionMargin: fromCents(coveredCmCents),
       partialManagerialResult: partialManagerialResultOnCoveredRevenue,

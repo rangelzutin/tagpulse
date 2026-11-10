@@ -43,6 +43,9 @@ export interface DreChartBucket {
   status: DreEconomicStatus;
   breakEven: DreBreakEvenDto;
   breakEvenRevenue: number | null;
+  costCoveragePercent?: number | null;
+  coveredRevenue?: number;
+  uncoveredRevenue?: number;
   dataQuality: {
     isProvisional: boolean;
     financiallyClosed: boolean;
@@ -287,7 +290,7 @@ function createZeroMonthlyItem(month: string): DreMonthlyItemDto {
     netManagerialResult: 0,
     netManagerialMarginPercent: null,
     status: "BREAK_EVEN",
-    breakEven: calculateBreakEven(0, 0, 0),
+    breakEven: calculateBreakEven(0, 0, 0, { fullCoverage: true }),
     dataQuality: {
       isProvisional: false,
       financiallyClosed: true,
@@ -309,20 +312,39 @@ function toMonthlyChartBucket(
     calculateBreakEven(
       item.realizedRevenue,
       item.contributionMargin,
-      item.netManagerialResult,
+      item.fullManagerialResultAvailable ? item.netManagerialResult : null,
       {
-        fullManagerialResultAvailable: item.fullManagerialResultAvailable,
         costCoveragePercent: item.costCoveragePercent,
-        coveredRevenue: item.coveredRevenue,
-        coveredContributionMargin: item.coveredContributionMargin,
-        partialManagerialResult: item.partialManagerialResultOnCoveredRevenue,
-        isProvisional: item.dataQuality?.isProvisional,
+        fullCoverage: item.fullManagerialResultAvailable,
       },
     );
   const breakEvenRevenue =
-    be.status === "UNVIABLE_MARGIN" || be.status === "NO_REVENUE"
+    be.status === "UNDETERMINED_ZERO_MARGIN" ||
+    be.status === "UNVIABLE_MARGIN" ||
+    be.status === "UNDETERMINED_ZERO_REVENUE" ||
+    be.status === "UNDETERMINED_NO_REVENUE_WITH_COSTS" ||
+    be.status === "NO_REVENUE" ||
+    be.status === "UNDETERMINED_PARTIAL_COST_COVERAGE"
       ? null
       : be.breakEvenRevenue;
+
+  const uncoveredRevenue =
+    item.uncoveredRevenue ??
+    Math.max(
+      0,
+      item.realizedRevenue -
+        (item.coveredRevenue ??
+          (item.costCoveragePercent != null
+            ? item.realizedRevenue * (item.costCoveragePercent / 100)
+            : 0)),
+    );
+  const coveredRevenue =
+    item.coveredRevenue ?? Math.max(0, item.realizedRevenue - uncoveredRevenue);
+  const costCoveragePercent =
+    item.costCoveragePercent ??
+    (item.realizedRevenue > 0
+      ? (coveredRevenue / item.realizedRevenue) * 100
+      : null);
 
   return {
     key: item.month,
@@ -347,6 +369,9 @@ function toMonthlyChartBucket(
     status: item.status,
     breakEven: be,
     breakEvenRevenue,
+    costCoveragePercent,
+    coveredRevenue,
+    uncoveredRevenue,
     dataQuality: {
       isProvisional: item.dataQuality.isProvisional,
       financiallyClosed: item.dataQuality.financiallyClosed,
@@ -378,8 +403,7 @@ function aggregateMonthlyGroup(
   let otherTotalCents = 0;
   let netCents = 0;
   let coveredRevCents = 0;
-  let coveredGrossCents = 0;
-  let partialResultCents = 0;
+  let uncoveredRevCents = 0;
 
   const pendingSet = new Set<string>();
   let anyProvisional = false;
@@ -395,10 +419,22 @@ function aggregateMonthlyGroup(
     opTotalCents += toCents(item.operatingExpenses.total);
     finTotalCents += toCents(item.financialResult.total);
     otherTotalCents += toCents(item.otherResult.total);
-    const itemCovRev = item.coveredRevenue !== undefined ? toCents(item.coveredRevenue) : toCents(item.realizedRevenue);
-    coveredRevCents += itemCovRev;
-    coveredGrossCents += item.coveredGrossProfit !== undefined ? toCents(item.coveredGrossProfit) : toCents(item.estimatedGrossProfit);
-    partialResultCents += toCents(item.partialManagerialResultOnCoveredRevenue ?? item.netManagerialResult ?? 0);
+
+    const itemUncovered =
+      item.uncoveredRevenue ??
+      Math.max(
+        0,
+        item.realizedRevenue -
+          (item.coveredRevenue ??
+            (item.costCoveragePercent != null
+              ? item.realizedRevenue * (item.costCoveragePercent / 100)
+              : 0)),
+      );
+    const itemCovered =
+      item.coveredRevenue ??
+      Math.max(0, item.realizedRevenue - itemUncovered);
+    coveredRevCents += toCents(itemCovered);
+    uncoveredRevCents += toCents(itemUncovered);
 
     if (item.netManagerialResult !== null) {
       netCents += toCents(item.netManagerialResult);
@@ -426,8 +462,6 @@ function aggregateMonthlyGroup(
   const financialResultTotal = fromCents(finTotalCents);
   const otherResultTotal = fromCents(otherTotalCents);
   const netManagerialResult = hasIncompleteCostCoverage ? null : fromCents(netCents);
-  const coveredCmCents = coveredGrossCents - varTotalCents;
-  const coveragePercent = revCents > 0 ? r2((fromCents(coveredRevCents) / fromCents(revCents)) * 100) : 100;
 
   const estimatedGrossMarginPercent =
     revCents > 0 ? r2((estimatedGrossProfit / realizedRevenue) * 100) : null;
@@ -450,18 +484,18 @@ function aggregateMonthlyGroup(
   const be = calculateBreakEven(
     realizedRevenue,
     contributionMargin,
-    netManagerialResult,
+    hasIncompleteCostCoverage ? null : netManagerialResult,
     {
-      fullManagerialResultAvailable: !hasIncompleteCostCoverage,
-      costCoveragePercent: coveragePercent,
-      coveredRevenue: fromCents(coveredRevCents),
-      coveredContributionMargin: fromCents(coveredCmCents),
-      partialManagerialResult: fromCents(partialResultCents),
-      isProvisional: anyProvisional,
+      fullCoverage: !hasIncompleteCostCoverage,
     },
   );
   const breakEvenRevenue =
-    be.status === "UNVIABLE_MARGIN" || be.status === "NO_REVENUE"
+    be.status === "UNDETERMINED_ZERO_MARGIN" ||
+    be.status === "UNVIABLE_MARGIN" ||
+    be.status === "UNDETERMINED_ZERO_REVENUE" ||
+    be.status === "UNDETERMINED_NO_REVENUE_WITH_COSTS" ||
+    be.status === "NO_REVENUE" ||
+    be.status === "UNDETERMINED_PARTIAL_COST_COVERAGE"
       ? null
       : be.breakEvenRevenue;
 
@@ -488,6 +522,12 @@ function aggregateMonthlyGroup(
     status,
     breakEven: be,
     breakEvenRevenue,
+    costCoveragePercent:
+      revCents > 0
+        ? r2((fromCents(coveredRevCents) / realizedRevenue) * 100)
+        : null,
+    coveredRevenue: fromCents(coveredRevCents),
+    uncoveredRevenue: fromCents(uncoveredRevCents),
     dataQuality: {
       isProvisional: anyProvisional,
       financiallyClosed: allClosed,

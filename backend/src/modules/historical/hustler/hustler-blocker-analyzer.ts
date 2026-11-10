@@ -335,10 +335,7 @@ export async function analyzeHustlerBlockers(
   prisma: PrismaClient,
   batchId: string
 ): Promise<HustlerBlockerAnalysisResult> {
-  // 1. Run full sales reconciliation (read-only dry-run)
-  const salesResult = await reconcileHustlerSales({ prisma, batchId });
-
-  // 2. Load necessary staging rows for deep blocker analysis
+  // 1. Load necessary staging rows once in parallel (eliminates duplicate 51,633 row egress)
   const [
     produtoRows,
     vendaRows,
@@ -390,6 +387,18 @@ export async function analyzeHustlerBlockers(
       select: { canonicalEntityType: true, sourcePrimaryKey: true, canonicalEntityId: true },
     }),
   ]);
+
+  // 2. Run sales reconciliation reusing preloaded staging rows (zero duplicate fetch)
+  const salesResult = await reconcileHustlerSales({
+    prisma,
+    batchId,
+    preloadedStaging: {
+      vendaRows,
+      nflRows,
+      nfeRows,
+      nfRows: notaFiscalRows,
+    },
+  });
 
   const productIdentities = new Set(
     identities.filter((i) => i.canonicalEntityType === "Product").map((i) => i.sourcePrimaryKey)

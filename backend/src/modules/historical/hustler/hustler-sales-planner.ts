@@ -254,13 +254,23 @@ export function evaluateSaleRealization(params: {
   };
 }
 
+export interface HustlerSalesPlanOptions {
+  preloadedStaging?: {
+    vendaRows?: Array<{ payload: unknown }>;
+    nflRows?: Array<{ payload: unknown }>;
+    nfeRows?: Array<{ payload: unknown }>;
+    nfRows?: Array<{ payload: unknown }>;
+  };
+}
+
 // -----------------------------------------------------------------------------
 // Main Planner
 // -----------------------------------------------------------------------------
 
 export async function planHustlerSalesImport(
   prisma: PrismaClient,
-  batchId: string
+  batchId: string,
+  options?: HustlerSalesPlanOptions
 ): Promise<HustlerSalesImportPlan> {
   // 1. Validate Batch
   const batch = await prisma.historicalImportBatch.findUnique({
@@ -309,25 +319,32 @@ export async function planHustlerSalesImport(
     }
   }
 
-  // 3. Load Staging Tables
-  const [vendaRows, nflRows, nfeRows, nfRows] = await Promise.all([
-    prisma.historicalStagingRow.findMany({
-      where: { importBatchId: batchId, sourceTable: "venda" },
-      select: { payload: true },
-    }),
-    prisma.historicalStagingRow.findMany({
-      where: { importBatchId: batchId, sourceTable: "nota_fiscal_lancamento" },
-      select: { payload: true },
-    }),
-    prisma.historicalStagingRow.findMany({
-      where: { importBatchId: batchId, sourceTable: "nfe" },
-      select: { payload: true },
-    }),
-    prisma.historicalStagingRow.findMany({
-      where: { importBatchId: batchId, sourceTable: "nota_fiscal" },
-      select: { payload: true },
-    }),
-  ]);
+  // 3. Load Staging Tables (or reuse preloadedStaging to eliminate redundant network egress)
+  const [vendaRows, nflRows, nfeRows, nfRows] = options?.preloadedStaging
+    ? [
+        (options.preloadedStaging.vendaRows || []) as Array<{ payload: Record<string, any> }>,
+        (options.preloadedStaging.nflRows || []) as Array<{ payload: Record<string, any> }>,
+        (options.preloadedStaging.nfeRows || []) as Array<{ payload: Record<string, any> }>,
+        (options.preloadedStaging.nfRows || []) as Array<{ payload: Record<string, any> }>,
+      ]
+    : await Promise.all([
+        prisma.historicalStagingRow.findMany({
+          where: { importBatchId: batchId, sourceTable: "venda" },
+          select: { payload: true },
+        }),
+        prisma.historicalStagingRow.findMany({
+          where: { importBatchId: batchId, sourceTable: "nota_fiscal_lancamento" },
+          select: { payload: true },
+        }),
+        prisma.historicalStagingRow.findMany({
+          where: { importBatchId: batchId, sourceTable: "nfe" },
+          select: { payload: true },
+        }),
+        prisma.historicalStagingRow.findMany({
+          where: { importBatchId: batchId, sourceTable: "nota_fiscal" },
+          select: { payload: true },
+        }),
+      ]);
 
   const nfMap = new Map<string, Record<string, any>>();
   for (const row of nfRows) {

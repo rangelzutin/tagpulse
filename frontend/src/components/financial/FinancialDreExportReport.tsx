@@ -9,6 +9,7 @@ import {
   formatCurrency,
   formatPercent,
   formatDateBr,
+  formatMonthLabel,
 } from "../../utils/formatters";
 import {
   FinancialDreMonthlyChart,
@@ -489,6 +490,92 @@ const DRE_EXPORT_REPORT_CSS = `
     background: #0284c7;
     border-radius: 999px;
   }
+  .tp-dre-export-monthly-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10px;
+    line-height: 1.25;
+    table-layout: fixed;
+  }
+  .tp-dre-export-monthly-table th {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #475569;
+    border-bottom: 2px solid #cbd5e1;
+    padding: 5px 4px;
+    background: #f8fafc;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .tp-dre-export-monthly-table th.is-left,
+  .tp-dre-export-monthly-table td.is-left {
+    text-align: left;
+  }
+  .tp-dre-export-monthly-table th.is-right,
+  .tp-dre-export-monthly-table td.is-right {
+    text-align: right;
+  }
+  .tp-dre-export-monthly-table th.is-center,
+  .tp-dre-export-monthly-table td.is-center {
+    text-align: center;
+  }
+  .tp-dre-export-monthly-table td {
+    padding: 3.5px 4px;
+    border-bottom: 1px solid #e2e8f0;
+    color: #1e293b;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .tp-dre-export-monthly-table tr.is-provisional td {
+    background: #fffdf5;
+  }
+  .tp-dre-export-monthly-table td.tp-text-positive {
+    color: #15803d;
+    font-weight: 700;
+  }
+  .tp-dre-export-monthly-table td.tp-text-negative {
+    color: #be123c;
+    font-weight: 700;
+  }
+  .tp-export-pill-sm {
+    display: inline-block;
+    padding: 1px 5px;
+    border-radius: 999px;
+    font-size: 8.5px;
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+  .tp-export-pill-sm.is-profit {
+    background: #dcfce7;
+    color: #166534;
+    border: 1px solid #86efac;
+  }
+  .tp-export-pill-sm.is-loss {
+    background: #ffe4e6;
+    color: #9f1239;
+    border: 1px solid #fda4af;
+  }
+  .tp-export-pill-sm.is-even {
+    background: #f1f5f9;
+    color: #334155;
+    border: 1px solid #cbd5e1;
+  }
+  .tp-export-pill-sm.is-provisional {
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fcd34d;
+  }
+  .tp-export-pill-sm.is-closed {
+    background: #e0f2fe;
+    color: #075985;
+    border: 1px solid #7dd3fc;
+  }
   .tp-dre-export-quality-box {
     border-radius: 8px;
     padding: 12px 14px;
@@ -791,28 +878,29 @@ export function FinancialDreExportReport({
 
   // 3B. PONTO DE EQUILÍBRIO
   const breakEven =
-    summaryData.breakEven ??
     totals.breakEven ??
     calculateBreakEven(
       totals.realizedRevenue,
       totals.contributionMargin,
-      totals.netManagerialResult,
+      totals.fullManagerialResultAvailable ? totals.netManagerialResult : null,
       {
-        fullManagerialResultAvailable: totals.fullManagerialResultAvailable,
         costCoveragePercent: totals.costCoveragePercent,
-        coveredRevenue: totals.coveredRevenue,
-        coveredContributionMargin: totals.coveredContributionMargin,
-        partialManagerialResult: totals.partialManagerialResultOnCoveredRevenue,
-        isProvisional: summaryData.dataQuality?.isProvisional ?? false,
+        fullCoverage: totals.fullManagerialResultAvailable,
       },
     );
 
-  const isCoveredBasis = breakEven.calculationBasis === "COVERED_REVENUE";
-  const hasValidBreakEven = breakEven.breakEvenRevenue !== null;
-  const isAboveBreakEven =
-    breakEven.status === "ABOVE_BREAK_EVEN" ||
-    (isCoveredBasis && hasValidBreakEven && breakEven.additionalRevenueNeeded === 0);
-  const costCoveragePercent = breakEven.costCoveragePercent ?? totals.costCoveragePercent;
+  const isBeAbove =
+    breakEven.status === "PROFITABLE" || breakEven.status === "ABOVE_BREAK_EVEN";
+  const isBeBelow =
+    breakEven.status === "UNREACHED" || breakEven.status === "BELOW_BREAK_EVEN";
+  const isBeUnviable =
+    breakEven.status === "UNDETERMINED_ZERO_MARGIN" ||
+    breakEven.status === "UNVIABLE_MARGIN";
+  const isBeNoRevenue =
+    breakEven.status === "UNDETERMINED_ZERO_REVENUE" ||
+    breakEven.status === "UNDETERMINED_NO_REVENUE_WITH_COSTS" ||
+    breakEven.status === "NO_REVENUE";
+  const isBePartial = breakEven.status === "UNDETERMINED_PARTIAL_COST_COVERAGE";
 
   const breakEvenSection = (
     <section
@@ -822,25 +910,47 @@ export function FinancialDreExportReport({
       data-export-section="3b-breakeven"
     >
       <div className="tp-dre-export-breakeven-header">
-        <span className="tp-dre-export-breakeven-title">
-          {isCoveredBasis ? "Ponto de Equilíbrio (Estimativa Provisória)" : "Ponto de Equilíbrio"}
-        </span>
+        <span className="tp-dre-export-breakeven-title">Ponto de Equilíbrio</span>
         <span style={{ fontSize: "10px", color: "#64748b" }}>
-          {isCoveredBasis && costCoveragePercent !== null && costCoveragePercent !== undefined
-            ? `Estimativa baseada na receita coberta (${formatPercent(costCoveragePercent, 1)} de cobertura)`
-            : "Estimativa de faturamento para zerar o resultado gerencial"}
+          Estimativa de faturamento para zerar o resultado gerencial
         </span>
       </div>
 
-      {breakEven.status === "INCOMPLETE_COST_COVERAGE" && !hasValidBreakEven ? (
-        <div style={{ padding: "4px 0", fontSize: "11px", color: "#475569", fontWeight: 600 }}>
-          Ponto de equilíbrio indisponível no período devido à cobertura parcial de custos e despesas.
+      {isBePartial ? (
+        <div
+          className="tp-dre-export-breakeven-partial"
+          style={{ padding: "6px 0", fontSize: "11px", color: "#0369a1" }}
+          data-testid="dre-export-breakeven-partial"
+        >
+          <div style={{ fontWeight: 600, marginBottom: "4px" }}>
+            Ponto de Equilíbrio: Indisponível
+          </div>
+          <div style={{ fontSize: "10.5px", color: "#475569" }}>
+            Cobertura de custo:{" "}
+            <strong>{formatPercent(totals.costCoveragePercent ?? 0, 1)}</strong>{" "}
+            • Receita sem custo:{" "}
+            <strong>
+              {formatCurrency(
+                totals.uncoveredRevenue ??
+                  Math.max(
+                    0,
+                    totals.realizedRevenue -
+                      (totals.coveredRevenue ??
+                        totals.realizedRevenue *
+                          (((totals.costCoveragePercent ?? 0) / 100))),
+                  ),
+              )}
+            </strong>
+          </div>
+          <div style={{ fontSize: "10px", color: "#64748b", marginTop: "2px" }}>
+            O cálculo é liberado quando 100% da receita possui custo disponível.
+          </div>
         </div>
-      ) : breakEven.status === "UNVIABLE_MARGIN" ? (
+      ) : isBeUnviable ? (
         <div style={{ padding: "4px 0", fontSize: "11px", color: "#be123c", fontWeight: 600 }}>
           Margem de contribuição insuficiente para calcular o ponto de equilíbrio (aumento de faturamento isoladamente não elimina o prejuízo).
         </div>
-      ) : breakEven.status === "NO_REVENUE" ? (
+      ) : isBeNoRevenue ? (
         <div style={{ padding: "4px 0", fontSize: "11px", color: "#64748b" }}>
           Sem faturamento realizado no período para estimar ponto de equilíbrio.
         </div>
@@ -848,18 +958,14 @@ export function FinancialDreExportReport({
         <>
           <div className="tp-dre-export-breakeven-grid">
             <div className="tp-dre-export-be-card">
-              <span className="tp-dre-export-be-label">
-                {isCoveredBasis ? "Faturamento de Equilíbrio Estimado" : "Faturamento de Equilíbrio"}
-              </span>
+              <span className="tp-dre-export-be-label">Faturamento de Equilíbrio</span>
               <span className="tp-dre-export-be-value">
                 {breakEven.breakEvenRevenue !== null
                   ? formatCurrency(breakEven.breakEvenRevenue)
                   : "—"}
               </span>
               <span className="tp-dre-export-be-subtext">
-                {isAboveBreakEven
-                  ? (isCoveredBasis ? "Superado sobre a receita coberta" : "Superado no período")
-                  : (isCoveredBasis ? "Estimativa sobre a receita coberta" : "Meta para resultado zero")}
+                {isBeAbove ? "Superado no período" : "Meta para resultado zero"}
               </span>
             </div>
 
@@ -868,65 +974,66 @@ export function FinancialDreExportReport({
               <span
                 className="tp-dre-export-be-value"
                 style={{
-                  color: isAboveBreakEven ? "#15803d" : "#be123c",
+                  color: isBeAbove ? "#15803d" : "#be123c",
                 }}
               >
-                {isAboveBreakEven
+                {isBeAbove
                   ? "R$ 0,00"
                   : breakEven.additionalRevenueNeeded !== null
                   ? formatCurrency(breakEven.additionalRevenueNeeded)
                   : "—"}
               </span>
               <span className="tp-dre-export-be-subtext">
-                {isAboveBreakEven
-                  ? (isCoveredBasis ? "Empresa acima do equilíbrio coberto" : "Empresa acima do equilíbrio")
-                  : (isCoveredBasis ? "Faturamento faltante estimado" : "Faturamento faltante")}
+                {isBeAbove ? "Resultado positivo atingido" : "Faturamento adicional necessário"}
               </span>
             </div>
 
             <div className="tp-dre-export-be-card">
               <span className="tp-dre-export-be-label">Aumento Necessário</span>
               <span className="tp-dre-export-be-value">
-                {isAboveBreakEven
+                {isBeAbove
                   ? "0,0%"
                   : breakEven.additionalRevenuePercent !== null
                   ? `+${formatPercent(breakEven.additionalRevenuePercent, 1)}`
                   : "—"}
               </span>
               <span className="tp-dre-export-be-subtext">
-                {isCoveredBasis ? "Sobre receita coberta" : "Sobre receita realizada"}
+                {isBeAbove ? "Acima da meta de equilíbrio" : "Sobre o faturamento realizado"}
               </span>
             </div>
           </div>
 
           <div className="tp-dre-export-breakeven-context">
             <span>
-              {isCoveredBasis ? "Faturamento realizado total:" : "Faturamento realizado:"}{" "}
-              <strong>{formatCurrency(breakEven.realizedRevenue)}</strong>
+              Faturamento: <strong>{formatCurrency(breakEven.realizedRevenue)}</strong>
             </span>
-            {isCoveredBasis && (
-              <>
-                <span>•</span>
-                <span>
-                  Considerado:{" "}
-                  <strong>
-                    {formatCurrency(breakEven.coveredRevenue ?? totals.coveredRevenue ?? breakEven.realizedRevenue)}
-                  </strong>
-                  {costCoveragePercent !== null && costCoveragePercent !== undefined && (
-                    <> ({formatPercent(costCoveragePercent, 1)} de cobertura)</>
-                  )}
-                </span>
-              </>
-            )}
             <span>•</span>
             <span>
-              {isCoveredBasis ? "Margem considerada:" : "Margem de contribuição estimada:"}{" "}
-              <strong>
-                {breakEven.contributionMarginRate !== null
-                  ? formatPercent(breakEven.contributionMarginRate * 100, 1)
-                  : totals.contributionMarginPercent !== null && totals.contributionMarginPercent !== undefined
+              Margem de Contribuição:{" "}
+              <strong style={{ color: "#0d9488" }}>
+                {totals.contributionMarginPercent !== null
                   ? formatPercent(totals.contributionMarginPercent, 1)
+                  : breakEven.contributionMarginRate !== null
+                  ? formatPercent(breakEven.contributionMarginRate * 100, 1)
                   : "—"}
+              </strong>
+            </span>
+            <span>•</span>
+            <span>
+              Resultado Gerencial:{" "}
+              <strong
+                style={{
+                  color:
+                    breakEven.netResult !== null && breakEven.netResult > 0
+                      ? "#15803d"
+                      : breakEven.netResult !== null && breakEven.netResult < 0
+                      ? "#be123c"
+                      : "#334155",
+                }}
+              >
+                {breakEven.netResult !== null
+                  ? formatCurrency(breakEven.netResult)
+                  : "Indisponível"}
               </strong>
             </span>
           </div>
@@ -948,8 +1055,197 @@ export function FinancialDreExportReport({
         period={period}
         mode="export"
         exportWidth={736}
-        exportHeight={240}
+        exportHeight={210}
       />
+    </section>
+  );
+
+  // 4B. EVOLUÇÃO MENSAL DO RESULTADO — TABELA
+  const monthlyTableSection = (
+    <section
+      className="tp-dre-export-section-box"
+      aria-label="Tabela de Evolução Mensal do Resultado no Relatório"
+      data-testid="dre-export-monthly-table"
+      data-export-section="4b-monthly-table"
+    >
+      <h3 className="tp-dre-export-section-title">
+        Evolução Mensal do Resultado — Tabela
+      </h3>
+      <p className="tp-dre-export-section-subtitle">
+        Demonstrativo sintético mês a mês com margens, resultado líquido, ponto de equilíbrio e qualidade temporal.
+      </p>
+
+      {evolution.tableRows.length === 0 ? (
+        <p style={{ fontSize: 11, color: "#64748b", margin: 0 }}>
+          Nenhum dado mensal disponível no período selecionado.
+        </p>
+      ) : (
+        <table
+          className="tp-dre-export-monthly-table"
+          aria-label="Tabela Mensal Exportável"
+        >
+          <colgroup>
+            <col style={{ width: "8%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "11%" }} />
+            <col style={{ width: "7%" }} />
+            <col style={{ width: "13%" }} />
+            <col style={{ width: "8%" }} />
+            <col style={{ width: "13%" }} />
+            <col style={{ width: "11%" }} />
+            <col style={{ width: "8%" }} />
+            <col style={{ width: "9%" }} />
+          </colgroup>
+          <thead>
+            <tr>
+              <th scope="col" className="is-left">Mês</th>
+              <th scope="col" className="is-right">Receita</th>
+              <th scope="col" className="is-right">MC (R$)</th>
+              <th scope="col" className="is-right">MC (%)</th>
+              <th scope="col" className="is-right">Resultado Líquido</th>
+              <th scope="col" className="is-right">Margem Líq.</th>
+              <th scope="col" className="is-right">Ponto de Equilíbrio</th>
+              <th scope="col" className="is-right">Gap Equilíbrio</th>
+              <th scope="col" className="is-center">Status</th>
+              <th scope="col" className="is-center">Qualidade</th>
+            </tr>
+          </thead>
+          <tbody>
+            {evolution.tableRows.map((m) => {
+              const isProfit =
+                m.netManagerialResult !== null && m.netManagerialResult > 0;
+              const isLoss =
+                m.netManagerialResult !== null && m.netManagerialResult < 0;
+              const be =
+                m.breakEven ??
+                calculateBreakEven(
+                  m.realizedRevenue,
+                  m.contributionMargin,
+                  m.fullManagerialResultAvailable ? m.netManagerialResult : null,
+                  {
+                    costCoveragePercent: m.costCoveragePercent,
+                    fullCoverage: m.fullManagerialResultAvailable,
+                  },
+                );
+              const isBeAbove =
+                be.status === "PROFITABLE" || be.status === "ABOVE_BREAK_EVEN";
+              const isBeBelow =
+                be.status === "UNREACHED" || be.status === "BELOW_BREAK_EVEN";
+              const isBeUnviable =
+                be.status === "UNDETERMINED_ZERO_MARGIN" ||
+                be.status === "UNVIABLE_MARGIN";
+              const isBePartial =
+                be.status === "UNDETERMINED_PARTIAL_COST_COVERAGE";
+              const pendingLabels = formatDrePendingAccruals(
+                m.dataQuality.pendingAccruals,
+              );
+
+              return (
+                <tr
+                  key={m.month}
+                  className={m.dataQuality.isProvisional ? "is-provisional" : ""}
+                >
+                  <td className="is-left">
+                    <strong>{formatMonthLabel(m.month)}</strong>
+                  </td>
+                  <td className="is-right">{formatCurrency(m.realizedRevenue)}</td>
+                  <td className="is-right">{formatCurrency(m.contributionMargin)}</td>
+                  <td className="is-right">
+                    {m.contributionMarginPercent !== null
+                      ? formatPercent(m.contributionMarginPercent, 1)
+                      : "—"}
+                  </td>
+                  <td
+                    className={`is-right ${
+                      isProfit
+                        ? "tp-text-positive"
+                        : isLoss
+                        ? "tp-text-negative"
+                        : ""
+                    }`}
+                  >
+                    <strong>
+                      {m.netManagerialResult !== null
+                        ? formatCurrency(m.netManagerialResult)
+                        : "Indisponível"}
+                    </strong>
+                  </td>
+                  <td className="is-right">
+                    {m.netManagerialMarginPercent !== null
+                      ? formatPercent(m.netManagerialMarginPercent, 1)
+                      : "—"}
+                  </td>
+                  <td className="is-right">
+                    {be.breakEvenRevenue !== null
+                      ? formatCurrency(be.breakEvenRevenue)
+                      : isBeUnviable
+                      ? "Inviável"
+                      : isBePartial
+                      ? `Cobertura parcial (${formatPercent(
+                          m.costCoveragePercent ??
+                            (m.realizedRevenue > 0 && m.coveredRevenue != null
+                              ? (m.coveredRevenue / m.realizedRevenue) * 100
+                              : 0),
+                          1,
+                        )})`
+                      : "—"}
+                  </td>
+                  <td className="is-right">
+                    {isBeBelow && be.additionalRevenueNeeded !== null
+                      ? formatCurrency(be.additionalRevenueNeeded)
+                      : isBeAbove
+                      ? "Superado"
+                      : "—"}
+                  </td>
+                  <td className="is-center">
+                    <span
+                      className={`tp-export-pill-sm ${
+                        isProfit ? "is-profit" : isLoss ? "is-loss" : "is-even"
+                      }`}
+                    >
+                      {m.status === "PROFIT"
+                        ? "Lucro"
+                        : m.status === "LOSS"
+                        ? "Prejuízo"
+                        : "Equilíbrio"}
+                    </span>
+                  </td>
+                  <td className="is-center">
+                    {m.dataQuality.isProvisional ? (
+                      <span
+                        className="tp-export-pill-sm is-provisional"
+                        title={
+                          pendingLabels.length > 0
+                            ? `Aguardando conciliação: ${pendingLabels.join(" • ")}`
+                            : "Competência provisória"
+                        }
+                      >
+                        Provisório
+                      </span>
+                    ) : (
+                      <span className="tp-export-pill-sm is-closed">
+                        Fechado
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+      <div
+        className="tp-dre-export-table-note"
+        style={{
+          fontSize: "9px",
+          color: "#64748b",
+          marginTop: "6px",
+          lineHeight: 1.35,
+        }}
+        data-testid="dre-export-table-coverage-note"
+      >
+        Meses com cobertura de custo inferior a 100% não possuem Ponto de Equilíbrio calculado. O percentual entre parênteses indica a cobertura de custo disponível no período.
+      </div>
     </section>
   );
 
@@ -1013,7 +1309,7 @@ export function FinancialDreExportReport({
             </td>
           </tr>
           <tr className="is-subitem">
-            <td className="is-indent">Taxas de Pagamento</td>
+            <td className="is-indent">Taxas de Meio de Pagamento</td>
             <td className="is-right">
               {formatCurrency(totals.variableExpenses.paymentFees)}
             </td>
@@ -1396,6 +1692,7 @@ export function FinancialDreExportReport({
             {secondaryMetricsSection}
             {breakEvenSection}
             {chartSection}
+            {monthlyTableSection}
             {dreTableSection}
             {breakdownSection}
             {qualitySection}
@@ -1412,7 +1709,7 @@ export function FinancialDreExportReport({
       data-testid="dre-export-report"
       data-layout-mode="paginated"
     >
-      {/* PÁGINA 1: Cabeçalho, KPIs Principais, Métricas Secundárias, Ponto de Equilíbrio, Gráfico */}
+      {/* PÁGINA 1: Cabeçalho, KPIs Principais, Métricas Secundárias, Break-Even, Gráfico e Tabela Mensal */}
       <div className="tp-dre-export-page" data-export-page="1">
         <style>{DRE_EXPORT_REPORT_CSS}</style>
         <div className="tp-dre-export-page-body">
@@ -1421,6 +1718,7 @@ export function FinancialDreExportReport({
           {secondaryMetricsSection}
           {breakEvenSection}
           {chartSection}
+          {monthlyTableSection}
         </div>
         <div className="tp-dre-export-page-footer">
           <span>
