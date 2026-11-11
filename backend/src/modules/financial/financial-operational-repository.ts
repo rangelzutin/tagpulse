@@ -19,6 +19,7 @@ import {
   deriveOperationalStatus,
   isBancoInterReconciliationEvent,
 } from "./financial-operational-calculator.js";
+import { buildOperationUnitFilter } from "../../shared/filters/filter-options.js";
 
 export interface OperationalSummaryDbRecord {
   dueDate: Date;
@@ -219,7 +220,7 @@ export function createPrismaFinancialOperationalRepository(
             ? { budgetPlanSourceId: filters.budgetPlanSourceId }
             : {}),
           ...(dueDateWhere ? { dueDate: dueDateWhere } : {}),
-          ...(filters?.operationUnit ? { operationUnit: filters.operationUnit } : {}),
+          ...(buildOperationUnitFilter(filters?.operationUnit) ?? {}),
           ...(filters?.sourceSystem ? { sourceSystem: filters.sourceSystem } : {}),
         },
         select: {
@@ -257,6 +258,7 @@ export function createPrismaFinancialOperationalRepository(
         params.confirmationDateTo,
       );
       const searchOR = buildSearchFilter(params.search);
+      const opUnitFilter = buildOperationUnitFilter(params.operationUnit as OperationUnit);
 
       const where: Prisma.FinancialRecordWhereInput = {
         type: "ENTRADA",
@@ -266,8 +268,8 @@ export function createPrismaFinancialOperationalRepository(
         ...(dueDateWhere ? { dueDate: dueDateWhere } : {}),
         ...(confirmationDateWhere ? { confirmationDate: confirmationDateWhere } : {}),
         ...(searchOR ? { OR: searchOR } : {}),
-        ...(params.operationUnit ? { operationUnit: params.operationUnit as OperationUnit } : {}),
         ...(params.sourceSystem ? { sourceSystem: params.sourceSystem as SourceSystem } : {}),
+        ...(opUnitFilter ? { AND: [opUnitFilter] } : {}),
       };
 
       const [total, rows] = await Promise.all([
@@ -358,6 +360,7 @@ export function createPrismaFinancialOperationalRepository(
         params.confirmationDateTo,
       );
       const searchOR = buildSearchFilter(params.search);
+      const opUnitFilter = buildOperationUnitFilter(params.operationUnit as OperationUnit);
 
       const where: Prisma.FinancialRecordWhereInput = {
         type: "SAIDA",
@@ -370,8 +373,8 @@ export function createPrismaFinancialOperationalRepository(
         ...(dueDateWhere ? { dueDate: dueDateWhere } : {}),
         ...(confirmationDateWhere ? { confirmationDate: confirmationDateWhere } : {}),
         ...(searchOR ? { OR: searchOR } : {}),
-        ...(params.operationUnit ? { operationUnit: params.operationUnit as OperationUnit } : {}),
         ...(params.sourceSystem ? { sourceSystem: params.sourceSystem as SourceSystem } : {}),
+        ...(opUnitFilter ? { AND: [opUnitFilter] } : {}),
       };
 
       const [total, rows] = await Promise.all([

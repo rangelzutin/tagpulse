@@ -37,3 +37,40 @@ export function parseSourceSystem(val?: unknown): ParseFilterResult<SourceSystem
     error: `Invalid sourceSystem: '${String(val)}'. Valid values: ${VALID_SOURCE_SYSTEMS.join(", ")}`,
   };
 }
+
+/**
+ * Defensive query builder for OperationUnit filtering.
+ * When filtering for NINECLOUDS, includes both explicit NINECLOUDS and NULL records
+ * to guarantee resilience during transition and avoid omitting historical Nineclouds data.
+ */
+export function buildOperationUnitFilter(unit?: OperationUnit | string) {
+  if (!unit) return undefined;
+  if (unit === OperationUnit.NINECLOUDS || unit === "NINECLOUDS") {
+    return {
+      OR: [
+        { operationUnit: OperationUnit.NINECLOUDS },
+        { operationUnit: null },
+      ],
+    };
+  }
+  return { operationUnit: unit as OperationUnit };
+}
+
+/**
+ * Defensive query builder for relations where operationUnit is on the related Sale.
+ */
+export function buildSaleOperationUnitFilter(unit?: OperationUnit | string) {
+  if (!unit) return undefined;
+  if (unit === OperationUnit.NINECLOUDS || unit === "NINECLOUDS") {
+    return {
+      sale: {
+        OR: [
+          { operationUnit: OperationUnit.NINECLOUDS },
+          { operationUnit: null },
+        ],
+      },
+    };
+  }
+  return { sale: { operationUnit: unit as OperationUnit } };
+}
+

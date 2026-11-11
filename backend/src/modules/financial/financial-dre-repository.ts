@@ -3,7 +3,10 @@ import type { BiRepository } from "../bi/bi-repository.js";
 import { calculateProfitabilityOverview } from "../bi/bi-profitability-calculator.js";
 import type { MonthlyCommercialTrend } from "./financial-dre-calculator.js";
 import type { ClassifierRecordInput } from "./financial-dre-classifier.js";
-import type { FilterOptions } from "../../shared/filters/filter-options.js";
+import {
+  type FilterOptions,
+  buildOperationUnitFilter,
+} from "../../shared/filters/filter-options.js";
 
 export interface DreRepositoryData {
   commercialTrend: MonthlyCommercialTrend[];
@@ -109,17 +112,21 @@ export function createPrismaFinancialDreRepository(
       const bufferStart = new Date(from.getTime() - 60 * 24 * 60 * 60 * 1000); // 60 dias antes
       const bufferEnd = new Date(toExclusive.getTime() + 60 * 24 * 60 * 60 * 1000); // 60 dias depois
 
+      const dateOr = [
+        { dueDate: { gte: bufferStart, lte: bufferEnd } },
+        { sourceCompetenceDate: { gte: bufferStart, lte: bufferEnd } },
+        { confirmationDate: { gte: bufferStart, lte: bufferEnd } },
+      ];
+      const opUnitFilter = buildOperationUnitFilter(options?.operationUnit);
+
       const rawRecords = await prisma.financialRecord.findMany({
         where: {
           connectionId,
           sourcePresent: true,
-          ...(options?.operationUnit ? { operationUnit: options.operationUnit } : {}),
           ...(options?.sourceSystem ? { sourceSystem: options.sourceSystem } : {}),
-          OR: [
-            { dueDate: { gte: bufferStart, lte: bufferEnd } },
-            { sourceCompetenceDate: { gte: bufferStart, lte: bufferEnd } },
-            { confirmationDate: { gte: bufferStart, lte: bufferEnd } },
-          ],
+          ...(opUnitFilter
+            ? { AND: [opUnitFilter, { OR: dateOr }] }
+            : { OR: dateOr }),
         },
         select: {
           id: true,
@@ -157,7 +164,7 @@ export function createPrismaFinancialDreRepository(
       const allSales = await prisma.sale.findMany({
         where: {
           connectionId,
-          ...(options?.operationUnit ? { operationUnit: options.operationUnit } : {}),
+          ...(buildOperationUnitFilter(options?.operationUnit) ?? {}),
           ...(options?.sourceSystem ? { sourceSystem: options.sourceSystem } : {}),
         },
         select: {

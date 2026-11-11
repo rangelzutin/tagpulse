@@ -22,7 +22,11 @@ import type {
   ProfitabilityCostSnapshot,
   RealizedProductMovement,
 } from "./bi-types.js";
-import type { FilterOptions } from "../../shared/filters/filter-options.js";
+import {
+  type FilterOptions,
+  buildOperationUnitFilter,
+  buildSaleOperationUnitFilter,
+} from "../../shared/filters/filter-options.js";
 
 export interface BiRepository {
   findRealizedSales(
@@ -152,7 +156,7 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
             not: null,
           },
           ...(options?.sourceSystem ? { sourceSystem: options.sourceSystem } : {}),
-          ...(options?.operationUnit ? { sale: { operationUnit: options.operationUnit } } : {}),
+          ...(buildSaleOperationUnitFilter(options?.operationUnit) ?? {}),
         },
         select: {
           id: true,
@@ -445,7 +449,7 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
           realizedDate: { gte: from, lt: toExclusive },
           netAmount: { not: null },
           ...(options?.sourceSystem ? { sourceSystem: options.sourceSystem } : {}),
-          ...(options?.operationUnit ? { sale: { operationUnit: options.operationUnit } } : {}),
+          ...(buildSaleOperationUnitFilter(options?.operationUnit) ?? {}),
         },
         select: {
           id: true,
@@ -464,7 +468,7 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
         where: {
           id: { in: saleIds },
           ...(options?.sourceSystem ? { sourceSystem: options.sourceSystem } : {}),
-          ...(options?.operationUnit ? { operationUnit: options.operationUnit } : {}),
+          ...(buildOperationUnitFilter(options?.operationUnit) ?? {}),
         },
         select: {
           id: true,
@@ -952,7 +956,7 @@ export function createBiRepository(prisma: PrismaClient): BiRepository {
           where: {
             id: { in: saleIds },
             ...(options?.sourceSystem ? { sourceSystem: options.sourceSystem } : {}),
-            ...(options?.operationUnit ? { operationUnit: options.operationUnit } : {}),
+            ...(buildOperationUnitFilter(options?.operationUnit) ?? {}),
           },
           select: {
             id: true,
