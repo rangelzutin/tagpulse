@@ -95,18 +95,19 @@ export async function buildApp(
   }
 
   if (options.financialDreService) {
-    registerFinancialDreRoutes(app, options.financialDreService);
+    registerFinancialDreRoutes(app, options.financialDreService, options.prisma);
   } else if (options.financialDreRepository) {
     registerFinancialDreRoutes(
       app,
       createFinancialDreService(options.financialDreRepository),
+      options.prisma,
     );
   } else if (options.prisma && options.biRepository) {
     const dreRepo = createPrismaFinancialDreRepository(
       options.prisma,
       options.biRepository,
     );
-    registerFinancialDreRoutes(app, createFinancialDreService(dreRepo));
+    registerFinancialDreRoutes(app, createFinancialDreService(dreRepo), options.prisma);
   }
 
   app.get("/health/database", async (_request, reply) => {

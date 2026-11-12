@@ -3,9 +3,12 @@ import type {
   DreBreakdownDto,
   DreBreakdownItemDto,
   DreBreakEvenDto,
+  DreBreakEvenStatus,
   DreClassificationResult,
+  DreCostQualityStatus,
   DreEconomicCategory,
   DreMonthlyItemDto,
+  DreResultStatus,
   DreSummaryDto,
   DreSummaryTotalsDto,
 } from "./financial-dre-types.js";
@@ -21,6 +24,10 @@ export interface BreakEvenOptions {
   operatingExpenses?: number | null;
   financialResult?: number | null;
   isProvisional?: boolean;
+  costQualityStatus?: DreCostQualityStatus;
+  estimatedContributionMargin?: number | null;
+  estimatedContributionMarginRate?: number | null;
+  estimatedNetResult?: number | null;
 }
 
 export interface MonthlyCommercialTrend {
@@ -63,6 +70,27 @@ export function calculateBreakEven(
   const rev = r2(realizedRevenue);
   const cm = r2(contributionMargin);
 
+  let cov: number | null = null;
+  if (options?.costCoveragePercent != null) {
+    cov = options.costCoveragePercent;
+  } else if (options?.fullCoverage === true) {
+    cov = 100;
+  }
+
+  const costQualityStatus: DreCostQualityStatus =
+    options?.costQualityStatus ??
+    (cov !== null
+      ? cov >= 100
+        ? "FINAL"
+        : cov >= 95
+        ? "HIGH_CONFIDENCE_ESTIMATE"
+        : cov >= 80
+        ? "PROVISIONAL_ESTIMATE"
+        : "INSUFFICIENT_COST_COVERAGE"
+      : netResult !== null && options?.fullCoverage !== false
+      ? "FINAL"
+      : "INSUFFICIENT_COST_COVERAGE");
+
   // Check cost coverage guardrail
   const hasIncompleteCoverage =
     options?.fullCoverage === false ||
@@ -93,6 +121,8 @@ export function calculateBreakEven(
         ? r2(opExp - finResult)
         : options?.partialManagerialResult != null && covCm !== null
         ? r2(covCm - options.partialManagerialResult)
+        : netResult !== null
+        ? r2(cm - netResult)
         : null;
 
     let provBreakEven: number | null = null;
@@ -107,24 +137,85 @@ export function calculateBreakEven(
       }
     }
 
+    // Cobertura insuficiente (< 80%)
+    if (costQualityStatus === "INSUFFICIENT_COST_COVERAGE") {
+      return {
+        status: "UNDETERMINED_PARTIAL_COST_COVERAGE",
+        realizedRevenue: rev,
+        contributionMargin: covCm !== null ? covCm : cm,
+        contributionMarginRate: covRate,
+        netResult: null,
+        additionalRevenueNeeded: null,
+        breakEvenRevenue: null,
+        additionalRevenuePercent: null,
+        safetyMarginPercent: null,
+        currentCoveragePercent: null,
+        coverageNotice:
+          "Cobertura de custos insuficiente (< 80%): não é possível estimar o ponto de equilíbrio com precisão sem ao menos 80% de cobertura de CMV.",
+        isProvisional: true,
+        calculationBasis: "COVERED_REVENUE",
+        costCoveragePercent: options?.costCoveragePercent ?? null,
+        costQualityStatus: "INSUFFICIENT_COST_COVERAGE",
+        isEstimated: true,
+        ...(covRev !== null ? { coveredRevenue: covRev } : {}),
+        ...(covCm !== null ? { coveredContributionMargin: covCm } : {}),
+        ...(fixedBase !== null ? { provisionalFixedCostBase: fixedBase } : {}),
+        ...(provBreakEven !== null ? { provisionalBreakEvenRevenue: provBreakEven } : {}),
+        ...(provGap !== null ? { provisionalGap: provGap } : {}),
+        ...(provCoverage !== null ? { provisionalCurrentCoveragePercent: provCoverage } : {}),
+      };
+    }
+
+    // Cobertura parcial estimável (>= 80%): HIGH_CONFIDENCE_ESTIMATE ou PROVISIONAL_ESTIMATE
+    const estCm = options?.estimatedContributionMargin ?? cm;
+    const estRate = options?.estimatedContributionMarginRate ?? (rev > 0 ? estCm / rev : null);
+    const estNet = options?.estimatedNetResult ?? netResult;
+
+    let estBreakEven: number | null = null;
+    let addRevNeeded: number | null = null;
+    let addRevPct: number | null = null;
+    let safetyMargin: number | null = null;
+    let currentCoverage: number | null = null;
+
+    if (estRate && estRate > 0 && fixedBase !== null && fixedBase > 0) {
+      estBreakEven = r2(fixedBase / estRate);
+      if (estNet !== null && estNet >= 0 && rev > 0) {
+        safetyMargin = r2(((rev - estBreakEven) / rev) * 100);
+      }
+      addRevNeeded = Math.max(0, r2(estBreakEven - rev));
+      addRevPct = rev > 0 ? r2((addRevNeeded / rev) * 100) : null;
+      currentCoverage = estBreakEven > 0 ? r2((rev / estBreakEven) * 100) : null;
+    }
+
+    const status: DreBreakEvenStatus =
+      estBreakEven === null
+        ? "UNDETERMINED_PARTIAL_COST_COVERAGE"
+        : (estNet !== null ? estNet >= 0 : rev >= estBreakEven)
+        ? "PROFITABLE"
+        : "UNREACHED";
+
     return {
-      status: "UNDETERMINED_PARTIAL_COST_COVERAGE",
+      status,
       realizedRevenue: rev,
-      contributionMargin: covCm !== null ? covCm : cm,
-      contributionMarginRate: covRate,
-      netResult: null,
-      additionalRevenueNeeded: null,
-      breakEvenRevenue: null,
-      additionalRevenuePercent: null,
-      safetyMarginPercent: null,
-      currentCoveragePercent: null,
+      contributionMargin: estCm,
+      contributionMarginRate: estRate !== null ? r4(estRate) : null,
+      netResult: estNet,
+      additionalRevenueNeeded: addRevNeeded,
+      breakEvenRevenue: estBreakEven,
+      additionalRevenuePercent: addRevPct,
+      safetyMarginPercent: safetyMargin,
+      currentCoveragePercent: currentCoverage,
       coverageNotice:
-        "Cobertura de custos parcial: não é possível estimar o ponto de equilíbrio com precisão sem 100% de cobertura de CMV.",
+        costQualityStatus === "HIGH_CONFIDENCE_ESTIMATE"
+          ? "Estimativa de alta confiança baseada em cobertura de custos >= 95%."
+          : "Estimativa provisória baseada em cobertura de custos entre 80% e 95%.",
       isProvisional: true,
       calculationBasis: "COVERED_REVENUE",
+      costCoveragePercent: options?.costCoveragePercent ?? null,
+      costQualityStatus,
+      isEstimated: true,
       ...(covRev !== null ? { coveredRevenue: covRev } : {}),
       ...(covCm !== null ? { coveredContributionMargin: covCm } : {}),
-      costCoveragePercent: options?.costCoveragePercent ?? null,
       ...(fixedBase !== null ? { provisionalFixedCostBase: fixedBase } : {}),
       ...(provBreakEven !== null ? { provisionalBreakEvenRevenue: provBreakEven } : {}),
       ...(provGap !== null ? { provisionalGap: provGap } : {}),
@@ -148,6 +239,8 @@ export function calculateBreakEven(
       additionalRevenuePercent: null,
       safetyMarginPercent: null,
       currentCoveragePercent: null,
+      costQualityStatus: "FINAL",
+      isEstimated: false,
     };
   }
 
@@ -165,6 +258,8 @@ export function calculateBreakEven(
       additionalRevenuePercent: null,
       safetyMarginPercent: null,
       currentCoveragePercent: null,
+      costQualityStatus: "FINAL",
+      isEstimated: false,
     };
   }
 
@@ -185,6 +280,8 @@ export function calculateBreakEven(
       additionalRevenuePercent: 0,
       safetyMarginPercent: safetyMargin,
       currentCoveragePercent: currentCoverage,
+      costQualityStatus: "FINAL",
+      isEstimated: false,
     };
   }
 
@@ -205,6 +302,8 @@ export function calculateBreakEven(
     additionalRevenuePercent,
     safetyMarginPercent: null,
     currentCoveragePercent: currentCoverage,
+    costQualityStatus: "FINAL",
+    isEstimated: false,
   };
 }
 
@@ -468,18 +567,59 @@ export function calculateDreMonthly(
     const finTotalCents = finIncCents - finExpCents;
     const otherTotalCents = 0; // Baseline: R$ 0,00
 
-    const netResultCents = fullCoverage
-      ? ((grossCents - varTotalCents) - opTotalCents + finTotalCents + otherTotalCents)
-      : null;
-    const netMarginPercent = fullCoverage && revCents > 0
-      ? r2((fromCents(netResultCents!) / fromCents(revCents)) * 100)
-      : null;
+    const rawCostCoverage = revCents > 0 ? (fromCents(coveredRevCents) / fromCents(revCents)) * 100 : 100;
+    costCoveragePercent = r2(rawCostCoverage);
+    const isFullCoverage = fullCoverage && costCoveragePercent >= 100 && uncoveredRevCents === 0;
+
+    let costQualityStatus: DreCostQualityStatus = "FINAL";
+    let resultStatus: DreResultStatus = "FINAL";
+    let isEstimated = false;
+    let estimationMethod: "COVERED_REVENUE_COGS_RATE" | null = null;
+
+    if (isFullCoverage) {
+      costQualityStatus = "FINAL";
+      resultStatus = "FINAL";
+    } else if (costCoveragePercent >= 95) {
+      costQualityStatus = "HIGH_CONFIDENCE_ESTIMATE";
+      resultStatus = "HIGH_CONFIDENCE_ESTIMATE";
+      isEstimated = true;
+      estimationMethod = "COVERED_REVENUE_COGS_RATE";
+    } else if (costCoveragePercent >= 80) {
+      costQualityStatus = "PROVISIONAL_ESTIMATE";
+      resultStatus = "PROVISIONAL_ESTIMATE";
+      isEstimated = true;
+      estimationMethod = "COVERED_REVENUE_COGS_RATE";
+    } else {
+      costQualityStatus = "INSUFFICIENT_COST_COVERAGE";
+      resultStatus = "UNAVAILABLE";
+      isEstimated = true;
+      estimationMethod = null;
+    }
+
+    const coveredCogsRate = coveredRevCents > 0 ? fromCents(cogsCents) / fromCents(coveredRevCents) : 0;
+    const estimatedUnknownCogs = uncoveredRevCents > 0 && costQualityStatus !== "INSUFFICIENT_COST_COVERAGE"
+      ? r2(fromCents(uncoveredRevCents) * coveredCogsRate)
+      : 0;
+    const estimatedUnknownCogsCents = toCents(estimatedUnknownCogs);
+    const estimatedTotalCogsCents = cogsCents + estimatedUnknownCogsCents;
+
+    const estimatedGrossCents = revCents - estimatedTotalCogsCents;
+    const estimatedGrossMarginPercent = revCents > 0 ? r2((fromCents(estimatedGrossCents) / fromCents(revCents)) * 100) : null;
+
+    const estimatedCmCents = estimatedGrossCents - varTotalCents;
+    const estimatedCmPercent = revCents > 0 ? r2((fromCents(estimatedCmCents) / fromCents(revCents)) * 100) : null;
+
+    const estimatedNetCents = estimatedCmCents - opTotalCents + finTotalCents + otherTotalCents;
+    const estimatedNetMarginPercent = revCents > 0 ? r2((fromCents(estimatedNetCents) / fromCents(revCents)) * 100) : null;
+
+    const finalNetResult = costQualityStatus !== "INSUFFICIENT_COST_COVERAGE" ? fromCents(estimatedNetCents) : null;
+    const finalNetMargin = costQualityStatus !== "INSUFFICIENT_COST_COVERAGE" ? estimatedNetMarginPercent : null;
 
     const partialManagerialResultCents =
       coveredCmCents - opTotalCents + finTotalCents + otherTotalCents;
 
-    const status = fullCoverage
-      ? (netResultCents! > 0 ? "PROFIT" : netResultCents! < 0 ? "LOSS" : "BREAK_EVEN")
+    const status = finalNetResult !== null
+      ? (finalNetResult > 0 ? "PROFIT" : finalNetResult < 0 ? "LOSS" : "BREAK_EVEN")
       : (partialManagerialResultCents > 0 ? "PROFIT" : partialManagerialResultCents < 0 ? "LOSS" : "BREAK_EVEN");
 
     // Qualidade Temporal e Fechamento Contábil
@@ -510,12 +650,15 @@ export function calculateDreMonthly(
         ? r2((fromCents(totalEligibleCents) / fromCents(totalAllCents)) * 100)
         : 100;
 
+    const activeCmCents = isFullCoverage ? (grossCents - varTotalCents) : (costQualityStatus !== "INSUFFICIENT_COST_COVERAGE" ? estimatedCmCents : coveredCmCents);
+    const activeCmPercent = isFullCoverage ? cmPercent : (costQualityStatus !== "INSUFFICIENT_COST_COVERAGE" ? estimatedCmPercent : coveredCmPercent);
+
     return {
       month,
       realizedRevenue: fromCents(revCents),
       estimatedCOGS: fromCents(cogsCents),
-      estimatedGrossProfit: fullCoverage ? fromCents(grossCents) : fromCents(coveredGrossCents),
-      estimatedGrossMarginPercent: fullCoverage ? fullGrossMarginPercent : coveredGrossMarginPercent,
+      estimatedGrossProfit: isFullCoverage ? fromCents(grossCents) : (costQualityStatus !== "INSUFFICIENT_COST_COVERAGE" ? fromCents(estimatedGrossCents) : fromCents(coveredGrossCents)),
+      estimatedGrossMarginPercent: isFullCoverage ? fullGrossMarginPercent : (costQualityStatus !== "INSUFFICIENT_COST_COVERAGE" ? estimatedGrossMarginPercent : coveredGrossMarginPercent),
       coveredRevenue: fromCents(coveredRevCents),
       uncoveredRevenue: fromCents(uncoveredRevCents),
       costCoveragePercent,
@@ -523,9 +666,18 @@ export function calculateDreMonthly(
       coveredGrossMarginPercent,
       coveredContributionMargin: fromCents(coveredCmCents),
       coveredVariableExpenses: fromCents(coveredVarCents),
-      fullGrossProfitAvailable: fullCoverage,
-      fullManagerialResultAvailable: fullCoverage,
+      fullGrossProfitAvailable: isFullCoverage,
+      fullManagerialResultAvailable: isFullCoverage,
       partialManagerialResultOnCoveredRevenue: fromCents(partialManagerialResultCents),
+      knownCOGS: fromCents(cogsCents),
+      estimatedUnknownCOGS: fromCents(estimatedUnknownCogsCents),
+      estimatedTotalCOGS: fromCents(estimatedTotalCogsCents),
+      knownGrossProfit: fromCents(coveredGrossCents),
+      estimatedContributionMargin: fromCents(estimatedCmCents),
+      costQualityStatus,
+      resultStatus,
+      isEstimated,
+      estimationMethod,
       variableExpenses: {
         paymentFees: fromCents(payFeesCents),
         taxesOnRevenue: fromCents(taxesCents),
@@ -534,8 +686,8 @@ export function calculateDreMonthly(
         other: fromCents(varOtherCents),
         total: fromCents(varTotalCents),
       },
-      contributionMargin: fromCents(cmCents),
-      contributionMarginPercent: cmPercent,
+      contributionMargin: fromCents(isFullCoverage ? (grossCents - varTotalCents) : coveredCmCents),
+      contributionMarginPercent: isFullCoverage ? cmPercent : coveredCmPercent,
       operatingExpenses: {
         personnel: fromCents(personnelCents),
         partnerCompensation: fromCents(partnerCompCents),
@@ -559,22 +711,26 @@ export function calculateDreMonthly(
         otherExpenses: 0,
         total: fromCents(otherTotalCents),
       },
-      netManagerialResult: fullCoverage && netResultCents !== null ? fromCents(netResultCents) : null,
-      netManagerialMarginPercent: fullCoverage ? netMarginPercent : null,
+      netManagerialResult: finalNetResult,
+      netManagerialMarginPercent: finalNetMargin,
       status,
       breakEven: calculateBreakEven(
         fromCents(revCents),
-        fromCents(cmCents),
-        fullCoverage ? fromCents(netResultCents!) : null,
+        fromCents(activeCmCents),
+        finalNetResult,
         {
           costCoveragePercent,
-          fullCoverage,
+          fullCoverage: isFullCoverage,
           coveredRevenue: fromCents(coveredRevCents),
           coveredContributionMargin: fromCents(coveredCmCents),
           operatingExpenses: fromCents(opTotalCents),
           financialResult: fromCents(finTotalCents),
           partialManagerialResult: fromCents(partialManagerialResultCents),
           isProvisional,
+          costQualityStatus,
+          estimatedContributionMargin: fromCents(estimatedCmCents),
+          estimatedContributionMarginRate: revCents > 0 ? fromCents(estimatedCmCents) / fromCents(revCents) : null,
+          estimatedNetResult: finalNetResult,
         },
       ),
       dataQuality: {
@@ -714,15 +870,57 @@ export function calculateDreSummary(
   const summaryCoveredCmPercent =
     coveredRevCents > 0 ? r2((fromCents(coveredCmCents) / fromCents(coveredRevCents)) * 100) : null;
 
+  let costQualityStatus: DreCostQualityStatus = "FINAL";
+  let resultStatus: DreResultStatus = "FINAL";
+  let isEstimated = false;
+  let estimationMethod: "COVERED_REVENUE_COGS_RATE" | null = null;
+
+  if (isFullCoverage) {
+    costQualityStatus = "FINAL";
+    resultStatus = "FINAL";
+  } else if (summaryCoveragePercent >= 95) {
+    costQualityStatus = "HIGH_CONFIDENCE_ESTIMATE";
+    resultStatus = "HIGH_CONFIDENCE_ESTIMATE";
+    isEstimated = true;
+    estimationMethod = "COVERED_REVENUE_COGS_RATE";
+  } else if (summaryCoveragePercent >= 80) {
+    costQualityStatus = "PROVISIONAL_ESTIMATE";
+    resultStatus = "PROVISIONAL_ESTIMATE";
+    isEstimated = true;
+    estimationMethod = "COVERED_REVENUE_COGS_RATE";
+  } else {
+    costQualityStatus = "INSUFFICIENT_COST_COVERAGE";
+    resultStatus = "UNAVAILABLE";
+    isEstimated = true;
+    estimationMethod = null;
+  }
+
+  const coveredCogsRate = coveredRevCents > 0 ? fromCents(cogsCents) / fromCents(coveredRevCents) : 0;
+  const estimatedUnknownCogs = uncoveredRevCents > 0 && costQualityStatus !== "INSUFFICIENT_COST_COVERAGE"
+    ? r2(fromCents(uncoveredRevCents) * coveredCogsRate)
+    : 0;
+  const estimatedUnknownCogsCents = toCents(estimatedUnknownCogs);
+  const estimatedTotalCogsCents = cogsCents + estimatedUnknownCogsCents;
+
+  const estimatedGrossCents = revCents - estimatedTotalCogsCents;
+  const estimatedGrossMarginPercent = revCents > 0 ? r2((fromCents(estimatedGrossCents) / fromCents(revCents)) * 100) : null;
+
+  const estimatedCmCents = estimatedGrossCents - varTotalCents;
+  const estimatedCmPercent = revCents > 0 ? r2((fromCents(estimatedCmCents) / fromCents(revCents)) * 100) : null;
+
+  const estimatedNetCents = estimatedCmCents - opTotalCents + finTotalCents + otherTotalCents;
+  const estimatedNetMarginPercent = revCents > 0 ? r2((fromCents(estimatedNetCents) / fromCents(revCents)) * 100) : null;
+
+  const finalNetResult = costQualityStatus !== "INSUFFICIENT_COST_COVERAGE" ? fromCents(estimatedNetCents) : null;
+  const finalNetMargin = costQualityStatus !== "INSUFFICIENT_COST_COVERAGE" ? estimatedNetMarginPercent : null;
+
   const summaryCmCents = isFullCoverage ? cmCents : coveredCmCents;
   const summaryCmPercent = isFullCoverage ? cmPercent : summaryCoveredCmPercent;
 
-  const netManagerialResult = isFullCoverage ? fromCents(netResultCents) : null;
-  const netManagerialMarginPercent = isFullCoverage ? netMarginPercent : null;
   const partialManagerialResultOnCoveredRevenue = fromCents(partialResultCents);
 
-  const status = isFullCoverage
-    ? (netResultCents > 0 ? "PROFIT" : netResultCents < 0 ? "LOSS" : "BREAK_EVEN")
+  const status = finalNetResult !== null
+    ? (finalNetResult > 0 ? "PROFIT" : finalNetResult < 0 ? "LOSS" : "BREAK_EVEN")
     : (partialResultCents > 0 ? "PROFIT" : partialResultCents < 0 ? "LOSS" : "BREAK_EVEN");
 
   const totalEligibleCents = varTotalCents + opTotalCents + finExpCents;
@@ -738,7 +936,7 @@ export function calculateDreSummary(
   const breakEven = calculateBreakEven(
     fromCents(revCents),
     fromCents(summaryCmCents),
-    isFullCoverage ? fromCents(netResultCents) : null,
+    finalNetResult,
     {
       costCoveragePercent: summaryCoveragePercent,
       fullCoverage: isFullCoverage,
@@ -748,14 +946,18 @@ export function calculateDreSummary(
       financialResult: fromCents(finTotalCents),
       partialManagerialResult: partialManagerialResultOnCoveredRevenue,
       isProvisional,
+      costQualityStatus,
+      estimatedContributionMargin: fromCents(estimatedCmCents),
+      estimatedContributionMarginRate: revCents > 0 ? fromCents(estimatedCmCents) / fromCents(revCents) : null,
+      estimatedNetResult: finalNetResult,
     },
   );
 
   const totals: DreSummaryTotalsDto = {
     realizedRevenue: fromCents(revCents),
     estimatedCOGS: fromCents(cogsCents),
-    estimatedGrossProfit: isFullCoverage ? fromCents(grossCents) : fromCents(coveredGrossCents),
-    estimatedGrossMarginPercent: isFullCoverage ? grossMarginPercent : coveredGrossMarginPercent,
+    estimatedGrossProfit: isFullCoverage ? fromCents(grossCents) : (costQualityStatus !== "INSUFFICIENT_COST_COVERAGE" ? fromCents(estimatedGrossCents) : fromCents(coveredGrossCents)),
+    estimatedGrossMarginPercent: isFullCoverage ? grossMarginPercent : (costQualityStatus !== "INSUFFICIENT_COST_COVERAGE" ? estimatedGrossMarginPercent : coveredGrossMarginPercent),
     coveredRevenue: fromCents(coveredRevCents),
     uncoveredRevenue: fromCents(uncoveredRevCents),
     costCoveragePercent: summaryCoveragePercent,
@@ -766,6 +968,15 @@ export function calculateDreSummary(
     fullGrossProfitAvailable,
     fullManagerialResultAvailable,
     partialManagerialResultOnCoveredRevenue,
+    knownCOGS: fromCents(cogsCents),
+    estimatedUnknownCOGS: fromCents(estimatedUnknownCogsCents),
+    estimatedTotalCOGS: fromCents(estimatedTotalCogsCents),
+    knownGrossProfit: fromCents(coveredGrossCents),
+    estimatedContributionMargin: fromCents(estimatedCmCents),
+    costQualityStatus,
+    resultStatus,
+    isEstimated,
+    estimationMethod,
     variableExpenses: {
       paymentFees: fromCents(payFeesCents),
       taxesOnRevenue: fromCents(taxesCents),
@@ -799,8 +1010,8 @@ export function calculateDreSummary(
       otherExpenses: fromCents(otherExpCents),
       total: fromCents(otherTotalCents),
     },
-    netManagerialResult,
-    netManagerialMarginPercent,
+    netManagerialResult: finalNetResult,
+    netManagerialMarginPercent: finalNetMargin,
     status,
     breakEven,
   };

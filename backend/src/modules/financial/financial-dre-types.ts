@@ -25,6 +25,18 @@ export type DreEconomicCategory =
 
 export type DreEconomicStatus = "PROFIT" | "LOSS" | "BREAK_EVEN";
 
+export type DreCostQualityStatus =
+  | "FINAL"
+  | "HIGH_CONFIDENCE_ESTIMATE"
+  | "PROVISIONAL_ESTIMATE"
+  | "INSUFFICIENT_COST_COVERAGE";
+
+export type DreResultStatus =
+  | "FINAL"
+  | "HIGH_CONFIDENCE_ESTIMATE"
+  | "PROVISIONAL_ESTIMATE"
+  | "UNAVAILABLE";
+
 export type DreBreakEvenStatus =
   | "PROFITABLE"
   | "UNREACHED"
@@ -59,6 +71,8 @@ export interface DreBreakEvenDto {
   provisionalBreakEvenRevenue?: number | null;
   provisionalGap?: number | null;
   provisionalCurrentCoveragePercent?: number | null;
+  costQualityStatus?: DreCostQualityStatus;
+  isEstimated?: boolean;
 }
 
 export interface DreFinancialAdjustment {
@@ -144,6 +158,16 @@ export interface DreMonthlyItemDto {
   fullManagerialResultAvailable: boolean;
   partialManagerialResultOnCoveredRevenue: number | null;
 
+  knownCOGS?: number;
+  estimatedUnknownCOGS?: number;
+  estimatedTotalCOGS?: number;
+  knownGrossProfit?: number;
+  estimatedContributionMargin?: number;
+  costQualityStatus?: DreCostQualityStatus;
+  resultStatus?: DreResultStatus;
+  isEstimated?: boolean;
+  estimationMethod?: "COVERED_REVENUE_COGS_RATE" | null;
+
   variableExpenses: DreVariableExpensesDto;
 
   contributionMargin: number;
@@ -180,6 +204,16 @@ export interface DreSummaryTotalsDto {
   fullGrossProfitAvailable: boolean;
   fullManagerialResultAvailable: boolean;
   partialManagerialResultOnCoveredRevenue: number | null;
+
+  knownCOGS?: number;
+  estimatedUnknownCOGS?: number;
+  estimatedTotalCOGS?: number;
+  knownGrossProfit?: number;
+  estimatedContributionMargin?: number;
+  costQualityStatus?: DreCostQualityStatus;
+  resultStatus?: DreResultStatus;
+  isEstimated?: boolean;
+  estimationMethod?: "COVERED_REVENUE_COGS_RATE" | null;
 
   variableExpenses: DreVariableExpensesDto;
 

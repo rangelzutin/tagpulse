@@ -114,14 +114,16 @@ describe("Financial DRE — Partial Cost Semantics & Coverage Guardrails", () =>
     // contributionMargin oficial deve refletir a margem coberta, NÃO somar R$ 1.000 como margem zero-cost
     expect(m.contributionMargin).toBe(39600);
 
-    // netManagerialResult é null quando cobertura < 100%
-    expect(m.netManagerialResult).toBeNull();
+    // netManagerialResult é estimado quando cobertura >= 80% (99% = HIGH_CONFIDENCE_ESTIMATE)
+    expect(m.netManagerialResult).toBe(20000);
+    expect(m.costQualityStatus).toBe("HIGH_CONFIDENCE_ESTIMATE");
+    expect(m.isEstimated).toBe(true);
 
     // partialManagerialResultOnCoveredRevenue = 39.600 - 20.000 = 19.600
     expect(m.partialManagerialResultOnCoveredRevenue).toBe(19600);
 
     // Break-even provisório baseado na taxa coberta (39.600 / 99.000 = 0.40)
-    expect(m.breakEven?.status).toBe("UNDETERMINED_PARTIAL_COST_COVERAGE");
+    expect(m.breakEven?.status).toBe("PROFITABLE");
     expect(m.breakEven?.contributionMarginRate).toBe(0.4);
     expect(m.breakEven?.provisionalBreakEvenRevenue).toBe(50000); // 20.000 / 0.4 = 50.000
     expect(m.breakEven?.provisionalGap).toBe(-49000); // 50.000 - 99.000 = -49.000 (superado)
@@ -313,18 +315,21 @@ describe("Financial DRE — Partial Cost Semantics & Coverage Guardrails", () =>
     // Taxa de Margem de Contribuição Coberta: 106.843,23 / 359.107,14 = 29.75%
     expect(tot.contributionMarginPercent).toBe(29.75);
 
-    // 5. Resultado Gerencial Final é NULL (cobertura incompleta)
+    // 5. Resultado Gerencial Estimado (97.94% >= 95% => HIGH_CONFIDENCE_ESTIMATE)
     expect(tot.fullManagerialResultAvailable).toBe(false);
-    expect(tot.netManagerialResult).toBeNull();
+    expect(tot.netManagerialResult).toBe(-38139.25);
+    expect(tot.costQualityStatus).toBe("HIGH_CONFIDENCE_ESTIMATE");
+    expect(tot.isEstimated).toBe(true);
 
     // 6. Resultado Gerencial Parcial sobre Base Coberta
     // 106.843,23 - 145.379,48 - 1.853,84 = -40.390,09
     expect(tot.partialManagerialResultOnCoveredRevenue).toBe(-40390.09);
 
-    // 7. Break-Even Provisório
-    expect(tot.breakEven?.status).toBe("UNDETERMINED_PARTIAL_COST_COVERAGE");
-    expect(tot.breakEven?.breakEvenRevenue).toBeNull(); // canônico permanece null para não enganar
-    expect(tot.breakEven?.contributionMarginRate).toBe(0.2975);
+    // 7. Break-Even Estimado e Provisório
+    expect(tot.breakEven?.status).toBe("UNREACHED");
+    expect(tot.breakEven?.breakEvenRevenue).toBe(494860.89);
+    expect(tot.breakEven?.isEstimated).toBe(true);
+    expect(tot.breakEven?.costQualityStatus).toBe("HIGH_CONFIDENCE_ESTIMATE");
     expect(tot.breakEven?.provisionalFixedCostBase).toBe(147233.32); // 145.379,48 - (-1.853,84)
     expect(tot.breakEven?.provisionalBreakEvenRevenue).toBe(494860.9); // 147.233,32 / (106.843,23 / 359.107,14)
     expect(tot.breakEven?.isProvisional).toBe(true);

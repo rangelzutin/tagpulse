@@ -598,6 +598,18 @@ export type DreBreakEvenStatus =
   | "NO_REVENUE"
   | "INCOMPLETE_COST_COVERAGE";
 
+export type DreCostQualityStatus =
+  | "FINAL"
+  | "HIGH_CONFIDENCE_ESTIMATE"
+  | "PROVISIONAL_ESTIMATE"
+  | "INSUFFICIENT_COST_COVERAGE";
+
+export type DreResultStatus =
+  | "FINAL"
+  | "HIGH_CONFIDENCE_ESTIMATE"
+  | "PROVISIONAL_ESTIMATE"
+  | "UNAVAILABLE";
+
 export interface DreBreakEvenDto {
   status: DreBreakEvenStatus;
   realizedRevenue: number;
@@ -619,6 +631,8 @@ export interface DreBreakEvenDto {
   provisionalBreakEvenRevenue?: number | null;
   provisionalGap?: number | null;
   provisionalCurrentCoveragePercent?: number | null;
+  costQualityStatus?: DreCostQualityStatus;
+  isEstimated?: boolean;
 }
 
 export interface DreVariableExpensesDto {
@@ -692,6 +706,15 @@ export interface DreMonthlyItemDto {
   fullGrossProfitAvailable?: boolean;
   fullManagerialResultAvailable?: boolean;
   partialManagerialResultOnCoveredRevenue?: number;
+  knownCOGS?: number;
+  estimatedUnknownCOGS?: number;
+  estimatedTotalCOGS?: number;
+  knownGrossProfit?: number;
+  estimatedContributionMargin?: number;
+  costQualityStatus?: DreCostQualityStatus;
+  resultStatus?: DreResultStatus;
+  isEstimated?: boolean;
+  estimationMethod?: "COVERED_REVENUE_COGS_RATE" | null;
 }
 
 export interface DreSummaryTotalsDto {
@@ -719,6 +742,15 @@ export interface DreSummaryTotalsDto {
   fullGrossProfitAvailable?: boolean;
   fullManagerialResultAvailable?: boolean;
   partialManagerialResultOnCoveredRevenue?: number;
+  knownCOGS?: number;
+  estimatedUnknownCOGS?: number;
+  estimatedTotalCOGS?: number;
+  knownGrossProfit?: number;
+  estimatedContributionMargin?: number;
+  costQualityStatus?: DreCostQualityStatus;
+  resultStatus?: DreResultStatus;
+  isEstimated?: boolean;
+  estimationMethod?: "COVERED_REVENUE_COGS_RATE" | null;
 }
 
 export interface DreSummaryDto {
@@ -872,4 +904,114 @@ export async function fetchFinancialDreBreakdown(
   }
 
   return (await response.json()) as DreBreakdownDto;
+}
+
+export interface MissingCostItemDto {
+  productId: string | null;
+  sourceProductId: string;
+  code: string | null;
+  description: string;
+  categoryDescription: string | null;
+  uncoveredRevenue: number;
+  totalQuantity: number;
+  salesCount: number;
+  firstSaleAt: string;
+  lastSaleAt: string;
+  currentCatalogCost: number | null;
+}
+
+export interface CostQualitySummaryDto {
+  costCoveragePercent: number;
+  costQualityStatus: DreCostQualityStatus;
+  coveredRevenue: number;
+  uncoveredRevenue: number;
+  totalRevenue: number;
+  missingProductsCount: number;
+  period: { from: string; to: string };
+}
+
+export interface CreateProductCostPayload {
+  productId?: string;
+  sourceProductId?: string;
+  unitCost: number;
+  costSource?: "MANUAL" | "PURCHASE" | "STOCK_ADJUSTMENT" | "ERP_SNAPSHOT";
+  validFrom: string;
+  validTo?: string | null;
+  note?: string;
+  createdBy?: string;
+}
+
+export interface ProductCostHistoryItem {
+  id: string;
+  productId: string | null;
+  sourceProductId: string | null;
+  unitCost: number;
+  costSource: string;
+  validFrom: string;
+  validTo: string | null;
+  note: string | null;
+  createdAt: string;
+  product?: {
+    id: string;
+    code: string | null;
+    description: string;
+    sourceId: string;
+  } | null;
+}
+
+export async function fetchCostQuality(query?: {
+  from?: string;
+  to?: string;
+  operationUnit?: string;
+}): Promise<CostQualitySummaryDto> {
+  const url = buildFinancialUrl("/financial/cost-quality", query);
+  const response = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({}));
+    throw new Error(errorBody.message || "Erro ao consultar qualidade dos custos.");
+  }
+  return response.json();
+}
+
+export async function fetchMissingCosts(query?: {
+  from?: string;
+  to?: string;
+  operationUnit?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<{ items: MissingCostItemDto[]; total: number; page: number; pageSize: number }> {
+  const url = buildFinancialUrl("/financial/cost-quality/missing", query);
+  const response = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({}));
+    throw new Error(errorBody.message || "Erro ao consultar custos pendentes.");
+  }
+  return response.json();
+}
+
+export async function createProductCost(payload: CreateProductCostPayload): Promise<ProductCostHistoryItem> {
+  const url = buildFinancialUrl("/financial/product-costs");
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({}));
+    throw new Error(errorBody.message || "Erro ao cadastrar custo do produto.");
+  }
+  return response.json();
+}
+
+export async function fetchProductCostHistory(productId: string): Promise<ProductCostHistoryItem[]> {
+  const url = buildFinancialUrl(`/financial/product-costs/${encodeURIComponent(productId)}`);
+  const response = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({}));
+    throw new Error(errorBody.message || "Erro ao consultar histórico de custos do produto.");
+  }
+  return response.json();
 }

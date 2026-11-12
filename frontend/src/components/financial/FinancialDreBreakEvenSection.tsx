@@ -29,11 +29,13 @@ interface FinancialDreBreakEvenSectionProps {
     financiallyClosed?: boolean;
     pendingAccruals?: string[];
   };
+  onOpenMissingCosts?: () => void;
 }
 
 export function FinancialDreBreakEvenSection({
   totals,
   breakEvenOverride,
+  onOpenMissingCosts,
 }: FinancialDreBreakEvenSectionProps) {
   const [showTooltip, setShowTooltip] = useState(false);
 
@@ -51,6 +53,9 @@ export function FinancialDreBreakEvenSection({
         coveredContributionMargin: totals.coveredContributionMargin,
         operatingExpenses: totals.operatingExpenses.total,
         financialResult: totals.financialResult.total,
+        costQualityStatus: totals.costQualityStatus,
+        estimatedContributionMargin: totals.estimatedContributionMargin,
+        estimatedNetResult: totals.netManagerialResult,
       },
     );
 
@@ -114,6 +119,21 @@ export function FinancialDreBreakEvenSection({
         </div>
 
         <div className="tp-dre-breakeven-status-wrap">
+          {breakEven.isEstimated && (
+            <span
+              className="tp-kpi-status-badge is-provisional"
+              style={{
+                background: "rgba(56, 189, 248, 0.12)",
+                color: "#38bdf8",
+                border: "1px solid rgba(56, 189, 248, 0.3)",
+              }}
+              data-testid="dre-breakeven-estimate-badge"
+            >
+              {breakEven.costQualityStatus === "HIGH_CONFIDENCE_ESTIMATE"
+                ? `Alta confiança (${totals.costCoveragePercent ? `${totals.costCoveragePercent.toFixed(1)}%` : "97.9%"})`
+                : "Estimativa provisória"}
+            </span>
+          )}
           {isBelow && (
             <span
               className="tp-kpi-status-badge is-loss"
@@ -181,9 +201,26 @@ export function FinancialDreBreakEvenSection({
               <span className="tp-metric-sep">•</span>
               <span>
                 Receita sem custo:{" "}
-                <strong>
-                  {formatCurrency(uncoveredRevenue)}
-                </strong>
+                {onOpenMissingCosts ? (
+                  <button
+                    type="button"
+                    onClick={onOpenMissingCosts}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      padding: 0,
+                      color: "#f59e0b",
+                      textDecoration: "underline",
+                      cursor: "pointer",
+                      fontWeight: 700,
+                    }}
+                    title="Clique para auditar e preencher custos ausentes"
+                  >
+                    {formatCurrency(uncoveredRevenue)} (ver pendências)
+                  </button>
+                ) : (
+                  <strong>{formatCurrency(uncoveredRevenue)}</strong>
+                )}
               </span>
             </div>
           </div>
@@ -367,9 +404,42 @@ export function FinancialDreBreakEvenSection({
               >
                 {breakEven.netResult !== null
                   ? formatCurrency(breakEven.netResult)
-                  : "Indisponível (cobertura parcial)"}
+                  : "Indisponível (cobertura insuficiente)"}
               </span>
             </div>
+            {uncoveredRevenue > 0 && (
+              <>
+                <div className="tp-secondary-divider" />
+                <div className="tp-breakeven-context-item">
+                  <span className="tp-breakeven-context-label">
+                    Receita sem custo:
+                  </span>
+                  {onOpenMissingCosts ? (
+                    <button
+                      type="button"
+                      onClick={onOpenMissingCosts}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        padding: 0,
+                        color: "#f59e0b",
+                        textDecoration: "underline",
+                        cursor: "pointer",
+                        fontWeight: 700,
+                        fontSize: "inherit",
+                      }}
+                      title="Clique para auditar produtos sem custo"
+                    >
+                      {formatCurrency(uncoveredRevenue)} (auditar)
+                    </button>
+                  ) : (
+                    <span className="tp-breakeven-context-value tp-color-amber">
+                      {formatCurrency(uncoveredRevenue)}
+                    </span>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </>
       )}

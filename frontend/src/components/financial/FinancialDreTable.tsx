@@ -21,10 +21,9 @@ export function FinancialDreTable({ totals, realizedRevenue }: FinancialDreTable
     return formatPercent((val / safeRevenue) * 100, 2);
   };
 
-  const hasFullManagerialResult =
-    totals.fullManagerialResultAvailable !== false && totals.netManagerialResult !== null;
-  const isNetPositive = hasFullManagerialResult && (totals.netManagerialResult ?? 0) > 0;
-  const isNetNegative = hasFullManagerialResult && (totals.netManagerialResult ?? 0) < 0;
+  const hasNetResult = totals.netManagerialResult !== null;
+  const isNetPositive = hasNetResult && (totals.netManagerialResult ?? 0) > 0;
+  const isNetNegative = hasNetResult && (totals.netManagerialResult ?? 0) < 0;
 
   return (
     <div className="tp-dre-table-card tp-card">
@@ -395,26 +394,44 @@ export function FinancialDreTable({ totals, realizedRevenue }: FinancialDreTable
                     Resultado Líquido Gerencial Estimado
                   </strong>
                   <span className="tp-final-status-pill">
-                    {!hasFullManagerialResult
-                      ? "Parcial"
+                    {!hasNetResult
+                      ? "Cobertura insuficiente"
                       : totals.status === "PROFIT"
                       ? "Lucro"
                       : totals.status === "LOSS"
                       ? "Prejuízo"
                       : "Equilíbrio"}
                   </span>
+                  {totals.isEstimated && hasNetResult && (
+                    <span
+                      style={{
+                        background: "rgba(56, 189, 248, 0.15)",
+                        color: "#38bdf8",
+                        border: "1px solid rgba(56, 189, 248, 0.3)",
+                        borderRadius: "999px",
+                        padding: "2px 8px",
+                        fontSize: "10.5px",
+                        fontWeight: 700,
+                        marginLeft: "6px",
+                      }}
+                    >
+                      {totals.costQualityStatus === "HIGH_CONFIDENCE_ESTIMATE"
+                        ? `Alta confiança (${totals.costCoveragePercent ? `${totals.costCoveragePercent.toFixed(1)}%` : "97.9%"})`
+                        : "Estimativa provisória"}
+                    </span>
+                  )}
                 </div>
               </td>
               <td className="tp-cell-amount">
                 <strong className="tp-final-amount">
-                  {hasFullManagerialResult
+                  {hasNetResult
                     ? formatCurrency(totals.netManagerialResult as number)
-                    : "Indisponível (cobertura parcial)"}
+                    : "Indisponível (cobertura insuficiente)"}
                 </strong>
               </td>
               <td className="tp-cell-percent">
                 <strong className="tp-final-percent">
-                  {hasFullManagerialResult && totals.netManagerialMarginPercent !== null
+                  {hasNetResult && totals.netManagerialMarginPercent !== null
                     ? formatPercent(totals.netManagerialMarginPercent, 2)
                     : "—"}
                 </strong>

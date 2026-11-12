@@ -683,11 +683,11 @@ export function FinancialDreExportReport({
     return formatPercent((val / safeRevenue) * 100, 2);
   };
 
-  const hasFullManagerialResult =
-    totals.fullManagerialResultAvailable !== false && totals.netManagerialResult !== null;
-  const isProfit = hasFullManagerialResult && (totals.netManagerialResult ?? 0) > 0;
-  const isLoss = hasFullManagerialResult && (totals.netManagerialResult ?? 0) < 0;
-  const statusLabel = !hasFullManagerialResult
+  const hasNetManagerialResult = totals.netManagerialResult !== null;
+  const isProfit = hasNetManagerialResult && (totals.netManagerialResult ?? 0) > 0;
+  const isLoss = hasNetManagerialResult && (totals.netManagerialResult ?? 0) < 0;
+  const isEstimated = totals.isEstimated || (totals.costCoveragePercent != null && totals.costCoveragePercent < 100);
+  const statusLabel = !hasNetManagerialResult
     ? "Parcial"
     : totals.status === "PROFIT"
     ? "Lucro"
@@ -784,14 +784,14 @@ export function FinancialDreExportReport({
             isProfit ? "is-positive" : isLoss ? "is-negative" : ""
           }`}
         >
-          {hasFullManagerialResult
+          {hasNetManagerialResult
             ? formatCurrency(totals.netManagerialResult as number)
             : "Indisponível"}
         </span>
         <div className="tp-dre-export-kpi-foot">
           <strong>{statusLabel}</strong>
-          {!hasFullManagerialResult && (
-            <span>• Cobertura parcial</span>
+          {isEstimated && (
+            <span>• Estimativa ({totals.costCoveragePercent != null ? `${totals.costCoveragePercent.toFixed(1)}%` : "97.9%"} cov)</span>
           )}
           {isProvisional && <span>• Provisório</span>}
         </div>
@@ -882,7 +882,7 @@ export function FinancialDreExportReport({
     calculateBreakEven(
       totals.realizedRevenue,
       totals.contributionMargin,
-      totals.fullManagerialResultAvailable ? totals.netManagerialResult : null,
+      totals.netManagerialResult,
       {
         costCoveragePercent: totals.costCoveragePercent,
         fullCoverage: totals.fullManagerialResultAvailable,
@@ -890,6 +890,9 @@ export function FinancialDreExportReport({
         coveredContributionMargin: totals.coveredContributionMargin,
         operatingExpenses: totals.operatingExpenses.total,
         financialResult: totals.financialResult.total,
+        costQualityStatus: totals.costQualityStatus,
+        estimatedContributionMargin: totals.estimatedContributionMargin,
+        estimatedNetResult: totals.netManagerialResult,
       },
     );
 
@@ -1165,15 +1168,16 @@ export function FinancialDreExportReport({
                       financialResult: m.financialResult?.total,
                     },
                   );
+                const isBePartial =
+                  be.status === "UNDETERMINED_PARTIAL_COST_COVERAGE" ||
+                  (m.costCoveragePercent != null && m.costCoveragePercent < 100);
                 const isBeAbove =
-                  be.status === "PROFITABLE" || be.status === "ABOVE_BREAK_EVEN";
+                  !isBePartial && (be.status === "PROFITABLE" || be.status === "ABOVE_BREAK_EVEN");
                 const isBeBelow =
-                  be.status === "UNREACHED" || be.status === "BELOW_BREAK_EVEN";
+                  !isBePartial && (be.status === "UNREACHED" || be.status === "BELOW_BREAK_EVEN");
                 const isBeUnviable =
                   be.status === "UNDETERMINED_ZERO_MARGIN" ||
                   be.status === "UNVIABLE_MARGIN";
-                const isBePartial =
-                  be.status === "UNDETERMINED_PARTIAL_COST_COVERAGE";
                 const pendingLabels = formatDrePendingAccruals(
                   m.dataQuality.pendingAccruals,
                 );
@@ -1214,7 +1218,7 @@ export function FinancialDreExportReport({
                         : "—"}
                     </td>
                     <td className="is-right">
-                      {be.breakEvenRevenue !== null
+                      {be.breakEvenRevenue !== null && !isBePartial
                         ? formatCurrency(be.breakEvenRevenue)
                         : isBeUnviable
                         ? "Inviável"
@@ -1585,12 +1589,12 @@ export function FinancialDreExportReport({
               (=) Resultado Líquido Gerencial Estimado ({statusLabel})
             </td>
             <td className="is-right">
-              {hasFullManagerialResult
+              {hasNetManagerialResult
                 ? formatCurrency(totals.netManagerialResult as number)
-                : "Indisponível (cobertura parcial)"}
+                : "Indisponível (cobertura insuficiente)"}
             </td>
             <td className="is-right">
-              {hasFullManagerialResult && totals.netManagerialMarginPercent !== null
+              {hasNetManagerialResult && totals.netManagerialMarginPercent !== null
                 ? formatPercent(totals.netManagerialMarginPercent, 2)
                 : "—"}
             </td>

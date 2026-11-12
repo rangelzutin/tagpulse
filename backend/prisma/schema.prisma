@@ -265,6 +265,7 @@ model Product {
   lastSeenSyncRun        ProductSyncRun?   @relation("ProductsLastSeenInRun", fields: [lastSeenSyncRunId], references: [id], onDelete: SetNull)
   saleItems              SaleItem[]
   saleSourceDocumentItems SaleSourceDocumentItem[]
+  costHistory            ProductCostHistory[]
 
   @@unique([connectionId, sourceId])
   @@index([connectionId, code])
@@ -272,6 +273,36 @@ model Product {
   @@index([connectionId, parentSourceId])
   @@index([connectionId, sourcePresent])
   @@map("products")
+}
+
+enum ProductCostSource {
+  PURCHASE
+  STOCK_ADJUSTMENT
+  ERP_SNAPSHOT
+  MANUAL
+  CURRENT_COST_PROXY
+}
+
+model ProductCostHistory {
+  id               String            @id @default(uuid()) @db.Uuid
+  productId        String?           @map("product_id") @db.Uuid
+  sourceProductId  String            @map("source_product_id")
+  unitCost         Decimal           @map("unit_cost") @db.Decimal(12, 4)
+  costSource       ProductCostSource @default(MANUAL) @map("cost_source")
+  validFrom        DateTime          @map("valid_from")
+  validTo          DateTime?         @map("valid_to")
+  sourceDocumentId String?           @map("source_document_id") @db.Uuid
+  note             String?
+  createdBy        String?           @map("created_by")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+
+  product          Product?          @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([productId])
+  @@index([sourceProductId])
+  @@index([validFrom])
+  @@map("product_cost_history")
 }
 
 enum SaleAnchorType {

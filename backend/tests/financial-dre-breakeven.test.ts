@@ -99,9 +99,9 @@ describe("Financial DRE — Break-Even Analysis (calculateBreakEven)", () => {
     expect(Number.isInteger(result.breakEvenRevenue! * 100)).toBe(true);
   });
 
-  it("H1. Cost Coverage Guardrail: partial cost coverage (< 100%) produces UNDETERMINED_PARTIAL_COST_COVERAGE", () => {
+  it("H1. Cost Coverage Guardrail: insufficient cost coverage (< 80%) produces UNDETERMINED_PARTIAL_COST_COVERAGE", () => {
     const result = calculateBreakEven(100000, 40000, -20000, {
-      costCoveragePercent: 82.5,
+      costCoveragePercent: 75,
       fullCoverage: false,
     });
 
@@ -111,6 +111,18 @@ describe("Financial DRE — Break-Even Analysis (calculateBreakEven)", () => {
     expect(result.additionalRevenueNeeded).toBeNull();
     expect(result.additionalRevenuePercent).toBeNull();
     expect(result.coverageNotice).toBeDefined();
+    expect(result.costQualityStatus).toBe("INSUFFICIENT_COST_COVERAGE");
+  });
+
+  it("H1b. Cost Coverage Guardrail: provisional cost coverage (80-95%) produces PROVISIONAL_ESTIMATE", () => {
+    const result = calculateBreakEven(100000, 40000, -20000, {
+      costCoveragePercent: 82.5,
+      fullCoverage: false,
+    });
+
+    expect(result.status).toBe("UNREACHED");
+    expect(result.costQualityStatus).toBe("PROVISIONAL_ESTIMATE");
+    expect(result.isEstimated).toBe(true);
   });
 
   it("H2. Cost Coverage Guardrail: zero cost coverage (0%) produces UNDETERMINED_PARTIAL_COST_COVERAGE", () => {
@@ -292,8 +304,10 @@ describe("Financial DRE — Break-Even Analysis (calculateBreakEven)", () => {
         financialResult: -1853.84,
       });
 
-      expect(result.status).toBe("UNDETERMINED_PARTIAL_COST_COVERAGE");
-      expect(result.breakEvenRevenue).toBeNull();
+      expect(result.status).toBe("UNREACHED");
+      expect(result.breakEvenRevenue).toBeDefined();
+      expect(result.isEstimated).toBe(true);
+      expect(result.costQualityStatus).toBe("HIGH_CONFIDENCE_ESTIMATE");
       expect(result.isProvisional).toBe(true);
       expect(result.provisionalFixedCostBase).toBe(147233.32);
       expect(result.provisionalBreakEvenRevenue).toBe(493897.95);
@@ -316,8 +330,10 @@ describe("Financial DRE — Break-Even Analysis (calculateBreakEven)", () => {
         financialResult: 0,
       });
 
-      expect(result.status).toBe("UNDETERMINED_PARTIAL_COST_COVERAGE");
-      expect(result.breakEvenRevenue).toBeNull();
+      expect(result.status).toBe("UNREACHED");
+      expect(result.breakEvenRevenue).toBeDefined();
+      expect(result.isEstimated).toBe(true);
+      expect(result.costQualityStatus).toBe("PROVISIONAL_ESTIMATE");
       expect(result.isProvisional).toBe(true);
       expect(result.provisionalFixedCostBase).toBe(100000);
       expect(result.provisionalBreakEvenRevenue).toBe(250000);
@@ -340,8 +356,10 @@ describe("Financial DRE — Break-Even Analysis (calculateBreakEven)", () => {
         financialResult: 10000,
       });
 
-      expect(result.status).toBe("UNDETERMINED_PARTIAL_COST_COVERAGE");
-      expect(result.breakEvenRevenue).toBeNull();
+      expect(result.status).toBe("UNREACHED");
+      expect(result.breakEvenRevenue).toBeDefined();
+      expect(result.isEstimated).toBe(true);
+      expect(result.costQualityStatus).toBe("PROVISIONAL_ESTIMATE");
       expect(result.isProvisional).toBe(true);
       expect(result.provisionalFixedCostBase).toBe(90000);
       expect(result.provisionalBreakEvenRevenue).toBe(225000);

@@ -1221,15 +1221,16 @@ export function FinancialDreMonthlyChart({
                       fullCoverage: m.fullManagerialResultAvailable,
                     },
                   );
+                const isBePartial =
+                  be.status === "UNDETERMINED_PARTIAL_COST_COVERAGE" ||
+                  (m.costCoveragePercent != null && m.costCoveragePercent < 100);
                 const isBeAbove =
-                  be.status === "PROFITABLE" || be.status === "ABOVE_BREAK_EVEN";
+                  !isBePartial && (be.status === "PROFITABLE" || be.status === "ABOVE_BREAK_EVEN");
                 const isBeBelow =
-                  be.status === "UNREACHED" || be.status === "BELOW_BREAK_EVEN";
+                  !isBePartial && (be.status === "UNREACHED" || be.status === "BELOW_BREAK_EVEN");
                 const isBeUnviable =
                   be.status === "UNDETERMINED_ZERO_MARGIN" ||
                   be.status === "UNVIABLE_MARGIN";
-                const isBePartial =
-                  be.status === "UNDETERMINED_PARTIAL_COST_COVERAGE";
                 const pendingLabels = formatDrePendingAccruals(
                   m.dataQuality.pendingAccruals,
                 );
