@@ -58,6 +58,8 @@ export interface DreBreakEvenDto {
   netResult: number | null;
   additionalRevenueNeeded: number | null;
   breakEvenRevenue: number | null;
+  gapToBreakEven?: number | null;
+  surplusRevenue?: number | null;
   additionalRevenuePercent: number | null;
   safetyMarginPercent?: number | null;
   currentCoveragePercent?: number | null;
@@ -262,11 +264,11 @@ export interface DreBreakdownItemDto {
   economicCategory: DreEconomicCategory;
   label: string;
   group:
-    | "VARIABLE_EXPENSE"
-    | "OPERATING_EXPENSE"
-    | "FINANCIAL_RESULT"
-    | "OTHER_RESULT"
-    | "NON_DRE";
+  | "VARIABLE_EXPENSE"
+  | "OPERATING_EXPENSE"
+  | "FINANCIAL_RESULT"
+  | "OTHER_RESULT"
+  | "NON_DRE";
   amount: number;
   shareOfRevenuePercent: number | null;
   recordCount: number;

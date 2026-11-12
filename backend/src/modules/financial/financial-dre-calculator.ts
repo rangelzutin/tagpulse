@@ -176,6 +176,8 @@ export function calculateBreakEven(
     let addRevPct: number | null = null;
     let safetyMargin: number | null = null;
     let currentCoverage: number | null = null;
+    let gapToBreakEven: number | null = null;
+    let surplusRevenue: number | null = null;
 
     if (estRate && estRate > 0 && fixedBase !== null && fixedBase > 0) {
       estBreakEven = r2(fixedBase / estRate);
@@ -185,6 +187,8 @@ export function calculateBreakEven(
       addRevNeeded = Math.max(0, r2(estBreakEven - rev));
       addRevPct = rev > 0 ? r2((addRevNeeded / rev) * 100) : null;
       currentCoverage = estBreakEven > 0 ? r2((rev / estBreakEven) * 100) : null;
+      gapToBreakEven = r2(estBreakEven - rev);
+      surplusRevenue = gapToBreakEven < 0 ? r2(-gapToBreakEven) : 0;
     }
 
     const status: DreBreakEvenStatus =
@@ -202,6 +206,8 @@ export function calculateBreakEven(
       netResult: estNet,
       additionalRevenueNeeded: addRevNeeded,
       breakEvenRevenue: estBreakEven,
+      gapToBreakEven,
+      surplusRevenue,
       additionalRevenuePercent: addRevPct,
       safetyMarginPercent: safetyMargin,
       currentCoveragePercent: currentCoverage,
@@ -269,6 +275,8 @@ export function calculateBreakEven(
       rev > 0 ? r2(((rev - implicitBreakEven) / rev) * 100) : null;
     const currentCoverage =
       implicitBreakEven > 0 ? r2((rev / implicitBreakEven) * 100) : null;
+    const gapToBreakEven = r2(implicitBreakEven - rev);
+    const surplusRevenue = gapToBreakEven < 0 ? r2(-gapToBreakEven) : 0;
     return {
       status: "PROFITABLE",
       realizedRevenue: rev,
@@ -277,6 +285,8 @@ export function calculateBreakEven(
       netResult: net,
       additionalRevenueNeeded: 0,
       breakEvenRevenue: implicitBreakEven,
+      gapToBreakEven,
+      surplusRevenue,
       additionalRevenuePercent: 0,
       safetyMarginPercent: safetyMargin,
       currentCoveragePercent: currentCoverage,
@@ -290,6 +300,7 @@ export function calculateBreakEven(
   const additionalRevenuePercent = r4((additionalRevenueNeeded / rev) * 100);
   const currentCoverage =
     breakEvenRevenue > 0 ? r2((rev / breakEvenRevenue) * 100) : null;
+  const gapToBreakEven = r2(breakEvenRevenue - rev);
 
   return {
     status: "UNREACHED",
@@ -299,6 +310,8 @@ export function calculateBreakEven(
     netResult: net,
     additionalRevenueNeeded,
     breakEvenRevenue,
+    gapToBreakEven,
+    surplusRevenue: 0,
     additionalRevenuePercent,
     safetyMarginPercent: null,
     currentCoveragePercent: currentCoverage,

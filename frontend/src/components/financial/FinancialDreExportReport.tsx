@@ -17,7 +17,7 @@ import {
 } from "./FinancialDreMonthlyChart";
 import { buildAdaptiveDreEvolution } from "./dreEvolutionHelper";
 import { formatExportGeneratedAt } from "./dreExportService";
-import { calculateBreakEven } from "./dreBreakEvenHelper";
+import { calculateBreakEven, formatBreakEvenGap } from "./dreBreakEvenHelper";
 
 export const DRE_EXPORT_DISCLAIMER_TEXT =
   "Relatório gerencial elaborado a partir dos dados disponíveis no TagPulse. CMV e margens utilizam custo atual estimado quando indicado. Não substitui demonstrações contábeis oficiais.";
@@ -1162,25 +1162,24 @@ export function FinancialDreExportReport({
                     {
                       costCoveragePercent: m.costCoveragePercent,
                       fullCoverage: m.fullManagerialResultAvailable,
-                      coveredRevenue: m.coveredRevenue,
-                      coveredContributionMargin: m.coveredContributionMargin,
-                      operatingExpenses: m.operatingExpenses?.total,
-                      financialResult: m.financialResult?.total,
                     },
                   );
                 const isBePartial =
                   be.status === "UNDETERMINED_PARTIAL_COST_COVERAGE" ||
-                  (m.costCoveragePercent != null && m.costCoveragePercent < 100);
-                const isBeAbove =
-                  !isBePartial && (be.status === "PROFITABLE" || be.status === "ABOVE_BREAK_EVEN");
-                const isBeBelow =
-                  !isBePartial && (be.status === "UNREACHED" || be.status === "BELOW_BREAK_EVEN");
+                  be.breakEvenRevenue === null;
                 const isBeUnviable =
                   be.status === "UNDETERMINED_ZERO_MARGIN" ||
                   be.status === "UNVIABLE_MARGIN";
                 const pendingLabels = formatDrePendingAccruals(
                   m.dataQuality.pendingAccruals,
                 );
+
+                const gapVal =
+                  be.gapToBreakEven ??
+                  (be.breakEvenRevenue !== null && m.realizedRevenue !== null
+                    ? Math.round((be.breakEvenRevenue - m.realizedRevenue + Number.EPSILON) * 100) / 100
+                    : null);
+                const gapDisplay = formatBreakEvenGap(gapVal, formatCurrency);
 
                 return (
                   <tr
@@ -1218,26 +1217,34 @@ export function FinancialDreExportReport({
                         : "—"}
                     </td>
                     <td className="is-right">
-                      {be.breakEvenRevenue !== null && !isBePartial
-                        ? formatCurrency(be.breakEvenRevenue)
-                        : isBeUnviable
-                        ? "Inviável"
-                        : isBePartial
-                        ? `Cobertura parcial (${formatPercent(
-                            m.costCoveragePercent ??
-                              (m.realizedRevenue > 0 && m.coveredRevenue != null
-                                ? (m.coveredRevenue / m.realizedRevenue) * 100
-                                : 0),
-                            1,
-                          )})`
-                        : "—"}
+                      {be.breakEvenRevenue !== null ? (
+                        formatCurrency(be.breakEvenRevenue)
+                      ) : isBeUnviable ? (
+                        "Inviável"
+                      ) : isBePartial ? (
+                        `Cobertura parcial (${formatPercent(
+                          m.costCoveragePercent ??
+                            (m.realizedRevenue > 0 && m.coveredRevenue != null
+                              ? (m.coveredRevenue / m.realizedRevenue) * 100
+                              : 0),
+                          1,
+                        )})`
+                      ) : (
+                        "—"
+                      )}
                     </td>
                     <td className="is-right">
-                      {isBeBelow && be.additionalRevenueNeeded !== null
-                        ? formatCurrency(be.additionalRevenueNeeded)
-                        : isBeAbove
-                        ? "Superado"
-                        : "—"}
+                      {gapDisplay.numericGap !== null ? (
+                        gapDisplay.type === "DEFICIT" ? (
+                          gapDisplay.text
+                        ) : gapDisplay.type === "EQUILIBRIUM" ? (
+                          `${gapDisplay.text} (Equilíbrio)`
+                        ) : (
+                          `${gapDisplay.text} (Superado)`
+                        )
+                      ) : (
+                        "—"
+                      )}
                     </td>
                     <td className="is-center">
                       <span

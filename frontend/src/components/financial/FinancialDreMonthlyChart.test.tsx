@@ -918,6 +918,147 @@ describe("Phase 5D.5: Adaptive DRE Evolution Chart & Faithful Monthly Table", ()
       // Both retain closed quality status
       expect(tableHtml).toContain("Fechado");
     });
+
+    describe("Monthly Break-Even Gap Semantics (Ajustes DRE)", () => {
+      it("A. gap positivo mensal: exibe valor faltante e badge Falta", () => {
+        const item = makeMonthlyItem("2026-08", {
+          realizedRevenue: 50000,
+          estimatedCOGS: 20000,
+          variableTotal: 5000,
+          operatingTotal: 35000,
+        });
+        item.breakEven = {
+          status: "UNREACHED",
+          realizedRevenue: 50000,
+          contributionMargin: 25000,
+          contributionMarginRate: 0.5,
+          netResult: -10000,
+          additionalRevenueNeeded: 20000,
+          breakEvenRevenue: 70000,
+          gapToBreakEven: 20000,
+          surplusRevenue: 0,
+          additionalRevenuePercent: 40,
+        };
+
+        const html = renderToString(
+          <FinancialDreMonthlyChart
+            monthlyData={[item]}
+            period={{ from: "2026-08-01", to: "2026-08-31" }}
+            initialViewMode="table"
+          />,
+        );
+
+        expect(html).toContain("70.000,00"); // Ponto de equilíbrio
+        expect(html).toContain("20.000,00"); // Gap valor
+        expect(html).toContain("Falta");
+        expect(html).not.toContain("<td>—</td>");
+      });
+
+      it("B. gap negativo/superávit mensal: exibe Superávit R$ X e Superado (ex: Jan/26)", () => {
+        const item = makeMonthlyItem("2026-01", {
+          realizedRevenue: 58987.80,
+          estimatedCOGS: 37875.83,
+          variableTotal: 4768.09,
+          operatingTotal: 14806.34,
+        });
+        item.breakEven = {
+          status: "PROFITABLE",
+          realizedRevenue: 58987.80,
+          contributionMargin: 15057.38,
+          contributionMarginRate: 0.2553,
+          netResult: 73.99,
+          additionalRevenueNeeded: 0,
+          breakEvenRevenue: 58697.94,
+          gapToBreakEven: -289.86,
+          surplusRevenue: 289.86,
+          additionalRevenuePercent: 0,
+          costQualityStatus: "HIGH_CONFIDENCE_ESTIMATE",
+          isEstimated: true,
+        };
+
+        const html = renderToString(
+          <FinancialDreMonthlyChart
+            monthlyData={[item]}
+            period={{ from: "2026-01-01", to: "2026-01-31" }}
+            initialViewMode="table"
+          />,
+        );
+
+        expect(html).toContain("58.697,94"); // Ponto de equilíbrio
+        expect(html).toContain("Superávit");
+        expect(html).toContain("289,86");
+        expect(html).toContain("Superado");
+        expect(html).not.toContain("<td>—</td>");
+      });
+
+      it("C. gap zero: exibe R$ 0,00 e Equilíbrio", () => {
+        const item = makeMonthlyItem("2026-07", {
+          realizedRevenue: 38283.00,
+          estimatedCOGS: 19141.50,
+          variableTotal: 0,
+          operatingTotal: 19141.50,
+        });
+        item.breakEven = {
+          status: "PROFITABLE",
+          realizedRevenue: 38283.00,
+          contributionMargin: 19141.50,
+          contributionMarginRate: 0.5,
+          netResult: 0,
+          additionalRevenueNeeded: 0,
+          breakEvenRevenue: 38283.00,
+          gapToBreakEven: 0,
+          surplusRevenue: 0,
+          additionalRevenuePercent: 0,
+        };
+
+        const html = renderToString(
+          <FinancialDreMonthlyChart
+            monthlyData={[item]}
+            period={{ from: "2026-07-01", to: "2026-07-31" }}
+            initialViewMode="table"
+          />,
+        );
+
+        expect(html).toContain("38.283,00");
+        expect(html).toContain("0,00");
+        expect(html).toContain("Equilíbrio");
+      });
+
+      it("D. mês com break-even existente nunca retorna '—'", () => {
+        const item = makeMonthlyItem("2026-02", {
+          realizedRevenue: 13294.71,
+          estimatedCOGS: 5401.36,
+          variableTotal: 1000,
+          operatingTotal: 6000,
+        });
+        item.breakEven = {
+          status: "UNREACHED",
+          realizedRevenue: 13294.71,
+          contributionMargin: 6893.35,
+          contributionMarginRate: 0.5185,
+          netResult: -106.65,
+          additionalRevenueNeeded: 205.69,
+          breakEvenRevenue: 13500.40,
+          gapToBreakEven: 205.69,
+          surplusRevenue: 0,
+          additionalRevenuePercent: 1.55,
+        };
+
+        const html = renderToString(
+          <FinancialDreMonthlyChart
+            monthlyData={[item]}
+            period={{ from: "2026-02-01", to: "2026-02-28" }}
+            initialViewMode="table"
+          />,
+        );
+
+        expect(html).toContain("13.500,40");
+        expect(html).toContain("205,69");
+        expect(html).toContain("Falta");
+        // Verifica que nem Ponto de Equilíbrio nem Gap são "—"
+        expect(html).not.toContain("<td>—</td>");
+      });
+    });
   });
 });
 

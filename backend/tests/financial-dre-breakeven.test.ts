@@ -384,6 +384,23 @@ describe("Financial DRE — Break-Even Analysis (calculateBreakEven)", () => {
       expect(result.additionalRevenueNeeded).toBe(37500);
       expect(result.isProvisional).toBeUndefined();
       expect(result.provisionalBreakEvenRevenue).toBeUndefined();
+      expect(result.gapToBreakEven).toBe(37500);
+      expect(result.surplusRevenue).toBe(0);
+    });
+
+    it("L5. computes canonical gapToBreakEven and surplusRevenue for surplus (profitable month)", () => {
+      // Exemplo real Jan/26: Receita 58987.80, BreakEven 58697.94 -> Superávit 289.86
+      const result = calculateBreakEven(58987.80, 15057.38, 73.99, {
+        costCoveragePercent: 96.71,
+        fullCoverage: false,
+        operatingExpenses: 14806.34,
+        financialResult: -177.05,
+      });
+
+      expect(result.status).toBe("PROFITABLE");
+      expect(result.breakEvenRevenue).toBe(58697.94);
+      expect(result.gapToBreakEven).toBe(-289.86);
+      expect(result.surplusRevenue).toBe(289.86);
     });
   });
 });

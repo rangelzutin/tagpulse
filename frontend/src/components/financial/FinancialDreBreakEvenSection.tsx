@@ -9,6 +9,7 @@ import {
   HelpCircle,
   CheckCircle2,
   Info,
+  FileEdit,
 } from "lucide-react";
 import {
   calculateBreakEven,
@@ -121,16 +122,11 @@ export function FinancialDreBreakEvenSection({
         <div className="tp-dre-breakeven-status-wrap">
           {breakEven.isEstimated && (
             <span
-              className="tp-kpi-status-badge is-provisional"
-              style={{
-                background: "rgba(56, 189, 248, 0.12)",
-                color: "#38bdf8",
-                border: "1px solid rgba(56, 189, 248, 0.3)",
-              }}
+              className="tp-kpi-quality-badge"
               data-testid="dre-breakeven-estimate-badge"
             >
               {breakEven.costQualityStatus === "HIGH_CONFIDENCE_ESTIMATE"
-                ? `Alta confiança (${totals.costCoveragePercent ? `${totals.costCoveragePercent.toFixed(1)}%` : "97.9%"})`
+                ? `Alta confiança · ${totals.costCoveragePercent ? `${totals.costCoveragePercent.toFixed(1)}%` : "97,9%"}`
                 : "Estimativa provisória"}
             </span>
           )}
@@ -199,27 +195,19 @@ export function FinancialDreBreakEvenSection({
                 </strong>
               </span>
               <span className="tp-metric-sep">•</span>
-              <span>
-                Receita sem custo:{" "}
-                {onOpenMissingCosts ? (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                <span>Receita sem CMV: <strong>{formatCurrency(uncoveredRevenue)}</strong></span>
+                {onOpenMissingCosts && (
                   <button
                     type="button"
                     onClick={onOpenMissingCosts}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      padding: 0,
-                      color: "#f59e0b",
-                      textDecoration: "underline",
-                      cursor: "pointer",
-                      fontWeight: 700,
-                    }}
-                    title="Clique para auditar e preencher custos ausentes"
+                    className="tp-btn-revisar-cmv"
+                    data-testid="dre-open-missing-costs-btn"
+                    title="Clique para revisar e informar CMVs pendentes"
                   >
-                    {formatCurrency(uncoveredRevenue)} (ver pendências)
+                    <FileEdit size={12} />
+                    <span>Revisar CMVs</span>
                   </button>
-                ) : (
-                  <strong>{formatCurrency(uncoveredRevenue)}</strong>
                 )}
               </span>
             </div>
@@ -410,32 +398,24 @@ export function FinancialDreBreakEvenSection({
             {uncoveredRevenue > 0 && (
               <>
                 <div className="tp-secondary-divider" />
-                <div className="tp-breakeven-context-item">
+                <div className="tp-breakeven-context-item" style={{ gap: "8px" }}>
                   <span className="tp-breakeven-context-label">
-                    Receita sem custo:
+                    Receita sem CMV:
                   </span>
-                  {onOpenMissingCosts ? (
+                  <strong className="tp-breakeven-context-value tp-color-amber">
+                    {formatCurrency(uncoveredRevenue)}
+                  </strong>
+                  {onOpenMissingCosts && (
                     <button
                       type="button"
                       onClick={onOpenMissingCosts}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        padding: 0,
-                        color: "#f59e0b",
-                        textDecoration: "underline",
-                        cursor: "pointer",
-                        fontWeight: 700,
-                        fontSize: "inherit",
-                      }}
+                      className="tp-btn-revisar-cmv"
+                      data-testid="dre-open-missing-costs-btn"
                       title="Clique para auditar produtos sem custo"
                     >
-                      {formatCurrency(uncoveredRevenue)} (auditar)
+                      <FileEdit size={12} />
+                      <span>Revisar CMVs</span>
                     </button>
-                  ) : (
-                    <span className="tp-breakeven-context-value tp-color-amber">
-                      {formatCurrency(uncoveredRevenue)}
-                    </span>
                   )}
                 </div>
               </>

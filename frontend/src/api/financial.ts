@@ -618,6 +618,8 @@ export interface DreBreakEvenDto {
   netResult: number | null;
   additionalRevenueNeeded: number | null;
   breakEvenRevenue: number | null;
+  gapToBreakEven?: number | null;
+  surplusRevenue?: number | null;
   additionalRevenuePercent: number | null;
   safetyMarginPercent?: number | null;
   currentCoveragePercent?: number | null;
@@ -907,17 +909,29 @@ export async function fetchFinancialDreBreakdown(
 }
 
 export interface MissingCostItemDto {
-  productId: string | null;
+  saleId: string;
+  saleItemId: string;
+  saleDate: string;
+  documentNumber: string;
+  productName: string;
   sourceProductId: string;
-  code: string | null;
-  description: string;
-  categoryDescription: string | null;
-  uncoveredRevenue: number;
-  totalQuantity: number;
-  salesCount: number;
-  firstSaleAt: string;
-  lastSaleAt: string;
-  currentCatalogCost: number | null;
+  productCode: string | null;
+  quantity: number;
+  soldValue: number;
+  currentCost: number | null;
+  reason: string;
+  status: "PENDENTE" | "RESOLVIDO";
+  // Optional compatibility fields
+  productId?: string | null;
+  code?: string | null;
+  description?: string;
+  categoryDescription?: string | null;
+  uncoveredRevenue?: number;
+  totalQuantity?: number;
+  salesCount?: number;
+  firstSaleAt?: string;
+  lastSaleAt?: string;
+  currentCatalogCost?: number | null;
 }
 
 export interface CostQualitySummaryDto {

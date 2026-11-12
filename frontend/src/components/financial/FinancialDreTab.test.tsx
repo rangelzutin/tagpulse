@@ -424,4 +424,44 @@ describe("Phase 5D: Financial DRE Frontend Components & Tab Tests", () => {
       getRequiredYearsForPeriod({ from: "2024-05-01", to: "2026-10-29" }, ref),
     ).toEqual(["2024", "2025", "2026"]);
   });
+
+  // 9. Cost quality badge separation and review button presence
+  it("renders cost quality badge cleanly separated and includes Revisar CMVs button", () => {
+    const summaryWithEstimatedBreakEven: DreSummaryDto = {
+      ...canonicalSummary,
+      breakEven: {
+        status: "UNREACHED",
+        realizedRevenue: 363687.22,
+        contributionMargin: 107856.18,
+        contributionMarginRate: 0.2966,
+        netResult: -39377.14,
+        additionalRevenueNeeded: 132778.32,
+        breakEvenRevenue: 496465.54,
+        gapToBreakEven: 132778.32,
+        surplusRevenue: 0,
+        additionalRevenuePercent: 36.51,
+        safetyMarginPercent: null,
+        currentCoveragePercent: 73.26,
+        costCoveragePercent: 97.92,
+        costQualityStatus: "HIGH_CONFIDENCE_ESTIMATE",
+        isEstimated: true,
+        coveredRevenue: 356122,
+        uncoveredRevenue: 7565.22,
+        provisionalBreakEvenRevenue: 495505.13,
+        provisionalGap: 139383.13,
+      },
+    };
+
+    const html = renderToString(
+      <FinancialDreTab
+        currentPeriod={{ from: "2026-01-01", to: "2026-10-31" }}
+        initialSummary={summaryWithEstimatedBreakEven}
+      />
+    );
+
+    expect(html).toContain("tp-kpi-quality-badge");
+    expect(html).toContain("tp-btn-revisar-cmv");
+    expect(html).toContain("Revisar CMVs");
+    expect(html).toContain("Abaixo do equilíbrio");
+  });
 });

@@ -18,6 +18,9 @@ import {
   X,
   Search,
   Plus,
+  History,
+  FileEdit,
+  Package,
 } from "lucide-react";
 import {
   fetchFinancialDreSummary,
@@ -25,7 +28,9 @@ import {
   fetchFinancialDreBreakdown,
   fetchMissingCosts,
   createProductCost,
+  fetchProductCostHistory,
   type MissingCostItemDto,
+  type ProductCostHistoryItem,
   type DreSummaryDto,
   type DreMonthlyItemDto,
   type DreBreakdownDto,
@@ -149,10 +154,26 @@ export function FinancialDreTab({
   const [isLoadingMissingCosts, setIsLoadingMissingCosts] = useState(false);
   const [missingCostsError, setMissingCostsError] = useState<string | null>(null);
   const [missingSearchTerm, setMissingSearchTerm] = useState("");
+  // View Mode for Missing Costs: individual sale items or grouped by product
+  const [missingCostsViewMode, setMissingCostsViewMode] = useState<"items" | "products">("items");
+
+  // Product Cost History State
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [productHistory, setProductHistory] = useState<ProductCostHistoryItem[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historyProductName, setHistoryProductName] = useState("");
 
   // Add Product Cost Modal State
   const [isAddCostOpen, setIsAddCostOpen] = useState(false);
-  const [selectedProductForCost, setSelectedProductForCost] = useState<MissingCostItemDto | null>(null);
+  const [selectedProductForCost, setSelectedProductForCost] = useState<{
+    productId?: string | null;
+    sourceProductId: string;
+    productName: string;
+    productCode: string | null;
+    saleDate?: string;
+    currentCost?: number | null;
+  } | null>(null);
   const [costFormUnitCost, setCostFormUnitCost] = useState("");
   const [costFormValidFrom, setCostFormValidFrom] = useState(currentPeriod.from);
   const [costFormValidTo, setCostFormValidTo] = useState("");
@@ -316,15 +337,54 @@ export function FinancialDreTab({
     }
   }, [isMissingCostsOpen, loadMissingCosts]);
 
-  const handleOpenAddCost = (item: MissingCostItemDto) => {
-    setSelectedProductForCost(item);
-    setCostFormUnitCost(item.currentCatalogCost ? String(item.currentCatalogCost) : "");
-    setCostFormValidFrom(item.firstSaleAt ? item.firstSaleAt.slice(0, 10) : currentPeriod.from);
+  const handleOpenAddCost = (item: {
+    productId?: string | null;
+    sourceProductId: string;
+    productName?: string;
+    description?: string;
+    productCode?: string | null;
+    code?: string | null;
+    firstSaleAt?: string;
+    saleDate?: string;
+    currentCost?: number | null;
+    currentCatalogCost?: number | null;
+  }) => {
+    const name = item.productName || item.description || `Produto ${item.sourceProductId}`;
+    const code = item.productCode ?? item.code ?? null;
+    const initialCost = item.currentCost ?? item.currentCatalogCost ?? null;
+    const initialDate = item.saleDate || (item.firstSaleAt ? item.firstSaleAt.slice(0, 10) : currentPeriod.from);
+
+    setSelectedProductForCost({
+      productId: item.productId,
+      sourceProductId: item.sourceProductId,
+      productName: name,
+      productCode: code,
+      saleDate: initialDate,
+      currentCost: initialCost,
+    });
+    setCostFormUnitCost(initialCost ? String(initialCost) : "");
+    setCostFormValidFrom(initialDate);
     setCostFormValidTo("");
     setCostFormNote("Custo unitário cadastrado via TagPulse");
     setCostSubmitError(null);
     setCostSubmitSuccess(null);
     setIsAddCostOpen(true);
+  };
+
+  const handleOpenHistory = async (sourceProductId: string, productName?: string) => {
+    setHistoryProductName(productName || `Produto ${sourceProductId}`);
+    setIsHistoryOpen(true);
+    setIsLoadingHistory(true);
+    setHistoryError(null);
+    try {
+      const history = await fetchProductCostHistory(sourceProductId);
+      setProductHistory(history);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erro ao carregar histórico de custos.";
+      setHistoryError(msg);
+    } finally {
+      setIsLoadingHistory(false);
+    }
   };
 
   const handleSaveCost = async (e: React.FormEvent) => {
@@ -347,7 +407,7 @@ export function FinancialDreTab({
         note: costFormNote,
         costSource: "MANUAL",
       });
-      setCostSubmitSuccess("Custo cadastrado com sucesso! Atualizando DRE...");
+      setCostSubmitSuccess("CMV cadastrado com sucesso! Atualizando DRE...");
       setTimeout(() => {
         setIsAddCostOpen(false);
         setCostSubmitSuccess(null);
@@ -376,6 +436,66 @@ export function FinancialDreTab({
     loadBreakdown,
     loadMonthly,
   ]);
+
+  // Derived aggregations for missing costs modal
+  const totalUncoveredRevenue = useMemo(() => {
+    return missingCosts.reduce((acc, item) => acc + (item.soldValue ?? item.uncoveredRevenue ?? 0), 0);
+  }, [missingCosts]);
+
+  const groupedMissingProducts = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        sourceProductId: string;
+        productId?: string | null;
+        productName: string;
+        productCode: string | null;
+        totalQuantity: number;
+        totalSoldValue: number;
+        itemsCount: number;
+        earliestSaleDate: string;
+        latestSaleDate: string;
+        currentCost: number | null;
+      }
+    >();
+
+    for (const item of missingCosts) {
+      const existing = map.get(item.sourceProductId);
+      const soldVal = item.soldValue ?? item.uncoveredRevenue ?? 0;
+      const qty = item.quantity ?? item.totalQuantity ?? 0;
+      const sDate = item.saleDate || item.firstSaleAt?.slice(0, 10) || "";
+      const pName = item.productName || item.description || `Produto ${item.sourceProductId}`;
+      const pCode = item.productCode ?? item.code ?? null;
+      const cCost = item.currentCost ?? item.currentCatalogCost ?? null;
+
+      if (!existing) {
+        map.set(item.sourceProductId, {
+          sourceProductId: item.sourceProductId,
+          productId: item.productId,
+          productName: pName,
+          productCode: pCode,
+          totalQuantity: qty,
+          totalSoldValue: soldVal,
+          itemsCount: 1,
+          earliestSaleDate: sDate,
+          latestSaleDate: sDate,
+          currentCost: cCost,
+        });
+      } else {
+        existing.totalQuantity += qty;
+        existing.totalSoldValue += soldVal;
+        existing.itemsCount += 1;
+        if (sDate && (!existing.earliestSaleDate || sDate < existing.earliestSaleDate)) {
+          existing.earliestSaleDate = sDate;
+        }
+        if (sDate && (!existing.latestSaleDate || sDate > existing.latestSaleDate)) {
+          existing.latestSaleDate = sDate;
+        }
+      }
+    }
+
+    return Array.from(map.values()).sort((a, b) => b.totalSoldValue - a.totalSoldValue);
+  }, [missingCosts]);
 
   const handleExport = useCallback(
     async (format: DreExportFormat) => {
@@ -584,21 +704,20 @@ export function FinancialDreTab({
 
           {/* Economic Status Badge */}
           <div
-            className={`tp-economic-status-badge ${
-              totals.status === "PROFIT"
+            className={`tp-economic-status-badge ${totals.status === "PROFIT"
                 ? "is-profit"
                 : totals.status === "LOSS"
-                ? "is-loss"
-                : "is-even"
-            }`}
+                  ? "is-loss"
+                  : "is-even"
+              }`}
           >
             <span className="tp-status-dot" />
             <span>
               {totals.status === "PROFIT"
                 ? "Lucro"
                 : totals.status === "LOSS"
-                ? "Prejuízo"
-                : "Equilíbrio"}
+                  ? "Prejuízo"
+                  : "Equilíbrio"}
             </span>
           </div>
         </div>
@@ -775,26 +894,24 @@ export function FinancialDreTab({
 
           {/* KPI 3 — Resultado Líquido Gerencial Estimado */}
           <article
-            className={`tp-kpi-card tp-profit-kpi-card ${
-              isPositiveNet
+            className={`tp-kpi-card tp-profit-kpi-card ${isPositiveNet
                 ? "tp-card-profit"
                 : isNegativeNet
-                ? "tp-card-loss"
-                : ""
-            }`}
+                  ? "tp-card-loss"
+                  : ""
+              }`}
           >
             <div className="tp-profit-kpi-header">
               <span className="tp-profit-kpi-label">
                 Resultado Líquido Gerencial Estimado
               </span>
               <span
-                className={`tp-kpi-icon-wrap ${
-                  isPositiveNet
+                className={`tp-kpi-icon-wrap ${isPositiveNet
                     ? "tp-icon-teal"
                     : isNegativeNet
-                    ? "tp-icon-magenta"
-                    : "tp-icon-blue"
-                }`}
+                      ? "tp-icon-magenta"
+                      : "tp-icon-blue"
+                  }`}
               >
                 {isPositiveNet ? (
                   <TrendingUp size={16} />
@@ -807,60 +924,56 @@ export function FinancialDreTab({
             </div>
             <div className="tp-profit-kpi-value-wrap">
               <span
-                className={`tp-kpi-value ${
-                  isPositiveNet
+                className={`tp-kpi-value ${isPositiveNet
                     ? "tp-value-positive"
                     : isNegativeNet
-                    ? "tp-value-negative"
-                    : ""
-                }`}
+                      ? "tp-value-negative"
+                      : ""
+                  }`}
               >
                 {hasNetResult
                   ? formatCurrency(totals.netManagerialResult as number)
                   : "Indisponível"}
               </span>
             </div>
-            <div className="tp-profit-kpi-footer">
-              <span
-                className={`tp-kpi-status-badge ${
-                  !hasNetResult
-                    ? "is-even"
-                    : isPositiveNet
-                    ? "is-profit"
-                    : isNegativeNet
-                    ? "is-loss"
-                    : "is-even"
-                }`}
-              >
-                {!hasNetResult
-                  ? "Cobertura Insuficiente"
-                  : totals.status === "PROFIT"
-                  ? "Lucro"
-                  : totals.status === "LOSS"
-                  ? "Prejuízo"
-                  : "Equilíbrio"}
-              </span>
-              {isCostQualityEstimated && hasNetResult && (
+            <div className="tp-profit-kpi-footer tp-dre-kpi-footer">
+              <div className="tp-dre-kpi-badges-row">
                 <span
-                  className="tp-kpi-status-badge is-provisional"
-                  style={{
-                    background: "rgba(56, 189, 248, 0.12)",
-                    color: "#38bdf8",
-                    border: "1px solid rgba(56, 189, 248, 0.3)",
-                    marginLeft: 6,
-                  }}
+                  className={`tp-kpi-status-badge ${!hasNetResult
+                      ? "is-even"
+                      : isPositiveNet
+                        ? "is-profit"
+                        : isNegativeNet
+                          ? "is-loss"
+                          : "is-even"
+                    }`}
+                  data-testid="dre-kpi-result-status-badge"
                 >
-                  {totals.costQualityStatus === "HIGH_CONFIDENCE_ESTIMATE"
-                    ? `Alta confiança (${totals.costCoveragePercent ? `${totals.costCoveragePercent.toFixed(1)}%` : "97.9%"})`
-                    : "Estimativa provisória"}
+                  {!hasNetResult
+                    ? "Cobertura Insuficiente"
+                    : totals.status === "PROFIT"
+                      ? "Lucro"
+                      : totals.status === "LOSS"
+                        ? "Prejuízo"
+                        : "Equilíbrio"}
                 </span>
-              )}
-              <span className="tp-profit-kpi-subtext" style={{ marginTop: 4 }}>
+                {isCostQualityEstimated && hasNetResult && (
+                  <span
+                    className="tp-kpi-quality-badge"
+                    data-testid="dre-kpi-cost-quality-badge"
+                  >
+                    {totals.costQualityStatus === "HIGH_CONFIDENCE_ESTIMATE"
+                      ? `Alta confiança · ${totals.costCoveragePercent ? `${totals.costCoveragePercent.toFixed(1)}%` : "97,9%"}`
+                      : "Estimativa provisória"}
+                  </span>
+                )}
+              </div>
+              <span className="tp-profit-kpi-subtext">
                 {!hasNetResult
                   ? `Margem parcial: ${totals.partialManagerialResultOnCoveredRevenue !== undefined ? formatCurrency(totals.partialManagerialResultOnCoveredRevenue) : "—"} (cobertura CMV ${totals.costCoveragePercent != null ? totals.costCoveragePercent.toFixed(1) + "%" : "—"})`
                   : isCostQualityEstimated
-                  ? `Estimativa gerencial (cobertura de custos ${totals.costCoveragePercent != null ? totals.costCoveragePercent.toFixed(1) + "%" : "97.9%"})`
-                  : "Resultado operacional líquido"}
+                    ? "Estimativa gerencial com cobertura parcial de custos."
+                    : "Resultado operacional líquido"}
               </span>
             </div>
           </article>
@@ -872,30 +985,28 @@ export function FinancialDreTab({
                 Margem Líquida Gerencial Estimada
               </span>
               <span
-                className={`tp-kpi-icon-wrap ${
-                  isPositiveNet
+                className={`tp-kpi-icon-wrap ${isPositiveNet
                     ? "tp-icon-teal"
                     : isNegativeNet
-                    ? "tp-icon-magenta"
-                    : "tp-icon-blue"
-                }`}
+                      ? "tp-icon-magenta"
+                      : "tp-icon-blue"
+                  }`}
               >
                 <Percent size={16} />
               </span>
             </div>
             <div className="tp-profit-kpi-value-wrap">
               <span
-                className={`tp-kpi-value ${
-                  hasNetResult &&
-                  totals.netManagerialMarginPercent !== null &&
-                  totals.netManagerialMarginPercent < 0
+                className={`tp-kpi-value ${hasNetResult &&
+                    totals.netManagerialMarginPercent !== null &&
+                    totals.netManagerialMarginPercent < 0
                     ? "tp-value-negative"
                     : hasNetResult &&
                       totals.netManagerialMarginPercent !== null &&
                       totals.netManagerialMarginPercent > 0
-                    ? "tp-value-positive"
-                    : ""
-                }`}
+                      ? "tp-value-positive"
+                      : ""
+                  }`}
               >
                 {hasNetResult && totals.netManagerialMarginPercent !== null
                   ? formatPercent(totals.netManagerialMarginPercent, 2)
@@ -955,13 +1066,12 @@ export function FinancialDreTab({
         <div className="tp-secondary-metric-item">
           <span className="tp-secondary-label">Resultado Financeiro</span>
           <span
-            className={`tp-secondary-value ${
-              totals.financialResult.total < 0
+            className={`tp-secondary-value ${totals.financialResult.total < 0
                 ? "tp-text-negative"
                 : totals.financialResult.total > 0
-                ? "tp-text-positive"
-                : ""
-            }`}
+                  ? "tp-text-positive"
+                  : ""
+              }`}
           >
             {formatCurrency(totals.financialResult.total)}
           </span>
@@ -1088,14 +1198,15 @@ export function FinancialDreTab({
               border: "1px solid #334155",
               borderRadius: "12px",
               width: "100%",
-              maxWidth: "960px",
-              maxHeight: "85vh",
+              maxWidth: "1000px",
+              maxHeight: "90vh",
               display: "flex",
               flexDirection: "column",
               boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
               color: "#f8fafc",
             }}
           >
+            {/* Header */}
             <div
               style={{
                 display: "flex",
@@ -1107,10 +1218,10 @@ export function FinancialDreTab({
             >
               <div>
                 <h3 id="missing-costs-title" style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "#f8fafc" }}>
-                  Auditoria de Custos Ausentes (CMV Pendente)
+                  CMVs Pendentes
                 </h3>
                 <p style={{ margin: "4px 0 0 0", fontSize: "12px", color: "#94a3b8" }}>
-                  Produtos com vendas realizadas no período que ainda não possuem custo histórico cadastrado.
+                  Itens e produtos com vendas realizadas no período sem custo temporal associado no sistema.
                 </p>
               </div>
               <button
@@ -1129,12 +1240,97 @@ export function FinancialDreTab({
               </button>
             </div>
 
-            <div style={{ padding: "16px 24px", display: "flex", gap: "12px", alignItems: "center", borderBottom: "1px solid #1e293b" }}>
-              <div style={{ position: "relative", flex: 1 }}>
-                <Search size={16} style={{ position: "absolute", left: "10px", top: "10px", color: "#64748b" }} />
+            {/* Summary Cards */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                gap: "12px",
+                padding: "16px 24px",
+                background: "#0b1120",
+                borderBottom: "1px solid #1e293b",
+              }}
+            >
+              <div style={{ background: "#1e293b", padding: "12px 16px", borderRadius: "8px", border: "1px solid #334155" }}>
+                <span style={{ fontSize: "11px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>
+                  Receita sem CMV
+                </span>
+                <div style={{ fontSize: "18px", fontWeight: 700, color: "#f59e0b", marginTop: "4px" }}>
+                  {formatCurrency(totalUncoveredRevenue)}
+                </div>
+              </div>
+              <div style={{ background: "#1e293b", padding: "12px 16px", borderRadius: "8px", border: "1px solid #334155" }}>
+                <span style={{ fontSize: "11px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>
+                  Itens Pendentes
+                </span>
+                <div style={{ fontSize: "18px", fontWeight: 700, color: "#38bdf8", marginTop: "4px" }}>
+                  {missingCostsTotal || missingCosts.length} itens
+                </div>
+              </div>
+              <div style={{ background: "#1e293b", padding: "12px 16px", borderRadius: "8px", border: "1px solid #334155" }}>
+                <span style={{ fontSize: "11px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>
+                  Produtos Afetados
+                </span>
+                <div style={{ fontSize: "18px", fontWeight: 700, color: "#a855f7", marginTop: "4px" }}>
+                  {groupedMissingProducts.length} produtos
+                </div>
+              </div>
+            </div>
+
+            {/* View Mode Toggle & Search */}
+            <div
+              style={{
+                padding: "12px 24px",
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "12px",
+                alignItems: "center",
+                justifyContent: "space-between",
+                borderBottom: "1px solid #1e293b",
+              }}
+            >
+              <div style={{ display: "flex", background: "#1e293b", padding: "3px", borderRadius: "8px", border: "1px solid #334155" }}>
+                <button
+                  type="button"
+                  onClick={() => setMissingCostsViewMode("items")}
+                  style={{
+                    background: missingCostsViewMode === "items" ? "#0284c7" : "transparent",
+                    color: missingCostsViewMode === "items" ? "#ffffff" : "#94a3b8",
+                    border: "none",
+                    borderRadius: "6px",
+                    padding: "6px 14px",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  Por Venda / Item ({missingCosts.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMissingCostsViewMode("products")}
+                  style={{
+                    background: missingCostsViewMode === "products" ? "#0284c7" : "transparent",
+                    color: missingCostsViewMode === "products" ? "#ffffff" : "#94a3b8",
+                    border: "none",
+                    borderRadius: "6px",
+                    padding: "6px 14px",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  Agrupado por Produto ({groupedMissingProducts.length})
+                </button>
+              </div>
+
+              <div style={{ position: "relative", minWidth: "280px", flex: 1, maxWidth: "420px" }}>
+                <Search size={15} style={{ position: "absolute", left: "10px", top: "9px", color: "#64748b" }} />
                 <input
                   type="text"
-                  placeholder="Filtrar por código ou descrição do produto..."
+                  placeholder="Buscar produto, código ou documento..."
                   value={missingSearchTerm}
                   onChange={(e) => setMissingSearchTerm(e.target.value)}
                   style={{
@@ -1142,23 +1338,21 @@ export function FinancialDreTab({
                     background: "#1e293b",
                     border: "1px solid #334155",
                     borderRadius: "6px",
-                    padding: "8px 12px 8px 34px",
+                    padding: "6px 12px 6px 32px",
                     color: "#f8fafc",
-                    fontSize: "13px",
+                    fontSize: "12px",
                     boxSizing: "border-box",
                   }}
                 />
               </div>
-              <span style={{ fontSize: "12px", color: "#94a3b8", whiteSpace: "nowrap" }}>
-                {missingCosts.length} produto(s) pendente(s)
-              </span>
             </div>
 
+            {/* Table Content */}
             <div style={{ flex: 1, overflowY: "auto", padding: "16px 24px" }}>
               {isLoadingMissingCosts ? (
                 <div style={{ textAlign: "center", padding: "40px", color: "#94a3b8" }}>
                   <RefreshCw size={24} className="tp-spin" style={{ marginBottom: "8px" }} />
-                  <div>Carregando produtos sem custo...</div>
+                  <div>Carregando pendências de CMV...</div>
                 </div>
               ) : missingCostsError ? (
                 <div style={{ color: "#ef4444", padding: "20px", textAlign: "center" }}>
@@ -1172,62 +1366,193 @@ export function FinancialDreTab({
                     100% da receita realizada possui custo disponível.
                   </div>
                 </div>
-              ) : (
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12.5px" }}>
+              ) : missingCostsViewMode === "items" ? (
+                /* Mode: Por Venda / Item */
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
                   <thead>
                     <tr style={{ borderBottom: "1px solid #334155", textAlign: "left", color: "#94a3b8" }}>
-                      <th style={{ padding: "8px" }}>Código</th>
-                      <th style={{ padding: "8px" }}>Descrição do Produto</th>
-                      <th style={{ padding: "8px" }}>Categoria</th>
-                      <th style={{ padding: "8px", textAlign: "right" }}>Qtd Vendida</th>
-                      <th style={{ padding: "8px", textAlign: "right" }}>Receita Descoberta</th>
+                      <th style={{ padding: "8px" }}>Data</th>
+                      <th style={{ padding: "8px" }}>Doc / Venda</th>
+                      <th style={{ padding: "8px" }}>Produto</th>
+                      <th style={{ padding: "8px", textAlign: "right" }}>Qtd</th>
+                      <th style={{ padding: "8px", textAlign: "right" }}>Receita</th>
+                      <th style={{ padding: "8px" }}>Motivo</th>
                       <th style={{ padding: "8px", textAlign: "center" }}>Ação</th>
                     </tr>
                   </thead>
                   <tbody>
                     {missingCosts
-                      .filter(
-                        (item) =>
-                          !missingSearchTerm ||
-                          item.description.toLowerCase().includes(missingSearchTerm.toLowerCase()) ||
-                          (item.code && item.code.toLowerCase().includes(missingSearchTerm.toLowerCase())),
-                      )
+                      .filter((item) => {
+                        if (!missingSearchTerm) return true;
+                        const term = missingSearchTerm.toLowerCase();
+                        const pName = (item.productName || item.description || "").toLowerCase();
+                        const pCode = (item.productCode || item.code || "").toLowerCase();
+                        const doc = (item.documentNumber || "").toLowerCase();
+                        return pName.includes(term) || pCode.includes(term) || doc.includes(term);
+                      })
                       .map((item) => (
-                        <tr key={item.sourceProductId} style={{ borderBottom: "1px solid #1e293b" }}>
-                          <td style={{ padding: "10px 8px", fontFamily: "monospace", color: "#38bdf8" }}>
-                            {item.code || "—"}
+                        <tr key={item.saleItemId || `${item.sourceProductId}-${item.saleDate}`} style={{ borderBottom: "1px solid #1e293b" }}>
+                          <td style={{ padding: "8px", whiteSpace: "nowrap", color: "#94a3b8" }}>
+                            {item.saleDate ? formatDateBr(item.saleDate) : "—"}
                           </td>
-                          <td style={{ padding: "10px 8px", fontWeight: 500 }}>{item.description}</td>
-                          <td style={{ padding: "10px 8px", color: "#94a3b8" }}>
-                            {item.categoryDescription || "Geral"}
+                          <td style={{ padding: "8px", fontFamily: "monospace", color: "#64748b", fontSize: "11px" }}>
+                            {item.documentNumber || "—"}
                           </td>
-                          <td style={{ padding: "10px 8px", textAlign: "right" }}>
-                            {item.totalQuantity} un
+                          <td style={{ padding: "8px" }}>
+                            <div style={{ fontWeight: 600, color: "#f8fafc" }}>
+                              {item.productName || item.description || `Produto ${item.sourceProductId}`}
+                            </div>
+                            <div style={{ fontSize: "11px", color: "#38bdf8", fontFamily: "monospace" }}>
+                              {item.productCode || item.code || item.sourceProductId}
+                            </div>
                           </td>
-                          <td style={{ padding: "10px 8px", textAlign: "right", color: "#f59e0b", fontWeight: 600 }}>
-                            {formatCurrency(item.uncoveredRevenue)}
+                          <td style={{ padding: "8px", textAlign: "right", whiteSpace: "nowrap" }}>
+                            {item.quantity ?? item.totalQuantity ?? 1} un
                           </td>
-                          <td style={{ padding: "10px 8px", textAlign: "center" }}>
-                            <button
-                              type="button"
-                              onClick={() => handleOpenAddCost(item)}
-                              style={{
-                                background: "#0284c7",
-                                color: "#ffffff",
-                                border: "none",
-                                borderRadius: "4px",
-                                padding: "4px 10px",
-                                fontSize: "11.5px",
-                                fontWeight: 600,
-                                cursor: "pointer",
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "4px",
-                              }}
-                            >
-                              <Plus size={13} />
-                              <span>Cadastrar Custo</span>
-                            </button>
+                          <td style={{ padding: "8px", textAlign: "right", color: "#f59e0b", fontWeight: 600, whiteSpace: "nowrap" }}>
+                            {formatCurrency(item.soldValue ?? item.uncoveredRevenue ?? 0)}
+                          </td>
+                          <td style={{ padding: "8px", fontSize: "11px", color: "#94a3b8" }}>
+                            {item.reason === "PRODUTO_NAO_ENCONTRADO_NO_CATALOGO"
+                              ? "Sem cadastro catálogo"
+                              : "Sem histórico de custo"}
+                          </td>
+                          <td style={{ padding: "8px", textAlign: "center", whiteSpace: "nowrap" }}>
+                            <div style={{ display: "flex", gap: "6px", justifyContent: "center" }}>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenAddCost(item)}
+                                style={{
+                                  background: "#0284c7",
+                                  color: "#ffffff",
+                                  border: "none",
+                                  borderRadius: "4px",
+                                  padding: "4px 8px",
+                                  fontSize: "11px",
+                                  fontWeight: 600,
+                                  cursor: "pointer",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "3px",
+                                }}
+                              >
+                                <Plus size={12} />
+                                <span>INFORMAR CMV</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleOpenHistory(
+                                    item.sourceProductId,
+                                    item.productName || item.description,
+                                  )
+                                }
+                                title="Ver histórico de custos"
+                                style={{
+                                  background: "#1e293b",
+                                  color: "#94a3b8",
+                                  border: "1px solid #334155",
+                                  borderRadius: "4px",
+                                  padding: "4px 6px",
+                                  cursor: "pointer",
+                                }}
+                              >
+                                <History size={13} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              ) : (
+                /* Mode: Agrupado por Produto */
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid #334155", textAlign: "left", color: "#94a3b8" }}>
+                      <th style={{ padding: "8px" }}>Código</th>
+                      <th style={{ padding: "8px" }}>Produto</th>
+                      <th style={{ padding: "8px", textAlign: "right" }}>Vendas / Itens</th>
+                      <th style={{ padding: "8px", textAlign: "right" }}>Qtd Total</th>
+                      <th style={{ padding: "8px", textAlign: "right" }}>Receita Descoberta</th>
+                      <th style={{ padding: "8px", textAlign: "center" }}>Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {groupedMissingProducts
+                      .filter((prod) => {
+                        if (!missingSearchTerm) return true;
+                        const term = missingSearchTerm.toLowerCase();
+                        return (
+                          prod.productName.toLowerCase().includes(term) ||
+                          (prod.productCode && prod.productCode.toLowerCase().includes(term)) ||
+                          prod.sourceProductId.toLowerCase().includes(term)
+                        );
+                      })
+                      .map((prod) => (
+                        <tr key={prod.sourceProductId} style={{ borderBottom: "1px solid #1e293b" }}>
+                          <td style={{ padding: "8px", fontFamily: "monospace", color: "#38bdf8", whiteSpace: "nowrap" }}>
+                            {prod.productCode || prod.sourceProductId}
+                          </td>
+                          <td style={{ padding: "8px", fontWeight: 600 }}>
+                            {prod.productName}
+                          </td>
+                          <td style={{ padding: "8px", textAlign: "right", color: "#94a3b8" }}>
+                            {prod.itemsCount} ocorrência(s)
+                          </td>
+                          <td style={{ padding: "8px", textAlign: "right", whiteSpace: "nowrap" }}>
+                            {prod.totalQuantity} un
+                          </td>
+                          <td style={{ padding: "8px", textAlign: "right", color: "#f59e0b", fontWeight: 600, whiteSpace: "nowrap" }}>
+                            {formatCurrency(prod.totalSoldValue)}
+                          </td>
+                          <td style={{ padding: "8px", textAlign: "center", whiteSpace: "nowrap" }}>
+                            <div style={{ display: "flex", gap: "6px", justifyContent: "center" }}>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleOpenAddCost({
+                                    productId: prod.productId,
+                                    sourceProductId: prod.sourceProductId,
+                                    productName: prod.productName,
+                                    productCode: prod.productCode,
+                                    saleDate: prod.earliestSaleDate,
+                                    currentCost: prod.currentCost,
+                                  })
+                                }
+                                style={{
+                                  background: "#0284c7",
+                                  color: "#ffffff",
+                                  border: "none",
+                                  borderRadius: "4px",
+                                  padding: "4px 8px",
+                                  fontSize: "11px",
+                                  fontWeight: 600,
+                                  cursor: "pointer",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "3px",
+                                }}
+                              >
+                                <Plus size={12} />
+                                <span>INFORMAR CMV</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenHistory(prod.sourceProductId, prod.productName)}
+                                title="Ver histórico de custos"
+                                style={{
+                                  background: "#1e293b",
+                                  color: "#94a3b8",
+                                  border: "1px solid #334155",
+                                  borderRadius: "4px",
+                                  padding: "4px 6px",
+                                  cursor: "pointer",
+                                }}
+                              >
+                                <History size={13} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -1236,6 +1561,7 @@ export function FinancialDreTab({
               )}
             </div>
 
+            {/* Footer */}
             <div
               style={{
                 padding: "12px 24px",
@@ -1335,9 +1661,9 @@ export function FinancialDreTab({
                   Produto Selecionado
                 </label>
                 <div style={{ background: "#1e293b", padding: "10px", borderRadius: "6px", fontSize: "13px" }}>
-                  <div style={{ fontWeight: 600 }}>{selectedProductForCost.description}</div>
+                  <div style={{ fontWeight: 600 }}>{selectedProductForCost.productName}</div>
                   <div style={{ fontSize: "11px", color: "#38bdf8", marginTop: "2px" }}>
-                    Código: {selectedProductForCost.code || "—"} | ID: {selectedProductForCost.sourceProductId}
+                    Código: {selectedProductForCost.productCode || "—"} | ID: {selectedProductForCost.sourceProductId}
                   </div>
                 </div>
               </div>
@@ -1443,45 +1769,230 @@ export function FinancialDreTab({
                 </div>
               )}
 
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <button
                   type="button"
-                  onClick={() => setIsAddCostOpen(false)}
-                  disabled={isSubmittingCost}
+                  onClick={() => handleOpenHistory(selectedProductForCost.sourceProductId, selectedProductForCost.productName)}
                   style={{
-                    background: "#1e293b",
-                    border: "1px solid #334155",
-                    borderRadius: "6px",
-                    color: "#94a3b8",
-                    padding: "8px 14px",
-                    fontSize: "12.5px",
-                    cursor: "pointer",
-                  }}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmittingCost}
-                  style={{
-                    background: "#0284c7",
+                    background: "none",
                     border: "none",
-                    borderRadius: "6px",
-                    color: "#ffffff",
-                    padding: "8px 18px",
-                    fontSize: "12.5px",
-                    fontWeight: 600,
+                    color: "#38bdf8",
+                    fontSize: "12px",
+                    fontWeight: 500,
                     cursor: "pointer",
                     display: "inline-flex",
                     alignItems: "center",
-                    gap: "6px",
+                    gap: "4px",
+                    padding: 0,
                   }}
                 >
-                  {isSubmittingCost ? <RefreshCw size={14} className="tp-spin" /> : null}
-                  <span>{isSubmittingCost ? "Salvando..." : "Salvar Custo"}</span>
+                  <History size={14} />
+                  <span>Ver histórico de custos</span>
                 </button>
+
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddCostOpen(false)}
+                    disabled={isSubmittingCost}
+                    style={{
+                      background: "#1e293b",
+                      border: "1px solid #334155",
+                      borderRadius: "6px",
+                      color: "#94a3b8",
+                      padding: "8px 14px",
+                      fontSize: "12.5px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmittingCost}
+                    style={{
+                      background: "#0284c7",
+                      border: "none",
+                      borderRadius: "6px",
+                      color: "#ffffff",
+                      padding: "8px 18px",
+                      fontSize: "12.5px",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                    }}
+                  >
+                    {isSubmittingCost ? <RefreshCw size={14} className="tp-spin" /> : null}
+                    <span>{isSubmittingCost ? "Salvando..." : "Salvar Custo"}</span>
+                  </button>
+                </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* History Modal */}
+      {isHistoryOpen && (
+        <div
+          className="tp-modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="cost-history-title"
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15, 23, 42, 0.85)",
+            backdropFilter: "blur(6px)",
+            zIndex: 1200,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
+          }}
+        >
+          <div
+            className="tp-modal-box"
+            style={{
+              background: "#0f172a",
+              border: "1px solid #334155",
+              borderRadius: "12px",
+              width: "100%",
+              maxWidth: "700px",
+              maxHeight: "80vh",
+              display: "flex",
+              flexDirection: "column",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.75)",
+              color: "#f8fafc",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "16px 20px",
+                borderBottom: "1px solid #1e293b",
+              }}
+            >
+              <div>
+                <h3 id="cost-history-title" style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "#f8fafc" }}>
+                  Histórico de Custos Unitários
+                </h3>
+                <div style={{ fontSize: "12px", color: "#38bdf8", marginTop: "2px" }}>
+                  {historyProductName}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsHistoryOpen(false)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#94a3b8",
+                  cursor: "pointer",
+                  padding: "4px",
+                }}
+                aria-label="Fechar"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}>
+              {isLoadingHistory ? (
+                <div style={{ textAlign: "center", padding: "30px", color: "#94a3b8" }}>
+                  <RefreshCw size={22} className="tp-spin" style={{ marginBottom: "8px" }} />
+                  <div>Carregando histórico...</div>
+                </div>
+              ) : historyError ? (
+                <div style={{ color: "#ef4444", padding: "20px", textAlign: "center" }}>
+                  {historyError}
+                </div>
+              ) : productHistory.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "30px", color: "#94a3b8" }}>
+                  Nenhum registro histórico de custo encontrado para este produto.
+                </div>
+              ) : (
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid #334155", textAlign: "left", color: "#94a3b8" }}>
+                      <th style={{ padding: "8px" }}>Custo Unitário</th>
+                      <th style={{ padding: "8px" }}>Origem</th>
+                      <th style={{ padding: "8px" }}>Vigência Início</th>
+                      <th style={{ padding: "8px" }}>Vigência Fim</th>
+                      <th style={{ padding: "8px" }}>Observação</th>
+                      <th style={{ padding: "8px" }}>Cadastrado Em</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {productHistory.map((h) => (
+                      <tr key={h.id} style={{ borderBottom: "1px solid #1e293b" }}>
+                        <td style={{ padding: "8px", fontWeight: 700, color: "#10b981" }}>
+                          {formatCurrency(h.unitCost)}
+                        </td>
+                        <td style={{ padding: "8px" }}>
+                          <span
+                            style={{
+                              background: h.costSource === "MANUAL" ? "rgba(56, 189, 248, 0.15)" : "#1e293b",
+                              color: h.costSource === "MANUAL" ? "#38bdf8" : "#94a3b8",
+                              padding: "2px 6px",
+                              borderRadius: "4px",
+                              fontSize: "10.5px",
+                              fontWeight: 600,
+                            }}
+                          >
+                            {h.costSource}
+                          </span>
+                        </td>
+                        <td style={{ padding: "8px", color: "#f8fafc" }}>
+                          {formatDateBr(h.validFrom)}
+                        </td>
+                        <td style={{ padding: "8px", color: h.validTo ? "#f8fafc" : "#10b981" }}>
+                          {h.validTo ? formatDateBr(h.validTo) : "Atual (em aberto)"}
+                        </td>
+                        <td style={{ padding: "8px", color: "#94a3b8", maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {h.note || "—"}
+                        </td>
+                        <td style={{ padding: "8px", color: "#64748b", fontSize: "11px" }}>
+                          {formatDateBr(h.createdAt)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div
+              style={{
+                padding: "12px 20px",
+                borderTop: "1px solid #1e293b",
+                display: "flex",
+                justifyContent: "flex-end",
+                background: "#090d16",
+                borderBottomLeftRadius: "12px",
+                borderBottomRightRadius: "12px",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setIsHistoryOpen(false)}
+                style={{
+                  background: "#1e293b",
+                  border: "1px solid #334155",
+                  borderRadius: "6px",
+                  color: "#f8fafc",
+                  padding: "6px 14px",
+                  fontSize: "12px",
+                  cursor: "pointer",
+                }}
+              >
+                Fechar
+              </button>
+            </div>
           </div>
         </div>
       )}

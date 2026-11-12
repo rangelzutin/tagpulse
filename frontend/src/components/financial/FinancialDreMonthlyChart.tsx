@@ -28,6 +28,7 @@ import {
 import {
   formatMonthlyBreakEvenTooltip,
   calculateBreakEven,
+  formatBreakEvenGap,
 } from "./dreBreakEvenHelper";
 
 const DRE_PENDING_ACCRUAL_LABELS: Record<string, string> = {
@@ -1223,11 +1224,7 @@ export function FinancialDreMonthlyChart({
                   );
                 const isBePartial =
                   be.status === "UNDETERMINED_PARTIAL_COST_COVERAGE" ||
-                  (m.costCoveragePercent != null && m.costCoveragePercent < 100);
-                const isBeAbove =
-                  !isBePartial && (be.status === "PROFITABLE" || be.status === "ABOVE_BREAK_EVEN");
-                const isBeBelow =
-                  !isBePartial && (be.status === "UNREACHED" || be.status === "BELOW_BREAK_EVEN");
+                  be.breakEvenRevenue === null;
                 const isBeUnviable =
                   be.status === "UNDETERMINED_ZERO_MARGIN" ||
                   be.status === "UNVIABLE_MARGIN";
@@ -1260,9 +1257,16 @@ export function FinancialDreMonthlyChart({
                       `Receita sem custo: ${formatCurrency(mUncovered)}`,
                       "",
                       `Faltam dados de custo para ${formatCurrency(mUncovered)} da receita deste mês.`,
-                      "O Ponto de Equilíbrio só é calculado com cobertura de 100%.",
+                      "O Ponto de Equilíbrio só é calculado com cobertura suficiente (>= 80%).",
                     ].join("\n")
                   : undefined;
+
+                const gapVal =
+                  be.gapToBreakEven ??
+                  (be.breakEvenRevenue !== null && m.realizedRevenue !== null
+                    ? Math.round((be.breakEvenRevenue - m.realizedRevenue + Number.EPSILON) * 100) / 100
+                    : null);
+                const gapDisplay = formatBreakEvenGap(gapVal, formatCurrency);
 
                 return (
                   <tr
@@ -1318,11 +1322,26 @@ export function FinancialDreMonthlyChart({
                       )}
                     </td>
                     <td>
-                      {isBeBelow && be.additionalRevenueNeeded !== null
-                        ? formatCurrency(be.additionalRevenueNeeded)
-                        : isBeAbove
-                        ? "Superado"
-                        : "—"}
+                      {gapDisplay.numericGap !== null ? (
+                        gapDisplay.type === "DEFICIT" ? (
+                          <div className="tp-be-gap-cell is-deficit" title={`Falta ${gapDisplay.text} para o ponto de equilíbrio`}>
+                            <span className="tp-be-gap-val">{gapDisplay.text}</span>
+                            <span className="tp-be-gap-tag is-deficit">Falta</span>
+                          </div>
+                        ) : gapDisplay.type === "EQUILIBRIUM" ? (
+                          <div className="tp-be-gap-cell is-even" title="Equilíbrio atingido exatamente">
+                            <span className="tp-be-gap-val">{gapDisplay.text}</span>
+                            <span className="tp-be-gap-tag is-even">Equilíbrio</span>
+                          </div>
+                        ) : (
+                          <div className="tp-be-gap-cell is-surplus" title={`Superávit de ${formatCurrency(Math.abs(gapDisplay.numericGap))} acima do ponto de equilíbrio`}>
+                            <span className="tp-be-gap-val tp-text-positive">{gapDisplay.text}</span>
+                            <span className="tp-be-gap-tag is-surplus">Superado</span>
+                          </div>
+                        )
+                      ) : (
+                        "—"
+                      )}
                     </td>
                     <td>
                       <span
