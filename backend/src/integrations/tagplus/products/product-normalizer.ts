@@ -391,3 +391,179 @@ function structuralError(
     expectedTypeOrFormat,
   });
 }
+
+export function normalizeTagPlusChildProduct(
+  childPayload: unknown,
+  parentPayload: unknown,
+): NormalizedProduct {
+  if (!isRecord(childPayload)) {
+    throw structuralError("PRODUCT_INVALID_STRUCTURE", "$.filhos[]", childPayload, "object");
+  }
+  const parent = isRecord(parentPayload) ? parentPayload : {};
+  const parentNormalized = normalizeTagPlusProduct(parent);
+
+  const sourceId = normalizeExternalId(childPayload.id, true, "$.filhos[].id")!;
+  const parentSourceId = parentNormalized.sourceId;
+  const code = optionalString(childPayload.codigo, "$.filhos[].codigo");
+  const externalCode =
+    normalizeExternalId(childPayload.codigo_externo, false, "$.filhos[].codigo_externo") ??
+    parentNormalized.externalCode;
+  const barcode =
+    optionalString(childPayload.codigo_barras, "$.filhos[].codigo_barras") ??
+    parentNormalized.barcode;
+  const taxableBarcode =
+    optionalString(childPayload.codigo_barras_tributavel, "$.filhos[].codigo_barras_tributavel") ??
+    parentNormalized.taxableBarcode;
+  const gradeCode = optionalString(childPayload.codigo_grade, "$.filhos[].codigo_grade");
+  const description =
+    optionalString(childPayload.descricao, "$.filhos[].descricao") ??
+    parentNormalized.description;
+  const shortDescription =
+    optionalString(childPayload.descricao_curta, "$.filhos[].descricao_curta") ??
+    parentNormalized.shortDescription;
+
+  const active =
+    optionalBoolean(childPayload.ativo, "$.filhos[].ativo") ?? parentNormalized.active;
+  const moved =
+    optionalBoolean(childPayload.movimentado, "$.filhos[].movimentado") ?? parentNormalized.moved;
+  const commercializable =
+    optionalBoolean(childPayload.comercializavel, "$.filhos[].comercializavel") ??
+    parentNormalized.commercializable;
+  const soldSeparately =
+    optionalBoolean(childPayload.vendido_separado, "$.filhos[].vendido_separado") ??
+    parentNormalized.soldSeparately;
+
+  const type = optionalString(childPayload.tipo, "$.filhos[].tipo") ?? parentNormalized.type;
+  const purpose =
+    optionalString(childPayload.finalidade, "$.filhos[].finalidade") ?? parentNormalized.purpose;
+  const brand = optionalString(childPayload.marca, "$.filhos[].marca") ?? parentNormalized.brand;
+
+  // Category (nested object or inherit)
+  const categoryRecord = optionalRecord(childPayload.categoria, "$.filhos[].categoria");
+  const categorySourceId = categoryRecord
+    ? normalizeExternalId(categoryRecord.id, false, "$.filhos[].categoria.id")
+    : parentNormalized.categorySourceId;
+  const categoryDescription = categoryRecord
+    ? optionalString(categoryRecord.descricao, "$.filhos[].categoria.descricao")
+    : parentNormalized.categoryDescription;
+
+  // Department (nested object or inherit)
+  const departmentRecord = optionalRecord(childPayload.departamento, "$.filhos[].departamento");
+  const departmentSourceId = departmentRecord
+    ? normalizeExternalId(departmentRecord.id, false, "$.filhos[].departamento.id")
+    : parentNormalized.departmentSourceId;
+  const departmentDescription = departmentRecord
+    ? optionalString(departmentRecord.descricao, "$.filhos[].departamento.descricao")
+    : parentNormalized.departmentDescription;
+
+  // Commercial / Costs (inherit from parent if not defined on child)
+  const retailSalePrice =
+    optionalNumeric(childPayload.valor_venda_varejo, "$.filhos[].valor_venda_varejo") ??
+    parentNormalized.retailSalePrice;
+  const offerPrice =
+    optionalNumeric(childPayload.valor_oferta, "$.filhos[].valor_oferta") ??
+    parentNormalized.offerPrice;
+  const effectiveCost =
+    optionalNumeric(childPayload.custo_utilizado, "$.filhos[].custo_utilizado") ??
+    parentNormalized.effectiveCost;
+  const averageCost =
+    optionalNumeric(childPayload.custo_medio, "$.filhos[].custo_medio") ??
+    parentNormalized.averageCost;
+  const otherExpensesCost =
+    optionalNumeric(childPayload.custo_outras_despesas, "$.filhos[].custo_outras_despesas") ??
+    parentNormalized.otherExpensesCost;
+
+  // Stock
+  const stockRecord = optionalRecord(childPayload.estoque, "$.filhos[].estoque");
+  const stockQuantity = stockRecord
+    ? (optionalNumeric(stockRecord.qtd_revenda, "$.filhos[].estoque.qtd_revenda") ??
+      optionalNumeric(childPayload.qtd_revenda, "$.filhos[].qtd_revenda"))
+    : optionalNumeric(childPayload.qtd_revenda, "$.filhos[].qtd_revenda");
+  const stockMinQuantity = stockRecord
+    ? optionalNumeric(stockRecord.qtd_min, "$.filhos[].estoque.qtd_min")
+    : parentNormalized.stockMinQuantity;
+  const stockMaxQuantity = stockRecord
+    ? optionalNumeric(stockRecord.qtd_max, "$.filhos[].estoque.qtd_max")
+    : parentNormalized.stockMaxQuantity;
+
+  // Output unit (inherit)
+  const outputUnitRecord = optionalRecord(childPayload.unidade_saida, "$.filhos[].unidade_saida");
+  const outputUnitSourceId = outputUnitRecord
+    ? normalizeExternalId(outputUnitRecord.id, false, "$.filhos[].unidade_saida.id")
+    : parentNormalized.outputUnitSourceId;
+  const outputUnitAbbreviation = outputUnitRecord
+    ? optionalString(outputUnitRecord.sigla, "$.filhos[].unidade_saida.sigla")
+    : parentNormalized.outputUnitAbbreviation;
+  const outputUnitDescription = outputUnitRecord
+    ? optionalString(outputUnitRecord.descricao, "$.filhos[].unidade_saida.descricao")
+    : parentNormalized.outputUnitDescription;
+  const outputUnitFractioned = outputUnitRecord
+    ? optionalBoolean(outputUnitRecord.fracionado, "$.filhos[].unidade_saida.fracionado")
+    : parentNormalized.outputUnitFractioned;
+
+  // Timestamps (inherit from parent if absent)
+  const sourceCreatedAt =
+    optionalDateTime(childPayload.data_criacao, "$.filhos[].data_criacao") ??
+    parentNormalized.sourceCreatedAt;
+  const sourceUpdatedAt =
+    optionalDateTime(childPayload.data_alteracao, "$.filhos[].data_alteracao") ??
+    parentNormalized.sourceUpdatedAt;
+
+  return {
+    sourceId,
+    code,
+    externalCode,
+    barcode,
+    taxableBarcode,
+    gradeCode,
+    description,
+    shortDescription,
+    active,
+    moved,
+    commercializable,
+    soldSeparately,
+    type,
+    purpose,
+    brand,
+    parentSourceId,
+    categorySourceId,
+    categoryDescription,
+    departmentSourceId,
+    departmentDescription,
+    retailSalePrice,
+    offerPrice,
+    effectiveCost,
+    averageCost,
+    otherExpensesCost,
+    stockQuantity,
+    stockMinQuantity,
+    stockMaxQuantity,
+    outputUnitSourceId,
+    outputUnitAbbreviation,
+    outputUnitDescription,
+    outputUnitFractioned,
+    sourceCreatedAt,
+    sourceUpdatedAt,
+  };
+}
+
+export function normalizeTagPlusProductsWithChildren(
+  payload: unknown,
+): NormalizedProduct[] {
+  if (!isRecord(payload)) {
+    throw structuralError("PRODUCT_INVALID_STRUCTURE", "$", payload, "object");
+  }
+  const parent = normalizeTagPlusProduct(payload);
+  const result: NormalizedProduct[] = [parent];
+
+  const filhos = payload.filhos;
+  if (Array.isArray(filhos)) {
+    for (const child of filhos) {
+      if (child && typeof child === "object") {
+        result.push(normalizeTagPlusChildProduct(child, payload));
+      }
+    }
+  }
+
+  return result;
+}

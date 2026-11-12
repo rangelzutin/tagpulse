@@ -1,5 +1,6 @@
 import {
   normalizeTagPlusProduct,
+  normalizeTagPlusProductsWithChildren,
   ProductNormalizationError,
   type ProductNormalizationDiagnostics,
   type ProductNormalizationErrorCategory,
@@ -184,9 +185,9 @@ export function createProductFullSync(
         }
 
         for (const item of rawPage) {
-          let normalized;
+          let normalizedList;
           try {
-            normalized = normalizeTagPlusProduct(item);
+            normalizedList = normalizeTagPlusProductsWithChildren(item);
           } catch (error: unknown) {
             if (error instanceof ProductNormalizationError) {
               throw new ProductSyncError(
@@ -198,30 +199,32 @@ export function createProductFullSync(
             throw new ProductSyncError("PRODUCT_SYNC_NORMALIZATION_ERROR");
           }
 
-          let result: UpsertProductResult;
-          try {
-            result = await dependencies.productRepository.upsertProduct({
-              connectionId,
-              syncRunId: run.id,
-              observedAt: now(),
-              product: normalized,
-            });
-          } catch (error: unknown) {
-            if (error instanceof ProductPersistenceError) {
-              throw new ProductSyncError(
-                "PRODUCT_SYNC_PERSISTENCE_ERROR",
-                undefined,
-                undefined,
-                error.diagnostics,
-              );
+          for (const normalized of normalizedList) {
+            let result: UpsertProductResult;
+            try {
+              result = await dependencies.productRepository.upsertProduct({
+                connectionId,
+                syncRunId: run.id,
+                observedAt: now(),
+                product: normalized,
+              });
+            } catch (error: unknown) {
+              if (error instanceof ProductPersistenceError) {
+                throw new ProductSyncError(
+                  "PRODUCT_SYNC_PERSISTENCE_ERROR",
+                  undefined,
+                  undefined,
+                  error.diagnostics,
+                );
+              }
+              throw new ProductSyncError("PRODUCT_SYNC_PERSISTENCE_ERROR");
             }
-            throw new ProductSyncError("PRODUCT_SYNC_PERSISTENCE_ERROR");
-          }
 
-          recordsFetched += 1;
-          if (result.outcome === "INSERTED") recordsInserted += 1;
-          if (result.outcome === "UPDATED") recordsUpdated += 1;
-          if (result.outcome === "UNCHANGED") recordsUnchanged += 1;
+            recordsFetched += 1;
+            if (result.outcome === "INSERTED") recordsInserted += 1;
+            if (result.outcome === "UPDATED") recordsUpdated += 1;
+            if (result.outcome === "UNCHANGED") recordsUnchanged += 1;
+          }
         }
 
         lastCompletedPage = page;
