@@ -1,5 +1,25 @@
-import "dotenv/config";
+import fs from "node:fs";
+import path from "node:path";
+import dotenv from "dotenv";
 import { z } from "zod";
+import { assertSafeDatabaseUrl } from "../database/guard.js";
+
+// Load environment configuration safely:
+// When NOT in production, prioritize .env.development to guarantee dev database isolation.
+const nodeEnv = process.env.NODE_ENV || "development";
+if (nodeEnv !== "production") {
+  const candidateDevPaths = [
+    path.resolve(process.cwd(), ".env.development"),
+    path.resolve(process.cwd(), "backend", ".env.development"),
+  ];
+  for (const p of candidateDevPaths) {
+    if (fs.existsSync(p)) {
+      dotenv.config({ path: p, override: true });
+      break;
+    }
+  }
+}
+dotenv.config();
 
 const envSchema = z.object({
   NODE_ENV: z
@@ -28,5 +48,9 @@ const envSchema = z.object({
 export type Env = z.infer<typeof envSchema>;
 
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
-  return envSchema.parse(source);
+  const parsed = envSchema.parse(source);
+  assertSafeDatabaseUrl(parsed.DATABASE_URL, parsed.NODE_ENV);
+  assertSafeDatabaseUrl(parsed.DIRECT_URL, parsed.NODE_ENV);
+  return parsed;
 }
+

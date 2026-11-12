@@ -18,6 +18,7 @@ export interface BreakEvenOptions {
   coveredRevenue?: number;
   coveredContributionMargin?: number;
   partialManagerialResult?: number | null;
+  operatingExpenses?: number | null;
   isProvisional?: boolean;
 }
 
@@ -71,11 +72,32 @@ export function calculateBreakEven(
   if (hasIncompleteCoverage) {
     const covRev = options?.coveredRevenue !== undefined ? r2(options.coveredRevenue) : null;
     const covCm = options?.coveredContributionMargin !== undefined ? r2(options.coveredContributionMargin) : null;
+    const covRate =
+      covRev !== null
+        ? (covRev > 0 && covCm !== null ? r4(covCm / covRev) : null)
+        : (rev > 0 ? r4(cm / rev) : null);
+    const opExp =
+      options?.operatingExpenses !== undefined && options.operatingExpenses !== null
+        ? r2(options.operatingExpenses)
+        : null;
+
+    let provBreakEven: number | null = null;
+    let provGap: number | null = null;
+    let provCoverage: number | null = null;
+
+    if (covRate && covRate > 0 && opExp !== null && opExp > 0) {
+      provBreakEven = r2(opExp / covRate);
+      if (covRev !== null) {
+        provGap = r2(provBreakEven - covRev);
+        provCoverage = provBreakEven > 0 ? r2((covRev / provBreakEven) * 100) : null;
+      }
+    }
+
     return {
       status: "UNDETERMINED_PARTIAL_COST_COVERAGE",
       realizedRevenue: rev,
-      contributionMargin: cm,
-      contributionMarginRate: rev > 0 ? r4(cm / rev) : null,
+      contributionMargin: covCm !== null ? covCm : cm,
+      contributionMarginRate: covRate,
       netResult: null,
       additionalRevenueNeeded: null,
       breakEvenRevenue: null,
@@ -89,6 +111,9 @@ export function calculateBreakEven(
       ...(covRev !== null ? { coveredRevenue: covRev } : {}),
       ...(covCm !== null ? { coveredContributionMargin: covCm } : {}),
       costCoveragePercent: options?.costCoveragePercent ?? null,
+      ...(provBreakEven !== null ? { provisionalBreakEvenRevenue: provBreakEven } : {}),
+      ...(provGap !== null ? { provisionalGap: provGap } : {}),
+      ...(provCoverage !== null ? { provisionalCurrentCoveragePercent: provCoverage } : {}),
     };
   }
 
@@ -400,9 +425,18 @@ export function calculateDreMonthly(
 
     const varTotalCents =
       payFeesCents + taxesCents + freightCents + salesCommCents + varOtherCents;
-    const cmCents = grossCents - varTotalCents;
-    const cmPercent =
-      revCents > 0 ? r2((fromCents(cmCents) / fromCents(revCents)) * 100) : null;
+
+    // Alocação proporcional de despesas variáveis para a receita coberta
+    const coverageRatio = revCents > 0 ? (coveredRevCents / revCents) : 1;
+    const coveredVarCents = fullCoverage ? varTotalCents : Math.round(varTotalCents * coverageRatio);
+    const coveredCmCents = coveredGrossCents - coveredVarCents;
+    const coveredCmPercent =
+      coveredRevCents > 0 ? r2((fromCents(coveredCmCents) / fromCents(coveredRevCents)) * 100) : null;
+
+    const cmCents = fullCoverage ? (grossCents - varTotalCents) : coveredCmCents;
+    const cmPercent = fullCoverage
+      ? (revCents > 0 ? r2((fromCents(grossCents - varTotalCents) / fromCents(revCents)) * 100) : null)
+      : coveredCmPercent;
 
     const opTotalCents =
       personnelCents +
@@ -419,16 +453,18 @@ export function calculateDreMonthly(
     const finTotalCents = finIncCents - finExpCents;
     const otherTotalCents = 0; // Baseline: R$ 0,00
 
-    const netResultCents = cmCents - opTotalCents + finTotalCents + otherTotalCents;
-    const netMarginPercent =
-      revCents > 0 ? r2((fromCents(netResultCents) / fromCents(revCents)) * 100) : null;
+    const netResultCents = fullCoverage
+      ? ((grossCents - varTotalCents) - opTotalCents + finTotalCents + otherTotalCents)
+      : null;
+    const netMarginPercent = fullCoverage && revCents > 0
+      ? r2((fromCents(netResultCents!) / fromCents(revCents)) * 100)
+      : null;
 
-    const coveredCmCents = coveredGrossCents - varTotalCents;
     const partialManagerialResultCents =
-      coveredGrossCents - varTotalCents - opTotalCents + finTotalCents + otherTotalCents;
+      coveredCmCents - opTotalCents + finTotalCents + otherTotalCents;
 
     const status = fullCoverage
-      ? (netResultCents > 0 ? "PROFIT" : netResultCents < 0 ? "LOSS" : "BREAK_EVEN")
+      ? (netResultCents! > 0 ? "PROFIT" : netResultCents! < 0 ? "LOSS" : "BREAK_EVEN")
       : (partialManagerialResultCents > 0 ? "PROFIT" : partialManagerialResultCents < 0 ? "LOSS" : "BREAK_EVEN");
 
     // Qualidade Temporal e Fechamento Contábil
@@ -471,6 +507,7 @@ export function calculateDreMonthly(
       coveredGrossProfit: fromCents(coveredGrossCents),
       coveredGrossMarginPercent,
       coveredContributionMargin: fromCents(coveredCmCents),
+      coveredVariableExpenses: fromCents(coveredVarCents),
       fullGrossProfitAvailable: fullCoverage,
       fullManagerialResultAvailable: fullCoverage,
       partialManagerialResultOnCoveredRevenue: fromCents(partialManagerialResultCents),
@@ -513,12 +550,13 @@ export function calculateDreMonthly(
       breakEven: calculateBreakEven(
         fromCents(revCents),
         fromCents(cmCents),
-        fullCoverage ? fromCents(netResultCents) : null,
+        fullCoverage ? fromCents(netResultCents!) : null,
         {
           costCoveragePercent,
           fullCoverage,
           coveredRevenue: fromCents(coveredRevCents),
           coveredContributionMargin: fromCents(coveredCmCents),
+          operatingExpenses: fromCents(opTotalCents),
           partialManagerialResult: fromCents(partialManagerialResultCents),
           isProvisional,
         },
@@ -545,6 +583,8 @@ export function calculateDreSummary(
   let coveredRevCents = 0;
   let uncoveredRevCents = 0;
   let coveredGrossCents = 0;
+  let coveredVarCents = 0;
+  let coveredCmCents = 0;
   let partialResultCents = 0;
 
   let payFeesCents = 0;
@@ -589,6 +629,8 @@ export function calculateDreSummary(
     coveredRevCents += toCents(m.coveredRevenue);
     uncoveredRevCents += toCents(m.uncoveredRevenue);
     coveredGrossCents += toCents(m.coveredGrossProfit);
+    coveredVarCents += toCents(m.coveredVariableExpenses ?? m.variableExpenses.total);
+    coveredCmCents += toCents(m.coveredContributionMargin ?? m.contributionMargin);
     partialResultCents += toCents(m.partialManagerialResultOnCoveredRevenue ?? 0);
 
     payFeesCents += toCents(m.variableExpenses.paymentFees);
@@ -652,6 +694,13 @@ export function calculateDreSummary(
 
   const fullGrossProfitAvailable = isFullCoverage;
   const fullManagerialResultAvailable = isFullCoverage;
+
+  const summaryCoveredCmPercent =
+    coveredRevCents > 0 ? r2((fromCents(coveredCmCents) / fromCents(coveredRevCents)) * 100) : null;
+
+  const summaryCmCents = isFullCoverage ? cmCents : coveredCmCents;
+  const summaryCmPercent = isFullCoverage ? cmPercent : summaryCoveredCmPercent;
+
   const netManagerialResult = isFullCoverage ? fromCents(netResultCents) : null;
   const netManagerialMarginPercent = isFullCoverage ? netMarginPercent : null;
   const partialManagerialResultOnCoveredRevenue = fromCents(partialResultCents);
@@ -670,17 +719,16 @@ export function calculateDreSummary(
   const isProvisional = months.some((m) => m.dataQuality.isProvisional);
   const financiallyClosed = months.length > 0 && months.every((m) => m.dataQuality.financiallyClosed);
 
-  const coveredCmCents = coveredGrossCents - varTotalCents;
-
   const breakEven = calculateBreakEven(
     fromCents(revCents),
-    fromCents(cmCents),
+    fromCents(summaryCmCents),
     isFullCoverage ? fromCents(netResultCents) : null,
     {
       costCoveragePercent: summaryCoveragePercent,
       fullCoverage: isFullCoverage,
       coveredRevenue: fromCents(coveredRevCents),
       coveredContributionMargin: fromCents(coveredCmCents),
+      operatingExpenses: fromCents(opTotalCents),
       partialManagerialResult: partialManagerialResultOnCoveredRevenue,
       isProvisional,
     },
@@ -697,6 +745,7 @@ export function calculateDreSummary(
     coveredGrossProfit: fromCents(coveredGrossCents),
     coveredGrossMarginPercent,
     coveredContributionMargin: fromCents(coveredCmCents),
+    coveredVariableExpenses: fromCents(coveredVarCents),
     fullGrossProfitAvailable,
     fullManagerialResultAvailable,
     partialManagerialResultOnCoveredRevenue,
@@ -708,8 +757,8 @@ export function calculateDreSummary(
       other: fromCents(varOtherCents),
       total: fromCents(varTotalCents),
     },
-    contributionMargin: fromCents(cmCents),
-    contributionMarginPercent: cmPercent,
+    contributionMargin: fromCents(summaryCmCents),
+    contributionMarginPercent: summaryCmPercent,
     operatingExpenses: {
       personnel: fromCents(personnelCents),
       partnerCompensation: fromCents(partnerCompCents),

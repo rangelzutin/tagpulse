@@ -1,6 +1,10 @@
 import { buildApp } from "./app.js";
 import { loadEnv } from "./config/env.js";
 import { createDatabaseHealthChecker } from "./database/health.js";
+import {
+  extractDatabaseProject,
+  getDatabaseMode,
+} from "./database/guard.js";
 import { prisma } from "./database/prisma.js";
 import { createTagPlusOAuthTokenStore } from "./integrations/tagplus/oauth-token-store.js";
 import { createBiRepository } from "./modules/bi/bi-repository.js";
@@ -22,6 +26,11 @@ import {
 } from "./modules/financial/index.js";
 
 const env = loadEnv();
+
+console.log(`ENVIRONMENT: ${env.NODE_ENV}`);
+console.log(`DATABASE_PROJECT: ${extractDatabaseProject(env.DATABASE_URL)}`);
+console.log(`DATABASE_MODE: ${getDatabaseMode(env.DATABASE_URL)}`);
+
 const tokenStore = createTagPlusOAuthTokenStore();
 
 // Instanciação dos runners de produção

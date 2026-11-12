@@ -615,6 +615,9 @@ export interface DreBreakEvenDto {
   coveredRevenue?: number;
   coveredContributionMargin?: number;
   costCoveragePercent?: number | null;
+  provisionalBreakEvenRevenue?: number | null;
+  provisionalGap?: number | null;
+  provisionalCurrentCoveragePercent?: number | null;
 }
 
 export interface DreVariableExpensesDto {
@@ -684,6 +687,7 @@ export interface DreMonthlyItemDto {
   coveredGrossProfit?: number;
   coveredGrossMarginPercent?: number | null;
   coveredContributionMargin?: number;
+  coveredVariableExpenses?: number;
   fullGrossProfitAvailable?: boolean;
   fullManagerialResultAvailable?: boolean;
   partialManagerialResultOnCoveredRevenue?: number;
@@ -710,6 +714,7 @@ export interface DreSummaryTotalsDto {
   coveredGrossProfit?: number;
   coveredGrossMarginPercent?: number | null;
   coveredContributionMargin?: number;
+  coveredVariableExpenses?: number;
   fullGrossProfitAvailable?: boolean;
   fullManagerialResultAvailable?: boolean;
   partialManagerialResultOnCoveredRevenue?: number;

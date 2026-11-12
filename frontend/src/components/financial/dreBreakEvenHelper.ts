@@ -6,6 +6,10 @@ import type {
 export interface BreakEvenOptions {
   costCoveragePercent?: number | null;
   fullCoverage?: boolean;
+  coveredRevenue?: number;
+  coveredContributionMargin?: number;
+  operatingExpenses?: number | null;
+  isProvisional?: boolean;
 }
 
 const r2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -52,11 +56,34 @@ export function calculateBreakEven(
     netResult === null;
 
   if (hasIncompleteCoverage) {
+    const covRev = options?.coveredRevenue !== undefined ? r2(options.coveredRevenue) : null;
+    const covCm = options?.coveredContributionMargin !== undefined ? r2(options.coveredContributionMargin) : null;
+    const covRate =
+      covRev !== null
+        ? (covRev > 0 && covCm !== null ? r4(covCm / covRev) : null)
+        : (rev > 0 ? r4(cm / rev) : null);
+    const opExp =
+      options?.operatingExpenses !== undefined && options.operatingExpenses !== null
+        ? r2(options.operatingExpenses)
+        : null;
+
+    let provBreakEven: number | null = null;
+    let provGap: number | null = null;
+    let provCoverage: number | null = null;
+
+    if (covRate && covRate > 0 && opExp !== null && opExp > 0) {
+      provBreakEven = r2(opExp / covRate);
+      if (covRev !== null) {
+        provGap = r2(provBreakEven - covRev);
+        provCoverage = provBreakEven > 0 ? r2((covRev / provBreakEven) * 100) : null;
+      }
+    }
+
     return {
       status: "UNDETERMINED_PARTIAL_COST_COVERAGE",
       realizedRevenue: rev,
-      contributionMargin: cm,
-      contributionMarginRate: rev > 0 ? r4(cm / rev) : null,
+      contributionMargin: covCm !== null ? covCm : cm,
+      contributionMarginRate: covRate,
       netResult: null,
       additionalRevenueNeeded: null,
       breakEvenRevenue: null,
@@ -64,6 +91,14 @@ export function calculateBreakEven(
       safetyMarginPercent: null,
       currentCoveragePercent: null,
       coverageNotice: DRE_BREAK_EVEN_PARTIAL_COVERAGE_SUBTEXT,
+      isProvisional: true,
+      calculationBasis: "COVERED_REVENUE",
+      ...(covRev !== null ? { coveredRevenue: covRev } : {}),
+      ...(covCm !== null ? { coveredContributionMargin: covCm } : {}),
+      costCoveragePercent: options?.costCoveragePercent ?? null,
+      ...(provBreakEven !== null ? { provisionalBreakEvenRevenue: provBreakEven } : {}),
+      ...(provGap !== null ? { provisionalGap: provGap } : {}),
+      ...(provCoverage !== null ? { provisionalCurrentCoveragePercent: provCoverage } : {}),
     };
   }
 

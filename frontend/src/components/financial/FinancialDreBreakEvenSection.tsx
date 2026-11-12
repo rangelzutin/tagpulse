@@ -47,6 +47,9 @@ export function FinancialDreBreakEvenSection({
       {
         costCoveragePercent: totals.costCoveragePercent,
         fullCoverage: totals.fullManagerialResultAvailable,
+        coveredRevenue: totals.coveredRevenue,
+        coveredContributionMargin: totals.coveredContributionMargin,
+        operatingExpenses: totals.operatingExpenses.total,
       },
     );
 
