@@ -429,6 +429,12 @@ describe("Phase 5D: Financial DRE Frontend Components & Tab Tests", () => {
   it("renders cost quality badge cleanly separated and includes Revisar CMVs button", () => {
     const summaryWithEstimatedBreakEven: DreSummaryDto = {
       ...canonicalSummary,
+      totals: {
+        ...canonicalSummary.totals,
+        uncoveredRevenue: 7565.22,
+        costCoveragePercent: 97.92,
+        costQualityStatus: "HIGH_CONFIDENCE_ESTIMATE",
+      },
       breakEven: {
         status: "UNREACHED",
         realizedRevenue: 363687.22,
@@ -446,7 +452,6 @@ describe("Phase 5D: Financial DRE Frontend Components & Tab Tests", () => {
         costQualityStatus: "HIGH_CONFIDENCE_ESTIMATE",
         isEstimated: true,
         coveredRevenue: 356122,
-        uncoveredRevenue: 7565.22,
         provisionalBreakEvenRevenue: 495505.13,
         provisionalGap: 139383.13,
       },

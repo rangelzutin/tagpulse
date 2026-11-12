@@ -3,6 +3,7 @@ import {
   formatProductSourceId,
   formatCustomerSourceId,
   formatProductCode,
+  extractLegacyProductCosts,
 } from "../src/modules/historical/hustler/hustler-entity-creator";
 
 describe("Historical Hustler Entity Creator Unit Tests (Phase 4G)", () => {
@@ -162,6 +163,34 @@ describe("Historical Hustler Entity Creator Unit Tests (Phase 4G)", () => {
       expect(expectedProducts).toBe(3033);
       expect(expectedCustomers).toBe(46);
       expect(expectedIdentities).toBe(3079);
+    });
+
+    it("15. extracts custo_utilizado into effectiveCost when vr_custo is absent", () => {
+      const payload = {
+        id: "4850",
+        descricao_produto: "Calça Nineclouds - UNICO",
+        custo_utilizado: "62.55000",
+        custo_outras_despesas: "0.00",
+      };
+
+      const { effectiveCost, averageCost } = extractLegacyProductCosts(payload);
+      expect(effectiveCost).toBe(62.55);
+      expect(averageCost).toBeNull();
+    });
+
+    it("16. does not fabricate artificial cost when custo_utilizado is 0, null, or invalid", () => {
+      expect(extractLegacyProductCosts({ custo_utilizado: "0.00" })).toEqual({
+        effectiveCost: null,
+        averageCost: null,
+      });
+      expect(extractLegacyProductCosts({ custo_utilizado: null })).toEqual({
+        effectiveCost: null,
+        averageCost: null,
+      });
+      expect(extractLegacyProductCosts({})).toEqual({
+        effectiveCost: null,
+        averageCost: null,
+      });
     });
   });
 });

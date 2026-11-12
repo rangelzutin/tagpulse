@@ -17,6 +17,7 @@ export interface HustlerEntityCandidatePlan {
     description: string;
     barcode: string | null;
     retailSalePrice: number | null;
+    effectiveCost: number | null;
     averageCost: number | null;
   }>;
   skippedUnusedProductsCount: number;
@@ -78,6 +79,29 @@ export function formatCustomerSourceId(legacyId: string): string {
 export function formatProductCode(legacyId: string, rawSku?: string | null): string {
   const norm = normalizeSku(rawSku);
   return norm ? norm : `HIST-HUSTLER-${legacyId}`;
+}
+
+export function extractLegacyProductCosts(payload: Record<string, unknown>): {
+  effectiveCost: number | null;
+  averageCost: number | null;
+} {
+  const rawEffective = payload["custo_utilizado"];
+  const parsedEffective =
+    rawEffective !== null && rawEffective !== undefined && String(rawEffective).trim() !== ""
+      ? parseFloat(String(rawEffective))
+      : NaN;
+  const effectiveCost =
+    !isNaN(parsedEffective) && parsedEffective > 0 ? parsedEffective : null;
+
+  const rawAverage = payload["custo_medio"];
+  const parsedAverage =
+    rawAverage !== null && rawAverage !== undefined && String(rawAverage).trim() !== ""
+      ? parseFloat(String(rawAverage))
+      : NaN;
+  const averageCost =
+    !isNaN(parsedAverage) && parsedAverage > 0 ? parsedAverage : null;
+
+  return { effectiveCost, averageCost };
 }
 
 export interface HustlerEntityPlanOptions {
@@ -249,7 +273,7 @@ export async function planHustlerHistoricalEntities(
       const rawBarcode = p["cod_barra"] as string | undefined;
       const barcode = normalizeBarcode(rawBarcode);
       const retailPrice = p["vr_unitario"] ? parseFloat(String(p["vr_unitario"])) : null;
-      const avgCost = p["vr_custo"] ? parseFloat(String(p["vr_custo"])) : null;
+      const { effectiveCost, averageCost } = extractLegacyProductCosts(p);
 
       productCandidates.push({
         legacyProdutoId: pid,
@@ -258,7 +282,8 @@ export async function planHustlerHistoricalEntities(
         description: desc,
         barcode,
         retailSalePrice: retailPrice && !isNaN(retailPrice) ? retailPrice : null,
-        averageCost: avgCost && !isNaN(avgCost) ? avgCost : null,
+        effectiveCost,
+        averageCost,
       });
     } else if (productsInCancelledSales.has(pid)) {
       skippedCancelledOnlyProductsCount++;
@@ -453,6 +478,7 @@ export async function persistHustlerHistoricalEntities(
         soldSeparately: false,
         moved: true,
         retailSalePrice: cand.retailSalePrice,
+        effectiveCost: cand.effectiveCost,
         averageCost: cand.averageCost,
         sourcePresent: false,
         lastSeenAt: now,

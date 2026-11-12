@@ -92,7 +92,7 @@ export async function resolveProductCostAtDate(
     }
   }
 
-  // Prioridade 5: Current cost proxy no cadastro do produto
+  // Prioridade 4 & 5: Custo Médio válido (> 0) seguido por Valor de Custo / effectiveCost (> 0)
   if (productId || sourceProductId) {
     const product = await prisma.product.findFirst({
       where: {
@@ -105,7 +105,14 @@ export async function resolveProductCostAtDate(
     });
 
     if (product) {
-      const cost = product.effectiveCost ? Number(product.effectiveCost) : product.averageCost ? Number(product.averageCost) : null;
+      const avgCost = product.averageCost ? Number(product.averageCost) : null;
+      const effCost = product.effectiveCost ? Number(product.effectiveCost) : null;
+      const cost =
+        avgCost !== null && avgCost > 0
+          ? avgCost
+          : effCost !== null && effCost > 0
+          ? effCost
+          : null;
       if (cost !== null && cost > 0) {
         return { unitCost: cost, costSource: "CURRENT_COST_PROXY" as ProductCostSource };
       }
@@ -279,29 +286,37 @@ export async function getMissingCosts(
 
   for (const item of saleItems) {
     const saleDate = item.sale.commercialDate || new Date();
-    const currentCost = item.product?.effectiveCost
-      ? Number(item.product.effectiveCost)
-      : item.product?.averageCost
-      ? Number(item.product.averageCost)
-      : null;
+    const avgCost = item.product?.averageCost ? Number(item.product.averageCost) : null;
+    const effCost = item.product?.effectiveCost ? Number(item.product.effectiveCost) : null;
+    const currentCost =
+      avgCost !== null && avgCost > 0
+        ? avgCost
+        : effCost !== null && effCost > 0
+        ? effCost
+        : null;
 
-    // Resolve temporal cost in-memory
+    // Resolve temporal cost in-memory with strict source priority
     let resolvedUnitCost: number | null = null;
     let resolvedCostSource: string = "NONE";
 
-    for (const h of historyRecords) {
-      const matchProduct =
-        (item.productId && h.productId === item.productId) ||
-        (item.sourceProductId && h.sourceProductId === item.sourceProductId);
+    const matchingHistory = historyRecords.filter(
+      (h) =>
+        ((item.productId && h.productId === item.productId) ||
+          (item.sourceProductId && h.sourceProductId === item.sourceProductId)) &&
+        (!h.validFrom || h.validFrom <= saleDate) &&
+        (!h.validTo || h.validTo > saleDate),
+    );
 
-      if (matchProduct) {
-        const fromOk = !h.validFrom || h.validFrom <= saleDate;
-        const toOk = !h.validTo || h.validTo > saleDate;
-        if (fromOk && toOk) {
-          resolvedUnitCost = Number(h.unitCost);
-          resolvedCostSource = h.costSource;
-          break;
-        }
+    if (matchingHistory.length > 0) {
+      const explicit = matchingHistory.find(
+        (h) => h.costSource === "PURCHASE" || h.costSource === "STOCK_ADJUSTMENT",
+      );
+      const manual = matchingHistory.find((h) => h.costSource === "MANUAL");
+      const erp = matchingHistory.find((h) => h.costSource === "ERP_SNAPSHOT");
+      const best = explicit || manual || erp || matchingHistory[0];
+      if (best) {
+        resolvedUnitCost = Number(best.unitCost);
+        resolvedCostSource = best.costSource;
       }
     }
 
