@@ -325,7 +325,8 @@ describe("Financial DRE — Partial Cost Semantics & Coverage Guardrails", () =>
     expect(tot.breakEven?.status).toBe("UNDETERMINED_PARTIAL_COST_COVERAGE");
     expect(tot.breakEven?.breakEvenRevenue).toBeNull(); // canônico permanece null para não enganar
     expect(tot.breakEven?.contributionMarginRate).toBe(0.2975);
-    expect(tot.breakEven?.provisionalBreakEvenRevenue).toBe(488670.52); // 145.379,48 / 0.297525...
+    expect(tot.breakEven?.provisionalFixedCostBase).toBe(147233.32); // 145.379,48 - (-1.853,84)
+    expect(tot.breakEven?.provisionalBreakEvenRevenue).toBe(494860.9); // 147.233,32 / (106.843,23 / 359.107,14)
     expect(tot.breakEven?.isProvisional).toBe(true);
   });
 });

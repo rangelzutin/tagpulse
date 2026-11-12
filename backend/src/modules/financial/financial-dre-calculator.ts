@@ -19,6 +19,7 @@ export interface BreakEvenOptions {
   coveredContributionMargin?: number;
   partialManagerialResult?: number | null;
   operatingExpenses?: number | null;
+  financialResult?: number | null;
   isProvisional?: boolean;
 }
 
@@ -72,21 +73,34 @@ export function calculateBreakEven(
   if (hasIncompleteCoverage) {
     const covRev = options?.coveredRevenue !== undefined ? r2(options.coveredRevenue) : null;
     const covCm = options?.coveredContributionMargin !== undefined ? r2(options.coveredContributionMargin) : null;
-    const covRate =
+    const rawRate =
       covRev !== null
-        ? (covRev > 0 && covCm !== null ? r4(covCm / covRev) : null)
-        : (rev > 0 ? r4(cm / rev) : null);
+        ? (covRev > 0 && covCm !== null ? covCm / covRev : null)
+        : (rev > 0 ? cm / rev : null);
+    const covRate = rawRate !== null ? r4(rawRate) : null;
+
     const opExp =
       options?.operatingExpenses !== undefined && options.operatingExpenses !== null
         ? r2(options.operatingExpenses)
+        : null;
+    const finResult =
+      options?.financialResult !== undefined && options.financialResult !== null
+        ? r2(options.financialResult)
+        : 0;
+
+    const fixedBase =
+      opExp !== null
+        ? r2(opExp - finResult)
+        : options?.partialManagerialResult != null && covCm !== null
+        ? r2(covCm - options.partialManagerialResult)
         : null;
 
     let provBreakEven: number | null = null;
     let provGap: number | null = null;
     let provCoverage: number | null = null;
 
-    if (covRate && covRate > 0 && opExp !== null && opExp > 0) {
-      provBreakEven = r2(opExp / covRate);
+    if (rawRate && rawRate > 0 && fixedBase !== null && fixedBase > 0) {
+      provBreakEven = r2(fixedBase / rawRate);
       if (covRev !== null) {
         provGap = r2(provBreakEven - covRev);
         provCoverage = provBreakEven > 0 ? r2((covRev / provBreakEven) * 100) : null;
@@ -111,6 +125,7 @@ export function calculateBreakEven(
       ...(covRev !== null ? { coveredRevenue: covRev } : {}),
       ...(covCm !== null ? { coveredContributionMargin: covCm } : {}),
       costCoveragePercent: options?.costCoveragePercent ?? null,
+      ...(fixedBase !== null ? { provisionalFixedCostBase: fixedBase } : {}),
       ...(provBreakEven !== null ? { provisionalBreakEvenRevenue: provBreakEven } : {}),
       ...(provGap !== null ? { provisionalGap: provGap } : {}),
       ...(provCoverage !== null ? { provisionalCurrentCoveragePercent: provCoverage } : {}),
@@ -544,7 +559,7 @@ export function calculateDreMonthly(
         otherExpenses: 0,
         total: fromCents(otherTotalCents),
       },
-      netManagerialResult: fullCoverage ? fromCents(netResultCents) : null,
+      netManagerialResult: fullCoverage && netResultCents !== null ? fromCents(netResultCents) : null,
       netManagerialMarginPercent: fullCoverage ? netMarginPercent : null,
       status,
       breakEven: calculateBreakEven(
@@ -557,6 +572,7 @@ export function calculateDreMonthly(
           coveredRevenue: fromCents(coveredRevCents),
           coveredContributionMargin: fromCents(coveredCmCents),
           operatingExpenses: fromCents(opTotalCents),
+          financialResult: fromCents(finTotalCents),
           partialManagerialResult: fromCents(partialManagerialResultCents),
           isProvisional,
         },
@@ -729,6 +745,7 @@ export function calculateDreSummary(
       coveredRevenue: fromCents(coveredRevCents),
       coveredContributionMargin: fromCents(coveredCmCents),
       operatingExpenses: fromCents(opTotalCents),
+      financialResult: fromCents(finTotalCents),
       partialManagerialResult: partialManagerialResultOnCoveredRevenue,
       isProvisional,
     },

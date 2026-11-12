@@ -886,6 +886,10 @@ export function FinancialDreExportReport({
       {
         costCoveragePercent: totals.costCoveragePercent,
         fullCoverage: totals.fullManagerialResultAvailable,
+        coveredRevenue: totals.coveredRevenue,
+        coveredContributionMargin: totals.coveredContributionMargin,
+        operatingExpenses: totals.operatingExpenses.total,
+        financialResult: totals.financialResult.total,
       },
     );
 
@@ -1155,6 +1159,10 @@ export function FinancialDreExportReport({
                     {
                       costCoveragePercent: m.costCoveragePercent,
                       fullCoverage: m.fullManagerialResultAvailable,
+                      coveredRevenue: m.coveredRevenue,
+                      coveredContributionMargin: m.coveredContributionMargin,
+                      operatingExpenses: m.operatingExpenses?.total,
+                      financialResult: m.financialResult?.total,
                     },
                   );
                 const isBeAbove =

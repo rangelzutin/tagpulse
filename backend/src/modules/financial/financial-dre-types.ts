@@ -55,6 +55,7 @@ export interface DreBreakEvenDto {
   coveredRevenue?: number;
   coveredContributionMargin?: number;
   costCoveragePercent?: number | null;
+  provisionalFixedCostBase?: number | null;
   provisionalBreakEvenRevenue?: number | null;
   provisionalGap?: number | null;
   provisionalCurrentCoveragePercent?: number | null;

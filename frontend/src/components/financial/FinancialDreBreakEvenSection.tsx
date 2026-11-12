@@ -50,6 +50,7 @@ export function FinancialDreBreakEvenSection({
         coveredRevenue: totals.coveredRevenue,
         coveredContributionMargin: totals.coveredContributionMargin,
         operatingExpenses: totals.operatingExpenses.total,
+        financialResult: totals.financialResult.total,
       },
     );
 

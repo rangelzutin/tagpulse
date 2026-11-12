@@ -279,4 +279,93 @@ describe("Financial DRE — Break-Even Analysis (calculateBreakEven)", () => {
     expect(months[0].breakEven?.coveredRevenue).toBe(30000);
     expect(months[0].coveredContributionMargin).toBe(15000);
   });
+
+  describe("L. Provisional Break-Even with Financial Result & Partial Coverage", () => {
+    it("L1. live production dataset values with negative financial result", () => {
+      // covRev = 359107.14, covCm = 107051.54, opExp = 145379.48, finResult = -1853.84
+      const result = calculateBreakEven(366672.36, 107051.54, null, {
+        costCoveragePercent: 97.94,
+        fullCoverage: false,
+        coveredRevenue: 359107.14,
+        coveredContributionMargin: 107051.54,
+        operatingExpenses: 145379.48,
+        financialResult: -1853.84,
+      });
+
+      expect(result.status).toBe("UNDETERMINED_PARTIAL_COST_COVERAGE");
+      expect(result.breakEvenRevenue).toBeNull();
+      expect(result.isProvisional).toBe(true);
+      expect(result.provisionalFixedCostBase).toBe(147233.32);
+      expect(result.provisionalBreakEvenRevenue).toBe(493897.95);
+      expect(result.provisionalGap).toBe(134790.81);
+      expect(result.provisionalCurrentCoveragePercent).toBe(72.71);
+    });
+
+    it("L2. scenario with financialResult = 0", () => {
+      // opExp = 100000, finResult = 0 -> fixedBase = 100000
+      // covRev = 200000, covCm = 80000 -> rawRate = 0.4
+      // provBreakEven = 100000 / 0.4 = 250000
+      // provGap = 250000 - 200000 = 50000
+      // provCoverage = (200000 / 250000) * 100 = 80%
+      const result = calculateBreakEven(250000, 80000, null, {
+        costCoveragePercent: 80,
+        fullCoverage: false,
+        coveredRevenue: 200000,
+        coveredContributionMargin: 80000,
+        operatingExpenses: 100000,
+        financialResult: 0,
+      });
+
+      expect(result.status).toBe("UNDETERMINED_PARTIAL_COST_COVERAGE");
+      expect(result.breakEvenRevenue).toBeNull();
+      expect(result.isProvisional).toBe(true);
+      expect(result.provisionalFixedCostBase).toBe(100000);
+      expect(result.provisionalBreakEvenRevenue).toBe(250000);
+      expect(result.provisionalGap).toBe(50000);
+      expect(result.provisionalCurrentCoveragePercent).toBe(80);
+    });
+
+    it("L3. scenario with positive financialResult (financial income decreases required fixed base)", () => {
+      // opExp = 100000, finResult = 10000 -> fixedBase = 100000 - 10000 = 90000
+      // covRev = 200000, covCm = 80000 -> rawRate = 0.4
+      // provBreakEven = 90000 / 0.4 = 225000
+      // provGap = 225000 - 200000 = 25000
+      // provCoverage = (200000 / 225000) * 100 = 88.89%
+      const result = calculateBreakEven(250000, 80000, null, {
+        costCoveragePercent: 80,
+        fullCoverage: false,
+        coveredRevenue: 200000,
+        coveredContributionMargin: 80000,
+        operatingExpenses: 100000,
+        financialResult: 10000,
+      });
+
+      expect(result.status).toBe("UNDETERMINED_PARTIAL_COST_COVERAGE");
+      expect(result.breakEvenRevenue).toBeNull();
+      expect(result.isProvisional).toBe(true);
+      expect(result.provisionalFixedCostBase).toBe(90000);
+      expect(result.provisionalBreakEvenRevenue).toBe(225000);
+      expect(result.provisionalGap).toBe(25000);
+      expect(result.provisionalCurrentCoveragePercent).toBe(88.89);
+    });
+
+    it("L4. 100% cost coverage uses official break-even and ignores provisional", () => {
+      // Full coverage: NetResult = CM (40000) - OpExp (50000) + FinResult (-5000) = -15000
+      // Official break even = 100000 + (15000 / 0.4) = 137500
+      const result = calculateBreakEven(100000, 40000, -15000, {
+        costCoveragePercent: 100,
+        fullCoverage: true,
+        coveredRevenue: 100000,
+        coveredContributionMargin: 40000,
+        operatingExpenses: 50000,
+        financialResult: -5000,
+      });
+
+      expect(result.status).toBe("UNREACHED");
+      expect(result.breakEvenRevenue).toBe(137500);
+      expect(result.additionalRevenueNeeded).toBe(37500);
+      expect(result.isProvisional).toBeUndefined();
+      expect(result.provisionalBreakEvenRevenue).toBeUndefined();
+    });
+  });
 });
