@@ -50,6 +50,7 @@ describe("Financial DRE Integration Tests (Canonical Baseline 2026)", () => {
           summary.totals.variableExpenses.taxesOnRevenue +
           summary.totals.variableExpenses.freightLogistics +
           summary.totals.variableExpenses.salesCommissions +
+          (summary.totals.variableExpenses.packaging ?? 0) +
           summary.totals.variableExpenses.other) *
           100,
       ) / 100;
@@ -78,12 +79,14 @@ describe("Financial DRE Integration Tests (Canonical Baseline 2026)", () => {
         (summary.totals.operatingExpenses.personnel +
           summary.totals.operatingExpenses.partnerCompensation +
           summary.totals.operatingExpenses.marketing +
+          (summary.totals.operatingExpenses.athletes ?? 0) +
           summary.totals.operatingExpenses.occupancy +
           summary.totals.operatingExpenses.utilities +
           summary.totals.operatingExpenses.software +
           summary.totals.operatingExpenses.accounting +
           summary.totals.operatingExpenses.infrastructure +
           summary.totals.operatingExpenses.administrative +
+          (summary.totals.operatingExpenses.losses ?? 0) +
           summary.totals.operatingExpenses.other) *
           100,
       ) / 100;

@@ -1401,6 +1401,17 @@ export function FinancialDreExportReport({
               {calcShare(totals.variableExpenses.salesCommissions)}
             </td>
           </tr>
+          {(totals.variableExpenses.packaging ?? 0) > 0 && (
+            <tr className="is-subitem">
+              <td className="is-indent">Embalagens / Expedição</td>
+              <td className="is-right">
+                {formatCurrency(totals.variableExpenses.packaging ?? 0)}
+              </td>
+              <td className="is-right">
+                {calcShare(totals.variableExpenses.packaging ?? 0)}
+              </td>
+            </tr>
+          )}
           <tr className="is-subitem">
             <td className="is-indent">Outras Despesas Variáveis</td>
             <td className="is-right">
@@ -1433,7 +1444,7 @@ export function FinancialDreExportReport({
             </td>
           </tr>
           <tr className="is-subitem">
-            <td className="is-indent">Pessoal / Encargos</td>
+            <td className="is-indent">Encargos sobre Pró-labore / Pessoal</td>
             <td className="is-right">
               {formatCurrency(totals.operatingExpenses.personnel)}
             </td>
@@ -1442,7 +1453,7 @@ export function FinancialDreExportReport({
             </td>
           </tr>
           <tr className="is-subitem">
-            <td className="is-indent">Pró-labore</td>
+            <td className="is-indent">Pró-labore dos Sócios</td>
             <td className="is-right">
               {formatCurrency(totals.operatingExpenses.partnerCompensation)}
             </td>
@@ -1451,7 +1462,7 @@ export function FinancialDreExportReport({
             </td>
           </tr>
           <tr className="is-subitem">
-            <td className="is-indent">Marketing</td>
+            <td className="is-indent">Marketing e Publicidade</td>
             <td className="is-right">
               {formatCurrency(totals.operatingExpenses.marketing)}
             </td>
@@ -1459,8 +1470,19 @@ export function FinancialDreExportReport({
               {calcShare(totals.operatingExpenses.marketing)}
             </td>
           </tr>
+          {(totals.operatingExpenses.athletes ?? 0) > 0 && (
+            <tr className="is-subitem">
+              <td className="is-indent">Atletas / Patrocínios</td>
+              <td className="is-right">
+                {formatCurrency(totals.operatingExpenses.athletes ?? 0)}
+              </td>
+              <td className="is-right">
+                {calcShare(totals.operatingExpenses.athletes ?? 0)}
+              </td>
+            </tr>
+          )}
           <tr className="is-subitem">
-            <td className="is-indent">Ocupação</td>
+            <td className="is-indent">Aluguel e Espaço Físico</td>
             <td className="is-right">
               {formatCurrency(totals.operatingExpenses.occupancy)}
             </td>
@@ -1469,7 +1491,7 @@ export function FinancialDreExportReport({
             </td>
           </tr>
           <tr className="is-subitem">
-            <td className="is-indent">Utilidades</td>
+            <td className="is-indent">Serviços Operacionais</td>
             <td className="is-right">
               {formatCurrency(totals.operatingExpenses.utilities)}
             </td>
@@ -1478,7 +1500,7 @@ export function FinancialDreExportReport({
             </td>
           </tr>
           <tr className="is-subitem">
-            <td className="is-indent">Software</td>
+            <td className="is-indent">Software e Assinaturas</td>
             <td className="is-right">
               {formatCurrency(totals.operatingExpenses.software)}
             </td>
@@ -1487,7 +1509,7 @@ export function FinancialDreExportReport({
             </td>
           </tr>
           <tr className="is-subitem">
-            <td className="is-indent">Contabilidade</td>
+            <td className="is-indent">Contabilidade / Jurídico</td>
             <td className="is-right">
               {formatCurrency(totals.operatingExpenses.accounting)}
             </td>
@@ -1496,7 +1518,7 @@ export function FinancialDreExportReport({
             </td>
           </tr>
           <tr className="is-subitem">
-            <td className="is-indent">Infraestrutura</td>
+            <td className="is-indent">Infraestrutura / Manutenção</td>
             <td className="is-right">
               {formatCurrency(totals.operatingExpenses.infrastructure)}
             </td>
@@ -1513,6 +1535,17 @@ export function FinancialDreExportReport({
               {calcShare(totals.operatingExpenses.administrative)}
             </td>
           </tr>
+          {(totals.operatingExpenses.losses ?? 0) > 0 && (
+            <tr className="is-subitem">
+              <td className="is-indent">Perdas / Inadimplência</td>
+              <td className="is-right">
+                {formatCurrency(totals.operatingExpenses.losses ?? 0)}
+              </td>
+              <td className="is-right">
+                {calcShare(totals.operatingExpenses.losses ?? 0)}
+              </td>
+            </tr>
+          )}
           <tr className="is-subitem">
             <td className="is-indent">Outros</td>
             <td className="is-right">

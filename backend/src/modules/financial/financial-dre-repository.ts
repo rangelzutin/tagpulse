@@ -119,35 +119,47 @@ export function createPrismaFinancialDreRepository(
       ];
       const opUnitFilter = buildOperationUnitFilter(options?.operationUnit);
 
-      const rawRecords = await prisma.financialRecord.findMany({
-        where: {
-          connectionId,
-          sourcePresent: true,
-          ...(options?.sourceSystem ? { sourceSystem: options.sourceSystem } : {}),
-          ...(opUnitFilter
-            ? { AND: [opUnitFilter, { OR: dateOr }] }
-            : { OR: dateOr }),
-        },
-        select: {
-          id: true,
-          sourceId: true,
-          type: true,
-          isTransfer: true,
-          budgetPlanSourceId: true,
-          description: true,
-          dueDate: true,
-          confirmationDate: true,
-          sourceCompetenceDate: true,
-          originalAmount: true,
-          totalAmount: true,
-          discountAmount: true,
-          surchargeAmount: true,
-          lateInterestAmount: true,
-          entityName: true,
-          entitySourceId: true,
-        },
-        orderBy: { dueDate: "asc" },
-      });
+      const [rawRecords, budgetPlans] = await Promise.all([
+        prisma.financialRecord.findMany({
+          where: {
+            connectionId,
+            sourcePresent: true,
+            ...(options?.sourceSystem ? { sourceSystem: options.sourceSystem } : {}),
+            ...(opUnitFilter
+              ? { AND: [opUnitFilter, { OR: dateOr }] }
+              : { OR: dateOr }),
+          },
+          select: {
+            id: true,
+            sourceId: true,
+            type: true,
+            isTransfer: true,
+            budgetPlanSourceId: true,
+            description: true,
+            dueDate: true,
+            confirmationDate: true,
+            sourceCompetenceDate: true,
+            originalAmount: true,
+            totalAmount: true,
+            discountAmount: true,
+            surchargeAmount: true,
+            lateInterestAmount: true,
+            entityName: true,
+            entitySourceId: true,
+            sourceSystem: true,
+            operationUnit: true,
+          },
+          orderBy: { dueDate: "asc" },
+        }),
+        prisma.financialBudgetPlan.findMany({
+          where: { connectionId },
+          select: { sourceId: true, description: true },
+        }),
+      ]);
+
+      const budgetPlanMap = new Map(
+        budgetPlans.map((p) => [p.sourceId, p.description]),
+      );
 
       // 3. Vínculo determinístico de Taxas de Pagamento (Plano 1) com Vendas
       const customers = await prisma.customer.findMany({
@@ -235,6 +247,9 @@ export function createPrismaFinancialDreRepository(
           type: r.type,
           isTransfer: r.isTransfer,
           budgetPlanSourceId: r.budgetPlanSourceId,
+          budgetPlanName: r.budgetPlanSourceId
+            ? budgetPlanMap.get(r.budgetPlanSourceId) ?? null
+            : null,
           description: r.description,
           dueDate: r.dueDate,
           confirmationDate: r.confirmationDate,
@@ -246,6 +261,8 @@ export function createPrismaFinancialDreRepository(
           lateInterestAmount: r.lateInterestAmount,
           entityName: r.entityName,
           linkedSaleRealizedDate,
+          sourceSystem: r.sourceSystem,
+          operationUnit: r.operationUnit,
         };
       });
 

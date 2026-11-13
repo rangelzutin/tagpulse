@@ -1,6 +1,7 @@
 import type {
   DreBreakdownCategoryDetail,
   DreBreakdownDto,
+  DreBreakdownEntryDto,
   DreBreakdownItemDto,
   DreBreakEvenDto,
   DreBreakEvenStatus,
@@ -369,7 +370,9 @@ export function calculateDreMonthly(
   sortedMonths.forEach((m) => finAdjByMonth.set(m, []));
 
   for (const r of classifiedRecords) {
-    if (r.isDeductibleInDre && r.referenceMonth && recordsByMonth.has(r.referenceMonth)) {
+    const isUnclassified =
+      r.category === "UNKNOWN" || r.category === "UNCLASSIFIED_REVIEW_REQUIRED";
+    if ((r.isDeductibleInDre || isUnclassified) && r.referenceMonth && recordsByMonth.has(r.referenceMonth)) {
       // Se for o mês final do período parcial, respeitar toExclusiveDate
       if (maxMonth && r.referenceMonth === maxMonth && options?.toExclusiveDate && r.competenceDate) {
         if (r.competenceDate.getTime() >= options.toExclusiveDate.getTime()) {
@@ -447,17 +450,20 @@ export function calculateDreMonthly(
     let taxesCents = 0;
     let freightCents = 0;
     let salesCommCents = 0;
+    let packagingCents = 0;
     let varOtherCents = 0;
 
     let personnelCents = 0;
     let partnerCompCents = 0;
     let marketingCents = 0;
+    let athletesCents = 0;
     let occupancyCents = 0;
     let utilitiesCents = 0;
     let softwareCents = 0;
     let accountingCents = 0;
     let infraCents = 0;
     let adminCents = 0;
+    let lossesCents = 0;
     let opOtherCents = 0;
 
     let finIncCents = 0;
@@ -492,6 +498,9 @@ export function calculateDreMonthly(
         case "VARIABLE_SALES_COMMISSION":
           salesCommCents += amtCents;
           break;
+        case "VARIABLE_PACKAGING":
+          packagingCents += amtCents;
+          break;
         case "VARIABLE_OTHER":
           varOtherCents += amtCents;
           break;
@@ -506,6 +515,9 @@ export function calculateDreMonthly(
           break;
         case "OPERATING_MARKETING":
           marketingCents += amtCents;
+          break;
+        case "OPERATING_ATHLETES":
+          athletesCents += amtCents;
           break;
         case "OPERATING_OCCUPANCY":
           occupancyCents += amtCents;
@@ -525,6 +537,9 @@ export function calculateDreMonthly(
         case "OPERATING_ADMINISTRATIVE":
           adminCents += amtCents;
           break;
+        case "OPERATING_LOSSES":
+          lossesCents += amtCents;
+          break;
         case "OPERATING_OTHER":
           opOtherCents += amtCents;
           break;
@@ -534,6 +549,7 @@ export function calculateDreMonthly(
         case "FINANCIAL_INCOME":
           finIncCents += amtCents;
           break;
+        case "UNCLASSIFIED_REVIEW_REQUIRED":
         case "UNKNOWN":
           unknownCents += amtCents;
           break;
@@ -551,7 +567,12 @@ export function calculateDreMonthly(
     }
 
     const varTotalCents =
-      payFeesCents + taxesCents + freightCents + salesCommCents + varOtherCents;
+      payFeesCents +
+      taxesCents +
+      freightCents +
+      salesCommCents +
+      packagingCents +
+      varOtherCents;
 
     // Alocação proporcional de despesas variáveis para a receita coberta
     const coverageRatio = revCents > 0 ? (coveredRevCents / revCents) : 1;
@@ -569,12 +590,14 @@ export function calculateDreMonthly(
       personnelCents +
       partnerCompCents +
       marketingCents +
+      athletesCents +
       occupancyCents +
       utilitiesCents +
       softwareCents +
       accountingCents +
       infraCents +
       adminCents +
+      lossesCents +
       opOtherCents;
 
     const finTotalCents = finIncCents - finExpCents;
@@ -696,6 +719,7 @@ export function calculateDreMonthly(
         taxesOnRevenue: fromCents(taxesCents),
         freightLogistics: fromCents(freightCents),
         salesCommissions: fromCents(salesCommCents),
+        packaging: fromCents(packagingCents),
         other: fromCents(varOtherCents),
         total: fromCents(varTotalCents),
       },
@@ -705,12 +729,14 @@ export function calculateDreMonthly(
         personnel: fromCents(personnelCents),
         partnerCompensation: fromCents(partnerCompCents),
         marketing: fromCents(marketingCents),
+        athletes: fromCents(athletesCents),
         occupancy: fromCents(occupancyCents),
         utilities: fromCents(utilitiesCents),
         software: fromCents(softwareCents),
         accounting: fromCents(accountingCents),
         infrastructure: fromCents(infraCents),
         administrative: fromCents(adminCents),
+        losses: fromCents(lossesCents),
         other: fromCents(opOtherCents),
         total: fromCents(opTotalCents),
       },
@@ -776,6 +802,7 @@ export function calculateDreSummary(
   let taxesCents = 0;
   let freightCents = 0;
   let salesCommCents = 0;
+  let packagingCents = 0;
   let varOtherCents = 0;
   let varTotalCents = 0;
 
@@ -784,12 +811,14 @@ export function calculateDreSummary(
   let personnelCents = 0;
   let partnerCompCents = 0;
   let marketingCents = 0;
+  let athletesCents = 0;
   let occupancyCents = 0;
   let utilitiesCents = 0;
   let softwareCents = 0;
   let accountingCents = 0;
   let infraCents = 0;
   let adminCents = 0;
+  let lossesCents = 0;
   let opOtherCents = 0;
   let opTotalCents = 0;
 
@@ -822,6 +851,7 @@ export function calculateDreSummary(
     taxesCents += toCents(m.variableExpenses.taxesOnRevenue);
     freightCents += toCents(m.variableExpenses.freightLogistics);
     salesCommCents += toCents(m.variableExpenses.salesCommissions);
+    packagingCents += toCents(m.variableExpenses.packaging ?? 0);
     varOtherCents += toCents(m.variableExpenses.other);
     varTotalCents += toCents(m.variableExpenses.total);
 
@@ -830,12 +860,14 @@ export function calculateDreSummary(
     personnelCents += toCents(m.operatingExpenses.personnel);
     partnerCompCents += toCents(m.operatingExpenses.partnerCompensation);
     marketingCents += toCents(m.operatingExpenses.marketing);
+    athletesCents += toCents(m.operatingExpenses.athletes ?? 0);
     occupancyCents += toCents(m.operatingExpenses.occupancy);
     utilitiesCents += toCents(m.operatingExpenses.utilities);
     softwareCents += toCents(m.operatingExpenses.software);
     accountingCents += toCents(m.operatingExpenses.accounting);
     infraCents += toCents(m.operatingExpenses.infrastructure);
     adminCents += toCents(m.operatingExpenses.administrative);
+    lossesCents += toCents(m.operatingExpenses.losses ?? 0);
     opOtherCents += toCents(m.operatingExpenses.other);
     opTotalCents += toCents(m.operatingExpenses.total);
 
@@ -995,6 +1027,7 @@ export function calculateDreSummary(
       taxesOnRevenue: fromCents(taxesCents),
       freightLogistics: fromCents(freightCents),
       salesCommissions: fromCents(salesCommCents),
+      packaging: fromCents(packagingCents),
       other: fromCents(varOtherCents),
       total: fromCents(varTotalCents),
     },
@@ -1004,12 +1037,14 @@ export function calculateDreSummary(
       personnel: fromCents(personnelCents),
       partnerCompensation: fromCents(partnerCompCents),
       marketing: fromCents(marketingCents),
+      athletes: fromCents(athletesCents),
       occupancy: fromCents(occupancyCents),
       utilities: fromCents(utilitiesCents),
       software: fromCents(softwareCents),
       accounting: fromCents(accountingCents),
       infrastructure: fromCents(infraCents),
       administrative: fromCents(adminCents),
+      losses: fromCents(lossesCents),
       other: fromCents(opOtherCents),
       total: fromCents(opTotalCents),
     },
@@ -1052,7 +1087,7 @@ export function calculateDreBreakdown(
   realizedRevenue: number,
   options?: DreCalculatorOptions,
 ): DreBreakdownDto {
-  // Mapeamento de categorias e metadados
+  // Mapeamento oficial de categorias gerenciais TagPulse e metadados
   const categoryMeta: Record<
     DreEconomicCategory,
     {
@@ -1060,28 +1095,34 @@ export function calculateDreBreakdown(
       group: "VARIABLE_EXPENSE" | "OPERATING_EXPENSE" | "FINANCIAL_RESULT" | "OTHER_RESULT" | "NON_DRE";
     }
   > = {
-    INVENTORY_PURCHASE: { label: "Compras de Estoque para Revenda", group: "NON_DRE" },
-    VARIABLE_PAYMENT_FEE: { label: "Taxas de Meio de Pagamento", group: "VARIABLE_EXPENSE" },
-    VARIABLE_TAX_ON_REVENUE: { label: "Impostos s/ Vendas (DAS / ICMS)", group: "VARIABLE_EXPENSE" },
-    VARIABLE_FREIGHT_LOGISTICS: { label: "Fretes s/ Vendas (Logística)", group: "VARIABLE_EXPENSE" },
-    VARIABLE_SALES_COMMISSION: { label: "Comissões s/ Vendas", group: "VARIABLE_EXPENSE" },
+    INVENTORY_PURCHASE: { label: "Compras de Estoque", group: "NON_DRE" },
+    LOAN_PRINCIPAL: { label: "Empréstimos / Financiamentos — principal", group: "NON_DRE" },
+    COMMERCIAL_RECEIVABLE: { label: "Receita comercial já contabilizada via vendas", group: "NON_DRE" },
+    VARIABLE_PAYMENT_FEE: { label: "Taxas de Pagamento", group: "VARIABLE_EXPENSE" },
+    VARIABLE_TAX_ON_REVENUE: { label: "Impostos sobre Vendas", group: "VARIABLE_EXPENSE" },
+    VARIABLE_FREIGHT_LOGISTICS: { label: "Fretes / Logística", group: "VARIABLE_EXPENSE" },
+    VARIABLE_SALES_COMMISSION: { label: "Comissões", group: "VARIABLE_EXPENSE" },
+    VARIABLE_PACKAGING: { label: "Embalagens / Expedição", group: "VARIABLE_EXPENSE" },
     VARIABLE_OTHER: { label: "Outras Despesas Variáveis", group: "VARIABLE_EXPENSE" },
-    OPERATING_PERSONNEL: { label: "Encargos s/ Pró-labore (GPS)", group: "OPERATING_EXPENSE" },
     OPERATING_PARTNER_COMPENSATION: { label: "Pró-labore dos Sócios", group: "OPERATING_EXPENSE" },
+    OPERATING_PERSONNEL: { label: "Encargos sobre Pró-labore / Pessoal", group: "OPERATING_EXPENSE" },
     OPERATING_MARKETING: { label: "Marketing e Publicidade", group: "OPERATING_EXPENSE" },
-    OPERATING_OCCUPANCY: { label: "Ocupação e Aluguel", group: "OPERATING_EXPENSE" },
-    OPERATING_UTILITIES: { label: "Utilidades (Energia / Internet)", group: "OPERATING_EXPENSE" },
+    OPERATING_ATHLETES: { label: "Atletas / Patrocínios", group: "OPERATING_EXPENSE" },
+    OPERATING_OCCUPANCY: { label: "Aluguel e Espaço Físico", group: "OPERATING_EXPENSE" },
+    OPERATING_UTILITIES: { label: "Serviços Operacionais", group: "OPERATING_EXPENSE" },
     OPERATING_SOFTWARE: { label: "Software e Assinaturas", group: "OPERATING_EXPENSE" },
-    OPERATING_ACCOUNTING: { label: "Honorários Contábeis", group: "OPERATING_EXPENSE" },
-    OPERATING_INFRASTRUCTURE: { label: "Infraestrutura e Manutenção", group: "OPERATING_EXPENSE" },
-    OPERATING_ADMINISTRATIVE: { label: "Despesas Administrativas", group: "OPERATING_EXPENSE" },
+    OPERATING_ACCOUNTING: { label: "Contabilidade / Jurídico", group: "OPERATING_EXPENSE" },
+    OPERATING_INFRASTRUCTURE: { label: "Infraestrutura / Manutenção", group: "OPERATING_EXPENSE" },
+    OPERATING_ADMINISTRATIVE: { label: "Administrativo", group: "OPERATING_EXPENSE" },
+    OPERATING_LOSSES: { label: "Perdas / Inadimplência", group: "OPERATING_EXPENSE" },
     OPERATING_OTHER: { label: "Outras Despesas Operacionais", group: "OPERATING_EXPENSE" },
-    FINANCIAL_EXPENSE: { label: "Despesas Financeiras (Tarifas / Juros Mora)", group: "FINANCIAL_RESULT" },
-    FINANCIAL_INCOME: { label: "Receitas Financeiras (Juros Recebidos / Descontos)", group: "FINANCIAL_RESULT" },
+    FINANCIAL_EXPENSE: { label: "Despesas Financeiras", group: "FINANCIAL_RESULT" },
+    FINANCIAL_INCOME: { label: "Receitas Financeiras", group: "FINANCIAL_RESULT" },
     OTHER_OPERATING_INCOME: { label: "Outras Receitas Operacionais", group: "OTHER_RESULT" },
     OTHER_OPERATING_EXPENSE: { label: "Outras Despesas Operacionais", group: "OTHER_RESULT" },
     CAPITAL_MOVEMENT: { label: "Movimentações de Capital", group: "NON_DRE" },
     TRANSFER: { label: "Transferências Internas", group: "NON_DRE" },
+    UNCLASSIFIED_REVIEW_REQUIRED: { label: "Pendência de Classificação", group: "NON_DRE" },
     UNKNOWN: { label: "Não Classificado", group: "NON_DRE" },
   };
 
@@ -1096,12 +1137,15 @@ export function calculateDreBreakdown(
       cents: number;
       count: number;
       detailMap: Map<string, { cents: number; count: number }>;
+      entries: DreBreakdownEntryDto[];
     }
   >();
 
   for (const cat of Object.keys(categoryMeta) as DreEconomicCategory[]) {
-    breakdownMap.set(cat, { cents: 0, count: 0, detailMap: new Map() });
+    breakdownMap.set(cat, { cents: 0, count: 0, detailMap: new Map(), entries: [] });
   }
+
+  const unclassifiedOutflows: DreBreakdownEntryDto[] = [];
 
   for (const r of classifiedRecords) {
     if (!r.referenceMonth) continue;
@@ -1119,11 +1163,39 @@ export function calculateDreBreakdown(
     entry.cents += amtCents;
     entry.count += 1;
 
-    const desc = r.notes || "Sem descrição";
+    const desc = r.originalDescription || r.notes || "Sem descrição";
     const curDetail = entry.detailMap.get(desc) ?? { cents: 0, count: 0 };
     curDetail.cents += amtCents;
     curDetail.count += 1;
     entry.detailMap.set(desc, curDetail);
+
+    const dateStr = r.competenceDate
+      ? r.competenceDate.toISOString().slice(0, 10)
+      : `${r.referenceMonth}-01`;
+
+    const breakdownEntry: DreBreakdownEntryDto = {
+      recordId: r.recordId,
+      sourceId: r.sourceId ?? null,
+      date: dateStr,
+      description: desc,
+      budgetPlanSourceId: r.budgetPlanSourceId ?? null,
+      budgetPlanName: r.budgetPlanName ?? null,
+      amount: fromCents(amtCents),
+      sourceSystem: r.sourceSystem ?? null,
+      operationUnit: r.operationUnit ?? null,
+      economicCategory: r.category,
+      categoryLabel: categoryMeta[r.category]?.label ?? r.category,
+      appliedRule: r.appliedRule ?? r.notes ?? "RULE_DEFAULT",
+    };
+    entry.entries.push(breakdownEntry);
+
+    if (
+      r.category === "UNCLASSIFIED_REVIEW_REQUIRED" ||
+      r.category === "UNKNOWN" ||
+      r.requiresReview
+    ) {
+      unclassifiedOutflows.push(breakdownEntry);
+    }
 
     // Ajustes financeiros
     if (r.financialAdjustment) {
@@ -1144,6 +1216,21 @@ export function calculateDreBreakdown(
         adjDetail.cents += adjCents;
         adjDetail.count += 1;
         adjEntry.detailMap.set(adj.description, adjDetail);
+
+        adjEntry.entries.push({
+          recordId: `${r.recordId}-adj`,
+          sourceId: r.sourceId ?? null,
+          date: adj.date.toISOString().slice(0, 10),
+          description: adj.description,
+          budgetPlanSourceId: r.budgetPlanSourceId ?? null,
+          budgetPlanName: r.budgetPlanName ?? null,
+          amount: fromCents(adjCents),
+          sourceSystem: r.sourceSystem ?? null,
+          operationUnit: r.operationUnit ?? null,
+          economicCategory: adj.type,
+          categoryLabel: categoryMeta[adj.type]?.label ?? adj.type,
+          appliedRule: "FINANCIAL_ADJUSTMENT_MORA_JUROS",
+        });
       }
     }
   }
@@ -1171,6 +1258,10 @@ export function calculateDreBreakdown(
         }),
       );
 
+      const sortedEntries = [...entry.entries].sort((a, b) =>
+        b.date.localeCompare(a.date) || b.amount - a.amount,
+      );
+
       return {
         economicCategory: cat,
         label: meta.label,
@@ -1179,6 +1270,7 @@ export function calculateDreBreakdown(
         shareOfRevenuePercent: share,
         recordCount: entry.count,
         details,
+        entries: sortedEntries,
       };
     });
 
@@ -1186,6 +1278,7 @@ export function calculateDreBreakdown(
     period,
     realizedRevenue,
     categories,
+    unclassifiedOutflows,
     disclaimer: DRE_DISCLAIMER,
   };
 }

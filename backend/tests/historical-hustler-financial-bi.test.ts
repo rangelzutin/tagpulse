@@ -24,7 +24,7 @@ describe("Historical Hustler Financial BI & DRE Validation (Phase 4Q)", () => {
     const dreResult = classifyFinancialRecordForDre(entryRecord);
     // In DRE classifier, commercial sales receipts return isDeductibleInDre: false
     expect(dreResult.isDeductibleInDre).toBe(false);
-    expect(dreResult.category).toBe("UNKNOWN"); // Or non-commercial expense
+    expect(dreResult.category).toBe("COMMERCIAL_RECEIVABLE");
   });
 
   it("2. proves INVENTORY_PURCHASE_AP (Plan 19) has isDeductibleInDre: false and is excluded from operating expenses", () => {
@@ -68,7 +68,7 @@ describe("Historical Hustler Financial BI & DRE Validation (Phase 4Q)", () => {
 
     const dreResult = classifyFinancialRecordForDre(expenseRecord);
     expect(dreResult.isDeductibleInDre).toBe(true);
-    expect(dreResult.category).toBe("OPERATING_INFRASTRUCTURE");
+    expect(dreResult.category).toBe("OPERATING_OCCUPANCY");
     // Standard competence strictly uses dueDate
     expect(dreResult.competenceDate?.toISOString()).toContain("2024-05-20");
   });

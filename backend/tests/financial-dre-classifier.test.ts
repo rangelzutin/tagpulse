@@ -200,7 +200,7 @@ describe("Financial DRE Classifier", () => {
     expect(res.isDeductibleInDre).toBe(true);
   });
 
-  it("classifies Plano 23 and 32 as OPERATING_MARKETING", () => {
+  it("classifies Plano 23 and 33 as OPERATING_MARKETING and Plano 32 as OPERATING_ATHLETES", () => {
     const p23 = classifyFinancialRecordForDre({
       id: "rec-14",
       sourceId: "114",
@@ -215,14 +215,24 @@ describe("Financial DRE Classifier", () => {
       id: "rec-15",
       sourceId: "115",
       budgetPlanSourceId: "32",
-      description: "Anúncios Meta",
+      description: "Gian - Campeonato olds gold",
       dueDate: new Date("2026-05-10T00:00:00Z"),
       originalAmount: 350,
     });
-    expect(p32.category).toBe("OPERATING_MARKETING");
+    expect(p32.category).toBe("OPERATING_ATHLETES");
+
+    const p33 = classifyFinancialRecordForDre({
+      id: "rec-15b",
+      sourceId: "115b",
+      budgetPlanSourceId: "33",
+      description: "Collab",
+      dueDate: new Date("2026-05-10T00:00:00Z"),
+      originalAmount: 500,
+    });
+    expect(p33.category).toBe("OPERATING_MARKETING");
   });
 
-  it("classifies Plano 2 audit-verified operational expenses as OPERATING_OTHER", () => {
+  it("classifies Plano 2 Café as OPERATING_ADMINISTRATIVE", () => {
     const cafe = classifyFinancialRecordForDre({
       id: "rec-16",
       sourceId: "10599",
@@ -231,7 +241,7 @@ describe("Financial DRE Classifier", () => {
       dueDate: new Date("2026-03-01T00:00:00Z"),
       originalAmount: 65,
     });
-    expect(cafe.category).toBe("OPERATING_OTHER");
+    expect(cafe.category).toBe("OPERATING_ADMINISTRATIVE");
     expect(cafe.isDeductibleInDre).toBe(true);
   });
 
@@ -248,7 +258,7 @@ describe("Financial DRE Classifier", () => {
     expect(juros.isDeductibleInDre).toBe(true);
   });
 
-  it("does not classify unknown plans as other silently", () => {
+  it("does not classify unknown plans as other silently and marks them UNCLASSIFIED_REVIEW_REQUIRED", () => {
     const unknown = classifyFinancialRecordForDre({
       id: "rec-18",
       sourceId: "999",
@@ -257,8 +267,179 @@ describe("Financial DRE Classifier", () => {
       dueDate: new Date("2026-04-01T00:00:00Z"),
       originalAmount: 500,
     });
-    expect(unknown.category).toBe("UNKNOWN");
+    expect(unknown.category).toBe("UNCLASSIFIED_REVIEW_REQUIRED");
     expect(unknown.isDeductibleInDre).toBe(false);
+    expect(unknown.requiresReview).toBe(true);
+  });
+
+  describe("Official Managerial Mapping Rules (Section 20)", () => {
+    it("maps Aluguel Tiradentes (Plano 40 and Plano 8) -> Aluguel e Espaço Físico (OPERATING_OCCUPANCY)", () => {
+      const p40 = classifyFinancialRecordForDre({
+        id: "m-1",
+        sourceId: "HUSTLER_LEGACY:2227",
+        budgetPlanSourceId: "40",
+        budgetPlanName: "Aluguel / Reforma",
+        description: "Aluguel - Tiradentes",
+        dueDate: new Date("2026-03-10T00:00:00Z"),
+        originalAmount: 2189.02,
+      });
+      expect(p40.category).toBe("OPERATING_OCCUPANCY");
+      expect(p40.isDeductibleInDre).toBe(true);
+      expect(p40.budgetPlanSourceId).toBe("40");
+      expect(p40.originalDescription).toBe("Aluguel - Tiradentes");
+    });
+
+    it("maps GPS -> Encargos sobre Pró-labore / Pessoal (OPERATING_PERSONNEL)", () => {
+      const gps = classifyFinancialRecordForDre({
+        id: "m-2",
+        sourceId: "10541",
+        budgetPlanSourceId: "27",
+        description: "GPS",
+        dueDate: new Date("2026-03-20T00:00:00Z"),
+        originalAmount: 534.93,
+      });
+      expect(gps.category).toBe("OPERATING_PERSONNEL");
+      expect(gps.isDeductibleInDre).toBe(true);
+    });
+
+    it("maps NeoLink -> Serviços Operacionais (OPERATING_UTILITIES)", () => {
+      const neolinkP2 = classifyFinancialRecordForDre({
+        id: "m-3a",
+        sourceId: "HUSTLER_LEGACY:2301",
+        budgetPlanSourceId: "2",
+        description: "NeoLink",
+        dueDate: new Date("2026-04-10T00:00:00Z"),
+        originalAmount: 64.9,
+      });
+      expect(neolinkP2.category).toBe("OPERATING_UTILITIES");
+      expect(neolinkP2.isDeductibleInDre).toBe(true);
+
+      const neolinkP8 = classifyFinancialRecordForDre({
+        id: "m-3b",
+        sourceId: "10610",
+        budgetPlanSourceId: "8",
+        description: "Neo Link",
+        dueDate: new Date("2026-04-10T00:00:00Z"),
+        originalAmount: 97.0,
+      });
+      expect(neolinkP8.category).toBe("OPERATING_UTILITIES");
+      expect(neolinkP8.isDeductibleInDre).toBe(true);
+    });
+
+    it("maps Luminoso Hustler -> Infraestrutura / Manutenção (OPERATING_INFRASTRUCTURE)", () => {
+      const luminoso = classifyFinancialRecordForDre({
+        id: "m-4",
+        sourceId: "HUSTLER_LEGACY:2302",
+        budgetPlanSourceId: "2",
+        description: "Luminoso Hustler",
+        dueDate: new Date("2026-02-15T00:00:00Z"),
+        originalAmount: 600,
+      });
+      expect(luminoso.category).toBe("OPERATING_INFRASTRUCTURE");
+      expect(luminoso.isDeductibleInDre).toBe(true);
+    });
+
+    it("maps Tag Plus Hustler -> Software e Assinaturas (OPERATING_SOFTWARE)", () => {
+      const tagplus = classifyFinancialRecordForDre({
+        id: "m-5",
+        sourceId: "HUSTLER_LEGACY:2303",
+        budgetPlanSourceId: "2",
+        description: "Tag Plus Hustler",
+        dueDate: new Date("2026-02-15T00:00:00Z"),
+        originalAmount: 139,
+      });
+      expect(tagplus.category).toBe("OPERATING_SOFTWARE");
+      expect(tagplus.isDeductibleInDre).toBe(true);
+    });
+
+    it("maps Sacolas -> Embalagens / Expedição (VARIABLE_PACKAGING)", () => {
+      const sacolas = classifyFinancialRecordForDre({
+        id: "m-6",
+        sourceId: "HUSTLER_LEGACY:2304",
+        budgetPlanSourceId: "2",
+        description: "Sacolas",
+        dueDate: new Date("2026-02-15T00:00:00Z"),
+        originalAmount: 469,
+      });
+      expect(sacolas.category).toBe("VARIABLE_PACKAGING");
+      expect(sacolas.isDeductibleInDre).toBe(true);
+    });
+
+    it("maps Sangria/Suprimento -> fora do DRE (TRANSFER)", () => {
+      const sangria = classifyFinancialRecordForDre({
+        id: "m-7",
+        sourceId: "HUSTLER_LEGACY:2305",
+        budgetPlanSourceId: "2",
+        description: "Sangria / Suprimento de Caixa",
+        dueDate: new Date("2026-02-15T00:00:00Z"),
+        originalAmount: 325,
+      });
+      expect(sangria.category).toBe("TRANSFER");
+      expect(sangria.isDeductibleInDre).toBe(false);
+    });
+
+    it("maps Representantes (Plano 34) -> Comissões (VARIABLE_SALES_COMMISSION)", () => {
+      const rep = classifyFinancialRecordForDre({
+        id: "m-8",
+        sourceId: "3401",
+        budgetPlanSourceId: "34",
+        description: "Comissão Representantes",
+        dueDate: new Date("2026-03-10T00:00:00Z"),
+        originalAmount: 850,
+      });
+      expect(rep.category).toBe("VARIABLE_SALES_COMMISSION");
+      expect(rep.isDeductibleInDre).toBe(true);
+    });
+
+    it("maps Atleta (Plano 32) -> Atletas / Patrocínios (OPERATING_ATHLETES)", () => {
+      const atleta = classifyFinancialRecordForDre({
+        id: "m-9",
+        sourceId: "3201",
+        budgetPlanSourceId: "32",
+        description: "Atleta Patrocinado",
+        dueDate: new Date("2026-03-10T00:00:00Z"),
+        originalAmount: 350,
+      });
+      expect(atleta.category).toBe("OPERATING_ATHLETES");
+      expect(atleta.isDeductibleInDre).toBe(true);
+    });
+
+    it("maps Collab (Plano 33) -> Marketing e Publicidade (OPERATING_MARKETING)", () => {
+      const collab = classifyFinancialRecordForDre({
+        id: "m-10",
+        sourceId: "3301",
+        budgetPlanSourceId: "33",
+        description: "Collab",
+        dueDate: new Date("2026-03-10T00:00:00Z"),
+        originalAmount: 1200,
+      });
+      expect(collab.category).toBe("OPERATING_MARKETING");
+      expect(collab.isDeductibleInDre).toBe(true);
+    });
+
+    it("maps Protestado / Perdidos (Planos 38 e 41) -> Perdas / Inadimplência (OPERATING_LOSSES)", () => {
+      const protestado = classifyFinancialRecordForDre({
+        id: "m-11a",
+        sourceId: "3801",
+        budgetPlanSourceId: "38",
+        description: "Título Protestado",
+        dueDate: new Date("2026-03-10T00:00:00Z"),
+        originalAmount: 400,
+      });
+      expect(protestado.category).toBe("OPERATING_LOSSES");
+      expect(protestado.isDeductibleInDre).toBe(true);
+
+      const perdidos = classifyFinancialRecordForDre({
+        id: "m-11b",
+        sourceId: "4101",
+        budgetPlanSourceId: "41",
+        description: "Créditos Perdidos",
+        dueDate: new Date("2026-03-10T00:00:00Z"),
+        originalAmount: 250,
+      });
+      expect(perdidos.category).toBe("OPERATING_LOSSES");
+      expect(perdidos.isDeductibleInDre).toBe(true);
+    });
   });
 
   describe("Strict dueDate Precedence Contract for All Expense Categories", () => {

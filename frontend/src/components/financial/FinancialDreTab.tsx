@@ -1128,6 +1128,7 @@ export function FinancialDreTab({
         <FinancialDreTable
           totals={totals}
           realizedRevenue={totals.realizedRevenue}
+          breakdown={breakdownData}
         />
       </section>
 

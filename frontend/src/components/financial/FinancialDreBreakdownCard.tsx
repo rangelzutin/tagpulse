@@ -1,7 +1,11 @@
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Layers, FileText } from "lucide-react";
-import type { DreBreakdownDto, DreBreakdownItemDto } from "../../api/financial";
-import { formatCurrency, formatPercent } from "../../utils/formatters";
+import { ChevronDown, ChevronRight } from "lucide-react";
+import type {
+  DreBreakdownDto,
+  DreBreakdownEntryDto,
+  DreBreakdownItemDto,
+} from "../../api/financial";
+import { formatCurrency, formatDateBr, formatPercent } from "../../utils/formatters";
 
 interface FinancialDreBreakdownCardProps {
   breakdown: DreBreakdownDto | null;
@@ -10,7 +14,6 @@ interface FinancialDreBreakdownCardProps {
 
 export function FinancialDreBreakdownCard({
   breakdown,
-  isLoading,
 }: FinancialDreBreakdownCardProps) {
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
 
@@ -30,6 +33,15 @@ export function FinancialDreBreakdownCard({
       ...prev,
       [catId]: !prev[catId],
     }));
+  };
+
+  const formatPlanLabel = (entry: DreBreakdownEntryDto) => {
+    if (entry.budgetPlanSourceId && entry.budgetPlanName) {
+      return `${entry.budgetPlanSourceId} — ${entry.budgetPlanName}`;
+    }
+    if (entry.budgetPlanName) return entry.budgetPlanName;
+    if (entry.budgetPlanSourceId) return `Plano ${entry.budgetPlanSourceId}`;
+    return "—";
   };
 
   const getGroupBadge = (group: DreBreakdownItemDto["group"]) => {
@@ -59,7 +71,8 @@ export function FinancialDreBreakdownCard({
       <div className="tp-dre-breakdown-list">
         {relevantCategories.map((cat) => {
           const isExpanded = !!expandedCategories[cat.economicCategory];
-          const hasDetails = cat.details && cat.details.length > 0;
+          const hasEntries = !!(cat.entries && cat.entries.length > 0);
+          const hasDetails = hasEntries || !!(cat.details && cat.details.length > 0);
           const barWidthPercent = Math.min(100, Math.max(4, (cat.amount / maxAmount) * 100));
 
           return (
@@ -116,24 +129,51 @@ export function FinancialDreBreakdownCard({
               {/* Sub-item details if expanded */}
               {isExpanded && hasDetails && (
                 <div className="tp-breakdown-details-panel">
-                  <table className="tp-breakdown-details-table">
-                    <thead>
-                      <tr>
-                        <th>Histórico / Favorecido</th>
-                        <th>Qtd.</th>
-                        <th>Valor</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {cat.details!.map((detail, idx) => (
-                        <tr key={idx}>
-                          <td className="tp-detail-desc">{detail.description}</td>
-                          <td className="tp-detail-count">{detail.recordCount}</td>
-                          <td className="tp-detail-amount">{formatCurrency(detail.amount)}</td>
+                  {hasEntries ? (
+                    <table className="tp-breakdown-details-table">
+                      <thead>
+                        <tr>
+                          <th>Data</th>
+                          <th>Descrição</th>
+                          <th>Plano TagPlus</th>
+                          <th>Valor</th>
+                          <th>Origem</th>
+                          <th>Categoria TagPulse</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {cat.entries!.map((entry) => (
+                          <tr key={entry.recordId}>
+                            <td>{formatDateBr(entry.date)}</td>
+                            <td className="tp-detail-desc">{entry.description}</td>
+                            <td>{formatPlanLabel(entry)}</td>
+                            <td className="tp-detail-amount">{formatCurrency(entry.amount)}</td>
+                            <td>{entry.operationUnit || entry.sourceSystem || "—"}</td>
+                            <td>{entry.categoryLabel}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <table className="tp-breakdown-details-table">
+                      <thead>
+                        <tr>
+                          <th>Histórico / Favorecido</th>
+                          <th>Qtd.</th>
+                          <th>Valor</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cat.details!.map((detail, idx) => (
+                          <tr key={idx}>
+                            <td className="tp-detail-desc">{detail.description}</td>
+                            <td className="tp-detail-count">{detail.recordCount}</td>
+                            <td className="tp-detail-amount">{formatCurrency(detail.amount)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
                 </div>
               )}
             </div>

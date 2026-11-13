@@ -1,18 +1,31 @@
-import { useState } from "react";
-import { ChevronDown, ChevronRight, HelpCircle } from "lucide-react";
-import type { DreSummaryTotalsDto } from "../../api/financial";
-import { formatCurrency, formatPercent } from "../../utils/formatters";
+import { Fragment, useState } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
+import type {
+  DreBreakdownDto,
+  DreBreakdownEntryDto,
+  DreEconomicCategory,
+  DreSummaryTotalsDto,
+} from "../../api/financial";
+import { formatCurrency, formatDateBr, formatPercent } from "../../utils/formatters";
 
 interface FinancialDreTableProps {
   totals: DreSummaryTotalsDto;
   realizedRevenue: number;
+  breakdown?: DreBreakdownDto | null;
 }
 
-export function FinancialDreTable({ totals, realizedRevenue }: FinancialDreTableProps) {
+export function FinancialDreTable({
+  totals,
+  realizedRevenue,
+  breakdown,
+}: FinancialDreTableProps) {
   const [expandVariables, setExpandVariables] = useState(true);
   const [expandOperating, setExpandOperating] = useState(true);
   const [expandFinancial, setExpandFinancial] = useState(false);
   const [expandOther, setExpandOther] = useState(false);
+  const [expandedCategoryRows, setExpandedCategoryRows] = useState<
+    Record<string, boolean>
+  >({});
 
   const safeRevenue = realizedRevenue > 0 ? realizedRevenue : 1;
 
@@ -20,6 +33,125 @@ export function FinancialDreTable({ totals, realizedRevenue }: FinancialDreTable
     if (realizedRevenue <= 0) return "—";
     return formatPercent((val / safeRevenue) * 100, 2);
   };
+
+  const getEntriesForCategory = (
+    cat: DreEconomicCategory,
+  ): DreBreakdownEntryDto[] => {
+    if (!breakdown || !breakdown.categories) return [];
+    const found = breakdown.categories.find((c) => c.economicCategory === cat);
+    return found?.entries ?? [];
+  };
+
+  const toggleCategoryDrilldown = (cat: DreEconomicCategory) => {
+    setExpandedCategoryRows((prev) => ({
+      ...prev,
+      [cat]: !prev[cat],
+    }));
+  };
+
+  const formatPlanLabel = (entry: DreBreakdownEntryDto) => {
+    if (entry.budgetPlanSourceId && entry.budgetPlanName) {
+      return `${entry.budgetPlanSourceId} — ${entry.budgetPlanName}`;
+    }
+    if (entry.budgetPlanName) return entry.budgetPlanName;
+    if (entry.budgetPlanSourceId) return `Plano ${entry.budgetPlanSourceId}`;
+    return "—";
+  };
+
+  const renderSubitemRow = (
+    label: string,
+    amount: number,
+    category: DreEconomicCategory,
+    amountClassName = "",
+    prefix = "",
+  ) => {
+    const entries = getEntriesForCategory(category);
+    const isClickable = entries.length > 0;
+    const isRowExpanded = !!expandedCategoryRows[category];
+
+    return (
+      <Fragment key={category}>
+        <tr
+          className={`tp-dre-row-subitem ${isClickable ? "is-clickable" : ""}`}
+          onClick={() => isClickable && toggleCategoryDrilldown(category)}
+          role={isClickable ? "button" : undefined}
+          tabIndex={isClickable ? 0 : undefined}
+          aria-expanded={isClickable ? isRowExpanded : undefined}
+          style={isClickable ? { cursor: "pointer" } : undefined}
+          onKeyDown={(e) => {
+            if (isClickable && (e.key === "Enter" || e.key === " ")) {
+              e.preventDefault();
+              toggleCategoryDrilldown(category);
+            }
+          }}
+        >
+          <td className="tp-cell-name tp-indent-1">
+            {isClickable && (
+              <span
+                className="tp-dre-toggle-icon"
+                style={{ marginRight: "6px", display: "inline-flex", verticalAlign: "middle" }}
+              >
+                {isRowExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+              </span>
+            )}
+            <span>{label}</span>
+          </td>
+          <td className={`tp-cell-amount ${amountClassName}`}>
+            {prefix}
+            {formatCurrency(amount)}
+          </td>
+          <td className="tp-cell-percent">{calcShare(amount)}</td>
+        </tr>
+        {isRowExpanded && entries.length > 0 && (
+          <tr className="tp-dre-row-drilldown">
+            <td colSpan={3} style={{ padding: "8px 16px 12px 32px", background: "rgba(15, 23, 42, 0.55)" }}>
+              <table
+                className="tp-breakdown-details-table"
+                style={{ width: "100%", fontSize: "12px", borderCollapse: "collapse" }}
+              >
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: "left", padding: "6px 8px" }}>Data</th>
+                    <th style={{ textAlign: "left", padding: "6px 8px" }}>Descrição</th>
+                    <th style={{ textAlign: "left", padding: "6px 8px" }}>Plano TagPlus</th>
+                    <th style={{ textAlign: "right", padding: "6px 8px" }}>Valor</th>
+                    <th style={{ textAlign: "left", padding: "6px 8px" }}>Origem</th>
+                    <th style={{ textAlign: "left", padding: "6px 8px" }}>Categoria TagPulse</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {entries.map((entry) => (
+                    <tr key={entry.recordId}>
+                      <td style={{ padding: "5px 8px", whiteSpace: "nowrap" }}>
+                        {formatDateBr(entry.date)}
+                      </td>
+                      <td style={{ padding: "5px 8px" }}>{entry.description}</td>
+                      <td style={{ padding: "5px 8px" }}>{formatPlanLabel(entry)}</td>
+                      <td style={{ padding: "5px 8px", textAlign: "right", fontWeight: 600 }}>
+                        {formatCurrency(entry.amount)}
+                      </td>
+                      <td style={{ padding: "5px 8px" }}>
+                        {entry.operationUnit || entry.sourceSystem || "—"}
+                      </td>
+                      <td style={{ padding: "5px 8px" }}>{entry.categoryLabel}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </td>
+          </tr>
+        )}
+      </Fragment>
+    );
+  };
+
+  const packagingVal = totals.variableExpenses.packaging ?? 0;
+  const athletesVal = totals.operatingExpenses.athletes ?? 0;
+  const lossesVal = totals.operatingExpenses.losses ?? 0;
+
+  const variableItemsCount = 5 + (packagingVal > 0 ? 1 : 0);
+  const operatingItemsCount =
+    10 + (athletesVal > 0 ? 1 : 0) + (lossesVal > 0 ? 1 : 0);
 
   const hasNetResult = totals.netManagerialResult !== null;
   const isNetPositive = hasNetResult && (totals.netManagerialResult ?? 0) > 0;
@@ -106,7 +238,7 @@ export function FinancialDreTable({ totals, realizedRevenue }: FinancialDreTable
                 </span>
                 <span className="tp-dre-badge-math is-minus">(-)</span>
                 <strong>Despesas Variáveis</strong>
-                <span className="tp-dre-item-count">(5 itens)</span>
+                <span className="tp-dre-item-count">({variableItemsCount} itens)</span>
               </td>
               <td className="tp-cell-amount tp-text-deduction">
                 -{formatCurrency(totals.variableExpenses.total)}
@@ -117,41 +249,37 @@ export function FinancialDreTable({ totals, realizedRevenue }: FinancialDreTable
             {/* Despesas Variáveis Subitens */}
             {expandVariables && (
               <>
-                <tr className="tp-dre-row-subitem">
-                  <td className="tp-cell-name tp-indent-1">Taxas de Pagamento</td>
-                  <td className="tp-cell-amount">
-                    {formatCurrency(totals.variableExpenses.paymentFees)}
-                  </td>
-                  <td className="tp-cell-percent">{calcShare(totals.variableExpenses.paymentFees)}</td>
-                </tr>
-                <tr className="tp-dre-row-subitem">
-                  <td className="tp-cell-name tp-indent-1">Impostos sobre Vendas</td>
-                  <td className="tp-cell-amount">
-                    {formatCurrency(totals.variableExpenses.taxesOnRevenue)}
-                  </td>
-                  <td className="tp-cell-percent">{calcShare(totals.variableExpenses.taxesOnRevenue)}</td>
-                </tr>
-                <tr className="tp-dre-row-subitem">
-                  <td className="tp-cell-name tp-indent-1">Fretes / Logística</td>
-                  <td className="tp-cell-amount">
-                    {formatCurrency(totals.variableExpenses.freightLogistics)}
-                  </td>
-                  <td className="tp-cell-percent">{calcShare(totals.variableExpenses.freightLogistics)}</td>
-                </tr>
-                <tr className="tp-dre-row-subitem">
-                  <td className="tp-cell-name tp-indent-1">Comissões</td>
-                  <td className="tp-cell-amount">
-                    {formatCurrency(totals.variableExpenses.salesCommissions)}
-                  </td>
-                  <td className="tp-cell-percent">{calcShare(totals.variableExpenses.salesCommissions)}</td>
-                </tr>
-                <tr className="tp-dre-row-subitem">
-                  <td className="tp-cell-name tp-indent-1">Outras Despesas Variáveis</td>
-                  <td className="tp-cell-amount">
-                    {formatCurrency(totals.variableExpenses.other)}
-                  </td>
-                  <td className="tp-cell-percent">{calcShare(totals.variableExpenses.other)}</td>
-                </tr>
+                {renderSubitemRow(
+                  "Taxas de Pagamento",
+                  totals.variableExpenses.paymentFees,
+                  "VARIABLE_PAYMENT_FEE",
+                )}
+                {renderSubitemRow(
+                  "Impostos sobre Vendas",
+                  totals.variableExpenses.taxesOnRevenue,
+                  "VARIABLE_TAX_ON_REVENUE",
+                )}
+                {renderSubitemRow(
+                  "Fretes / Logística",
+                  totals.variableExpenses.freightLogistics,
+                  "VARIABLE_FREIGHT_LOGISTICS",
+                )}
+                {renderSubitemRow(
+                  "Comissões",
+                  totals.variableExpenses.salesCommissions,
+                  "VARIABLE_SALES_COMMISSION",
+                )}
+                {packagingVal > 0 &&
+                  renderSubitemRow(
+                    "Embalagens / Expedição",
+                    packagingVal,
+                    "VARIABLE_PACKAGING",
+                  )}
+                {renderSubitemRow(
+                  "Outras Despesas Variáveis",
+                  totals.variableExpenses.other,
+                  "VARIABLE_OTHER",
+                )}
               </>
             )}
 
@@ -195,7 +323,7 @@ export function FinancialDreTable({ totals, realizedRevenue }: FinancialDreTable
                 </span>
                 <span className="tp-dre-badge-math is-minus">(-)</span>
                 <strong>Despesas Operacionais</strong>
-                <span className="tp-dre-item-count">(10 categorias)</span>
+                <span className="tp-dre-item-count">({operatingItemsCount} categorias)</span>
               </td>
               <td className="tp-cell-amount tp-text-deduction">
                 -{formatCurrency(totals.operatingExpenses.total)}
@@ -206,76 +334,68 @@ export function FinancialDreTable({ totals, realizedRevenue }: FinancialDreTable
             {/* Despesas Operacionais Subitens */}
             {expandOperating && (
               <>
-                <tr className="tp-dre-row-subitem">
-                  <td className="tp-cell-name tp-indent-1">Pessoal / Encargos</td>
-                  <td className="tp-cell-amount">
-                    {formatCurrency(totals.operatingExpenses.personnel)}
-                  </td>
-                  <td className="tp-cell-percent">{calcShare(totals.operatingExpenses.personnel)}</td>
-                </tr>
-                <tr className="tp-dre-row-subitem">
-                  <td className="tp-cell-name tp-indent-1">Pró-labore</td>
-                  <td className="tp-cell-amount">
-                    {formatCurrency(totals.operatingExpenses.partnerCompensation)}
-                  </td>
-                  <td className="tp-cell-percent">{calcShare(totals.operatingExpenses.partnerCompensation)}</td>
-                </tr>
-                <tr className="tp-dre-row-subitem">
-                  <td className="tp-cell-name tp-indent-1">Marketing</td>
-                  <td className="tp-cell-amount">
-                    {formatCurrency(totals.operatingExpenses.marketing)}
-                  </td>
-                  <td className="tp-cell-percent">{calcShare(totals.operatingExpenses.marketing)}</td>
-                </tr>
-                <tr className="tp-dre-row-subitem">
-                  <td className="tp-cell-name tp-indent-1">Ocupação</td>
-                  <td className="tp-cell-amount">
-                    {formatCurrency(totals.operatingExpenses.occupancy)}
-                  </td>
-                  <td className="tp-cell-percent">{calcShare(totals.operatingExpenses.occupancy)}</td>
-                </tr>
-                <tr className="tp-dre-row-subitem">
-                  <td className="tp-cell-name tp-indent-1">Utilidades</td>
-                  <td className="tp-cell-amount">
-                    {formatCurrency(totals.operatingExpenses.utilities)}
-                  </td>
-                  <td className="tp-cell-percent">{calcShare(totals.operatingExpenses.utilities)}</td>
-                </tr>
-                <tr className="tp-dre-row-subitem">
-                  <td className="tp-cell-name tp-indent-1">Software</td>
-                  <td className="tp-cell-amount">
-                    {formatCurrency(totals.operatingExpenses.software)}
-                  </td>
-                  <td className="tp-cell-percent">{calcShare(totals.operatingExpenses.software)}</td>
-                </tr>
-                <tr className="tp-dre-row-subitem">
-                  <td className="tp-cell-name tp-indent-1">Contabilidade</td>
-                  <td className="tp-cell-amount">
-                    {formatCurrency(totals.operatingExpenses.accounting)}
-                  </td>
-                  <td className="tp-cell-percent">{calcShare(totals.operatingExpenses.accounting)}</td>
-                </tr>
-                <tr className="tp-dre-row-subitem">
-                  <td className="tp-cell-name tp-indent-1">Infraestrutura</td>
-                  <td className="tp-cell-amount">
-                    {formatCurrency(totals.operatingExpenses.infrastructure)}
-                  </td>
-                  <td className="tp-cell-percent">{calcShare(totals.operatingExpenses.infrastructure)}</td>
-                </tr>
-                <tr className="tp-dre-row-subitem">
-                  <td className="tp-cell-name tp-indent-1">Administrativo</td>
-                  <td className="tp-cell-amount">
-                    {formatCurrency(totals.operatingExpenses.administrative)}
-                  </td>
-                  <td className="tp-cell-percent">{calcShare(totals.operatingExpenses.administrative)}</td>
-                </tr>
-                <tr className="tp-dre-row-subitem">
-                  <td className="tp-cell-name tp-indent-1">Outros</td>
-                  <td className="tp-cell-amount">
-                    {formatCurrency(totals.operatingExpenses.other)}
-                  </td>
-                  <td className="tp-cell-percent">{calcShare(totals.operatingExpenses.other)}</td>
-                </tr>
+                {renderSubitemRow(
+                  "Encargos sobre Pró-labore / Pessoal",
+                  totals.operatingExpenses.personnel,
+                  "OPERATING_PERSONNEL",
+                )}
+                {renderSubitemRow(
+                  "Pró-labore dos Sócios",
+                  totals.operatingExpenses.partnerCompensation,
+                  "OPERATING_PARTNER_COMPENSATION",
+                )}
+                {renderSubitemRow(
+                  "Marketing e Publicidade",
+                  totals.operatingExpenses.marketing,
+                  "OPERATING_MARKETING",
+                )}
+                {athletesVal > 0 &&
+                  renderSubitemRow(
+                    "Atletas / Patrocínios",
+                    athletesVal,
+                    "OPERATING_ATHLETES",
+                  )}
+                {renderSubitemRow(
+                  "Aluguel e Espaço Físico",
+                  totals.operatingExpenses.occupancy,
+                  "OPERATING_OCCUPANCY",
+                )}
+                {renderSubitemRow(
+                  "Serviços Operacionais",
+                  totals.operatingExpenses.utilities,
+                  "OPERATING_UTILITIES",
+                )}
+                {renderSubitemRow(
+                  "Software e Assinaturas",
+                  totals.operatingExpenses.software,
+                  "OPERATING_SOFTWARE",
+                )}
+                {renderSubitemRow(
+                  "Contabilidade / Jurídico",
+                  totals.operatingExpenses.accounting,
+                  "OPERATING_ACCOUNTING",
+                )}
+                {renderSubitemRow(
+                  "Infraestrutura / Manutenção",
+                  totals.operatingExpenses.infrastructure,
+                  "OPERATING_INFRASTRUCTURE",
+                )}
+                {renderSubitemRow(
+                  "Administrativo",
+                  totals.operatingExpenses.administrative,
+                  "OPERATING_ADMINISTRATIVE",
+                )}
+                {lossesVal > 0 &&
+                  renderSubitemRow(
+                    "Perdas / Inadimplência",
+                    lossesVal,
+                    "OPERATING_LOSSES",
+                  )}
+                {renderSubitemRow(
+                  "Outros",
+                  totals.operatingExpenses.other,
+                  "OPERATING_OTHER",
+                )}
               </>
             )}
 
@@ -316,20 +436,19 @@ export function FinancialDreTable({ totals, realizedRevenue }: FinancialDreTable
 
             {expandFinancial && (
               <>
-                <tr className="tp-dre-row-subitem">
-                  <td className="tp-cell-name tp-indent-1">(+) Receitas Financeiras</td>
-                  <td className="tp-cell-amount tp-text-positive">
-                    {formatCurrency(totals.financialResult.financialIncome)}
-                  </td>
-                  <td className="tp-cell-percent">{calcShare(totals.financialResult.financialIncome)}</td>
-                </tr>
-                <tr className="tp-dre-row-subitem">
-                  <td className="tp-cell-name tp-indent-1">(-) Despesas Financeiras</td>
-                  <td className="tp-cell-amount tp-text-deduction">
-                    -{formatCurrency(totals.financialResult.financialExpenses)}
-                  </td>
-                  <td className="tp-cell-percent">{calcShare(totals.financialResult.financialExpenses)}</td>
-                </tr>
+                {renderSubitemRow(
+                  "(+) Receitas Financeiras",
+                  totals.financialResult.financialIncome,
+                  "FINANCIAL_INCOME",
+                  "tp-text-positive",
+                )}
+                {renderSubitemRow(
+                  "(-) Despesas Financeiras",
+                  totals.financialResult.financialExpenses,
+                  "FINANCIAL_EXPENSE",
+                  "tp-text-deduction",
+                  "-",
+                )}
               </>
             )}
 

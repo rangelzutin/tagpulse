@@ -1,19 +1,24 @@
 export type DreEconomicCategory =
   | "INVENTORY_PURCHASE"
+  | "LOAN_PRINCIPAL"
+  | "COMMERCIAL_RECEIVABLE"
   | "VARIABLE_PAYMENT_FEE"
   | "VARIABLE_TAX_ON_REVENUE"
   | "VARIABLE_FREIGHT_LOGISTICS"
   | "VARIABLE_SALES_COMMISSION"
+  | "VARIABLE_PACKAGING"
   | "VARIABLE_OTHER"
   | "OPERATING_PERSONNEL"
   | "OPERATING_PARTNER_COMPENSATION"
   | "OPERATING_MARKETING"
+  | "OPERATING_ATHLETES"
   | "OPERATING_OCCUPANCY"
   | "OPERATING_UTILITIES"
   | "OPERATING_SOFTWARE"
   | "OPERATING_ACCOUNTING"
   | "OPERATING_INFRASTRUCTURE"
   | "OPERATING_ADMINISTRATIVE"
+  | "OPERATING_LOSSES"
   | "OPERATING_OTHER"
   | "FINANCIAL_EXPENSE"
   | "FINANCIAL_INCOME"
@@ -21,7 +26,12 @@ export type DreEconomicCategory =
   | "OTHER_OPERATING_EXPENSE"
   | "CAPITAL_MOVEMENT"
   | "TRANSFER"
+  | "UNCLASSIFIED_REVIEW_REQUIRED"
   | "UNKNOWN";
+
+export type DreClassificationStatus =
+  | "CLASSIFIED"
+  | "UNCLASSIFIED_REVIEW_REQUIRED";
 
 export type DreEconomicStatus = "PROFIT" | "LOSS" | "BREAK_EVEN";
 
@@ -88,6 +98,7 @@ export interface DreClassificationResult {
   recordId: string;
   sourceId: string;
   category: DreEconomicCategory;
+  classificationStatus?: DreClassificationStatus;
   baseAmount: number;
   financialAdjustment?: DreFinancialAdjustment | null;
   competenceDate?: Date | null;
@@ -95,6 +106,12 @@ export interface DreClassificationResult {
   isDeductibleInDre: boolean;
   notes?: string;
   requiresReview?: boolean;
+  budgetPlanSourceId?: string | null;
+  budgetPlanName?: string | null;
+  originalDescription?: string | null;
+  sourceSystem?: string | null;
+  operationUnit?: string | null;
+  appliedRule?: string;
 }
 
 export interface DreVariableExpensesDto {
@@ -102,6 +119,7 @@ export interface DreVariableExpensesDto {
   taxesOnRevenue: number;
   freightLogistics: number;
   salesCommissions: number;
+  packaging?: number;
   other: number;
   total: number;
 }
@@ -110,12 +128,14 @@ export interface DreOperatingExpensesDto {
   personnel: number;
   partnerCompensation: number;
   marketing: number;
+  athletes?: number;
   occupancy: number;
   utilities: number;
   software: number;
   accounting: number;
   infrastructure: number;
   administrative: number;
+  losses?: number;
   other: number;
   total: number;
 }
@@ -258,6 +278,24 @@ export interface DreBreakdownCategoryDetail {
   description: string;
   amount: number;
   recordCount: number;
+  budgetPlanSourceId?: string | null;
+  budgetPlanName?: string | null;
+  appliedRule?: string;
+}
+
+export interface DreBreakdownEntryDto {
+  recordId: string;
+  sourceId: string;
+  date: string; // YYYY-MM-DD
+  description: string;
+  budgetPlanSourceId: string | null;
+  budgetPlanName: string | null;
+  amount: number;
+  sourceSystem: string | null;
+  operationUnit: string | null;
+  economicCategory: DreEconomicCategory;
+  categoryLabel: string;
+  appliedRule?: string;
 }
 
 export interface DreBreakdownItemDto {
@@ -273,6 +311,7 @@ export interface DreBreakdownItemDto {
   shareOfRevenuePercent: number | null;
   recordCount: number;
   details?: DreBreakdownCategoryDetail[];
+  entries?: DreBreakdownEntryDto[];
 }
 
 export interface DreBreakdownDto {
@@ -282,6 +321,7 @@ export interface DreBreakdownDto {
   };
   realizedRevenue: number;
   categories: DreBreakdownItemDto[];
+  unclassifiedOutflows?: DreBreakdownEntryDto[];
   disclaimer: string;
 }
 

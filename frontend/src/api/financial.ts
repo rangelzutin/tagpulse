@@ -560,20 +560,25 @@ export async function fetchFinancialSyncStatus(): Promise<FinancialSyncStatusRes
 
 export type DreEconomicCategory =
   | "INVENTORY_PURCHASE"
+  | "LOAN_PRINCIPAL"
+  | "COMMERCIAL_RECEIVABLE"
   | "VARIABLE_PAYMENT_FEE"
   | "VARIABLE_TAX_ON_REVENUE"
   | "VARIABLE_FREIGHT_LOGISTICS"
   | "VARIABLE_SALES_COMMISSION"
+  | "VARIABLE_PACKAGING"
   | "VARIABLE_OTHER"
   | "OPERATING_PERSONNEL"
   | "OPERATING_PARTNER_COMPENSATION"
   | "OPERATING_MARKETING"
+  | "OPERATING_ATHLETES"
   | "OPERATING_OCCUPANCY"
   | "OPERATING_UTILITIES"
   | "OPERATING_SOFTWARE"
   | "OPERATING_ACCOUNTING"
   | "OPERATING_INFRASTRUCTURE"
   | "OPERATING_ADMINISTRATIVE"
+  | "OPERATING_LOSSES"
   | "OPERATING_OTHER"
   | "FINANCIAL_EXPENSE"
   | "FINANCIAL_INCOME"
@@ -581,6 +586,7 @@ export type DreEconomicCategory =
   | "OTHER_OPERATING_EXPENSE"
   | "CAPITAL_MOVEMENT"
   | "TRANSFER"
+  | "UNCLASSIFIED_REVIEW_REQUIRED"
   | "UNKNOWN";
 
 export type DreEconomicStatus = "PROFIT" | "LOSS" | "BREAK_EVEN";
@@ -642,6 +648,7 @@ export interface DreVariableExpensesDto {
   taxesOnRevenue: number;
   freightLogistics: number;
   salesCommissions: number;
+  packaging?: number;
   other: number;
   total: number;
 }
@@ -650,12 +657,14 @@ export interface DreOperatingExpensesDto {
   personnel: number;
   partnerCompensation: number;
   marketing: number;
+  athletes?: number;
   occupancy: number;
   utilities: number;
   software: number;
   accounting: number;
   infrastructure: number;
   administrative: number;
+  losses?: number;
   other: number;
   total: number;
 }
@@ -774,6 +783,21 @@ export interface DreBreakdownCategoryDetail {
   recordCount: number;
 }
 
+export interface DreBreakdownEntryDto {
+  recordId: string;
+  sourceId?: string | null;
+  date: string;
+  description: string;
+  budgetPlanSourceId?: string | null;
+  budgetPlanName?: string | null;
+  amount: number;
+  sourceSystem?: string | null;
+  operationUnit?: string | null;
+  economicCategory: DreEconomicCategory;
+  categoryLabel: string;
+  appliedRule?: string | null;
+}
+
 export interface DreBreakdownItemDto {
   economicCategory: DreEconomicCategory;
   label: string;
@@ -787,6 +811,7 @@ export interface DreBreakdownItemDto {
   shareOfRevenuePercent: number | null;
   recordCount: number;
   details?: DreBreakdownCategoryDetail[];
+  entries?: DreBreakdownEntryDto[];
 }
 
 export interface DreBreakdownDto {
@@ -796,6 +821,7 @@ export interface DreBreakdownDto {
   };
   realizedRevenue: number;
   categories: DreBreakdownItemDto[];
+  unclassifiedOutflows?: DreBreakdownEntryDto[];
   disclaimer: string;
 }
 

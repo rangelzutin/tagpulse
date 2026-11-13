@@ -306,11 +306,14 @@ describe("Phase 5D: Financial DRE Frontend Components & Tab Tests", () => {
     expect(html).toContain("Taxas de Pagamento");
     expect(html).toContain("Impostos sobre Vendas");
     expect(html).toContain("Fretes / Logística");
-    expect(html).toContain("Pró-labore");
-    expect(html).toContain("Marketing");
-    expect(html).toContain("Ocupação");
-    expect(html).toContain("Software");
-    expect(html).toContain("Contabilidade");
+    expect(html).toContain("Encargos sobre Pró-labore / Pessoal");
+    expect(html).toContain("Pró-labore dos Sócios");
+    expect(html).toContain("Marketing e Publicidade");
+    expect(html).toContain("Aluguel e Espaço Físico");
+    expect(html).toContain("Serviços Operacionais");
+    expect(html).toContain("Software e Assinaturas");
+    expect(html).toContain("Contabilidade / Jurídico");
+    expect(html).toContain("Infraestrutura / Manutenção");
 
     // Formatted monetary and percentage values
     expect(html).toContain("100,00%");
