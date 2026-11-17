@@ -1,12 +1,36 @@
-import { DollarSign, ShoppingBag, TrendingUp, Users } from "lucide-react";
+import { useState } from "react";
+import {
+  DollarSign,
+  Scale,
+  ShoppingBag,
+  TrendingUp,
+  Users,
+  X,
+} from "lucide-react";
 import type { SalesOverviewSummary } from "../api/bi";
-import { formatCurrency, formatNumber } from "../utils/formatters";
+import type { MonthlyOperationalBreakEvenDto } from "../api/financial";
+import {
+  formatCurrency,
+  formatDateBr,
+  formatNumber,
+  formatPercent,
+} from "../utils/formatters";
 
 interface KpiGridProps {
   summary: SalesOverviewSummary;
+  operationalBreakEven?: MonthlyOperationalBreakEvenDto | null;
 }
 
-export function KpiGrid({ summary }: KpiGridProps) {
+export function KpiGrid({ summary, operationalBreakEven }: KpiGridProps) {
+  const [isDrilldownOpen, setIsDrilldownOpen] = useState(false);
+
+  const be = operationalBreakEven ?? null;
+  const isAbove = be?.status === "ABOVE_BREAK_EVEN";
+  const progressBarPct =
+    be?.progressPercent != null
+      ? Math.min(100, Math.max(0, be.progressPercent))
+      : 0;
+
   return (
     <section className="tp-kpi-section" aria-label="Indicadores Comerciais">
       <div className="tp-kpi-grid">
@@ -63,6 +87,126 @@ export function KpiGrid({ summary }: KpiGridProps) {
             </span>
           </div>
         </article>
+
+        {be && (
+          <article
+            className="tp-kpi-card tp-kpi-breakeven"
+            data-testid="home-operational-breakeven-card"
+            role="button"
+            tabIndex={0}
+            onClick={() => setIsDrilldownOpen(true)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setIsDrilldownOpen(true);
+              }
+            }}
+            title="Calculado com base nas despesas já lançadas com vencimento neste mês."
+            style={{
+              cursor: "pointer",
+              border: isAbove
+                ? "1px solid rgba(16, 185, 129, 0.35)"
+                : "1px solid rgba(56, 189, 248, 0.3)",
+            }}
+          >
+            <div className="tp-kpi-header" style={{ alignItems: "center", gap: "6px" }}>
+              <span className="tp-kpi-label">Ponto de equilíbrio do mês</span>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                {be.isProvisional && (
+                  <span
+                    className="tp-badge-provisional"
+                    title="Calculado com base nas despesas já lançadas com vencimento neste mês."
+                    style={{
+                      fontSize: "10px",
+                      fontWeight: 700,
+                      padding: "2px 6px",
+                      borderRadius: "999px",
+                      background: "rgba(245, 158, 11, 0.15)",
+                      color: "#fbbf24",
+                      border: "1px solid rgba(245, 158, 11, 0.35)",
+                      letterSpacing: "0.03em",
+                    }}
+                  >
+                    PROVISÓRIO
+                  </span>
+                )}
+                <span className="tp-kpi-icon-wrap tp-icon-cyan">
+                  <Scale size={16} />
+                </span>
+              </div>
+            </div>
+
+            <div className="tp-kpi-value-wrap">
+              <span className="tp-kpi-value">
+                {be.operationalBreakEvenRevenue !== null
+                  ? formatCurrency(be.operationalBreakEvenRevenue)
+                  : "—"}
+              </span>
+            </div>
+
+            <div
+              style={{
+                marginTop: "6px",
+                fontSize: "12px",
+                fontWeight: 600,
+                color: isAbove ? "#34d399" : "#fbbf24",
+              }}
+            >
+              {be.statusLabel}
+            </div>
+
+            {be.progressPercent !== null && (
+              <div
+                style={{
+                  marginTop: "8px",
+                  height: "5px",
+                  borderRadius: "999px",
+                  background: "rgba(148, 163, 184, 0.18)",
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    width: `${progressBarPct}%`,
+                    height: "100%",
+                    borderRadius: "999px",
+                    background: isAbove ? "#10b981" : "#38bdf8",
+                  }}
+                />
+              </div>
+            )}
+
+            <div
+              style={{
+                marginTop: "8px",
+                display: "flex",
+                flexWrap: "wrap",
+                justifyContent: "space-between",
+                gap: "6px 12px",
+                fontSize: "11px",
+                color: "#94a3b8",
+              }}
+            >
+              <span>
+                Faturado: <strong style={{ color: "#e2e8f0" }}>{formatCurrency(be.realizedRevenue)}</strong>
+              </span>
+              <span>
+                Progresso:{" "}
+                <strong style={{ color: "#e2e8f0" }}>
+                  {be.progressPercent !== null ? formatPercent(be.progressPercent, 1) : "—"}
+                </strong>
+              </span>
+              {be.averageOperationalBreakEven !== null && (
+                <span>
+                  Média mensal:{" "}
+                  <strong style={{ color: "#e2e8f0" }}>
+                    {formatCurrency(be.averageOperationalBreakEven)}
+                  </strong>
+                </span>
+              )}
+            </div>
+          </article>
+        )}
       </div>
 
       {summary.salesWithoutCustomer > 0 && (
@@ -74,6 +218,337 @@ export function KpiGrid({ summary }: KpiGridProps) {
           <span className="tp-secondary-value">
             {formatNumber(summary.salesWithoutCustomer)}
           </span>
+        </div>
+      )}
+
+      {be && isDrilldownOpen && (
+        <div
+          className="tp-modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="home-breakeven-modal-title"
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15, 23, 42, 0.8)",
+            backdropFilter: "blur(4px)",
+            zIndex: 1100,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
+          }}
+          onClick={() => setIsDrilldownOpen(false)}
+        >
+          <div
+            className="tp-modal-box"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#0f172a",
+              border: "1px solid #334155",
+              borderRadius: "12px",
+              width: "100%",
+              maxWidth: "780px",
+              maxHeight: "90vh",
+              display: "flex",
+              flexDirection: "column",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.6)",
+              color: "#f8fafc",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+                padding: "16px 24px",
+                borderBottom: "1px solid #1e293b",
+                gap: "12px",
+              }}
+            >
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                  <h3
+                    id="home-breakeven-modal-title"
+                    style={{ margin: 0, fontSize: "17px", fontWeight: 700, color: "#f8fafc" }}
+                  >
+                    Ponto de Equilíbrio do Mês ({be.referenceMonth})
+                  </h3>
+                  <span
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      padding: "2px 8px",
+                      borderRadius: "999px",
+                      background: "rgba(56, 189, 248, 0.15)",
+                      color: "#38bdf8",
+                      border: "1px solid rgba(56, 189, 248, 0.35)",
+                    }}
+                  >
+                    Critério Home: vencimento no mês
+                  </span>
+                  {be.isProvisional && (
+                    <span
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        padding: "2px 8px",
+                        borderRadius: "999px",
+                        background: "rgba(245, 158, 11, 0.15)",
+                        color: "#fbbf24",
+                        border: "1px solid rgba(245, 158, 11, 0.35)",
+                      }}
+                    >
+                      PROVISÓRIO
+                    </span>
+                  )}
+                </div>
+                <p style={{ margin: "6px 0 0 0", fontSize: "12px", color: "#94a3b8" }}>
+                  Visão operacional de {formatDateBr(be.period.from)} a {formatDateBr(be.period.to)}. Considera todas as despesas, impostos (DAS/ICMS) e encargos (GPS) com vencimento no mês corrente (diferente do Critério DRE: competência econômica). Compras de estoque permanecem fora das despesas (custo apropriado via CMV).
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsDrilldownOpen(false)}
+                aria-label="Fechar detalhamento"
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#94a3b8",
+                  cursor: "pointer",
+                  padding: "4px",
+                }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px" }}>
+              {/* Top summary cards */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+                  gap: "12px",
+                  marginBottom: "18px",
+                }}
+              >
+                <div style={{ background: "#1e293b", padding: "12px 14px", borderRadius: "8px", border: "1px solid #334155" }}>
+                  <div style={{ fontSize: "11px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>
+                    Receita Realizada
+                  </div>
+                  <div style={{ fontSize: "17px", fontWeight: 700, color: "#f8fafc", marginTop: "4px" }}>
+                    {formatCurrency(be.realizedRevenue)}
+                  </div>
+                </div>
+                <div style={{ background: "#1e293b", padding: "12px 14px", borderRadius: "8px", border: "1px solid #334155" }}>
+                  <div style={{ fontSize: "11px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>
+                    Ponto de Equilíbrio
+                  </div>
+                  <div style={{ fontSize: "17px", fontWeight: 700, color: "#38bdf8", marginTop: "4px" }}>
+                    {be.operationalBreakEvenRevenue !== null
+                      ? formatCurrency(be.operationalBreakEvenRevenue)
+                      : "—"}
+                  </div>
+                </div>
+                <div style={{ background: "#1e293b", padding: "12px 14px", borderRadius: "8px", border: "1px solid #334155" }}>
+                  <div style={{ fontSize: "11px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>
+                    {isAbove ? "Superado em" : "Quanto falta vender"}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "17px",
+                      fontWeight: 700,
+                      color: isAbove ? "#34d399" : "#fbbf24",
+                      marginTop: "4px",
+                    }}
+                  >
+                    {isAbove
+                      ? formatCurrency(be.surplusRevenue ?? 0)
+                      : formatCurrency(be.remainingRevenueNeeded ?? 0)}
+                  </div>
+                </div>
+                {be.averageOperationalBreakEven !== null && (
+                  <div style={{ background: "#1e293b", padding: "12px 14px", borderRadius: "8px", border: "1px solid #334155" }}>
+                    <div style={{ fontSize: "11px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>
+                      Média Mensal ({be.averageReferenceMonthsCount} meses)
+                    </div>
+                    <div style={{ fontSize: "17px", fontWeight: 700, color: "#cbd5e1", marginTop: "4px" }}>
+                      {formatCurrency(be.averageOperationalBreakEven)}
+                    </div>
+                    <div style={{ fontSize: "10.5px", color: "#64748b", marginTop: "2px" }}>
+                      Ref.: {be.averageReferenceStartMonth} a {be.averageReferenceEndMonth}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Vertical formula breakdown table */}
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid #334155", color: "#94a3b8", textAlign: "left" }}>
+                    <th style={{ padding: "8px" }}>Componente Operacional</th>
+                    <th style={{ padding: "8px", textAlign: "right" }}>Valor (R$)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style={{ borderBottom: "1px solid #1e293b", fontWeight: 700 }}>
+                    <td style={{ padding: "8px" }}>Receita realizada</td>
+                    <td style={{ padding: "8px", textAlign: "right" }}>{formatCurrency(be.realizedRevenue)}</td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid #1e293b", color: "#f87171" }}>
+                    <td style={{ padding: "8px" }}>(-) CMV</td>
+                    <td style={{ padding: "8px", textAlign: "right" }}>-{formatCurrency(be.estimatedCOGS)}</td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid #1e293b", fontWeight: 700, background: "rgba(30, 41, 59, 0.4)" }}>
+                    <td style={{ padding: "8px" }}>
+                      (=) Margem Bruta{" "}
+                      {be.estimatedGrossMarginPercent !== null && (
+                        <span style={{ fontSize: "11.5px", color: "#94a3b8", fontWeight: 500 }}>
+                          ({formatPercent(be.estimatedGrossMarginPercent, 2)})
+                        </span>
+                      )}
+                    </td>
+                    <td style={{ padding: "8px", textAlign: "right" }}>{formatCurrency(be.estimatedGrossProfit)}</td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid #1e293b", fontWeight: 600, color: "#f87171" }}>
+                    <td style={{ padding: "8px" }}>(-) Despesas Variáveis (vencimento no mês)</td>
+                    <td style={{ padding: "8px", textAlign: "right" }}>-{formatCurrency(be.variableExpenses.total)}</td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid #1e293b", fontSize: "12px", color: "#94a3b8" }}>
+                    <td style={{ padding: "5px 8px 5px 24px" }}>• Taxas de Pagamento</td>
+                    <td style={{ padding: "5px 8px", textAlign: "right" }}>{formatCurrency(be.variableExpenses.paymentFees)}</td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid #1e293b", fontSize: "12px", color: "#94a3b8" }}>
+                    <td style={{ padding: "5px 8px 5px 24px" }}>• Impostos sobre Vendas (DAS / ICMS no vencimento)</td>
+                    <td style={{ padding: "5px 8px", textAlign: "right" }}>{formatCurrency(be.variableExpenses.taxesOnRevenue)}</td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid #1e293b", fontSize: "12px", color: "#94a3b8" }}>
+                    <td style={{ padding: "5px 8px 5px 24px" }}>• Fretes / Logística</td>
+                    <td style={{ padding: "5px 8px", textAlign: "right" }}>{formatCurrency(be.variableExpenses.freightLogistics)}</td>
+                  </tr>
+                  {(be.variableExpenses.packaging ?? 0) > 0 && (
+                    <tr style={{ borderBottom: "1px solid #1e293b", fontSize: "12px", color: "#94a3b8" }}>
+                      <td style={{ padding: "5px 8px 5px 24px" }}>• Embalagens / Expedição</td>
+                      <td style={{ padding: "5px 8px", textAlign: "right" }}>
+                        {formatCurrency(be.variableExpenses.packaging ?? 0)}
+                      </td>
+                    </tr>
+                  )}
+                  <tr style={{ borderBottom: "1px solid #1e293b", fontWeight: 700, background: "rgba(56, 189, 248, 0.08)" }}>
+                    <td style={{ padding: "8px" }}>
+                      (=) Margem de Contribuição{" "}
+                      <span style={{ fontSize: "11.5px", color: "#38bdf8", fontWeight: 600 }}>
+                        (Taxa de Margem de Contribuição:{" "}
+                        {be.contributionMarginPercent !== null
+                          ? formatPercent(be.contributionMarginPercent, 2)
+                          : "—"}
+                        )
+                      </span>
+                    </td>
+                    <td style={{ padding: "8px", textAlign: "right", color: "#38bdf8" }}>
+                      {formatCurrency(be.contributionMargin)}
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid #1e293b", fontWeight: 600, color: "#f87171" }}>
+                    <td style={{ padding: "8px" }}>(-) Despesas Operacionais (vencimento no mês)</td>
+                    <td style={{ padding: "8px", textAlign: "right" }}>-{formatCurrency(be.operatingExpenses.total)}</td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid #1e293b", fontSize: "12px", color: "#94a3b8" }}>
+                    <td style={{ padding: "5px 8px 5px 24px" }}>• Pró-labore dos Sócios</td>
+                    <td style={{ padding: "5px 8px", textAlign: "right" }}>
+                      {formatCurrency(be.operatingExpenses.partnerCompensation)}
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid #1e293b", fontSize: "12px", color: "#94a3b8" }}>
+                    <td style={{ padding: "5px 8px 5px 24px" }}>• Encargos sobre Pró-labore / Pessoal (GPS no vencimento)</td>
+                    <td style={{ padding: "5px 8px", textAlign: "right" }}>
+                      {formatCurrency(be.operatingExpenses.personnel)}
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid #1e293b", fontSize: "12px", color: "#94a3b8" }}>
+                    <td style={{ padding: "5px 8px 5px 24px" }}>• Aluguel e Espaço Físico</td>
+                    <td style={{ padding: "5px 8px", textAlign: "right" }}>
+                      {formatCurrency(be.operatingExpenses.occupancy)}
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid #1e293b", fontSize: "12px", color: "#94a3b8" }}>
+                    <td style={{ padding: "5px 8px 5px 24px" }}>• Marketing e Publicidade</td>
+                    <td style={{ padding: "5px 8px", textAlign: "right" }}>
+                      {formatCurrency(be.operatingExpenses.marketing)}
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid #1e293b", fontSize: "12px", color: "#94a3b8" }}>
+                    <td style={{ padding: "5px 8px 5px 24px" }}>• Serviços Operacionais</td>
+                    <td style={{ padding: "5px 8px", textAlign: "right" }}>
+                      {formatCurrency(be.operatingExpenses.utilities)}
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid #1e293b", fontSize: "12px", color: "#94a3b8" }}>
+                    <td style={{ padding: "5px 8px 5px 24px" }}>• Software e Assinaturas</td>
+                    <td style={{ padding: "5px 8px", textAlign: "right" }}>
+                      {formatCurrency(be.operatingExpenses.software)}
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid #1e293b", fontSize: "12px", color: "#94a3b8" }}>
+                    <td style={{ padding: "5px 8px 5px 24px" }}>• Contabilidade / Jurídico</td>
+                    <td style={{ padding: "5px 8px", textAlign: "right" }}>
+                      {formatCurrency(be.operatingExpenses.accounting)}
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid #1e293b", fontSize: "12px", color: "#94a3b8" }}>
+                    <td style={{ padding: "5px 8px 5px 24px" }}>• Infraestrutura / Manutenção</td>
+                    <td style={{ padding: "5px 8px", textAlign: "right" }}>
+                      {formatCurrency(be.operatingExpenses.infrastructure)}
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid #1e293b", fontSize: "12px", color: "#94a3b8" }}>
+                    <td style={{ padding: "5px 8px 5px 24px" }}>• Administrativo</td>
+                    <td style={{ padding: "5px 8px", textAlign: "right" }}>
+                      {formatCurrency(be.operatingExpenses.administrative)}
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid #1e293b", fontWeight: 600 }}>
+                    <td style={{ padding: "8px" }}>(+/-) Resultado Financeiro</td>
+                    <td
+                      style={{
+                        padding: "8px",
+                        textAlign: "right",
+                        color: be.financialResult.total < 0 ? "#f87171" : "#34d399",
+                      }}
+                    >
+                      {formatCurrency(be.financialResult.total)}
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid #334155", fontWeight: 700, background: "rgba(30, 41, 59, 0.6)" }}>
+                    <td style={{ padding: "10px 8px" }}>(=) Ponto de Equilíbrio Operacional do Mês</td>
+                    <td style={{ padding: "10px 8px", textAlign: "right", color: "#38bdf8", fontSize: "15px" }}>
+                      {be.operationalBreakEvenRevenue !== null
+                        ? formatCurrency(be.operationalBreakEvenRevenue)
+                        : "—"}
+                    </td>
+                  </tr>
+                  <tr style={{ fontWeight: 700 }}>
+                    <td style={{ padding: "10px 8px" }}>
+                      {isAbove ? "Superado em" : "Quanto falta vender"}
+                    </td>
+                    <td
+                      style={{
+                        padding: "10px 8px",
+                        textAlign: "right",
+                        color: isAbove ? "#34d399" : "#fbbf24",
+                        fontSize: "15px",
+                      }}
+                    >
+                      {isAbove
+                        ? formatCurrency(be.surplusRevenue ?? 0)
+                        : formatCurrency(be.remainingRevenueNeeded ?? 0)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
     </section>

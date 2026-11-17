@@ -5,6 +5,7 @@ import type {
   DreBreakdownQueryParams,
   DreMonthlyQueryParams,
   DreSummaryQueryParams,
+  OperationalBreakEvenQueryParams,
 } from "./financial-dre-types.js";
 import {
   createProductCost,
@@ -63,6 +64,23 @@ export function registerFinancialDreRoutes(
 
     return reply.code(200).send(result.data);
   });
+
+  // 3B. Ponto de Equilíbrio Operacional do Mês (KPI exclusivo da Home — vencimento no mês)
+  const handleOperationalBreakEven = async (request: any, reply: any) => {
+    const query = (request.query ?? {}) as OperationalBreakEvenQueryParams;
+    const result = await service.getOperationalBreakEven(query);
+
+    if (!result.success) {
+      return reply.code(400).send({
+        status: "error",
+        message: result.error,
+      });
+    }
+
+    return reply.code(200).send(result.data);
+  };
+  app.get("/financial/dre/operational-breakeven", handleOperationalBreakEven);
+  app.get("/financial/operational-breakeven", handleOperationalBreakEven);
 
   // 4. Cost Quality Summary (GET /financial/cost-quality & /financial/dre/cost-quality)
   const handleCostQuality = async (request: any, reply: any) => {

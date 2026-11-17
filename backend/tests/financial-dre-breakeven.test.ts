@@ -3,8 +3,13 @@ import {
   calculateBreakEven,
   calculateDreMonthly,
   calculateDreSummary,
+  calculateMonthlyOperationalBreakEven,
   type MonthlyCommercialTrend,
 } from "../src/modules/financial/financial-dre-calculator.js";
+import {
+  classifyFinancialRecordForDre,
+  type ClassifierRecordInput,
+} from "../src/modules/financial/financial-dre-classifier.js";
 import type { DreClassificationResult } from "../src/modules/financial/financial-dre-types.js";
 
 describe("Financial DRE — Break-Even Analysis (calculateBreakEven)", () => {
@@ -401,6 +406,489 @@ describe("Financial DRE — Break-Even Analysis (calculateBreakEven)", () => {
       expect(result.breakEvenRevenue).toBe(58697.94);
       expect(result.gapToBreakEven).toBe(-289.86);
       expect(result.surplusRevenue).toBe(289.86);
+    });
+  });
+
+  describe("M. Home Operational Monthly Break-Even KPI (Section 13)", () => {
+    const baseTrend: MonthlyCommercialTrend[] = [
+      {
+        month: "2026-09",
+        realizedRevenue: 50000,
+        revenueWithCurrentCost: 50000,
+        revenueWithoutCurrentCost: 0,
+        costCoveragePercent: 100,
+        estimatedCOGS: 30000,
+        estimatedGrossProfit: 20000,
+        grossMarginPercent: 40,
+      },
+      {
+        month: "2026-10",
+        realizedRevenue: 40000,
+        revenueWithCurrentCost: 40000,
+        revenueWithoutCurrentCost: 0,
+        costCoveragePercent: 100,
+        estimatedCOGS: 24000,
+        estimatedGrossProfit: 16000,
+        grossMarginPercent: 40,
+      },
+      {
+        month: "2026-11",
+        realizedRevenue: 11602.87,
+        revenueWithCurrentCost: 11602.87,
+        revenueWithoutCurrentCost: 0,
+        costCoveragePercent: 100,
+        estimatedCOGS: 6788.01,
+        estimatedGrossProfit: 4814.86,
+        grossMarginPercent: 41.5,
+      },
+    ];
+
+    it("A & B: DAS (920.24) and GPS (534.93) with dueDate 2026-11-20 enter Home November operational KPI while remaining in October for DRE", () => {
+      const records: ClassifierRecordInput[] = [
+        {
+          id: "rec-das",
+          sourceId: "11568",
+          type: "SAIDA",
+          budgetPlanSourceId: "27",
+          description: "Simples Nacional",
+          dueDate: new Date("2026-11-20T00:00:00Z"),
+          originalAmount: 920.24,
+          totalAmount: 920.24,
+        },
+        {
+          id: "rec-gps",
+          sourceId: "11567",
+          type: "SAIDA",
+          budgetPlanSourceId: "27",
+          description: "GPS",
+          dueDate: new Date("2026-11-20T00:00:00Z"),
+          originalAmount: 534.93,
+          totalAmount: 534.93,
+        },
+      ];
+
+      // 1. Verify DRE remains unchanged (belongs to 2026-10)
+      const dreClassified = records.map((r) => classifyFinancialRecordForDre(r));
+      expect(dreClassified[0]!.referenceMonth).toBe("2026-10");
+      expect(dreClassified[1]!.referenceMonth).toBe("2026-10");
+
+      const dreMonths = calculateDreMonthly(baseTrend, dreClassified, {
+        period: { from: "2026-11-01", to: "2026-11-30" },
+        fromDate: new Date("2026-11-01T00:00:00Z"),
+        toExclusiveDate: new Date("2026-12-01T00:00:00Z"),
+      });
+      const dreNov = dreMonths.find((m) => m.month === "2026-11")!;
+      expect(dreNov.variableExpenses.taxesOnRevenue).toBe(0);
+      expect(dreNov.operatingExpenses.personnel).toBe(0);
+
+      // 2. Verify Home Operational KPI includes both in 2026-11
+      const homeNov = calculateMonthlyOperationalBreakEven(baseTrend, records, {
+        targetMonth: "2026-11",
+        referenceDate: new Date("2026-11-17T12:00:00Z"),
+      });
+      expect(homeNov.calculationBasis).toBe("CURRENT_MONTH_DUE_DATE");
+      expect(homeNov.variableExpenses.taxesOnRevenue).toBe(920.24);
+      expect(homeNov.operatingExpenses.personnel).toBe(534.93);
+    });
+
+    it("C & D: excludes inventory purchases (Plan 19) from KPI expenses and includes November partner compensation (Plan 39)", () => {
+      const records: ClassifierRecordInput[] = [
+        {
+          id: "rec-inv",
+          sourceId: "11531",
+          type: "SAIDA",
+          budgetPlanSourceId: "19",
+          description: "Compra Fornecedor YOURFACE",
+          dueDate: new Date("2026-11-05T00:00:00Z"),
+          originalAmount: 1888.0,
+          totalAmount: 1888.0,
+        },
+        {
+          id: "rec-pro-1",
+          sourceId: "11572",
+          type: "SAIDA",
+          budgetPlanSourceId: "39",
+          description: "Andre",
+          dueDate: new Date("2026-11-10T00:00:00Z"),
+          originalAmount: 2000.0,
+          totalAmount: 2000.0,
+        },
+        {
+          id: "rec-pro-2",
+          sourceId: "11573",
+          type: "SAIDA",
+          budgetPlanSourceId: "39",
+          description: "Rangel",
+          dueDate: new Date("2026-11-10T00:00:00Z"),
+          originalAmount: 2000.0,
+          totalAmount: 2000.0,
+        },
+        {
+          id: "rec-pro-3",
+          sourceId: "11574",
+          type: "SAIDA",
+          budgetPlanSourceId: "39",
+          description: "Mario",
+          dueDate: new Date("2026-11-10T00:00:00Z"),
+          originalAmount: 2000.0,
+          totalAmount: 2000.0,
+        },
+      ];
+
+      const homeNov = calculateMonthlyOperationalBreakEven(baseTrend, records, {
+        targetMonth: "2026-11",
+        referenceDate: new Date("2026-11-17T12:00:00Z"),
+      });
+
+      expect(homeNov.variableExpenses.total).toBe(0);
+      expect(homeNov.operatingExpenses.partnerCompensation).toBe(6000);
+      expect(homeNov.operatingExpenses.total).toBe(6000);
+      expect(homeNov.estimatedCOGS).toBe(6788.01);
+    });
+
+    it("E & F: includes expense with dueDate 30/11 even on 17/11 and excludes December dueDate expenses", () => {
+      const records: ClassifierRecordInput[] = [
+        {
+          id: "rec-icms-nov",
+          sourceId: "11520",
+          type: "SAIDA",
+          budgetPlanSourceId: "27",
+          description: "ICMS",
+          dueDate: new Date("2026-11-30T00:00:00Z"),
+          originalAmount: 550.2,
+          totalAmount: 550.2,
+        },
+        {
+          id: "rec-frete-dec",
+          sourceId: "11570",
+          type: "SAIDA",
+          budgetPlanSourceId: "8",
+          description: "Braspress",
+          dueDate: new Date("2026-12-04T00:00:00Z"),
+          originalAmount: 159.23,
+          totalAmount: 159.23,
+        },
+      ];
+
+      const homeNov = calculateMonthlyOperationalBreakEven(baseTrend, records, {
+        targetMonth: "2026-11",
+        referenceDate: new Date("2026-11-17T12:00:00Z"),
+      });
+
+      expect(homeNov.period).toEqual({ from: "2026-11-01", to: "2026-11-30" });
+      expect(homeNov.variableExpenses.taxesOnRevenue).toBe(550.2);
+      expect(homeNov.variableExpenses.freightLogistics).toBe(0);
+    });
+
+    it("G: averageOperationalBreakEven excludes Jan-Jun (legacy regime), excludes Jul (missing accounting), includes Aug-Oct (40630.17), and excludes open Nov", () => {
+      const fullTrend: MonthlyCommercialTrend[] = [
+        // 2026-05: legacy regime (< 2026-07) even if complete -> excluded
+        {
+          month: "2026-05",
+          realizedRevenue: 30483.36,
+          revenueWithCurrentCost: 30483.36,
+          revenueWithoutCurrentCost: 0,
+          costCoveragePercent: 100,
+          estimatedCOGS: 17948.75,
+          estimatedGrossProfit: 12534.61,
+          grossMarginPercent: 41.12,
+        },
+        // 2026-07: current regime, but missing accounting -> excluded
+        {
+          month: "2026-07",
+          realizedRevenue: 35784.89,
+          revenueWithCurrentCost: 35784.89,
+          revenueWithoutCurrentCost: 0,
+          costCoveragePercent: 100,
+          estimatedCOGS: 20979.18,
+          estimatedGrossProfit: 14805.71,
+          grossMarginPercent: 41.37,
+        },
+        // 2026-08: complete current regime (BE = 39674.13)
+        {
+          month: "2026-08",
+          realizedRevenue: 31509.52,
+          revenueWithCurrentCost: 31509.52,
+          revenueWithoutCurrentCost: 0,
+          costCoveragePercent: 100,
+          estimatedCOGS: 18352.71,
+          estimatedGrossProfit: 13156.81,
+          grossMarginPercent: 41.76,
+        },
+        // 2026-09: complete current regime (BE = 43718.18)
+        {
+          month: "2026-09",
+          realizedRevenue: 39137.44,
+          revenueWithCurrentCost: 39137.44,
+          revenueWithoutCurrentCost: 0,
+          costCoveragePercent: 100,
+          estimatedCOGS: 23365.58,
+          estimatedGrossProfit: 15771.86,
+          grossMarginPercent: 40.3,
+        },
+        // 2026-10: complete current regime (BE = 38498.20)
+        {
+          month: "2026-10",
+          realizedRevenue: 21208.4,
+          revenueWithCurrentCost: 21208.4,
+          revenueWithoutCurrentCost: 0,
+          costCoveragePercent: 100,
+          estimatedCOGS: 11441.28,
+          estimatedGrossProfit: 9767.12,
+          grossMarginPercent: 46.05,
+        },
+        // 2026-11: open current month -> excluded from reference average
+        {
+          month: "2026-11",
+          realizedRevenue: 11602.87,
+          revenueWithCurrentCost: 11602.87,
+          revenueWithoutCurrentCost: 0,
+          costCoveragePercent: 100,
+          estimatedCOGS: 6788.01,
+          estimatedGrossProfit: 4814.86,
+          grossMarginPercent: 41.5,
+        },
+      ];
+
+      const makeCompleteMonthRecords = (
+        monthPrefix: string,
+        nextMonthPrefix: string,
+        opts: {
+          dasDueInMonth: number;
+          gpsDueInMonth: number;
+          freight: number;
+          proLabore: number;
+          rent: number;
+          marketing: number;
+          accounting: number;
+          otherOpEx: number;
+          finExp: number;
+          nextMonthDasForDreClose: number;
+          nextMonthGpsForDreClose: number;
+        },
+      ): ClassifierRecordInput[] => {
+        const list: ClassifierRecordInput[] = [
+          {
+            id: `${monthPrefix}-das`,
+            sourceId: `${monthPrefix}-das`,
+            type: "SAIDA",
+            budgetPlanSourceId: "27",
+            description: "Simples Nacional",
+            dueDate: new Date(`${monthPrefix}-20T00:00:00Z`),
+            originalAmount: opts.dasDueInMonth,
+            totalAmount: opts.dasDueInMonth,
+          },
+          {
+            id: `${monthPrefix}-gps`,
+            sourceId: `${monthPrefix}-gps`,
+            type: "SAIDA",
+            budgetPlanSourceId: "27",
+            description: "GPS",
+            dueDate: new Date(`${monthPrefix}-20T00:00:00Z`),
+            originalAmount: opts.gpsDueInMonth,
+            totalAmount: opts.gpsDueInMonth,
+          },
+          {
+            id: `${monthPrefix}-fr`,
+            sourceId: `${monthPrefix}-fr`,
+            type: "SAIDA",
+            budgetPlanSourceId: "8",
+            description: "Melhor Envio",
+            dueDate: new Date(`${monthPrefix}-10T00:00:00Z`),
+            originalAmount: opts.freight,
+            totalAmount: opts.freight,
+          },
+          {
+            id: `${monthPrefix}-pro`,
+            sourceId: `${monthPrefix}-pro`,
+            type: "SAIDA",
+            budgetPlanSourceId: "39",
+            description: "Retirada Mensal",
+            dueDate: new Date(`${monthPrefix}-10T00:00:00Z`),
+            originalAmount: opts.proLabore,
+            totalAmount: opts.proLabore,
+          },
+          {
+            id: `${monthPrefix}-rent`,
+            sourceId: `${monthPrefix}-rent`,
+            type: "SAIDA",
+            budgetPlanSourceId: "8",
+            description: "Aluguel Tiradentes",
+            dueDate: new Date(`${monthPrefix}-08T00:00:00Z`),
+            originalAmount: opts.rent,
+            totalAmount: opts.rent,
+          },
+          {
+            id: `${monthPrefix}-mkt`,
+            sourceId: `${monthPrefix}-mkt`,
+            type: "SAIDA",
+            budgetPlanSourceId: "23",
+            description: "Google Ads",
+            dueDate: new Date(`${monthPrefix}-15T00:00:00Z`),
+            originalAmount: opts.marketing,
+            totalAmount: opts.marketing,
+          },
+          {
+            id: `${monthPrefix}-other`,
+            sourceId: `${monthPrefix}-other`,
+            type: "SAIDA",
+            budgetPlanSourceId: "8",
+            description: "TagPlus - Nineclouds",
+            dueDate: new Date(`${monthPrefix}-15T00:00:00Z`),
+            originalAmount: opts.otherOpEx,
+            totalAmount: opts.otherOpEx,
+          },
+          {
+            id: `${monthPrefix}-fin`,
+            sourceId: `${monthPrefix}-fin`,
+            type: "SAIDA",
+            budgetPlanSourceId: "8",
+            description: "Conta Corrente Bradesco",
+            dueDate: new Date(`${monthPrefix}-15T00:00:00Z`),
+            originalAmount: opts.finExp,
+            totalAmount: opts.finExp,
+          },
+        ];
+        if (opts.accounting > 0) {
+          list.push({
+            id: `${monthPrefix}-acc`,
+            sourceId: `${monthPrefix}-acc`,
+            type: "SAIDA",
+            budgetPlanSourceId: "8",
+            description: "Escritorio Ortiz",
+            dueDate: new Date(`${monthPrefix}-15T00:00:00Z`),
+            originalAmount: opts.accounting,
+            totalAmount: opts.accounting,
+          });
+        }
+        return list;
+      };
+
+      const records: ClassifierRecordInput[] = [
+        // 2026-05 (legacy regime)
+        ...makeCompleteMonthRecords("2026-05", "2026-06", {
+          dasDueInMonth: 2081.99,
+          gpsDueInMonth: 534.93,
+          freight: 1941.39,
+          proLabore: 9000,
+          rent: 4067.59,
+          marketing: 2486.14,
+          accounting: 770.3,
+          otherOpEx: 830.98,
+          finExp: 200.82,
+          nextMonthDasForDreClose: 1288.18,
+          nextMonthGpsForDreClose: 534.93,
+        }),
+        // 2026-06 DAS/GPS to close 2026-05 in DRE
+        {
+          id: "2026-06-das",
+          sourceId: "2026-06-das",
+          type: "SAIDA",
+          budgetPlanSourceId: "27",
+          description: "Simples Nacional",
+          dueDate: new Date("2026-06-20T00:00:00Z"),
+          originalAmount: 1288.18,
+          totalAmount: 1288.18,
+        },
+        {
+          id: "2026-06-gps",
+          sourceId: "2026-06-gps",
+          type: "SAIDA",
+          budgetPlanSourceId: "27",
+          description: "GPS",
+          dueDate: new Date("2026-06-20T00:00:00Z"),
+          originalAmount: 534.93,
+          totalAmount: 534.93,
+        },
+        // 2026-07 (missing accounting: accounting = 0)
+        ...makeCompleteMonthRecords("2026-07", "2026-08", {
+          dasDueInMonth: 985.81,
+          gpsDueInMonth: 534.93,
+          freight: 2218.33,
+          proLabore: 6000,
+          rent: 1571.85,
+          marketing: 3022.51,
+          accounting: 0,
+          otherOpEx: 975.97,
+          finExp: 203.76,
+          nextMonthDasForDreClose: 1084.18,
+          nextMonthGpsForDreClose: 534.93,
+        }),
+        // 2026-08 (complete: BE = 39674.13)
+        ...makeCompleteMonthRecords("2026-08", "2026-09", {
+          dasDueInMonth: 1084.18,
+          gpsDueInMonth: 534.93,
+          freight: 1675.85,
+          proLabore: 6000,
+          rent: 1571.85,
+          marketing: 3332.98,
+          accounting: 770.3,
+          otherOpEx: 676.93,
+          finExp: 203.76,
+          nextMonthDasForDreClose: 1592.55,
+          nextMonthGpsForDreClose: 534.93,
+        }),
+        // 2026-09 (complete: BE = 43718.18)
+        ...makeCompleteMonthRecords("2026-09", "2026-10", {
+          dasDueInMonth: 2700.09,
+          gpsDueInMonth: 534.93,
+          freight: 1498.96,
+          proLabore: 6000,
+          rent: 1571.85,
+          marketing: 2491.14,
+          accounting: 770.3,
+          otherOpEx: 1411.21,
+          finExp: 147.89,
+          nextMonthDasForDreClose: 1447.35,
+          nextMonthGpsForDreClose: 534.93,
+        }),
+        // 2026-10 (complete: BE = 38498.20)
+        ...makeCompleteMonthRecords("2026-10", "2026-11", {
+          dasDueInMonth: 1447.35,
+          gpsDueInMonth: 534.93,
+          freight: 1715.06,
+          proLabore: 6000,
+          rent: 1571.85,
+          marketing: 1757.26,
+          accounting: 770.3,
+          otherOpEx: 1150.99,
+          finExp: 203.76,
+          nextMonthDasForDreClose: 920.24,
+          nextMonthGpsForDreClose: 534.93,
+        }),
+        // 2026-11 DAS and GPS (closes 2026-10 in DRE and enters 2026-11 in Home)
+        {
+          id: "2026-11-das",
+          sourceId: "11568",
+          type: "SAIDA",
+          budgetPlanSourceId: "27",
+          description: "Simples Nacional",
+          dueDate: new Date("2026-11-20T00:00:00Z"),
+          originalAmount: 920.24,
+          totalAmount: 920.24,
+        },
+        {
+          id: "2026-11-gps",
+          sourceId: "11567",
+          type: "SAIDA",
+          budgetPlanSourceId: "27",
+          description: "GPS",
+          dueDate: new Date("2026-11-20T00:00:00Z"),
+          originalAmount: 534.93,
+          totalAmount: 534.93,
+        },
+      ];
+
+      const homeNov = calculateMonthlyOperationalBreakEven(fullTrend, records, {
+        targetMonth: "2026-11",
+        referenceDate: new Date("2026-11-17T12:00:00Z"),
+      });
+
+      // Only 2026-08, 2026-09, and 2026-10 enter the reference average!
+      expect(homeNov.averageReferenceMonthsCount).toBe(3);
+      expect(homeNov.averageReferenceStartMonth).toBe("2026-08");
+      expect(homeNov.averageReferenceEndMonth).toBe("2026-10");
+      expect(homeNov.averageOperationalBreakEven).toBe(40630.17);
     });
   });
 });

@@ -12,8 +12,14 @@ import type {
   DreResultStatus,
   DreSummaryDto,
   DreSummaryTotalsDto,
+  MonthlyOperationalBreakEvenDto,
 } from "./financial-dre-types.js";
 import { DRE_DISCLAIMER } from "./financial-dre-types.js";
+import {
+  classifyFinancialRecordForDre,
+  classifyFinancialRecordForOperationalMonth,
+  type ClassifierRecordInput,
+} from "./financial-dre-classifier.js";
 
 export interface BreakEvenOptions {
   costCoveragePercent?: number | null;
@@ -1280,5 +1286,272 @@ export function calculateDreBreakdown(
     categories,
     unclassifiedOutflows,
     disclaimer: DRE_DISCLAIMER,
+  };
+}
+
+function formatBrlAmount(val: number): string {
+  const fixed = Math.abs(val).toFixed(2);
+  const [intPart = "0", decPart = "00"] = fixed.split(".");
+  const formattedInt = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return `${val < 0 ? "-R$ " : "R$ "}${formattedInt},${decPart}`;
+}
+
+export function calculateMonthlyOperationalBreakEven(
+  commercialTrend: MonthlyCommercialTrend[],
+  records: ClassifierRecordInput[],
+  options?: {
+    targetMonth?: string | undefined; // "YYYY-MM"
+    referenceDate?: Date | undefined;
+  },
+): MonthlyOperationalBreakEvenDto {
+  const refDate = options?.referenceDate ?? new Date();
+  const currentRefMonth = `${refDate.getUTCFullYear()}-${String(
+    refDate.getUTCMonth() + 1,
+  ).padStart(2, "0")}`;
+
+  const targetMonth =
+    options?.targetMonth && /^\d{4}-(0[1-9]|1[0-2])$/.test(options.targetMonth.trim())
+      ? options.targetMonth.trim()
+      : currentRefMonth;
+
+  const [yearStr = "2026", monthStr = "01"] = targetMonth.split("-");
+  const yearNum = Number.parseInt(yearStr, 10);
+  const monthNum = Number.parseInt(monthStr, 10);
+
+  const lastDayOfTargetMonth = new Date(Date.UTC(yearNum, monthNum, 0)).getUTCDate();
+  const monthStartStr = `${targetMonth}-01`;
+  const monthEndStr = `${targetMonth}-${String(lastDayOfTargetMonth).padStart(2, "0")}`;
+
+  const startYearNum = Math.min(yearNum, Math.max(2026, yearNum - 1));
+  const yearStartStr = `${startYearNum}-01-01`;
+  const yearStartDate = new Date(`${yearStartStr}T00:00:00.000Z`);
+  const targetMonthFromDate = new Date(`${monthStartStr}T00:00:00.000Z`);
+  const targetMonthToExclusive = new Date(Date.UTC(yearNum, monthNum, 1));
+
+  // Classificação Operacional (Home): todas as despesas ancoradas pelo mês de vencimento (dueDate)
+  const operationalClassified = records.map((r) =>
+    classifyFinancialRecordForOperationalMonth(r),
+  );
+  // Classificação DRE (Competência): usada apenas para verificar meses fechados na média de referência
+  const dreClassified = records.map((r) => classifyFinancialRecordForDre(r));
+
+  const calcOpts: DreCalculatorOptions = {
+    period: { from: yearStartStr, to: monthEndStr },
+    fromDate: yearStartDate,
+    toExclusiveDate: targetMonthToExclusive,
+    referenceDate: refDate,
+  };
+
+  const opMonths = calculateDreMonthly(commercialTrend, operationalClassified, calcOpts);
+  const dreMonths = calculateDreMonthly(commercialTrend, dreClassified, calcOpts);
+  const dreMonthMap = new Map(dreMonths.map((m) => [m.month, m]));
+
+  const targetOpMonth = opMonths.find((m) => m.month === targetMonth) ?? {
+    month: targetMonth,
+    realizedRevenue: 0,
+    estimatedCOGS: 0,
+    estimatedGrossProfit: 0,
+    estimatedGrossMarginPercent: null,
+    variableExpenses: {
+      paymentFees: 0,
+      taxesOnRevenue: 0,
+      freightLogistics: 0,
+      salesCommissions: 0,
+      packaging: 0,
+      other: 0,
+      total: 0,
+    },
+    contributionMargin: 0,
+    contributionMarginPercent: null,
+    operatingExpenses: {
+      personnel: 0,
+      partnerCompensation: 0,
+      marketing: 0,
+      athletes: 0,
+      occupancy: 0,
+      utilities: 0,
+      software: 0,
+      accounting: 0,
+      infrastructure: 0,
+      administrative: 0,
+      losses: 0,
+      other: 0,
+      total: 0,
+    },
+    financialResult: {
+      financialIncome: 0,
+      financialExpenses: 0,
+      total: 0,
+    },
+    otherResult: {
+      otherIncome: 0,
+      otherExpenses: 0,
+      total: 0,
+    },
+    netManagerialResult: 0,
+    netManagerialMarginPercent: null,
+    status: "BREAK_EVEN" as const,
+    breakEven: undefined,
+    dataQuality: {
+      isProvisional: true,
+      financiallyClosed: false,
+      pendingAccruals: [],
+      dreClassificationCoveragePercent: 100,
+      unknownAmount: 0,
+    },
+  };
+
+  const targetDreMonth = dreMonthMap.get(targetMonth);
+
+  // Média mensal de referência: somente meses fechados, com cobertura de custo 100% (FINAL),
+  // dados financeiros completos (financialDataComplete = true) e pertencentes ao regime
+  // operacional comparável ao atual (>= 2026-07), evoluindo até rolling 12 months.
+  const CURRENT_OPERATIONAL_REGIME_START_MONTH = "2026-07";
+  const MAX_REFERENCE_WINDOW_MONTHS = 12;
+
+  const isOperationalMonthFinanciallyComplete = (m: DreMonthlyItemDto): boolean => {
+    return (
+      m.variableExpenses.taxesOnRevenue > 0 &&
+      m.operatingExpenses.personnel > 0 &&
+      m.operatingExpenses.partnerCompensation > 0 &&
+      m.operatingExpenses.occupancy > 0 &&
+      m.operatingExpenses.accounting > 0 &&
+      m.operatingExpenses.marketing > 0
+    );
+  };
+
+  const eligibleReferenceMonths = opMonths.filter((m) => {
+    if (m.month < CURRENT_OPERATIONAL_REGIME_START_MONTH) return false;
+    if (m.month >= targetMonth) return false;
+    const dm = dreMonthMap.get(m.month);
+    const isClosed = dm ? dm.dataQuality.financiallyClosed : m.dataQuality.financiallyClosed;
+    if (!isClosed) return false;
+    if ((m.costCoveragePercent ?? 0) < 100) return false;
+    if (m.costQualityStatus !== "FINAL") return false;
+    if (!isOperationalMonthFinanciallyComplete(m)) return false;
+    if (m.breakEven?.breakEvenRevenue == null || m.breakEven.breakEvenRevenue <= 0) return false;
+    return true;
+  });
+
+  const reliableMonths = eligibleReferenceMonths.slice(-MAX_REFERENCE_WINDOW_MONTHS);
+
+  let averageOperationalBreakEven: number | null = null;
+  let averageReferenceStartMonth: string | null = null;
+  let averageReferenceEndMonth: string | null = null;
+  const averageReferenceMonthsCount = reliableMonths.length;
+
+  if (reliableMonths.length > 0) {
+    const sumBe = reliableMonths.reduce(
+      (acc, m) => acc + (m.breakEven?.breakEvenRevenue ?? 0),
+      0,
+    );
+    averageOperationalBreakEven = r2(sumBe / reliableMonths.length);
+    averageReferenceStartMonth = reliableMonths[0]!.month;
+    averageReferenceEndMonth = reliableMonths[reliableMonths.length - 1]!.month;
+  }
+
+  const realizedRevenue = targetOpMonth.realizedRevenue;
+  const estimatedCOGS = targetOpMonth.estimatedCOGS;
+  const estimatedGrossProfit = targetOpMonth.estimatedGrossProfit;
+  const estimatedGrossMarginPercent = targetOpMonth.estimatedGrossMarginPercent;
+  const variableExpenses = targetOpMonth.variableExpenses;
+  const contributionMargin = targetOpMonth.contributionMargin;
+  const contributionMarginPercent = targetOpMonth.contributionMarginPercent;
+  const contributionMarginRate = targetOpMonth.breakEven?.contributionMarginRate ?? null;
+  const operatingExpenses = targetOpMonth.operatingExpenses;
+  const financialResult = targetOpMonth.financialResult;
+  const fixedCostBase = r2(operatingExpenses.total - financialResult.total);
+  const operationalNetResult = targetOpMonth.netManagerialResult;
+  const operationalBreakEvenRevenue = targetOpMonth.breakEven?.breakEvenRevenue ?? null;
+
+  let remainingRevenueNeeded: number | null = null;
+  let surplusRevenue: number | null = null;
+  let progressPercent: number | null = null;
+  let status: MonthlyOperationalBreakEvenDto["status"] = "BELOW_BREAK_EVEN";
+  let statusLabel = "";
+
+  if (realizedRevenue <= 0) {
+    status = "NO_REVENUE";
+    statusLabel = "Sem faturamento registrado no mês";
+  } else if (operationalBreakEvenRevenue === null || contributionMargin <= 0) {
+    status = "UNVIABLE_MARGIN";
+    statusLabel = "Margem de contribuição insuficiente";
+  } else if (realizedRevenue < operationalBreakEvenRevenue) {
+    remainingRevenueNeeded = r2(operationalBreakEvenRevenue - realizedRevenue);
+    surplusRevenue = 0;
+    progressPercent = r2((realizedRevenue / operationalBreakEvenRevenue) * 100);
+    status = "BELOW_BREAK_EVEN";
+    statusLabel = `Faltam ${formatBrlAmount(remainingRevenueNeeded)} para o equilíbrio`;
+  } else {
+    remainingRevenueNeeded = 0;
+    surplusRevenue = r2(realizedRevenue - operationalBreakEvenRevenue);
+    progressPercent = r2((realizedRevenue / operationalBreakEvenRevenue) * 100);
+    status = "ABOVE_BREAK_EVEN";
+    statusLabel = `Superado em ${formatBrlAmount(surplusRevenue)}`;
+  }
+
+  const pendingItems: string[] = [];
+  if (targetOpMonth.variableExpenses.taxesOnRevenue <= 0) {
+    pendingItems.push("Impostos sobre vendas (DAS / ICMS)");
+  }
+  if (targetOpMonth.operatingExpenses.personnel <= 0) {
+    pendingItems.push("Encargos / GPS");
+  }
+  if (targetOpMonth.operatingExpenses.partnerCompensation <= 0) {
+    pendingItems.push("Pró-labore dos sócios");
+  }
+
+  const isProvisional =
+    targetMonth >= currentRefMonth ||
+    !(targetDreMonth?.dataQuality.financiallyClosed ?? false) ||
+    pendingItems.length > 0;
+
+  const monthBreakdown = calculateDreBreakdown(
+    operationalClassified,
+    { from: monthStartStr, to: monthEndStr },
+    realizedRevenue,
+    {
+      fromDate: targetMonthFromDate,
+      toExclusiveDate: targetMonthToExclusive,
+    },
+  );
+
+  const entries: DreBreakdownEntryDto[] = monthBreakdown.categories
+    .filter((c) => c.group !== "NON_DRE")
+    .flatMap((c) => c.entries ?? [])
+    .sort((a, b) => b.date.localeCompare(a.date) || b.amount - a.amount);
+
+  return {
+    referenceMonth: targetMonth,
+    period: {
+      from: monthStartStr,
+      to: monthEndStr,
+    },
+    calculationBasis: "CURRENT_MONTH_DUE_DATE",
+    realizedRevenue,
+    estimatedCOGS,
+    estimatedGrossProfit,
+    estimatedGrossMarginPercent,
+    variableExpenses,
+    contributionMargin,
+    contributionMarginPercent,
+    contributionMarginRate,
+    operatingExpenses,
+    financialResult,
+    fixedCostBase,
+    operationalNetResult,
+    operationalBreakEvenRevenue,
+    remainingRevenueNeeded,
+    surplusRevenue,
+    progressPercent,
+    status,
+    statusLabel,
+    isProvisional,
+    pendingItems,
+    averageOperationalBreakEven,
+    averageReferenceStartMonth,
+    averageReferenceEndMonth,
+    averageReferenceMonthsCount,
+    entries,
   };
 }

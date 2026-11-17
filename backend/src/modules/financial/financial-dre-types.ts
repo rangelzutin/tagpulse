@@ -345,5 +345,47 @@ export interface DreBreakdownQueryParams {
   sourceSystem?: string;
 }
 
+export interface OperationalBreakEvenQueryParams {
+  month?: string; // "YYYY-MM"
+  from?: string;
+  to?: string;
+  operationUnit?: string;
+  sourceSystem?: string;
+}
+
+export interface MonthlyOperationalBreakEvenDto {
+  referenceMonth: string; // "YYYY-MM"
+  period: {
+    from: string; // "YYYY-MM-01"
+    to: string; // "YYYY-MM-DD" (último dia do mês)
+  };
+  calculationBasis: "CURRENT_MONTH_DUE_DATE";
+  realizedRevenue: number;
+  estimatedCOGS: number;
+  estimatedGrossProfit: number;
+  estimatedGrossMarginPercent: number | null;
+  variableExpenses: DreVariableExpensesDto;
+  contributionMargin: number;
+  contributionMarginPercent: number | null;
+  contributionMarginRate: number | null;
+  operatingExpenses: DreOperatingExpensesDto;
+  financialResult: DreFinancialResultDto;
+  fixedCostBase: number;
+  operationalNetResult: number | null;
+  operationalBreakEvenRevenue: number | null;
+  remainingRevenueNeeded: number | null;
+  surplusRevenue: number | null;
+  progressPercent: number | null;
+  status: "BELOW_BREAK_EVEN" | "ABOVE_BREAK_EVEN" | "UNVIABLE_MARGIN" | "NO_REVENUE";
+  statusLabel: string;
+  isProvisional: boolean;
+  pendingItems: string[];
+  averageOperationalBreakEven: number | null;
+  averageReferenceStartMonth: string | null;
+  averageReferenceEndMonth: string | null;
+  averageReferenceMonthsCount: number;
+  entries?: DreBreakdownEntryDto[];
+}
+
 export const DRE_DISCLAIMER =
   "O DRE Gerencial do TagPulse utiliza o custo atual dos produtos como estimativa de CMV e classificações gerenciais das despesas. Não substitui a contabilidade oficial.";

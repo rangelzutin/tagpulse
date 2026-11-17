@@ -1055,3 +1055,55 @@ export async function fetchProductCostHistory(productId: string): Promise<Produc
   }
   return response.json();
 }
+
+export interface MonthlyOperationalBreakEvenDto {
+  referenceMonth: string; // "YYYY-MM"
+  period: {
+    from: string;
+    to: string;
+  };
+  calculationBasis: "CURRENT_MONTH_DUE_DATE";
+  realizedRevenue: number;
+  estimatedCOGS: number;
+  estimatedGrossProfit: number;
+  estimatedGrossMarginPercent: number | null;
+  variableExpenses: DreVariableExpensesDto;
+  contributionMargin: number;
+  contributionMarginPercent: number | null;
+  contributionMarginRate: number | null;
+  operatingExpenses: DreOperatingExpensesDto;
+  financialResult: DreFinancialResultDto;
+  fixedCostBase: number;
+  operationalNetResult: number | null;
+  operationalBreakEvenRevenue: number | null;
+  remainingRevenueNeeded: number | null;
+  surplusRevenue: number | null;
+  progressPercent: number | null;
+  status: "BELOW_BREAK_EVEN" | "ABOVE_BREAK_EVEN" | "UNVIABLE_MARGIN" | "NO_REVENUE";
+  statusLabel: string;
+  isProvisional: boolean;
+  pendingItems: string[];
+  averageOperationalBreakEven: number | null;
+  averageReferenceStartMonth: string | null;
+  averageReferenceEndMonth: string | null;
+  averageReferenceMonthsCount: number;
+  entries?: DreBreakdownEntryDto[];
+}
+
+export async function fetchMonthlyOperationalBreakEven(query?: {
+  month?: string;
+  from?: string;
+  to?: string;
+  operationUnit?: string;
+  sourceSystem?: string;
+}): Promise<MonthlyOperationalBreakEvenDto> {
+  const url = buildFinancialUrl("/financial/dre/operational-breakeven", query);
+  const response = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({}));
+    throw new Error(
+      errorBody.message || "Erro ao consultar ponto de equilíbrio operacional do mês.",
+    );
+  }
+  return response.json();
+}

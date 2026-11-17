@@ -12,7 +12,8 @@ import {
   DRE_BREAK_EVEN_PARTIAL_COVERAGE_MESSAGE,
 } from "./dreBreakEvenHelper";
 import { formatCurrency } from "../../utils/formatters";
-import type { DreSummaryTotalsDto } from "../../api/financial";
+import type { DreSummaryTotalsDto, MonthlyOperationalBreakEvenDto } from "../../api/financial";
+import { KpiGrid } from "../KpiGrid";
 
 describe("FinancialDreBreakEven — Frontend Components & Calculation", () => {
   const createMockTotals = (
@@ -212,5 +213,85 @@ describe("FinancialDreBreakEven — Frontend Components & Calculation", () => {
     const noRev = calculateBreakEven(0, 0, 0, { fullCoverage: true });
     const noRevText = formatMonthlyBreakEvenTooltip(noRev, formatCurrency);
     expect(noRevText).toBeNull();
+  });
+
+  it("8. renders Home Operational Monthly Break-Even KPI card inside KpiGrid with PROVISÓRIO badge and auxiliary metrics", () => {
+    const novKpi: MonthlyOperationalBreakEvenDto = {
+      referenceMonth: "2026-11",
+      period: { from: "2026-11-01", to: "2026-11-30" },
+      calculationBasis: "CURRENT_MONTH_DUE_DATE",
+      realizedRevenue: 11602.87,
+      estimatedCOGS: 6788.01,
+      estimatedGrossProfit: 4814.86,
+      estimatedGrossMarginPercent: 41.5,
+      variableExpenses: {
+        paymentFees: 99.08,
+        taxesOnRevenue: 1470.44,
+        freightLogistics: 430.08,
+        salesCommissions: 0,
+        packaging: 0,
+        other: 0,
+        total: 1999.6,
+      },
+      contributionMargin: 2815.26,
+      contributionMarginPercent: 24.26,
+      contributionMarginRate: 0.2426,
+      operatingExpenses: {
+        personnel: 534.93,
+        partnerCompensation: 6000,
+        marketing: 1072.28,
+        athletes: 0,
+        occupancy: 1571.85,
+        utilities: 85.68,
+        software: 159,
+        accounting: 0,
+        infrastructure: 129.5,
+        administrative: 179.82,
+        losses: 0,
+        other: 0,
+        total: 9733.06,
+      },
+      financialResult: {
+        financialIncome: 7.9,
+        financialExpenses: 203.76,
+        total: -195.86,
+      },
+      fixedCostBase: 9928.92,
+      operationalNetResult: -7113.66,
+      operationalBreakEvenRevenue: 40921.25,
+      remainingRevenueNeeded: 29318.38,
+      surplusRevenue: 0,
+      progressPercent: 28.35,
+      status: "BELOW_BREAK_EVEN",
+      statusLabel: "Faltam R$ 29.318,38 para o equilíbrio",
+      isProvisional: true,
+      pendingItems: [],
+      averageOperationalBreakEven: 40630.17,
+      averageReferenceStartMonth: "2026-08",
+      averageReferenceEndMonth: "2026-10",
+      averageReferenceMonthsCount: 3,
+      entries: [],
+    };
+
+    const html = renderToString(
+      React.createElement(KpiGrid, {
+        summary: {
+          revenue: 11602.87,
+          sales: 32,
+          avgTicket: 362.59,
+          customers: 28,
+          salesWithoutCustomer: 0,
+        },
+        operationalBreakEven: novKpi,
+      }),
+    );
+
+    expect(html).toContain('data-testid="home-operational-breakeven-card"');
+    expect(html).toContain("Ponto de equilíbrio do mês");
+    expect(html).toContain("PROVISÓRIO");
+    expect(html).toContain("Faltam R$ 29.318,38 para o equilíbrio");
+    expect(html).toContain(formatCurrency(40921.25));
+    expect(html).toContain(formatCurrency(40630.17));
+    expect(html).not.toContain("Meta atingida");
   });
 });

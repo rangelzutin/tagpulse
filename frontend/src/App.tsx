@@ -37,6 +37,10 @@ import { ProfitabilityView } from "./components/ProfitabilityView";
 import { DecisionsView } from "./components/DecisionsView";
 import { InventoryWindowSelector } from "./components/InventoryWindowSelector";
 import { FinancialView } from "./components/financial/FinancialView";
+import {
+  fetchMonthlyOperationalBreakEven,
+  type MonthlyOperationalBreakEvenDto,
+} from "./api/financial";
 import type { CustomerRecencyBucket, CustomerSegmentType } from "./api/bi";
 import type { RateContextData } from "./components/CustomerSegmentView";
 import { AlertCircle, RefreshCw, Users } from "lucide-react";
@@ -139,6 +143,8 @@ export function App() {
   // Global updating state for header
   const [isUpdating, setIsUpdating] = useState(false);
   const [financialRefreshTrigger, setFinancialRefreshTrigger] = useState(0);
+  const [operationalBreakEvenData, setOperationalBreakEvenData] =
+    useState<MonthlyOperationalBreakEvenDto | null>(null);
 
   // Fetch Sales Overview independently
   const loadSalesOverview = useCallback(
@@ -147,6 +153,14 @@ export function App() {
       if (!isBackground) {
         setIsSalesLoading(true);
       }
+
+      void fetchMonthlyOperationalBreakEven({ from, to })
+        .then((beRes) => {
+          setOperationalBreakEvenData(beRes);
+        })
+        .catch(() => {
+          // Mantém resiliente se o endpoint financeiro não estiver mockado em testes de vendas
+        });
 
       try {
         const result = await fetchSalesOverview(from, to);
@@ -472,7 +486,7 @@ export function App() {
       .then((res) => {
         setDataRange(res);
       })
-      .catch(() => {});
+      .catch(() => { });
 
     if (activeNav === "commercial") {
       setProductsLoadedPeriod(null);
@@ -851,249 +865,252 @@ export function App() {
             </Header>
 
             {activeNav === "inventory" ? (
-          <InventoryView
-            data={inventoryData}
-            isLoading={isInventoryLoading}
-            isRefreshing={isInventoryRefreshing}
-            error={inventoryError}
-            onRetry={handleRetryInventory}
-          />
-        ) : activeNav === "products" ? (
-          <ProductsView
-            data={productsData}
-            isLoading={isProductsLoading}
-            isRefreshing={isUpdating}
-            error={productsError}
-            onRetry={handleRetryProducts}
-          />
-        ) : activeNav === "profitability" ? (
-          <ProfitabilityView
-            from={currentPeriod.from}
-            to={currentPeriod.to}
-            data={profitabilityData}
-            isLoading={isProfitabilityLoading}
-            isRefreshing={isProfitabilityRefreshing}
-            error={profitabilityError}
-            onRetry={handleRetryProfitability}
-            selectedChannel={selectedProfitabilityChannel}
-            onSelectChannel={handleProfitabilityChannelChange}
-            selectedCategorySourceId={selectedProfitabilityCategorySourceId}
-            onSelectCategorySourceId={handleProfitabilityCategoryChange}
-            categoryTree={categoryTree}
-          />
-        ) : activeNav === "decisions" ? (
-          <DecisionsView
-            data={decisionsData}
-            isLoading={isDecisionsLoading}
-            isRefreshing={isDecisionsRefreshing}
-            error={decisionsError}
-            onRetry={handleRetryDecisions}
-            onRefresh={handleRefreshDecisions}
-            windowDays={decisionsWindowDays}
-            onSelectWindowDays={handleDecisionsWindowChange}
-            selectedCategorySourceId={decisionsSelectedCategorySourceId}
-            onSelectCategorySourceId={handleDecisionsCategoryChange}
-            categoryTree={categoryTree}
-          />
-        ) : (
-          <>
-            {/* =======================================================
+              <InventoryView
+                data={inventoryData}
+                isLoading={isInventoryLoading}
+                isRefreshing={isInventoryRefreshing}
+                error={inventoryError}
+                onRetry={handleRetryInventory}
+              />
+            ) : activeNav === "products" ? (
+              <ProductsView
+                data={productsData}
+                isLoading={isProductsLoading}
+                isRefreshing={isUpdating}
+                error={productsError}
+                onRetry={handleRetryProducts}
+              />
+            ) : activeNav === "profitability" ? (
+              <ProfitabilityView
+                from={currentPeriod.from}
+                to={currentPeriod.to}
+                data={profitabilityData}
+                isLoading={isProfitabilityLoading}
+                isRefreshing={isProfitabilityRefreshing}
+                error={profitabilityError}
+                onRetry={handleRetryProfitability}
+                selectedChannel={selectedProfitabilityChannel}
+                onSelectChannel={handleProfitabilityChannelChange}
+                selectedCategorySourceId={selectedProfitabilityCategorySourceId}
+                onSelectCategorySourceId={handleProfitabilityCategoryChange}
+                categoryTree={categoryTree}
+              />
+            ) : activeNav === "decisions" ? (
+              <DecisionsView
+                data={decisionsData}
+                isLoading={isDecisionsLoading}
+                isRefreshing={isDecisionsRefreshing}
+                error={decisionsError}
+                onRetry={handleRetryDecisions}
+                onRefresh={handleRefreshDecisions}
+                windowDays={decisionsWindowDays}
+                onSelectWindowDays={handleDecisionsWindowChange}
+                selectedCategorySourceId={decisionsSelectedCategorySourceId}
+                onSelectCategorySourceId={handleDecisionsCategoryChange}
+                categoryTree={categoryTree}
+              />
+            ) : (
+              <>
+                {/* =======================================================
                 SEÇÃO 1: PERFORMANCE COMERCIAL (SALES OVERVIEW)
                 ======================================================= */}
-            <section
-              className="tp-dashboard-section"
-              aria-label="Performance Comercial"
-            >
-              {/* Sales Error Card (Partial Degradation) */}
-              {salesError && (
-                <div className="tp-state-card tp-state-error" role="alert">
-                  <div className="tp-state-icon">
-                    <AlertCircle size={20} />
-                  </div>
-                  <div className="tp-state-content">
-                    <h3 className="tp-state-title">
-                      Falha ao consultar indicadores de vendas
-                    </h3>
-                    <p className="tp-state-message">{salesError}</p>
-                    <button
-                      type="button"
-                      onClick={handleRetrySales}
-                      disabled={isSalesLoading}
-                      className="tp-btn-retry"
-                    >
-                      <RefreshCw size={13} />
-                      <span>Tentar novamente</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Sales Skeleton Loading */}
-              {isSalesLoading && !salesData && !salesError && (
-                <div className="tp-section-skeleton" aria-label="Carregando vendas">
-                  <div className="tp-kpi-grid">
-                    {[1, 2, 3, 4].map((idx) => (
-                      <div key={idx} className="tp-kpi-card tp-skeleton-card">
-                        <div className="tp-skeleton-line tp-skeleton-short" />
-                        <div className="tp-skeleton-line tp-skeleton-long" />
-                      </div>
-                    ))}
-                  </div>
-                  <div className="tp-chart-card tp-skeleton-card tp-skeleton-chart">
-                    <div className="tp-skeleton-line tp-skeleton-short" />
-                    <div className="tp-skeleton-line tp-skeleton-chart-body" />
-                  </div>
-                </div>
-              )}
-
-              {/* Sales Content */}
-              {salesData && (
-                <div
-                  className={`tp-sales-content ${isUpdating ? "is-refreshing" : ""}`}
+                <section
+                  className="tp-dashboard-section"
+                  aria-label="Performance Comercial"
                 >
-                  <KpiGrid summary={salesData.summary} />
-
-                  {salesData.summary.sales === 0 ? (
-                    <div className="tp-state-card tp-state-empty">
+                  {/* Sales Error Card (Partial Degradation) */}
+                  {salesError && (
+                    <div className="tp-state-card tp-state-error" role="alert">
+                      <div className="tp-state-icon">
+                        <AlertCircle size={20} />
+                      </div>
                       <div className="tp-state-content">
-                        <h3 className="tp-state-title">Nenhuma venda encontrada</h3>
-                        <p className="tp-state-message">
-                          Não há vendas realizadas entre as datas informadas. Tente
-                          selecionar um período diferente para visualizar a
-                          evolução.
-                        </p>
+                        <h3 className="tp-state-title">
+                          Falha ao consultar indicadores de vendas
+                        </h3>
+                        <p className="tp-state-message">{salesError}</p>
+                        <button
+                          type="button"
+                          onClick={handleRetrySales}
+                          disabled={isSalesLoading}
+                          className="tp-btn-retry"
+                        >
+                          <RefreshCw size={13} />
+                          <span>Tentar novamente</span>
+                        </button>
                       </div>
                     </div>
-                  ) : (
-                    <MonthlyChart
-                      trend={salesData.trend}
-                      monthly={salesData.monthly}
-                      from={currentPeriod.from}
-                      toDate={currentPeriod.to}
-                    />
                   )}
-                </div>
-              )}
-            </section>
 
-            {/* =======================================================
+                  {/* Sales Skeleton Loading */}
+                  {isSalesLoading && !salesData && !salesError && (
+                    <div className="tp-section-skeleton" aria-label="Carregando vendas">
+                      <div className="tp-kpi-grid">
+                        {[1, 2, 3, 4].map((idx) => (
+                          <div key={idx} className="tp-kpi-card tp-skeleton-card">
+                            <div className="tp-skeleton-line tp-skeleton-short" />
+                            <div className="tp-skeleton-line tp-skeleton-long" />
+                          </div>
+                        ))}
+                      </div>
+                      <div className="tp-chart-card tp-skeleton-card tp-skeleton-chart">
+                        <div className="tp-skeleton-line tp-skeleton-short" />
+                        <div className="tp-skeleton-line tp-skeleton-chart-body" />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Sales Content */}
+                  {salesData && (
+                    <div
+                      className={`tp-sales-content ${isUpdating ? "is-refreshing" : ""}`}
+                    >
+                      <KpiGrid
+                        summary={salesData.summary}
+                        operationalBreakEven={operationalBreakEvenData}
+                      />
+
+                      {salesData.summary.sales === 0 ? (
+                        <div className="tp-state-card tp-state-empty">
+                          <div className="tp-state-content">
+                            <h3 className="tp-state-title">Nenhuma venda encontrada</h3>
+                            <p className="tp-state-message">
+                              Não há vendas realizadas entre as datas informadas. Tente
+                              selecionar um período diferente para visualizar a
+                              evolução.
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <MonthlyChart
+                          trend={salesData.trend}
+                          monthly={salesData.monthly}
+                          from={currentPeriod.from}
+                          toDate={currentPeriod.to}
+                        />
+                      )}
+                    </div>
+                  )}
+                </section>
+
+                {/* =======================================================
                 SEÇÃO 2: INTELIGÊNCIA DE CLIENTES (CUSTOMER OVERVIEW)
                 ======================================================= */}
-            <section
-              className="tp-dashboard-section tp-customer-section"
-              id="clientes"
-              aria-label="Inteligência de Clientes"
-            >
-              <div className="tp-section-header tp-customer-section-header">
-                <div className="tp-section-header-main">
-                  <div className="tp-section-title-wrap">
-                    <span className="tp-section-icon-badge">
-                      <Users size={14} />
-                    </span>
-                    <h2 className="tp-section-title">Inteligência de Clientes</h2>
-                  </div>
-                  <p className="tp-section-desc">
-                    Comportamento, taxa de recorrência, concentração de faturamento e
-                    tempo de recência da base.
-                  </p>
-                </div>
-                <div className="tp-section-header-controls">
-                  <CustomerDocumentTypeSelector
-                    value={customerDocumentType}
-                    onChange={handleCustomerDocumentTypeChange}
-                    disabled={isCustomerLoading && !customerData}
-                  />
-                </div>
-              </div>
-
-              {/* Customer Error Card (Partial Degradation) */}
-              {customerError && (
-                <div className="tp-state-card tp-state-error" role="alert">
-                  <div className="tp-state-icon">
-                    <AlertCircle size={20} />
-                  </div>
-                  <div className="tp-state-content">
-                    <h3 className="tp-state-title">
-                      Falha ao consultar inteligência de clientes
-                    </h3>
-                    <p className="tp-state-message">{customerError}</p>
-                    <button
-                      type="button"
-                      onClick={handleRetryCustomers}
-                      disabled={isCustomerLoading}
-                      className="tp-btn-retry"
-                    >
-                      <RefreshCw size={13} />
-                      <span>Tentar novamente</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Customer Skeleton Loading */}
-              {isCustomerLoading && !customerData && !customerError && (
-                <div
-                  className="tp-section-skeleton"
-                  aria-label="Carregando inteligência de clientes"
+                <section
+                  className="tp-dashboard-section tp-customer-section"
+                  id="clientes"
+                  aria-label="Inteligência de Clientes"
                 >
-                  <div className="tp-kpi-grid">
-                    {[1, 2, 3, 4].map((idx) => (
-                      <div key={idx} className="tp-kpi-card tp-skeleton-card">
-                        <div className="tp-skeleton-line tp-skeleton-short" />
-                        <div className="tp-skeleton-line tp-skeleton-long" />
+                  <div className="tp-section-header tp-customer-section-header">
+                    <div className="tp-section-header-main">
+                      <div className="tp-section-title-wrap">
+                        <span className="tp-section-icon-badge">
+                          <Users size={14} />
+                        </span>
+                        <h2 className="tp-section-title">Inteligência de Clientes</h2>
                       </div>
-                    ))}
-                  </div>
-                  <div className="tp-split-grid">
-                    <div className="tp-card tp-skeleton-card tp-skeleton-table">
-                      <div className="tp-skeleton-line tp-skeleton-short" />
-                      <div className="tp-skeleton-line tp-skeleton-chart-body" />
+                      <p className="tp-section-desc">
+                        Comportamento, taxa de recorrência, concentração de faturamento e
+                        tempo de recência da base.
+                      </p>
                     </div>
-                    <div className="tp-card tp-skeleton-card tp-skeleton-recency">
-                      <div className="tp-skeleton-line tp-skeleton-short" />
-                      <div className="tp-skeleton-line tp-skeleton-chart-body" />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Customer Content */}
-              {customerData && (
-                <div
-                  className={`tp-customer-content ${isUpdating ? "is-refreshing" : ""}`}
-                >
-                  <CustomerKpiGrid
-                    metrics={customerData.customers}
-                    lifetime={customerData.lifetime}
-                    periodMode={periodMode}
-                    onSelectSegment={handleOpenSegmentDrawer}
-                  />
-
-                  <div className="tp-split-grid">
-                    <div className="tp-split-col-ranking">
-                      <CustomerRankingCard
-                        ranking={customerData.ranking}
-                        onSelectCustomer={handleOpenCustomerDetail}
+                    <div className="tp-section-header-controls">
+                      <CustomerDocumentTypeSelector
+                        value={customerDocumentType}
+                        onChange={handleCustomerDocumentTypeChange}
+                        disabled={isCustomerLoading && !customerData}
                       />
                     </div>
-                    <div className="tp-split-col-recency">
-                      <RecencyDistributionCard
-                        recency={customerData.recency}
+                  </div>
+
+                  {/* Customer Error Card (Partial Degradation) */}
+                  {customerError && (
+                    <div className="tp-state-card tp-state-error" role="alert">
+                      <div className="tp-state-icon">
+                        <AlertCircle size={20} />
+                      </div>
+                      <div className="tp-state-content">
+                        <h3 className="tp-state-title">
+                          Falha ao consultar inteligência de clientes
+                        </h3>
+                        <p className="tp-state-message">{customerError}</p>
+                        <button
+                          type="button"
+                          onClick={handleRetryCustomers}
+                          disabled={isCustomerLoading}
+                          className="tp-btn-retry"
+                        >
+                          <RefreshCw size={13} />
+                          <span>Tentar novamente</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Customer Skeleton Loading */}
+                  {isCustomerLoading && !customerData && !customerError && (
+                    <div
+                      className="tp-section-skeleton"
+                      aria-label="Carregando inteligência de clientes"
+                    >
+                      <div className="tp-kpi-grid">
+                        {[1, 2, 3, 4].map((idx) => (
+                          <div key={idx} className="tp-kpi-card tp-skeleton-card">
+                            <div className="tp-skeleton-line tp-skeleton-short" />
+                            <div className="tp-skeleton-line tp-skeleton-long" />
+                          </div>
+                        ))}
+                      </div>
+                      <div className="tp-split-grid">
+                        <div className="tp-card tp-skeleton-card tp-skeleton-table">
+                          <div className="tp-skeleton-line tp-skeleton-short" />
+                          <div className="tp-skeleton-line tp-skeleton-chart-body" />
+                        </div>
+                        <div className="tp-card tp-skeleton-card tp-skeleton-recency">
+                          <div className="tp-skeleton-line tp-skeleton-short" />
+                          <div className="tp-skeleton-line tp-skeleton-chart-body" />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Customer Content */}
+                  {customerData && (
+                    <div
+                      className={`tp-customer-content ${isUpdating ? "is-refreshing" : ""}`}
+                    >
+                      <CustomerKpiGrid
+                        metrics={customerData.customers}
+                        lifetime={customerData.lifetime}
+                        periodMode={periodMode}
                         onSelectSegment={handleOpenSegmentDrawer}
-                        onSelectRecencyBucket={(bucket) =>
-                          handleOpenSegmentDrawer("recency", null, bucket)
-                        }
                       />
+
+                      <div className="tp-split-grid">
+                        <div className="tp-split-col-ranking">
+                          <CustomerRankingCard
+                            ranking={customerData.ranking}
+                            onSelectCustomer={handleOpenCustomerDetail}
+                          />
+                        </div>
+                        <div className="tp-split-col-recency">
+                          <RecencyDistributionCard
+                            recency={customerData.recency}
+                            onSelectSegment={handleOpenSegmentDrawer}
+                            onSelectRecencyBucket={(bucket) =>
+                              handleOpenSegmentDrawer("recency", null, bucket)
+                            }
+                          />
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              )}
-            </section>
+                  )}
+                </section>
+              </>
+            )}
           </>
         )}
-        </>
-      )}
-    </main>
+      </main>
 
       {/* Unified Customer Segment & Detail Drawer */}
       <CustomerSegmentDrawer

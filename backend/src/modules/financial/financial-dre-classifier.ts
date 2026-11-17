@@ -840,3 +840,30 @@ export function classifyFinancialRecordForDre(
     notes: `Pendência de classificação gerencial: ${desc || "Sem descrição"} (plano: ${planId || "N/A"})`,
   });
 }
+
+/**
+ * Classificação exclusiva do KPI Operacional da Home ("Ponto de equilíbrio do mês"):
+ * preserva integralmente as categorias gerenciais do TagPulse (e a exclusão de Compras / Plano 19),
+ * mas ancora temporalmente TODAS as despesas pelo mês de vencimento (dueDate),
+ * de modo que DAS e GPS que vencem no mês corrente entrem no cálculo operacional da Home
+ * sem alterar a competência econômica do DRE.
+ */
+export function classifyFinancialRecordForOperationalMonth(
+  record: ClassifierRecordInput,
+): DreClassificationResult {
+  const dreResult = classifyFinancialRecordForDre(record);
+  const dueMonth = getMonthStr(record.dueDate);
+  return {
+    ...dreResult,
+    competenceDate: record.dueDate,
+    referenceMonth: dueMonth,
+    ...(dreResult.financialAdjustment
+      ? {
+          financialAdjustment: {
+            ...dreResult.financialAdjustment,
+            date: record.dueDate,
+          },
+        }
+      : {}),
+  };
+}
