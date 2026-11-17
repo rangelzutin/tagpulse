@@ -31,6 +31,20 @@ export function KpiGrid({ summary, operationalBreakEven }: KpiGridProps) {
       ? Math.min(100, Math.max(0, be.progressPercent))
       : 0;
 
+  const avgDiffPct =
+    be?.averageOperationalBreakEven &&
+    be.averageOperationalBreakEven > 0 &&
+    be.operationalBreakEvenRevenue !== null
+      ? ((be.operationalBreakEvenRevenue - be.averageOperationalBreakEven) /
+          be.averageOperationalBreakEven) *
+        100
+      : null;
+  const avgDiffSign = avgDiffPct !== null && avgDiffPct > 0 ? "+" : "";
+  const avgDiffFormatted =
+    avgDiffPct !== null
+      ? `${avgDiffSign}${formatPercent(avgDiffPct, 2)} vs média`
+      : null;
+
   return (
     <section className="tp-kpi-section" aria-label="Indicadores Comerciais">
       <div className="tp-kpi-grid">
@@ -87,127 +101,172 @@ export function KpiGrid({ summary, operationalBreakEven }: KpiGridProps) {
             </span>
           </div>
         </article>
+      </div>
 
-        {be && (
-          <article
-            className="tp-kpi-card tp-kpi-breakeven"
-            data-testid="home-operational-breakeven-card"
-            role="button"
-            tabIndex={0}
-            onClick={() => setIsDrilldownOpen(true)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                setIsDrilldownOpen(true);
-              }
-            }}
-            title="Calculado com base nas despesas já lançadas com vencimento neste mês."
-            style={{
-              cursor: "pointer",
-              border: isAbove
-                ? "1px solid rgba(16, 185, 129, 0.35)"
-                : "1px solid rgba(56, 189, 248, 0.3)",
-            }}
-          >
-            <div className="tp-kpi-header" style={{ alignItems: "center", gap: "6px" }}>
-              <span className="tp-kpi-label">Ponto de equilíbrio do mês</span>
-              <div style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                {be.isProvisional && (
-                  <span
-                    className="tp-badge-provisional"
-                    title="Calculado com base nas despesas já lançadas com vencimento neste mês."
-                    style={{
-                      fontSize: "10px",
-                      fontWeight: 700,
-                      padding: "2px 6px",
-                      borderRadius: "999px",
-                      background: "rgba(245, 158, 11, 0.15)",
-                      color: "#fbbf24",
-                      border: "1px solid rgba(245, 158, 11, 0.35)",
-                      letterSpacing: "0.03em",
-                    }}
-                  >
-                    PROVISÓRIO
-                  </span>
-                )}
-                <span className="tp-kpi-icon-wrap tp-icon-cyan">
-                  <Scale size={16} />
-                </span>
-              </div>
-            </div>
-
-            <div className="tp-kpi-value-wrap">
-              <span className="tp-kpi-value">
-                {be.operationalBreakEvenRevenue !== null
-                  ? formatCurrency(be.operationalBreakEvenRevenue)
-                  : "—"}
+      {be && (
+        <article
+          className={`tp-kpi-card tp-breakeven-banner ${
+            isAbove ? "tp-banner-above" : ""
+          }`}
+          data-testid="home-operational-breakeven-card"
+          role="button"
+          tabIndex={0}
+          onClick={() => setIsDrilldownOpen(true)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setIsDrilldownOpen(true);
+            }
+          }}
+          title="Calculado com base nas despesas já lançadas com vencimento neste mês."
+        >
+          {/* Top header row */}
+          <div className="tp-breakeven-banner-top">
+            <div className="tp-breakeven-banner-title-wrap">
+              <span className="tp-kpi-icon-wrap tp-icon-cyan">
+                <Scale size={16} />
               </span>
-            </div>
-
-            <div
-              style={{
-                marginTop: "6px",
-                fontSize: "12px",
-                fontWeight: 600,
-                color: isAbove ? "#34d399" : "#fbbf24",
-              }}
-            >
-              {be.statusLabel}
-            </div>
-
-            {be.progressPercent !== null && (
-              <div
-                style={{
-                  marginTop: "8px",
-                  height: "5px",
-                  borderRadius: "999px",
-                  background: "rgba(148, 163, 184, 0.18)",
-                  overflow: "hidden",
-                }}
-              >
-                <div
-                  style={{
-                    width: `${progressBarPct}%`,
-                    height: "100%",
-                    borderRadius: "999px",
-                    background: isAbove ? "#10b981" : "#38bdf8",
-                  }}
-                />
-              </div>
-            )}
-
-            <div
-              style={{
-                marginTop: "8px",
-                display: "flex",
-                flexWrap: "wrap",
-                justifyContent: "space-between",
-                gap: "6px 12px",
-                fontSize: "11px",
-                color: "#94a3b8",
-              }}
-            >
-              <span>
-                Faturado: <strong style={{ color: "#e2e8f0" }}>{formatCurrency(be.realizedRevenue)}</strong>
+              <span className="tp-kpi-label tp-breakeven-banner-title">
+                Ponto de equilíbrio do mês
               </span>
-              <span>
-                Progresso:{" "}
-                <strong style={{ color: "#e2e8f0" }}>
-                  {be.progressPercent !== null ? formatPercent(be.progressPercent, 1) : "—"}
-                </strong>
-              </span>
-              {be.averageOperationalBreakEven !== null && (
-                <span>
-                  Média mensal:{" "}
-                  <strong style={{ color: "#e2e8f0" }}>
-                    {formatCurrency(be.averageOperationalBreakEven)}
-                  </strong>
+              {be.isProvisional && (
+                <span
+                  className="tp-badge-provisional"
+                  title="Calculado com base nas despesas já lançadas com vencimento neste mês."
+                >
+                  PROVISÓRIO
                 </span>
               )}
             </div>
-          </article>
-        )}
-      </div>
+
+            <div className="tp-breakeven-banner-status-wrap">
+              <span
+                className={`tp-breakeven-status-pill ${
+                  isAbove ? "tp-status-above" : "tp-status-below"
+                }`}
+              >
+                {be.statusLabel}
+              </span>
+              <span className="tp-breakeven-drilldown-hint">
+                Ver detalhes &rarr;
+              </span>
+            </div>
+          </div>
+
+          {/* Metrics horizontal row/grid */}
+          <div className="tp-breakeven-metrics-grid">
+            {/* Block A: Ponto de equilíbrio */}
+            <div className="tp-breakeven-metric-block tp-breakeven-hero-block">
+              <span className="tp-breakeven-metric-label">
+                Ponto de equilíbrio do mês
+              </span>
+              <div className="tp-breakeven-metric-value tp-breakeven-val-hero">
+                {be.operationalBreakEvenRevenue !== null
+                  ? formatCurrency(be.operationalBreakEvenRevenue)
+                  : "—"}
+              </div>
+              {be.averageOperationalBreakEven !== null && (
+                <div className="tp-breakeven-avg-reference">
+                  <span>
+                    Média recente:{" "}
+                    <strong>
+                      {formatCurrency(be.averageOperationalBreakEven)}
+                    </strong>
+                  </span>
+                  {avgDiffFormatted && (
+                    <span
+                      className={`tp-breakeven-avg-diff ${
+                        avgDiffPct && avgDiffPct > 0
+                          ? "tp-diff-positive"
+                          : "tp-diff-negative"
+                      }`}
+                    >
+                      {avgDiffFormatted}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Block B: Faturado */}
+            <div className="tp-breakeven-metric-block">
+              <span className="tp-breakeven-metric-label">Faturado</span>
+              <div className="tp-breakeven-metric-value tp-breakeven-val-cyan">
+                {formatCurrency(be.realizedRevenue)}
+              </div>
+              <span className="tp-breakeven-metric-subtext">
+                Receita realizada
+              </span>
+            </div>
+
+            {/* Block C: Falta vender / Superado */}
+            <div className="tp-breakeven-metric-block">
+              <span className="tp-breakeven-metric-label">
+                {isAbove ? "Superado" : "Falta vender"}
+              </span>
+              <div
+                className={`tp-breakeven-metric-value ${
+                  isAbove ? "tp-breakeven-val-emerald" : "tp-breakeven-val-amber"
+                }`}
+              >
+                {isAbove
+                  ? formatCurrency(be.surplusRevenue ?? 0)
+                  : formatCurrency(be.remainingRevenueNeeded ?? 0)}
+              </div>
+              <span className="tp-breakeven-metric-subtext">
+                {isAbove ? "Acima do equilíbrio" : "Para o equilíbrio"}
+              </span>
+            </div>
+
+            {/* Block D: Progresso */}
+            <div className="tp-breakeven-metric-block">
+              <span className="tp-breakeven-metric-label">Progresso</span>
+              <div
+                className={`tp-breakeven-metric-value ${
+                  isAbove ? "tp-breakeven-val-emerald" : "tp-breakeven-val-white"
+                }`}
+              >
+                {be.progressPercent !== null
+                  ? formatPercent(be.progressPercent, 1)
+                  : "—"}
+              </div>
+              <span className="tp-breakeven-metric-subtext">
+                {isAbove ? "Superado" : "Do equilíbrio"}
+              </span>
+            </div>
+          </div>
+
+          {/* Progress bar horizontal area */}
+          <div className="tp-breakeven-progress-container">
+            <div className="tp-breakeven-progress-labels">
+              <span className="tp-breakeven-progress-left">
+                {`${formatCurrency(be.realizedRevenue)} de ${
+                  be.operationalBreakEvenRevenue !== null
+                    ? formatCurrency(be.operationalBreakEvenRevenue)
+                    : "—"
+                }`}
+              </span>
+              <span className="tp-breakeven-progress-right">
+                {isAbove
+                  ? (be.surplusRevenue && be.surplusRevenue > 0
+                      ? `Superado em ${formatCurrency(be.surplusRevenue)}`
+                      : "Ponto de equilíbrio superado")
+                  : (be.progressPercent !== null
+                      ? `${formatPercent(be.progressPercent, 1)}`
+                      : "—")}
+              </span>
+            </div>
+            <div className="tp-breakeven-progress-track">
+              <div
+                className={`tp-breakeven-progress-fill ${
+                  isAbove ? "tp-fill-emerald" : "tp-fill-cyan"
+                }`}
+                style={{ width: `${isAbove ? 100 : progressBarPct}%` }}
+              />
+            </div>
+          </div>
+        </article>
+      )}
 
       {summary.salesWithoutCustomer > 0 && (
         <div className="tp-kpi-secondary-info">

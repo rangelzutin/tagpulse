@@ -287,11 +287,103 @@ describe("FinancialDreBreakEven — Frontend Components & Calculation", () => {
     );
 
     expect(html).toContain('data-testid="home-operational-breakeven-card"');
+    expect(html).toContain("tp-breakeven-banner");
+    expect(html).toContain("tp-breakeven-metrics-grid");
     expect(html).toContain("Ponto de equilíbrio do mês");
     expect(html).toContain("PROVISÓRIO");
+    expect(html).toContain("Calculado com base nas despesas já lançadas com vencimento neste mês.");
     expect(html).toContain("Faltam R$ 29.318,38 para o equilíbrio");
-    expect(html).toContain(formatCurrency(40921.25));
-    expect(html).toContain(formatCurrency(40630.17));
+    expect(html).toContain(formatCurrency(40921.25)); // A) Ponto de equilíbrio
+    expect(html).toContain(formatCurrency(11602.87)); // B) Faturado
+    expect(html).toContain(formatCurrency(29318.38)); // C) Falta vender
+    expect(html).toContain("28,4%"); // D) Progresso
+    expect(html).toContain(formatCurrency(40630.17)); // E) Média recente
+    expect(html).toContain("+0,72% vs média"); // F) Comparação com média
+    expect(html).toContain(`${formatCurrency(11602.87)} de ${formatCurrency(40921.25)}`);
     expect(html).not.toContain("Meta atingida");
+  });
+
+  it("9. renders Home Break-Even banner when ABOVE_BREAK_EVEN with full bar and surplus message", () => {
+    const aboveKpi: MonthlyOperationalBreakEvenDto = {
+      referenceMonth: "2026-11",
+      period: { from: "2026-11-01", to: "2026-11-30" },
+      calculationBasis: "CURRENT_MONTH_DUE_DATE",
+      realizedRevenue: 50000,
+      estimatedCOGS: 25000,
+      estimatedGrossProfit: 25000,
+      estimatedGrossMarginPercent: 50,
+      variableExpenses: {
+        paymentFees: 500,
+        taxesOnRevenue: 2500,
+        freightLogistics: 1000,
+        salesCommissions: 0,
+        packaging: 0,
+        other: 0,
+        total: 4000,
+      },
+      contributionMargin: 21000,
+      contributionMarginPercent: 42,
+      contributionMarginRate: 0.42,
+      operatingExpenses: {
+        personnel: 5000,
+        partnerCompensation: 4000,
+        marketing: 1000,
+        athletes: 0,
+        occupancy: 1500,
+        utilities: 100,
+        software: 200,
+        accounting: 0,
+        infrastructure: 100,
+        administrative: 200,
+        losses: 0,
+        other: 0,
+        total: 12100,
+      },
+      financialResult: {
+        financialIncome: 0,
+        financialExpenses: 100,
+        total: -100,
+      },
+      fixedCostBase: 12200,
+      operationalNetResult: 8800,
+      operationalBreakEvenRevenue: 29047.62,
+      remainingRevenueNeeded: 0,
+      surplusRevenue: 20952.38,
+      progressPercent: 172.13,
+      status: "ABOVE_BREAK_EVEN",
+      statusLabel: "Superado em R$ 20.952,38",
+      isProvisional: false,
+      pendingItems: [],
+      averageOperationalBreakEven: 30000,
+      averageReferenceStartMonth: "2026-08",
+      averageReferenceEndMonth: "2026-10",
+      averageReferenceMonthsCount: 3,
+      entries: [],
+    };
+
+    const html = renderToString(
+      React.createElement(KpiGrid, {
+        summary: {
+          revenue: 50000,
+          sales: 80,
+          avgTicket: 625,
+          customers: 60,
+          salesWithoutCustomer: 0,
+        },
+        operationalBreakEven: aboveKpi,
+      }),
+    );
+
+    expect(html).toContain('data-testid="home-operational-breakeven-card"');
+    expect(html).toContain("tp-banner-above");
+    expect(html).toContain("tp-status-above");
+    expect(html).toContain("Superado em R$ 20.952,38");
+    expect(html).toContain(formatCurrency(29047.62));
+    expect(html).toContain(formatCurrency(50000));
+    expect(html).toContain(formatCurrency(20952.38));
+    expect(html).toContain("Superado");
+    expect(html).toContain("tp-fill-emerald");
+    expect(html).toContain("width:100%");
+    expect(html).not.toContain("PROVISÓRIO");
   });
 });

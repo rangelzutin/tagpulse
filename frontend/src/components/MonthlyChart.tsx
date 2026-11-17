@@ -281,7 +281,7 @@ export function MonthlyChart({ trend, monthly, from, toDate }: MonthlyChartProps
                 strokeDasharray="4 4"
                 strokeWidth={1.5}
                 label={{
-                  value: "Entrada do varejo no TagPlus",
+                  value: "Início da operação consolidada no TagPlus",
                   position: "top",
                   fill: "#94a3b8",
                   fontSize: 11,

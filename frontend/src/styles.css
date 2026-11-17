@@ -11894,3 +11894,259 @@ body {
   line-height: 1.35;
   border-left: 2px solid var(--tp-teal-500, #14b8a6);
 }
+
+/* =======================================================
+   HOME OPERATIONAL BREAK-EVEN FULL-WIDTH BANNER
+   ======================================================= */
+.tp-breakeven-banner {
+  margin-top: var(--tp-space-base, 16px);
+  width: 100%;
+  box-sizing: border-box;
+  padding: 16px 20px;
+  border-radius: var(--tp-radius-md, 8px);
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.75) 0%, rgba(15, 23, 42, 0.9) 100%);
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  overflow: hidden;
+}
+
+.tp-breakeven-banner:hover {
+  border-color: rgba(56, 189, 248, 0.45);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+
+.tp-breakeven-banner.tp-banner-above {
+  border-color: rgba(16, 185, 129, 0.32);
+}
+
+.tp-breakeven-banner.tp-banner-above:hover {
+  border-color: rgba(16, 185, 129, 0.5);
+}
+
+.tp-breakeven-banner-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.tp-breakeven-banner-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tp-breakeven-banner-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--tp-text-primary, #f8fafc);
+  letter-spacing: 0.01em;
+}
+
+.tp-badge-provisional {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  letter-spacing: 0.03em;
+}
+
+.tp-breakeven-banner-status-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tp-breakeven-status-pill {
+  font-size: 13px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.tp-breakeven-status-pill.tp-status-below {
+  background: rgba(245, 158, 11, 0.14);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.tp-breakeven-status-pill.tp-status-above {
+  background: rgba(16, 185, 129, 0.14);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.tp-breakeven-drilldown-hint {
+  font-size: 11px;
+  color: var(--tp-text-muted, #94a3b8);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tp-breakeven-metrics-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1.1fr 0.9fr;
+  gap: 16px;
+  align-items: start;
+  margin-bottom: 16px;
+}
+
+.tp-breakeven-metric-block {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.tp-breakeven-metric-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--tp-text-secondary, #94a3b8);
+}
+
+.tp-breakeven-metric-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.tp-breakeven-val-hero {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #f8fafc;
+  letter-spacing: -0.01em;
+}
+
+.tp-breakeven-val-cyan {
+  color: #38bdf8;
+}
+
+.tp-breakeven-val-amber {
+  color: #fbbf24;
+}
+
+.tp-breakeven-val-emerald {
+  color: #34d399;
+}
+
+.tp-breakeven-val-white {
+  color: #f1f5f9;
+}
+
+.tp-breakeven-metric-subtext {
+  font-size: 11px;
+  color: var(--tp-text-muted, #64748b);
+}
+
+.tp-breakeven-avg-reference {
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tp-breakeven-avg-diff {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.tp-diff-positive {
+  background: rgba(148, 163, 184, 0.12);
+  color: #cbd5e1;
+}
+
+.tp-diff-negative {
+  background: rgba(148, 163, 184, 0.12);
+  color: #cbd5e1;
+}
+
+.tp-breakeven-progress-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.tp-breakeven-progress-labels {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11.5px;
+  color: #94a3b8;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tp-breakeven-progress-left {
+  font-weight: 500;
+  color: #cbd5e1;
+}
+
+.tp-breakeven-progress-right {
+  font-weight: 700;
+  color: #e2e8f0;
+}
+
+.tp-breakeven-progress-track {
+  height: 8px;
+  width: 100%;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.16);
+  overflow: hidden;
+}
+
+.tp-breakeven-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.tp-fill-cyan {
+  background: linear-gradient(90deg, #0284c7, #38bdf8);
+}
+
+.tp-fill-emerald {
+  background: linear-gradient(90deg, #059669, #10b981);
+}
+
+@media (max-width: 1024px) {
+  .tp-breakeven-metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
+}
+
+@media (max-width: 640px) {
+  .tp-breakeven-metrics-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .tp-breakeven-banner-top {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .tp-breakeven-val-hero {
+    font-size: 1.35rem;
+  }
+}
