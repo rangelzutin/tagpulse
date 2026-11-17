@@ -220,6 +220,7 @@ function createHarness(options?: {
 
   return {
     orchestrator,
+    prisma,
     callOrder,
     categoryRunner,
     customerRunner,
@@ -417,6 +418,10 @@ describe("TagPlusSyncOrchestrator", () => {
       TagPlusSyncStage.CUSTOMERS,
       expect.any(String),
       "Customer sync failed on page 2",
+      expect.objectContaining({
+        categories: expect.objectContaining({ recordsFetched: 71 }),
+        errorStage: TagPlusSyncStage.CUSTOMERS,
+      }),
     );
     expect(h.syncRepository.completeRun).not.toHaveBeenCalled();
   });
@@ -439,6 +444,11 @@ describe("TagPlusSyncOrchestrator", () => {
       TagPlusSyncStage.PRODUCTS,
       expect.any(String),
       "Product sync failed",
+      expect.objectContaining({
+        categories: expect.objectContaining({ recordsFetched: 71 }),
+        customers: expect.objectContaining({ recordsFetched: 150 }),
+        errorStage: TagPlusSyncStage.PRODUCTS,
+      }),
     );
   });
 
@@ -621,6 +631,80 @@ describe("TagPlusSyncOrchestrator", () => {
     });
 
     expect(onSalesSyncCompleted).not.toHaveBeenCalled();
+  });
+
+  it("preserves accumulated stageSummaries when a later stage fails and exposes lastSuccessfulSync vs lastAttempt in getStatus", async () => {
+    const h = createHarness({ salesFail: true });
+    const lastSuccessDate = new Date("2026-11-07T01:58:39.998Z");
+    const lastFailedDate = new Date("2026-11-16T22:50:37.483Z");
+
+    vi.mocked(h.syncRepository.findLastCompleted).mockResolvedValue({
+      id: "run-success",
+      connectionId: TEST_CONNECTION_ID,
+      mode: TagPlusSyncMode.INCREMENTAL,
+      status: TagPlusSyncStatus.COMPLETED,
+      currentStage: TagPlusSyncStage.COMPLETED,
+      startedAt: new Date("2026-11-07T01:29:57.246Z"),
+      completedAt: lastSuccessDate,
+      windowSince: new Date("2026-11-03T01:50:08.000Z"),
+      windowUntil: new Date("2026-11-07T01:29:57.000Z"),
+      errorStage: null,
+      errorMessage: null,
+      errorCategory: null,
+      summary: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    await h.orchestrator.startSync();
+
+    await vi.waitFor(() => {
+      expect(h.syncRepository.failRun).toHaveBeenCalled();
+    });
+
+    const failCall = vi.mocked(h.syncRepository.failRun).mock.calls[0];
+    const savedPartialSummary = failCall[5] as Record<string, unknown>;
+    expect(savedPartialSummary).toBeDefined();
+    expect(savedPartialSummary.categories).toEqual(
+      expect.objectContaining({ recordsFetched: 71 }),
+    );
+    expect(savedPartialSummary.customers).toEqual(
+      expect.objectContaining({ recordsFetched: 150 }),
+    );
+    expect(savedPartialSummary.products).toEqual(
+      expect.objectContaining({ recordsFetched: 50 }),
+    );
+    expect(savedPartialSummary.errorStage).toBe(TagPlusSyncStage.SALES);
+
+    vi.mocked(h.prisma.tagPlusSyncRun.findFirst).mockResolvedValueOnce({
+      id: "run-failed-16",
+      connectionId: TEST_CONNECTION_ID,
+      mode: TagPlusSyncMode.INCREMENTAL,
+      status: TagPlusSyncStatus.FAILED,
+      currentStage: TagPlusSyncStage.FAILED,
+      startedAt: new Date("2026-11-16T22:19:22.119Z"),
+      completedAt: lastFailedDate,
+      windowSince: new Date("2026-11-07T01:29:57.000Z"),
+      windowUntil: new Date("2026-11-16T22:19:22.000Z"),
+      errorStage: TagPlusSyncStage.SALES,
+      errorMessage: "Sales sync failed",
+      errorCategory: "Error",
+      summary: savedPartialSummary as any,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const status = await h.orchestrator.getStatus();
+    expect(status.lastCompletedSync).toEqual(lastSuccessDate);
+    expect(status.lastSuccessfulSync).toEqual(lastSuccessDate);
+    expect(status.lastAttemptAt).toEqual(lastFailedDate);
+    expect(status.lastAttemptStatus).toBe(TagPlusSyncStatus.FAILED);
+    expect(status.lastAttemptErrorStage).toBe(TagPlusSyncStage.SALES);
+    expect(status.hasPartialFailure).toBe(true);
+    expect(status.stages.categories.status).toBe("COMPLETED");
+    expect(status.stages.customers.status).toBe("COMPLETED");
+    expect(status.stages.products.status).toBe("COMPLETED");
+    expect(status.stages.sales.status).toBe("FAILED");
   });
 });
 

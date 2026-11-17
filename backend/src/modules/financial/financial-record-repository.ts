@@ -310,6 +310,7 @@ export function createFinancialRecordRepository(
       const recordsToMark = await prisma.financialRecord.findMany({
         where: {
           connectionId,
+          sourceSystem: "TAGPLUS_CURRENT",
           sourcePresent: true,
           sourceId: { notIn: Array.from(observedSourceIds) },
         },
@@ -332,7 +333,9 @@ export function createFinancialRecordRepository(
     },
 
     async upsertCatalogItems(connectionId, sourceIds, catalogSeenAt = new Date()) {
-      const uniqueIds = Array.from(new Set(sourceIds.map((id) => String(id).trim())));
+      const uniqueIds = Array.from(
+        new Set(sourceIds.map((id) => String(id).trim())),
+      ).filter((id) => Boolean(id) && !/^(HUSTLER_LEGACY|GLOBALLINK_LEGACY):/i.test(id));
       let newlyDiscovered = 0;
       let alreadyKnown = 0;
 
@@ -388,7 +391,9 @@ export function createFinancialRecordRepository(
     },
 
     async prepareIncrementalCandidates(connectionId, candidateSourceIds) {
-      const uniqueIds = Array.from(new Set(candidateSourceIds.map((id) => String(id).trim()))).filter(Boolean);
+      const uniqueIds = Array.from(
+        new Set(candidateSourceIds.map((id) => String(id).trim())),
+      ).filter((id) => Boolean(id) && !/^(HUSTLER_LEGACY|GLOBALLINK_LEGACY):/i.test(id));
       let newlyCreated = 0;
       let refreshed = 0;
 
@@ -463,6 +468,9 @@ export function createFinancialRecordRepository(
 
       // Claim target item
       if (options.specificSourceId) {
+        if (/^(HUSTLER_LEGACY|GLOBALLINK_LEGACY):/i.test(options.specificSourceId)) {
+          return null;
+        }
         const item = await prisma.financialRecordSyncItem.findUnique({
           where: {
             connectionId_sourceId: {
@@ -490,6 +498,7 @@ export function createFinancialRecordRepository(
         where: {
           connectionId,
           status: "PENDING",
+          NOT: { sourceId: { startsWith: "HUSTLER_LEGACY:" } },
         },
         orderBy: [
           { catalogSeenAt: "asc" },

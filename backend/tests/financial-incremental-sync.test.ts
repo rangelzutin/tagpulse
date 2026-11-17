@@ -1464,4 +1464,140 @@ describe("Financial Incremental Sync — Unit Tests (Fase 5F)", () => {
       expect(dbRecords.get("11438").sourcePresent).toBe(false);
     });
   });
+
+  describe("Hustler Legacy Isolation from Live TagPlus Incremental Sync (Section 9)", () => {
+    it("includes open TAGPLUS_CURRENT records and excludes open HUSTLER_LEGACY_DUMP / HUSTLER_LEGACY:FIN:* from incremental candidates and HTTP requests", async () => {
+      const mockPrisma = {
+        financialRecordSyncItem: {
+          count: vi.fn().mockResolvedValue(0),
+          findMany: vi.fn().mockResolvedValue([]),
+          createMany: vi.fn().mockResolvedValue({ count: 1 }),
+          updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+          findUnique: vi.fn().mockImplementation(async ({ where }: any) => {
+            const sid = where?.connectionId_sourceId?.sourceId;
+            if (sid === "11500") {
+              return { id: "sync-11500", sourceId: "11500", attemptCount: 0 };
+            }
+            return null;
+          }),
+          update: vi.fn().mockResolvedValue({}),
+        },
+        financialRecord: {
+          findMany: vi.fn().mockImplementation(async ({ where }: any) => {
+            const allRows = [
+              {
+                sourceId: "11500",
+                sourceSystem: "TAGPLUS_CURRENT",
+                sourcePresent: true,
+                isConfirmed: false,
+                confirmationDate: null,
+              },
+              {
+                sourceId: "HUSTLER_LEGACY:FIN:13869",
+                sourceSystem: "HUSTLER_LEGACY_DUMP",
+                sourcePresent: true,
+                isConfirmed: false,
+                confirmationDate: null,
+              },
+              {
+                sourceId: "HUSTLER_LEGACY:FIN:13750",
+                sourceSystem: "HUSTLER_LEGACY_DUMP",
+                sourcePresent: true,
+                isConfirmed: true,
+                confirmationDate: null,
+              },
+            ];
+            return allRows.filter((r) => {
+              if (where?.sourceSystem && r.sourceSystem !== where.sourceSystem) return false;
+              if (where?.isConfirmed !== undefined && r.isConfirmed !== where.isConfirmed) return false;
+              return true;
+            });
+          }),
+          findUnique: vi.fn().mockResolvedValue(null),
+          create: vi.fn().mockResolvedValue({ id: "rec-11500" }),
+        },
+        $transaction: vi.fn().mockImplementation(async (cb: any) => {
+          if (typeof cb === "function") {
+            return cb({
+              financialRecord: {
+                findUnique: vi.fn().mockResolvedValue(null),
+                create: vi.fn().mockResolvedValue({ id: "rec-11500" }),
+              },
+              financialRecordSyncItem: {
+                update: vi.fn().mockResolvedValue({}),
+              },
+            });
+          }
+          return Promise.all(cb);
+        }),
+      } as unknown as any;
+
+      const { createFinancialRecordRepository } = await import(
+        "../src/modules/financial/financial-record-repository.js"
+      );
+      const { createFinancialRecordWorker } = await import(
+        "../src/modules/financial/financial-record-worker.js"
+      );
+
+      const requestedPaths: string[] = [];
+      const mockClient = {
+        get: vi.fn().mockImplementation(async (path: string) => {
+          requestedPaths.push(path);
+          if (path.startsWith("/financeiros?")) {
+            return { status: 200, data: [] };
+          }
+          if (path === "/financeiros/11500") {
+            return {
+              status: 200,
+              data: {
+                id: 11500,
+                tipo_registro: "E",
+                confirmado: true,
+                transferencia: false,
+                descricao: "Venda TagPlus Atual",
+                data_vencimento: "2026-11-16",
+                data_confirmacao: "2026-11-16",
+                valor_original: 250,
+                valor_total: 250,
+              },
+            };
+          }
+          throw new Error(`Unexpected HTTP call: ${path}`);
+        }),
+      } as unknown as TagPlusClient;
+
+      const repo = createFinancialRecordRepository(mockPrisma);
+      const worker = createFinancialRecordWorker({
+        prisma: mockPrisma,
+        repository: repo,
+        getClient: () => mockClient,
+      });
+
+      const report = await runIncrementalSync({
+        prisma: mockPrisma,
+        repository: repo,
+        worker,
+        getClient: () => mockClient,
+        connectionId: "conn-1",
+        lookbackDays: 30,
+        enableTailScan: false,
+        additionalCandidateIds: ["HUSTLER_LEGACY:FIN:99999"],
+        pageDelayMs: 0,
+        rateLimitDelayMs: 0,
+      });
+
+      expect(report.candidates.openCount).toBe(1);
+      expect(report.candidates.undatedCount).toBe(0);
+      expect(report.candidateSourceIds).toEqual(["11500"]);
+      expect(report.candidateSourceIds).not.toContain("HUSTLER_LEGACY:FIN:13869");
+      expect(report.candidateSourceIds).not.toContain("HUSTLER_LEGACY:FIN:13750");
+      expect(report.candidateSourceIds).not.toContain("HUSTLER_LEGACY:FIN:99999");
+      expect(
+        requestedPaths.some((p) => p.includes("HUSTLER_LEGACY")),
+      ).toBe(false);
+      expect(requestedPaths).toContain("/financeiros/11500");
+      expect(report.workerSummary?.completed).toBe(1);
+      expect(report.workerSummary?.failed).toBe(0);
+    });
+  });
 });

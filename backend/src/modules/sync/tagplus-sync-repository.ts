@@ -43,6 +43,7 @@ export interface TagPlusSyncRepository {
     stage: TagPlusSyncStage,
     errorCategory: string,
     errorMessage?: string,
+    summary?: Record<string, unknown>,
   ): Promise<void>;
 }
 
@@ -202,6 +203,9 @@ export function createTagPlusSyncRepository(
           status: TagPlusSyncStatus.COMPLETED,
           currentStage: TagPlusSyncStage.COMPLETED,
           completedAt,
+          errorStage: null,
+          errorCategory: null,
+          errorMessage: null,
           summary: safeSummary,
         },
       });
@@ -213,7 +217,19 @@ export function createTagPlusSyncRepository(
       stage: TagPlusSyncStage,
       errorCategory: string,
       errorMessage?: string,
+      summary?: Record<string, unknown>,
     ): Promise<void> {
+      const safeSummary = summary
+        ? JSON.parse(
+            JSON.stringify(summary, (_key, val) => {
+              if (val instanceof Date) {
+                return val.toISOString();
+              }
+              return val;
+            }),
+          )
+        : undefined;
+
       await prisma.tagPlusSyncRun.update({
         where: { id: runId },
         data: {
@@ -223,6 +239,7 @@ export function createTagPlusSyncRepository(
           completedAt: failedAt,
           errorCategory,
           errorMessage: errorMessage ?? errorCategory,
+          ...(safeSummary ? { summary: safeSummary } : {}),
         },
       });
     },

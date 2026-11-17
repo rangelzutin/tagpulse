@@ -168,6 +168,13 @@ export async function fetchRecentSourceIds(
   return Array.from(new Set(ids));
 }
 
+export function isLiveTagPlusFinancialSourceId(sourceId: string): boolean {
+  const trimmed = String(sourceId ?? "").trim();
+  if (!trimmed) return false;
+  if (/^(HUSTLER_LEGACY|GLOBALLINK_LEGACY):/i.test(trimmed)) return false;
+  return true;
+}
+
 export async function fetchOpenSourceIds(
   prisma: PrismaClient,
   connectionId: string,
@@ -175,13 +182,17 @@ export async function fetchOpenSourceIds(
   const records = await prisma.financialRecord.findMany({
     where: {
       connectionId,
+      sourceSystem: "TAGPLUS_CURRENT",
       sourcePresent: true,
       isConfirmed: false,
     },
-    select: { sourceId: true },
+    select: { sourceId: true, sourceSystem: true },
   });
 
-  return records.map((r) => r.sourceId);
+  return records
+    .filter((r: any) => !r.sourceSystem || r.sourceSystem === "TAGPLUS_CURRENT")
+    .map((r) => r.sourceId)
+    .filter(isLiveTagPlusFinancialSourceId);
 }
 
 export async function fetchUndatedConfirmedSourceIds(
@@ -191,14 +202,18 @@ export async function fetchUndatedConfirmedSourceIds(
   const records = await prisma.financialRecord.findMany({
     where: {
       connectionId,
+      sourceSystem: "TAGPLUS_CURRENT",
       sourcePresent: true,
       isConfirmed: true,
       confirmationDate: null,
     },
-    select: { sourceId: true },
+    select: { sourceId: true, sourceSystem: true },
   });
 
-  return records.map((r) => r.sourceId);
+  return records
+    .filter((r: any) => !r.sourceSystem || r.sourceSystem === "TAGPLUS_CURRENT")
+    .map((r) => r.sourceId)
+    .filter(isLiveTagPlusFinancialSourceId);
 }
 
 export async function getKnownMaxSourceId(
@@ -207,22 +222,29 @@ export async function getKnownMaxSourceId(
 ): Promise<number> {
   if (!prisma) return 0;
   try {
+    let max = 0;
+
     if ((prisma as any).financialRecordSyncItem?.findMany) {
       const items = await (prisma as any).financialRecordSyncItem.findMany({
-        where: { connectionId },
+        where: {
+          connectionId,
+          NOT: { sourceId: { startsWith: "HUSTLER_LEGACY:" } },
+        },
         select: { sourceId: true },
         orderBy: { createdAt: "desc" },
         take: 500,
       });
-      let max = 0;
       if (Array.isArray(items)) {
         for (const item of items) {
-          const num = Number.parseInt(String(item.sourceId).trim(), 10);
+          const sid = String(item.sourceId).trim();
+          if (!isLiveTagPlusFinancialSourceId(sid)) continue;
+          const num = Number.parseInt(sid, 10);
           if (!Number.isNaN(num) && num > max) max = num;
         }
       }
       return max;
     }
+
     return 0;
   } catch {
     return 0;
@@ -255,7 +277,10 @@ export async function fetchCatalogTailSourceIds(
   if (prisma && (prisma as any).financialRecordSyncItem?.count) {
     try {
       knownCount = await (prisma as any).financialRecordSyncItem.count({
-        where: { connectionId },
+        where: {
+          connectionId,
+          NOT: { sourceId: { startsWith: "HUSTLER_LEGACY:" } },
+        },
       });
     } catch {
       knownCount = 0;
@@ -416,15 +441,25 @@ export async function collectIncrementalCandidates(options: {
   ];
   const additionalCandidates = Array.from(
     new Set(explicitIds.map((id) => String(id).trim())),
-  ).filter(Boolean);
+  ).filter(isLiveTagPlusFinancialSourceId);
 
   // Deduplicated UNION (priority order: recent -> open -> tail -> undated -> additional)
   const candidateSet = new Set<string>();
-  for (const id of recentCandidates) candidateSet.add(id);
-  for (const id of openCandidates) candidateSet.add(id);
-  for (const id of tailCandidates) candidateSet.add(id);
-  for (const id of undatedCandidates) candidateSet.add(id);
-  for (const id of additionalCandidates) candidateSet.add(id);
+  for (const id of recentCandidates) {
+    if (isLiveTagPlusFinancialSourceId(id)) candidateSet.add(id);
+  }
+  for (const id of openCandidates) {
+    if (isLiveTagPlusFinancialSourceId(id)) candidateSet.add(id);
+  }
+  for (const id of tailCandidates) {
+    if (isLiveTagPlusFinancialSourceId(id)) candidateSet.add(id);
+  }
+  for (const id of undatedCandidates) {
+    if (isLiveTagPlusFinancialSourceId(id)) candidateSet.add(id);
+  }
+  for (const id of additionalCandidates) {
+    if (isLiveTagPlusFinancialSourceId(id)) candidateSet.add(id);
+  }
 
   const uniqueCandidates = Array.from(candidateSet);
   const totalCandidateEntries =

@@ -325,6 +325,12 @@ describe("Global Sync V2 — Stage FINANCIAL + Stock Adjustment Reconciliation",
       TagPlusSyncStage.SALES,
       expect.any(String),
       expect.stringContaining("SALES_PIPELINE_ERROR"),
+      expect.objectContaining({
+        categories: expect.any(Object),
+        customers: expect.any(Object),
+        products: expect.any(Object),
+        errorStage: TagPlusSyncStage.SALES,
+      }),
     );
   });
 
@@ -343,6 +349,13 @@ describe("Global Sync V2 — Stage FINANCIAL + Stock Adjustment Reconciliation",
       TagPlusSyncStage.FINANCIAL,
       expect.any(String),
       expect.stringContaining("FINANCIAL_INCREMENTAL_FAILED"),
+      expect.objectContaining({
+        categories: expect.any(Object),
+        customers: expect.any(Object),
+        products: expect.any(Object),
+        sales: expect.any(Object),
+        errorStage: TagPlusSyncStage.FINANCIAL,
+      }),
     );
     expect(s.syncRepository.completeRun).not.toHaveBeenCalled();
   });
@@ -362,6 +375,13 @@ describe("Global Sync V2 — Stage FINANCIAL + Stock Adjustment Reconciliation",
       TagPlusSyncStage.FINANCIAL,
       expect.any(String),
       expect.stringContaining("STOCK_ADJUSTMENT_SUBSTEP_FAILED"),
+      expect.objectContaining({
+        categories: expect.any(Object),
+        customers: expect.any(Object),
+        products: expect.any(Object),
+        sales: expect.any(Object),
+        errorStage: TagPlusSyncStage.FINANCIAL,
+      }),
     );
     expect(s.syncRepository.completeRun).not.toHaveBeenCalled();
   });

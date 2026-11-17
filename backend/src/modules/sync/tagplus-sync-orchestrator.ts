@@ -99,6 +99,12 @@ export interface TagPlusSyncStatusResponse {
     financial: SyncStepProgress;
   };
   lastCompletedSync: Date | null;
+  lastSuccessfulSync: Date | null;
+  lastAttemptAt: Date | null;
+  lastAttemptStatus: TagPlusSyncStatus | null;
+  lastAttemptErrorStage?: TagPlusSyncStage | null;
+  lastAttemptErrorMessage?: string | null;
+  hasPartialFailure?: boolean;
   lastCompletedIncrementalSync?: Date | null;
   lastCompletedFullSync?: Date | null;
 }
@@ -633,17 +639,40 @@ export function createTagPlusSyncOrchestrator(
         ? (rawCategory && rawCategory !== "TAGPLUS_AUTH_EXPIRED" ? rawCategory : sanitizedMessage)
         : sanitizedMessage;
 
-      // Marca erro na etapa atual em memória
+      // Marca erro na etapa atual em memória preservando summary parcial se houver
       if (currentStage === TagPlusSyncStage.CATEGORIES) {
-        inMemoryStages.categories = { status: "FAILED", error: stageErrorMessage };
+        inMemoryStages.categories = {
+          status: "FAILED",
+          error: stageErrorMessage,
+          ...(inMemoryStages.categories.summary ? { summary: inMemoryStages.categories.summary } : {}),
+        };
       } else if (currentStage === TagPlusSyncStage.CUSTOMERS) {
-        inMemoryStages.customers = { status: "FAILED", error: stageErrorMessage };
+        inMemoryStages.customers = {
+          status: "FAILED",
+          error: stageErrorMessage,
+          ...(inMemoryStages.customers.summary ? { summary: inMemoryStages.customers.summary } : {}),
+        };
       } else if (currentStage === TagPlusSyncStage.PRODUCTS) {
-        inMemoryStages.products = { status: "FAILED", error: stageErrorMessage };
+        inMemoryStages.products = {
+          status: "FAILED",
+          error: stageErrorMessage,
+          ...(inMemoryStages.products.summary ? { summary: inMemoryStages.products.summary } : {}),
+        };
       } else if (currentStage === TagPlusSyncStage.SALES) {
-        inMemoryStages.sales = { status: "FAILED", error: stageErrorMessage };
+        inMemoryStages.sales = {
+          status: "FAILED",
+          error: stageErrorMessage,
+          ...(inMemoryStages.sales.summary ? { summary: inMemoryStages.sales.summary } : {}),
+        };
       } else if (currentStage === TagPlusSyncStage.FINANCIAL) {
-        inMemoryStages.financial = { status: "FAILED", error: stageErrorMessage };
+        if (inMemoryStages.financial.summary && !stageSummaries.financial) {
+          stageSummaries.financial = inMemoryStages.financial.summary;
+        }
+        inMemoryStages.financial = {
+          status: "FAILED",
+          error: stageErrorMessage,
+          ...(inMemoryStages.financial.summary ? { summary: inMemoryStages.financial.summary } : {}),
+        };
         const financialFailedAt = now();
         const finDurationMs = financialStageStartedAt
           ? Math.max(0, financialFailedAt.getTime() - financialStageStartedAt.getTime())
@@ -656,12 +685,26 @@ export function createTagPlusSyncOrchestrator(
         });
       }
 
+      const failedAt = now();
+      const partialSummary: Record<string, unknown> = toJsonSafe({
+        mode: run.mode,
+        windowSince: run.windowSince?.toISOString() ?? null,
+        windowUntil: run.windowUntil?.toISOString() ?? null,
+        startedAt: run.startedAt.toISOString(),
+        failedAt: failedAt.toISOString(),
+        errorStage: currentStage,
+        errorCategory: sanitizedCategory,
+        errorMessage: sanitizedMessage,
+        ...stageSummaries,
+      });
+
       await dependencies.syncRepository.failRun(
         run.id,
-        now(),
+        failedAt,
         currentStage,
         sanitizedCategory,
         sanitizedMessage,
+        partialSummary,
       );
     } finally {
       isRunning = false;
@@ -958,6 +1001,12 @@ export function createTagPlusSyncOrchestrator(
           },
           stages: { ...inMemoryStages },
           lastCompletedSync: lastCompleted?.completedAt ?? null,
+          lastSuccessfulSync: lastCompleted?.completedAt ?? null,
+          lastAttemptAt: runStartedAt,
+          lastAttemptStatus: TagPlusSyncStatus.RUNNING,
+          lastAttemptErrorStage: null,
+          lastAttemptErrorMessage: null,
+          hasPartialFailure: false,
           lastCompletedIncrementalSync: lastCompletedIncremental?.completedAt ?? null,
           lastCompletedFullSync: lastCompletedFull?.completedAt ?? null,
         };
@@ -971,23 +1020,60 @@ export function createTagPlusSyncOrchestrator(
       let stagesResult = resetStages();
       if (latestRun?.summary && typeof latestRun.summary === "object") {
         const sum = latestRun.summary as Record<string, unknown>;
-        stagesResult = {
-          categories: sum.categories
-            ? { status: "COMPLETED", summary: sum.categories as Record<string, unknown> }
-            : { status: latestRun.errorStage === TagPlusSyncStage.CATEGORIES ? "FAILED" : "WAITING" },
-          customers: sum.customers
-            ? { status: "COMPLETED", summary: sum.customers as Record<string, unknown> }
-            : { status: latestRun.errorStage === TagPlusSyncStage.CUSTOMERS ? "FAILED" : "WAITING" },
-          products: sum.products
-            ? { status: "COMPLETED", summary: sum.products as Record<string, unknown> }
-            : { status: latestRun.errorStage === TagPlusSyncStage.PRODUCTS ? "FAILED" : "WAITING" },
-          sales: sum.sales
-            ? { status: "COMPLETED", summary: sum.sales as Record<string, unknown> }
-            : { status: latestRun.errorStage === TagPlusSyncStage.SALES ? "FAILED" : "WAITING" },
-          financial: sum.financial
-            ? { status: "COMPLETED", summary: sum.financial as Record<string, unknown> }
-            : { status: latestRun.errorStage === TagPlusSyncStage.FINANCIAL ? "FAILED" : "WAITING" },
+        const resolveStage = (
+          stageEnum: TagPlusSyncStage,
+          stageSummary: unknown,
+        ): SyncStepProgress => {
+          if (latestRun.errorStage === stageEnum) {
+            return {
+              status: "FAILED",
+              ...(stageSummary ? { summary: stageSummary as Record<string, unknown> } : {}),
+              ...(latestRun.errorMessage ? { error: latestRun.errorMessage } : {}),
+            };
+          }
+          if (stageSummary) {
+            return {
+              status: "COMPLETED",
+              summary: stageSummary as Record<string, unknown>,
+            };
+          }
+          return { status: "WAITING" };
         };
+
+        stagesResult = {
+          categories: resolveStage(TagPlusSyncStage.CATEGORIES, sum.categories),
+          customers: resolveStage(TagPlusSyncStage.CUSTOMERS, sum.customers),
+          products: resolveStage(TagPlusSyncStage.PRODUCTS, sum.products),
+          sales: resolveStage(TagPlusSyncStage.SALES, sum.sales),
+          financial: resolveStage(TagPlusSyncStage.FINANCIAL, sum.financial),
+        };
+      } else if (latestRun?.status === TagPlusSyncStatus.FAILED && latestRun.errorStage) {
+        if (latestRun.errorStage === TagPlusSyncStage.CATEGORIES) {
+          stagesResult.categories = {
+            status: "FAILED",
+            ...(latestRun.errorMessage ? { error: latestRun.errorMessage } : {}),
+          };
+        } else if (latestRun.errorStage === TagPlusSyncStage.CUSTOMERS) {
+          stagesResult.customers = {
+            status: "FAILED",
+            ...(latestRun.errorMessage ? { error: latestRun.errorMessage } : {}),
+          };
+        } else if (latestRun.errorStage === TagPlusSyncStage.PRODUCTS) {
+          stagesResult.products = {
+            status: "FAILED",
+            ...(latestRun.errorMessage ? { error: latestRun.errorMessage } : {}),
+          };
+        } else if (latestRun.errorStage === TagPlusSyncStage.SALES) {
+          stagesResult.sales = {
+            status: "FAILED",
+            ...(latestRun.errorMessage ? { error: latestRun.errorMessage } : {}),
+          };
+        } else if (latestRun.errorStage === TagPlusSyncStage.FINANCIAL) {
+          stagesResult.financial = {
+            status: "FAILED",
+            ...(latestRun.errorMessage ? { error: latestRun.errorMessage } : {}),
+          };
+        }
       }
 
       const elapsed =
@@ -998,6 +1084,20 @@ export function createTagPlusSyncOrchestrator(
       const isAuth =
         latestRun?.errorCategory === "TAGPLUS_AUTH_EXPIRED" ||
         latestRun?.errorMessage?.includes("TAGPLUS_AUTH_EXPIRED") === true;
+
+      const lastSuccessfulSync = lastCompleted?.completedAt ?? null;
+      const lastAttemptAt =
+        latestRun?.completedAt ?? latestRun?.startedAt ?? lastSuccessfulSync ?? null;
+      const lastAttemptStatus =
+        latestRun?.status ?? (lastCompleted ? TagPlusSyncStatus.COMPLETED : null);
+      const hasPartialFailure = Boolean(
+        latestRun?.status === TagPlusSyncStatus.FAILED &&
+          latestRun.summary &&
+          typeof latestRun.summary === "object" &&
+          Object.keys(latestRun.summary as Record<string, unknown>).some((k) =>
+            ["categories", "customers", "products", "sales", "financial"].includes(k),
+          ),
+      );
 
       return {
         isRunning: false,
@@ -1019,7 +1119,19 @@ export function createTagPlusSyncOrchestrator(
             }
           : null,
         stages: stagesResult,
-        lastCompletedSync: lastCompleted?.completedAt ?? null,
+        lastCompletedSync: lastSuccessfulSync,
+        lastSuccessfulSync,
+        lastAttemptAt,
+        lastAttemptStatus,
+        lastAttemptErrorStage:
+          latestRun?.status === TagPlusSyncStatus.FAILED
+            ? (latestRun.errorStage ?? null)
+            : null,
+        lastAttemptErrorMessage:
+          latestRun?.status === TagPlusSyncStatus.FAILED
+            ? (latestRun.errorMessage ?? null)
+            : null,
+        hasPartialFailure,
         lastCompletedIncrementalSync: lastCompletedIncremental?.completedAt ?? null,
         lastCompletedFullSync: lastCompletedFull?.completedAt ?? null,
       };

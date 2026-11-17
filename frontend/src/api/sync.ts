@@ -59,6 +59,12 @@ export interface TagPlusSyncStatusResponse {
     financial?: SyncStepProgress;
   };
   lastCompletedSync: string | null;
+  lastSuccessfulSync?: string | null;
+  lastAttemptAt?: string | null;
+  lastAttemptStatus?: TagPlusSyncStatus | null;
+  lastAttemptErrorStage?: TagPlusSyncStage | null;
+  lastAttemptErrorMessage?: string | null;
+  hasPartialFailure?: boolean;
   lastCompletedIncrementalSync?: string | null;
   lastCompletedFullSync?: string | null;
 }

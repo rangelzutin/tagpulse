@@ -74,7 +74,9 @@ export function createFinancialRecordWorker(
       let unchanged = 0;
 
       const candidateQueue = options.candidateSourceIds
-        ? [...options.candidateSourceIds]
+        ? options.candidateSourceIds.filter(
+            (id) => !/^(HUSTLER_LEGACY|GLOBALLINK_LEGACY):/i.test(String(id).trim()),
+          )
         : null;
       let candidateIndex = 0;
 
@@ -91,6 +93,12 @@ export function createFinancialRecordWorker(
             staleMinutes,
           });
         } else {
+          if (
+            options.specificSourceId &&
+            /^(HUSTLER_LEGACY|GLOBALLINK_LEGACY):/i.test(options.specificSourceId.trim())
+          ) {
+            break;
+          }
           item = await repository.claimNextPendingItem(connectionId, {
             specificSourceId: options.specificSourceId,
             staleMinutes,
@@ -105,6 +113,10 @@ export function createFinancialRecordWorker(
         }
 
         const { sourceId } = item;
+        if (/^(HUSTLER_LEGACY|GLOBALLINK_LEGACY):/i.test(sourceId.trim())) {
+          if (options.specificSourceId) break;
+          continue;
+        }
         let attempt = 0;
         let success = false;
         let item429Retries = 0;

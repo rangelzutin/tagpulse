@@ -70,11 +70,15 @@ export function AppShell({
       window.location.search.includes("modal=sync"),
   );
   const [lastCompletedSync, setLastCompletedSync] = useState<string | null>(null);
+  const [lastAttemptAt, setLastAttemptAt] = useState<string | null>(null);
+  const [lastAttemptStatus, setLastAttemptStatus] = useState<string | null>(null);
 
   const loadFreshness = useCallback(async () => {
     try {
       const data = await fetchTagPlusSyncStatus();
-      setLastCompletedSync(data.lastCompletedSync);
+      setLastCompletedSync(data.lastSuccessfulSync ?? data.lastCompletedSync ?? null);
+      setLastAttemptAt(data.lastAttemptAt ?? null);
+      setLastAttemptStatus(data.lastAttemptStatus ?? null);
     } catch {
       // ignora falha inicial
     }
@@ -324,6 +328,25 @@ export function AppShell({
                   })
                 : "Nunca sincronizado pela aplicação"}
             </span>
+            {lastAttemptStatus === "FAILED" && lastAttemptAt && (
+              <span
+                className="tp-freshness-attempt-failed"
+                style={{
+                  display: "block",
+                  marginTop: "4px",
+                  fontSize: "11px",
+                  color: "#f87171",
+                  fontWeight: 500,
+                }}
+              >
+                Última tentativa:{" "}
+                {new Date(lastAttemptAt).toLocaleString("pt-BR", {
+                  dateStyle: "short",
+                  timeStyle: "short",
+                })}{" "}
+                · Falha
+              </span>
+            )}
           </div>
         </div>
       </aside>
