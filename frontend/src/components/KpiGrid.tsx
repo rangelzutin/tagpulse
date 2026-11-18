@@ -167,59 +167,35 @@ export function KpiGrid({ summary, operationalBreakEven }: KpiGridProps) {
             </div>
           </div>
 
-          {/* Metrics horizontal row/grid */}
+          {/* Metrics horizontal row/grid: A) Ponto de equilíbrio, B) FALTA VENDER (destaque principal), C) Progresso, D) Média recente */}
           <div className="tp-breakeven-metrics-grid">
-            {/* Block A: Ponto de equilíbrio */}
-            <div className="tp-breakeven-metric-block tp-breakeven-hero-block">
+            {/* Block A: Ponto de equilíbrio do mês */}
+            <div className="tp-breakeven-metric-block">
               <span className="tp-breakeven-metric-label">
                 Ponto de equilíbrio do mês
               </span>
-              <div className="tp-breakeven-metric-value tp-breakeven-val-hero">
+              <div className="tp-breakeven-metric-value tp-breakeven-val-white">
                 {be.operationalBreakEvenRevenue !== null
                   ? formatCurrency(be.operationalBreakEvenRevenue)
                   : "—"}
               </div>
-              {be.averageOperationalBreakEven !== null && (
-                <div className="tp-breakeven-avg-reference">
-                  <span>
-                    Média recente:{" "}
-                    <strong>
-                      {formatCurrency(be.averageOperationalBreakEven)}
-                    </strong>
-                  </span>
-                  {avgDiffFormatted && (
-                    <span
-                      className={`tp-breakeven-avg-diff ${
-                        avgDiffPct && avgDiffPct > 0
-                          ? "tp-diff-positive"
-                          : "tp-diff-negative"
-                      }`}
-                    >
-                      {avgDiffFormatted}
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Block B: Faturado */}
-            <div className="tp-breakeven-metric-block">
-              <span className="tp-breakeven-metric-label">Faturado</span>
-              <div className="tp-breakeven-metric-value tp-breakeven-val-cyan">
-                {formatCurrency(be.realizedRevenue)}
-              </div>
               <span className="tp-breakeven-metric-subtext">
-                Receita realizada
+                Meta operacional do mês
               </span>
             </div>
 
-            {/* Block C: Falta vender / Superado */}
-            <div className="tp-breakeven-metric-block">
-              <span className="tp-breakeven-metric-label">
+            {/* Block B: FALTA VENDER / SUPERADO (Maior destaque visual da faixa) */}
+            <div
+              className={`tp-breakeven-metric-block tp-breakeven-gap-highlight ${
+                isAbove ? "is-above" : "is-below"
+              }`}
+              data-testid="home-breakeven-gap-block"
+            >
+              <span className="tp-breakeven-metric-label tp-breakeven-gap-label">
                 {isAbove ? "Superado" : "Falta vender"}
               </span>
               <div
-                className={`tp-breakeven-metric-value ${
+                className={`tp-breakeven-metric-value tp-breakeven-val-gap-hero ${
                   isAbove ? "tp-breakeven-val-emerald" : "tp-breakeven-val-amber"
                 }`}
               >
@@ -232,12 +208,12 @@ export function KpiGrid({ summary, operationalBreakEven }: KpiGridProps) {
               </span>
             </div>
 
-            {/* Block D: Progresso */}
+            {/* Block C: Progresso */}
             <div className="tp-breakeven-metric-block">
               <span className="tp-breakeven-metric-label">Progresso</span>
               <div
                 className={`tp-breakeven-metric-value ${
-                  isAbove ? "tp-breakeven-val-emerald" : "tp-breakeven-val-white"
+                  isAbove ? "tp-breakeven-val-emerald" : "tp-breakeven-val-cyan"
                 }`}
               >
                 {be.progressPercent !== null
@@ -247,6 +223,33 @@ export function KpiGrid({ summary, operationalBreakEven }: KpiGridProps) {
               <span className="tp-breakeven-metric-subtext">
                 {isAbove ? "Superado" : "Do equilíbrio"}
               </span>
+            </div>
+
+            {/* Block D: Média recente */}
+            <div className="tp-breakeven-metric-block">
+              <span className="tp-breakeven-metric-label">Média recente</span>
+              <div className="tp-breakeven-metric-value tp-breakeven-val-white">
+                {be.averageOperationalBreakEven !== null
+                  ? formatCurrency(be.averageOperationalBreakEven)
+                  : "—"}
+              </div>
+              {avgDiffFormatted ? (
+                <div className="tp-breakeven-avg-reference">
+                  <span
+                    className={`tp-breakeven-avg-diff ${
+                      avgDiffPct && avgDiffPct > 0
+                        ? "tp-diff-positive"
+                        : "tp-diff-negative"
+                    }`}
+                  >
+                    {avgDiffFormatted}
+                  </span>
+                </div>
+              ) : (
+                <span className="tp-breakeven-metric-subtext">
+                  Referência operacional
+                </span>
+              )}
             </div>
           </div>
 

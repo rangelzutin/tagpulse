@@ -12091,9 +12091,9 @@ body {
 
 .tp-breakeven-metrics-grid {
   display: grid;
-  grid-template-columns: 1.4fr 1fr 1.1fr 0.9fr;
+  grid-template-columns: 1.1fr 1.35fr 0.9fr 1.15fr;
   gap: 16px;
-  align-items: start;
+  align-items: center;
   margin-bottom: 16px;
 }
 
@@ -12102,6 +12102,34 @@ body {
   flex-direction: column;
   gap: 3px;
   min-width: 0;
+}
+
+.tp-breakeven-gap-highlight {
+  padding: 10px 14px;
+  border-radius: var(--tp-radius-sm, 6px);
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.32);
+}
+
+.tp-breakeven-gap-highlight.is-above {
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.32);
+}
+
+.tp-breakeven-gap-label {
+  color: #fde68a !important;
+  font-weight: 700 !important;
+}
+
+.tp-breakeven-gap-highlight.is-above .tp-breakeven-gap-label {
+  color: #a7f3d0 !important;
+}
+
+.tp-breakeven-val-gap-hero {
+  font-size: 1.6rem !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
 }
 
 .tp-breakeven-metric-label {

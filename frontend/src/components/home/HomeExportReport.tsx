@@ -165,7 +165,7 @@ const HOME_EXPORT_REPORT_CSS = `
     color: #0284c7;
   }
 
-  /* Break-even Banner — Padronizado com DRE (.tp-dre-export-breakeven-box) */
+  /* Break-even Banner — Padronizado com DRE + Destaque Principal em FALTA VENDER */
   .tp-home-export-breakeven {
     background: #f8fafc;
     border: 1px solid #cbd5e1;
@@ -215,7 +215,7 @@ const HOME_EXPORT_REPORT_CSS = `
   .tp-home-export-be-pill {
     font-size: 10px;
     font-weight: 700;
-    padding: 2px 9px;
+    padding: 2px 10px;
     border-radius: 999px;
     text-transform: uppercase;
     letter-spacing: 0.03em;
@@ -232,8 +232,9 @@ const HOME_EXPORT_REPORT_CSS = `
   }
   .tp-home-export-be-grid {
     display: grid;
-    grid-template-columns: 1.4fr 1fr 1fr 1fr;
+    grid-template-columns: 1.1fr 1.35fr 0.9fr 1.15fr;
     gap: 10px;
+    align-items: stretch;
   }
   .tp-home-export-be-col {
     background: #ffffff;
@@ -242,7 +243,17 @@ const HOME_EXPORT_REPORT_CSS = `
     padding: 8px 12px;
     display: flex;
     flex-direction: column;
+    justify-content: center;
     gap: 2px;
+  }
+  .tp-home-export-be-col.is-gap-highlight {
+    background: #fffbeb;
+    border: 1.5px solid #f59e0b;
+    padding: 9px 14px;
+  }
+  .tp-home-export-be-col.is-gap-highlight.is-above {
+    background: #dcfce7;
+    border-color: #22c55e;
   }
   .tp-home-export-be-col-label {
     font-size: 10px;
@@ -251,30 +262,42 @@ const HOME_EXPORT_REPORT_CSS = `
     text-transform: uppercase;
     letter-spacing: 0.03em;
   }
+  .tp-home-export-be-col.is-gap-highlight .tp-home-export-be-col-label {
+    color: #92400e;
+    font-weight: 800;
+  }
+  .tp-home-export-be-col.is-gap-highlight.is-above .tp-home-export-be-col-label {
+    color: #166534;
+  }
   .tp-home-export-be-col-val {
     font-size: 16px;
     font-weight: 800;
     color: #0f172a;
     font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+  }
+  .tp-home-export-be-col-val.is-gap-hero {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
   }
   .tp-home-export-be-col-val.is-cyan { color: #0284c7; }
   .tp-home-export-be-col-val.is-emerald { color: #15803d; }
-  .tp-home-export-be-col-val.is-amber { color: #92400e; }
+  .tp-home-export-be-col-val.is-amber { color: #b45309; }
   .tp-home-export-be-subtext {
     font-size: 10px;
     color: #64748b;
   }
-  .tp-home-export-be-avg {
-    font-size: 10px;
-    color: #475569;
-    margin-top: 2px;
+  .tp-home-export-be-col.is-gap-highlight .tp-home-export-be-subtext {
+    color: #92400e;
+    font-weight: 600;
   }
-  .tp-home-export-be-avg strong {
-    color: #0f172a;
+  .tp-home-export-be-col.is-gap-highlight.is-above .tp-home-export-be-subtext {
+    color: #166534;
   }
   .tp-home-export-be-avg-diff {
+    font-size: 10px;
     font-weight: 700;
-    margin-left: 4px;
   }
   .tp-home-export-be-avg-diff.is-pos { color: #92400e; }
   .tp-home-export-be-avg-diff.is-neg { color: #15803d; }
@@ -355,21 +378,28 @@ const HOME_EXPORT_REPORT_CSS = `
     padding: 4px;
   }
 
-  /* Page 2: Customers Table — Padronizado com DRE (.tp-dre-export-table) */
+  /* Page 2: Layout Lado a Lado (Top 5 Clientes + Concentração Comercial) */
+  .tp-home-export-p2-split {
+    display: grid;
+    grid-template-columns: 1.55fr 1fr;
+    gap: 14px;
+    flex: 1;
+    align-items: stretch;
+  }
   .tp-home-export-table-card {
     background: #ffffff;
     border: 1px solid #cbd5e1;
     border-radius: 8px;
-    padding: 14px 16px;
-    flex: 1;
+    padding: 16px 18px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    justify-content: space-between;
+    gap: 12px;
   }
   .tp-home-export-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 11.5px;
+    font-size: 12px;
   }
   .tp-home-export-table th {
     text-align: left;
@@ -378,12 +408,12 @@ const HOME_EXPORT_REPORT_CSS = `
     text-transform: uppercase;
     font-size: 10.5px;
     letter-spacing: 0.04em;
-    padding: 7px 10px;
+    padding: 9px 10px;
     background: #f8fafc;
     border-bottom: 2px solid #cbd5e1;
   }
   .tp-home-export-table td {
-    padding: 9px 10px;
+    padding: 13px 10px;
     border-bottom: 1px solid #e2e8f0;
     color: #1e293b;
     font-variant-numeric: tabular-nums;
@@ -398,32 +428,161 @@ const HOME_EXPORT_REPORT_CSS = `
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 20px;
-    height: 20px;
-    border-radius: 4px;
+    width: 22px;
+    height: 22px;
+    border-radius: 5px;
     background: #e0f2fe;
     color: #0369a1;
     border: 1px solid #bae6fd;
-    font-weight: 700;
-    font-size: 10px;
+    font-weight: 800;
+    font-size: 10.5px;
   }
   .tp-home-export-share-bar-wrap {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     justify-content: flex-end;
   }
+  .tp-home-export-share-pct-label {
+    font-weight: 700;
+    color: #0f172a;
+    min-width: 42px;
+    text-align: right;
+  }
   .tp-home-export-share-bar {
-    width: 60px;
-    height: 6px;
+    width: 96px;
+    height: 8px;
     background: #e2e8f0;
     border-radius: 999px;
     overflow: hidden;
   }
   .tp-home-export-share-fill {
     height: 100%;
-    background: #0284c7;
+    background: linear-gradient(90deg, #0284c7, #38bdf8);
     border-radius: 999px;
+  }
+  .tp-home-export-table-summary-footer {
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 10px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11.5px;
+    color: #334155;
+  }
+  .tp-home-export-table-summary-footer strong {
+    color: #0f172a;
+    font-weight: 800;
+  }
+
+  /* Coluna Direita Página 2: Concentração Comercial & Novos x Recorrentes */
+  .tp-home-export-p2-side {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    justify-content: space-between;
+  }
+  .tp-home-export-side-card {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+    justify-content: space-between;
+  }
+  .tp-home-export-conc-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .tp-home-export-conc-box {
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .tp-home-export-conc-box.is-primary {
+    background: #f0f9ff;
+    border-color: #7dd3fc;
+  }
+  .tp-home-export-conc-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #475569;
+  }
+  .tp-home-export-conc-val {
+    font-size: 17px;
+    font-weight: 800;
+    color: #0f172a;
+    font-variant-numeric: tabular-nums;
+  }
+  .tp-home-export-conc-val.is-cyan {
+    color: #0284c7;
+  }
+  .tp-home-export-conc-share {
+    font-size: 11px;
+    font-weight: 700;
+    color: #0369a1;
+  }
+  .tp-home-export-conc-sub {
+    font-size: 10px;
+    color: #64748b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .tp-home-export-conc-bar-block {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .tp-home-export-conc-bar-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10.5px;
+    color: #475569;
+    font-weight: 600;
+  }
+  .tp-home-export-conc-track {
+    width: 100%;
+    height: 10px;
+    background: #e2e8f0;
+    border-radius: 999px;
+    overflow: hidden;
+    display: flex;
+  }
+  .tp-home-export-conc-fill-top1 {
+    height: 100%;
+    background: #0369a1;
+  }
+  .tp-home-export-conc-fill-top5 {
+    height: 100%;
+    background: #38bdf8;
+  }
+  .tp-home-export-conc-legend {
+    display: flex;
+    gap: 12px;
+    font-size: 10px;
+    color: #475569;
+    flex-wrap: wrap;
+  }
+  .tp-home-export-legend-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 4px;
+    vertical-align: middle;
   }
 
   /* Footers — Padronizado com DRE (.tp-dre-export-page-footer) */
@@ -549,11 +708,58 @@ export function HomeExportReport({
     ? formatExportGeneratedAt(lastSyncAt)
     : "Não informada";
 
-  // Top 5 Clientes
+  // Top 5 Clientes & Métricas de Concentração Comercial
   const topCustomers = useMemo(() => {
     if (!customerData?.ranking) return [];
     return customerData.ranking.slice(0, 5);
   }, [customerData]);
+
+  const concentrationMetrics = useMemo(() => {
+    const allRanked = customerData?.ranking ?? [];
+    const totalRankedRevenue = allRanked.reduce((acc, c) => acc + c.revenue, 0);
+    const top5Revenue = topCustomers.reduce((acc, c) => acc + c.revenue, 0);
+    const lastTopCustomer =
+      topCustomers.length > 0 ? topCustomers[topCustomers.length - 1] : null;
+    const sumShare = topCustomers.reduce(
+      (acc, c) => acc + c.revenueSharePercent,
+      0,
+    );
+    const top5SharePercent =
+      lastTopCustomer?.cumulativeRevenueSharePercent ?? sumShare;
+    const top1 = topCustomers[0] ?? null;
+    const top1Revenue = top1 ? top1.revenue : 0;
+    const top1SharePercent = top1 ? top1.revenueSharePercent : 0;
+    const top1Name = top1?.displayName || "Maior cliente";
+    const baseRevenue =
+      totalRankedRevenue >= top5Revenue && totalRankedRevenue > 0
+        ? totalRankedRevenue
+        : summary.revenue;
+    const othersRevenue = Math.max(0, baseRevenue - top5Revenue);
+    const othersSharePercent = Math.max(0, 100 - top5SharePercent);
+
+    const buyingCustomers = customerData?.customers.buyingCustomers ?? 0;
+    const newCustomers = customerData?.customers.newCustomers ?? 0;
+    const returningCustomers = customerData?.customers.returningCustomers ?? 0;
+    const newSharePercent =
+      buyingCustomers > 0 ? (newCustomers / buyingCustomers) * 100 : 0;
+    const returningSharePercent =
+      buyingCustomers > 0 ? (returningCustomers / buyingCustomers) * 100 : 0;
+
+    return {
+      top5Revenue,
+      top5SharePercent,
+      top1Revenue,
+      top1SharePercent,
+      top1Name,
+      othersRevenue,
+      othersSharePercent,
+      buyingCustomers,
+      newCustomers,
+      returningCustomers,
+      newSharePercent,
+      returningSharePercent,
+    };
+  }, [topCustomers, summary.revenue, customerData]);
 
   const hasCustomerPage = Boolean(
     customerData?.customers &&
@@ -654,7 +860,7 @@ export function HomeExportReport({
         </div>
       </div>
 
-      {/* Bloco de Ponto de Equilíbrio */}
+      {/* Bloco de Ponto de Equilíbrio (Sem duplicidade de Faturado; FALTA VENDER como destaque principal) */}
       {be && (
         <div
           className={`tp-home-export-breakeven ${isAbove ? "is-above" : ""}`}
@@ -692,7 +898,7 @@ export function HomeExportReport({
           </div>
 
           <div className="tp-home-export-be-grid">
-            {/* Ponto de equilíbrio */}
+            {/* A) Ponto de equilíbrio do mês */}
             <div className="tp-home-export-be-col">
               <span className="tp-home-export-be-col-label">
                 Ponto de equilíbrio do mês
@@ -705,48 +911,22 @@ export function HomeExportReport({
                   ? formatCurrency(be.operationalBreakEvenRevenue)
                   : "—"}
               </span>
-              {be.averageOperationalBreakEven !== null && (
-                <div className="tp-home-export-be-avg">
-                  <span>
-                    Média recente:{" "}
-                    <strong>
-                      {formatCurrency(be.averageOperationalBreakEven)}
-                    </strong>
-                  </span>
-                  {avgDiffFormatted && (
-                    <span
-                      className={`tp-home-export-be-avg-diff ${
-                        avgDiffPct && avgDiffPct > 0 ? "is-pos" : "is-neg"
-                      }`}
-                    >
-                      {avgDiffFormatted}
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Faturado */}
-            <div className="tp-home-export-be-col">
-              <span className="tp-home-export-be-col-label">Faturado</span>
-              <span
-                className="tp-home-export-be-col-val is-cyan"
-                data-testid="export-be-realized"
-              >
-                {formatCurrency(be.realizedRevenue)}
-              </span>
               <span className="tp-home-export-be-subtext">
-                Receita realizada
+                Meta operacional do mês
               </span>
             </div>
 
-            {/* Falta vender / Superado */}
-            <div className="tp-home-export-be-col">
+            {/* B) FALTA VENDER / SUPERADO (Maior destaque visual após o título) */}
+            <div
+              className={`tp-home-export-be-col is-gap-highlight ${
+                isAbove ? "is-above" : ""
+              }`}
+            >
               <span className="tp-home-export-be-col-label">
                 {isAbove ? "Superado" : "Falta vender"}
               </span>
               <span
-                className={`tp-home-export-be-col-val ${
+                className={`tp-home-export-be-col-val is-gap-hero ${
                   isAbove ? "is-emerald" : "is-amber"
                 }`}
                 data-testid="export-be-gap"
@@ -760,7 +940,7 @@ export function HomeExportReport({
               </span>
             </div>
 
-            {/* Progresso */}
+            {/* C) Progresso */}
             <div className="tp-home-export-be-col">
               <span className="tp-home-export-be-col-label">Progresso</span>
               <span
@@ -777,12 +957,38 @@ export function HomeExportReport({
                 {isAbove ? "Superado" : "Do equilíbrio"}
               </span>
             </div>
+
+            {/* D) Média recente */}
+            <div className="tp-home-export-be-col">
+              <span className="tp-home-export-be-col-label">Média recente</span>
+              <span
+                className="tp-home-export-be-col-val"
+                data-testid="export-be-avg"
+              >
+                {be.averageOperationalBreakEven !== null
+                  ? formatCurrency(be.averageOperationalBreakEven)
+                  : "—"}
+              </span>
+              {avgDiffFormatted ? (
+                <span
+                  className={`tp-home-export-be-avg-diff ${
+                    avgDiffPct && avgDiffPct > 0 ? "is-pos" : "is-neg"
+                  }`}
+                >
+                  {avgDiffFormatted}
+                </span>
+              ) : (
+                <span className="tp-home-export-be-subtext">
+                  Referência operacional
+                </span>
+              )}
+            </div>
           </div>
 
-          {/* Barra de Progresso */}
+          {/* Barra de Progresso (único local onde o valor faturado aparece dentro da faixa) */}
           <div className="tp-home-export-be-bar-container">
             <div className="tp-home-export-be-bar-labels">
-              <span>
+              <span data-testid="export-be-realized">
                 {`${formatCurrency(be.realizedRevenue)} de ${
                   be.operationalBreakEvenRevenue !== null
                     ? formatCurrency(be.operationalBreakEvenRevenue)
@@ -982,7 +1188,7 @@ export function HomeExportReport({
     </div>
   );
 
-  // Render Page 2 Content (Customer Intelligence)
+  // Render Page 2 Content (Customer Intelligence & Commercial Concentration)
   const renderPage2 = (isSheet = false) => {
     if (!hasCustomerPage) return null;
     return (
@@ -1056,97 +1262,324 @@ export function HomeExportReport({
           </div>
         </div>
 
-        {/* Top 5 Clientes Table */}
-        <div className="tp-home-export-table-card">
-          <div className="tp-home-export-chart-header">
-            <div className="tp-home-export-chart-title">
-              <span>Top 5 Clientes por Faturamento</span>
-              <span className="tp-home-export-chart-badge">
-                Concentração comercial
-              </span>
+        {/* Corpo Página 2 Lado a Lado: Top 5 Clientes (esquerda) + Concentração Comercial e Novos x Recorrentes (direita) */}
+        <div className="tp-home-export-p2-split">
+          {/* Esquerda: Top 5 Clientes Table */}
+          <div className="tp-home-export-table-card">
+            <div>
+              <div className="tp-home-export-chart-header" style={{ marginBottom: 10 }}>
+                <div className="tp-home-export-chart-title">
+                  <span>Top 5 Clientes por Faturamento</span>
+                  <span className="tp-home-export-chart-badge">
+                    Ranking do período
+                  </span>
+                </div>
+                <span className="tp-home-export-chart-subtitle">
+                  Principais compradores ordenados por receita realizada
+                </span>
+              </div>
+
+              <table
+                className="tp-home-export-table"
+                data-testid="export-top-customers-table"
+              >
+                <thead>
+                  <tr>
+                    <th style={{ width: 38 }}>#</th>
+                    <th>Cliente</th>
+                    <th className="col-right">Faturamento</th>
+                    <th className="col-right">Vendas</th>
+                    <th className="col-right">Ticket Médio</th>
+                    <th className="col-right" style={{ width: 175 }}>
+                      % Participação
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {topCustomers.map((cust, idx) => (
+                    <tr key={cust.customerId || idx}>
+                      <td>
+                        <span className="tp-home-export-rank-badge">
+                          {idx + 1}
+                        </span>
+                      </td>
+                      <td>
+                        <strong style={{ color: "#0f172a" }}>
+                          {cust.displayName || "Cliente"}
+                        </strong>
+                        {cust.code && (
+                          <span
+                            style={{
+                              color: "#64748b",
+                              fontSize: "10px",
+                              marginLeft: 6,
+                            }}
+                          >
+                            ({cust.code})
+                          </span>
+                        )}
+                      </td>
+                      <td className="col-right" style={{ fontWeight: 700, color: "#0284c7" }}>
+                        {formatCurrency(cust.revenue)}
+                      </td>
+                      <td className="col-right">{formatNumber(cust.purchaseCount)}</td>
+                      <td className="col-right">
+                        {formatCurrency(cust.averageTicket)}
+                      </td>
+                      <td className="col-right">
+                        <div className="tp-home-export-share-bar-wrap">
+                          <span className="tp-home-export-share-pct-label">
+                            {formatPercent(cust.revenueSharePercent, 1)}
+                          </span>
+                          <div className="tp-home-export-share-bar">
+                            <div
+                              className="tp-home-export-share-fill"
+                              style={{
+                                width: `${Math.min(
+                                  100,
+                                  Math.max(4, cust.revenueSharePercent),
+                                )}%`,
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {topCustomers.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={6}
+                        style={{ textAlign: "center", color: "#64748b", padding: 24 }}
+                      >
+                        Nenhum cliente registrado no período selecionado.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
-            <span className="tp-home-export-chart-subtitle">
-              Principais compradores ordenados por receita realizada
-            </span>
+
+            {topCustomers.length > 0 && (
+              <div className="tp-home-export-table-summary-footer">
+                <span>
+                  Subtotal Top 5:{" "}
+                  <strong>{formatCurrency(concentrationMetrics.top5Revenue)}</strong>{" "}
+                  ({formatPercent(concentrationMetrics.top5SharePercent, 1)} da receita)
+                </span>
+                <span>
+                  Demais clientes:{" "}
+                  <strong>{formatCurrency(concentrationMetrics.othersRevenue)}</strong>{" "}
+                  ({formatPercent(concentrationMetrics.othersSharePercent, 1)})
+                </span>
+              </div>
+            )}
           </div>
 
-          <table
-            className="tp-home-export-table"
-            data-testid="export-top-customers-table"
-          >
-            <thead>
-              <tr>
-                <th style={{ width: 40 }}>#</th>
-                <th>Cliente</th>
-                <th className="col-right">Faturamento</th>
-                <th className="col-right">Vendas</th>
-                <th className="col-right">Ticket Médio</th>
-                <th className="col-right" style={{ width: 140 }}>
-                  % Participação
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {topCustomers.map((cust, idx) => (
-                <tr key={cust.customerId || idx}>
-                  <td>
-                    <span className="tp-home-export-rank-badge">
-                      {idx + 1}
-                    </span>
-                  </td>
-                  <td>
-                    <strong style={{ color: "#0f172a" }}>
-                      {cust.displayName || "Cliente"}
-                    </strong>
-                    {cust.code && (
-                      <span
-                        style={{
-                          color: "#64748b",
-                          fontSize: "10px",
-                          marginLeft: 6,
-                        }}
-                      >
-                        ({cust.code})
-                      </span>
-                    )}
-                  </td>
-                  <td className="col-right" style={{ fontWeight: 700, color: "#0284c7" }}>
-                    {formatCurrency(cust.revenue)}
-                  </td>
-                  <td className="col-right">{formatNumber(cust.purchaseCount)}</td>
-                  <td className="col-right">
-                    {formatCurrency(cust.averageTicket)}
-                  </td>
-                  <td className="col-right">
-                    <div className="tp-home-export-share-bar-wrap">
-                      <span>{formatPercent(cust.revenueSharePercent, 1)}</span>
-                      <div className="tp-home-export-share-bar">
-                        <div
-                          className="tp-home-export-share-fill"
-                          style={{
-                            width: `${Math.min(
-                              100,
-                              Math.max(0, cust.revenueSharePercent),
-                            )}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {topCustomers.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={6}
-                    style={{ textAlign: "center", color: "#64748b", padding: 24 }}
+          {/* Direita: Concentração Comercial & Novos x Recorrentes */}
+          <div className="tp-home-export-p2-side">
+            {/* Bloco 1: Concentração Comercial */}
+            <div
+              className="tp-home-export-side-card"
+              data-testid="export-commercial-concentration"
+            >
+              <div className="tp-home-export-chart-header">
+                <div className="tp-home-export-chart-title">
+                  <span>Concentração Comercial</span>
+                </div>
+                <span className="tp-home-export-chart-badge">
+                  Peso na receita
+                </span>
+              </div>
+
+              <div className="tp-home-export-conc-grid">
+                <div className="tp-home-export-conc-box is-primary">
+                  <span className="tp-home-export-conc-label">
+                    Top 5 representam
+                  </span>
+                  <span
+                    className="tp-home-export-conc-val is-cyan"
+                    data-testid="export-top5-revenue"
                   >
-                    Nenhum cliente registrado no período selecionado.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                    {formatCurrency(concentrationMetrics.top5Revenue)}
+                  </span>
+                  <span
+                    className="tp-home-export-conc-share"
+                    data-testid="export-top5-share"
+                  >
+                    {formatPercent(concentrationMetrics.top5SharePercent, 1)} do faturamento
+                  </span>
+                  <span className="tp-home-export-conc-sub">
+                    Acumulado dos 5 maiores
+                  </span>
+                </div>
+
+                <div className="tp-home-export-conc-box">
+                  <span className="tp-home-export-conc-label">
+                    Maior cliente
+                  </span>
+                  <span
+                    className="tp-home-export-conc-val"
+                    data-testid="export-top1-revenue"
+                  >
+                    {formatCurrency(concentrationMetrics.top1Revenue)}
+                  </span>
+                  <span
+                    className="tp-home-export-conc-share"
+                    data-testid="export-top1-share"
+                  >
+                    {formatPercent(concentrationMetrics.top1SharePercent, 1)} do faturamento
+                  </span>
+                  <span className="tp-home-export-conc-sub">
+                    {concentrationMetrics.top1Name}
+                  </span>
+                </div>
+              </div>
+
+              <div className="tp-home-export-conc-bar-block">
+                <div className="tp-home-export-conc-bar-labels">
+                  <span>Distribuição do faturamento por concentração</span>
+                  <span>{formatPercent(concentrationMetrics.top5SharePercent, 1)} no Top 5</span>
+                </div>
+                <div className="tp-home-export-conc-track">
+                  <div
+                    className="tp-home-export-conc-fill-top1"
+                    style={{
+                      width: `${Math.min(
+                        100,
+                        Math.max(0, concentrationMetrics.top1SharePercent),
+                      )}%`,
+                    }}
+                  />
+                  <div
+                    className="tp-home-export-conc-fill-top5"
+                    style={{
+                      width: `${Math.min(
+                        100 - Math.min(100, Math.max(0, concentrationMetrics.top1SharePercent)),
+                        Math.max(
+                          0,
+                          concentrationMetrics.top5SharePercent -
+                            concentrationMetrics.top1SharePercent,
+                        ),
+                      )}%`,
+                    }}
+                  />
+                </div>
+                <div className="tp-home-export-conc-legend">
+                  <span>
+                    <i
+                      className="tp-home-export-legend-dot"
+                      style={{ background: "#0369a1" }}
+                    />
+                    Top 1 ({formatPercent(concentrationMetrics.top1SharePercent, 1)})
+                  </span>
+                  <span>
+                    <i
+                      className="tp-home-export-legend-dot"
+                      style={{ background: "#38bdf8" }}
+                    />
+                    2º ao 5º ({formatPercent(
+                      Math.max(
+                        0,
+                        concentrationMetrics.top5SharePercent -
+                          concentrationMetrics.top1SharePercent,
+                      ),
+                      1,
+                    )})
+                  </span>
+                  <span>
+                    <i
+                      className="tp-home-export-legend-dot"
+                      style={{ background: "#cbd5e1" }}
+                    />
+                    Demais ({formatPercent(concentrationMetrics.othersSharePercent, 1)})
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Bloco 2: Novos x Recorrentes */}
+            <div
+              className="tp-home-export-side-card"
+              data-testid="export-new-vs-returning"
+            >
+              <div className="tp-home-export-chart-header">
+                <div className="tp-home-export-chart-title">
+                  <span>Novos x Recorrentes</span>
+                </div>
+                <span className="tp-home-export-chart-badge">
+                  {formatNumber(concentrationMetrics.buyingCustomers)} compradores
+                </span>
+              </div>
+
+              <div className="tp-home-export-conc-grid">
+                <div className="tp-home-export-conc-box">
+                  <span className="tp-home-export-conc-label">
+                    Clientes novos
+                  </span>
+                  <span className="tp-home-export-conc-val">
+                    {formatNumber(concentrationMetrics.newCustomers)}
+                  </span>
+                  <span className="tp-home-export-conc-share" style={{ color: "#475569" }}>
+                    {formatPercent(concentrationMetrics.newSharePercent, 1)} da base ativa
+                  </span>
+                </div>
+
+                <div className="tp-home-export-conc-box is-primary">
+                  <span className="tp-home-export-conc-label">
+                    Clientes recorrentes
+                  </span>
+                  <span className="tp-home-export-conc-val is-cyan">
+                    {formatNumber(concentrationMetrics.returningCustomers)}
+                  </span>
+                  <span className="tp-home-export-conc-share">
+                    {formatPercent(concentrationMetrics.returningSharePercent, 1)} da base ativa
+                  </span>
+                </div>
+              </div>
+
+              <div className="tp-home-export-conc-bar-block">
+                <div className="tp-home-export-conc-track">
+                  <div
+                    className="tp-home-export-conc-fill-top1"
+                    style={{
+                      background: "#0284c7",
+                      width: `${Math.min(
+                        100,
+                        Math.max(0, concentrationMetrics.returningSharePercent),
+                      )}%`,
+                    }}
+                  />
+                  <div
+                    className="tp-home-export-conc-fill-top5"
+                    style={{
+                      background: "#94a3b8",
+                      width: `${Math.min(
+                        100,
+                        Math.max(0, concentrationMetrics.newSharePercent),
+                      )}%`,
+                    }}
+                  />
+                </div>
+                <div className="tp-home-export-conc-legend">
+                  <span>
+                    <i
+                      className="tp-home-export-legend-dot"
+                      style={{ background: "#0284c7" }}
+                    />
+                    Recorrentes ({formatPercent(concentrationMetrics.returningSharePercent, 1)})
+                  </span>
+                  <span>
+                    <i
+                      className="tp-home-export-legend-dot"
+                      style={{ background: "#94a3b8" }}
+                    />
+                    Novos ({formatPercent(concentrationMetrics.newSharePercent, 1)})
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Footer */}

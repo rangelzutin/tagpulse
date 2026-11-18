@@ -408,6 +408,18 @@ describe("Home Export Suite (Section 16)", () => {
     // Última sincronização exibida
     expect(html).toContain('data-testid="export-last-sync"');
     expect(html).toContain("Última sincronização:");
+
+    // Sem bloco duplicado de Faturado na faixa de ponto de equilíbrio
+    expect(html).not.toContain(">Faturado<");
+    expect(html).toContain("is-gap-highlight");
+
+    // Concentração Comercial e Novos x Recorrentes presentes na Página 2
+    expect(html).toContain('data-testid="export-commercial-concentration"');
+    expect(html).toContain("Concentração Comercial");
+    expect(html).toContain("Top 5 representam");
+    expect(html).toContain("Maior cliente");
+    expect(html).toContain('data-testid="export-new-vs-returning"');
+    expect(html).toContain("Novos x Recorrentes");
   });
 
   // Extra check: PDF Landscape generator produces valid PDF binary header
