@@ -290,8 +290,10 @@ describe("FinancialDreBreakEven — Frontend Components & Calculation", () => {
     expect(html).toContain("tp-breakeven-banner");
     expect(html).toContain("tp-breakeven-metrics-grid");
     expect(html).toContain("Ponto de equilíbrio do mês");
-    expect(html).toContain("PROVISÓRIO");
-    expect(html).toContain("Calculado com base nas despesas já lançadas com vencimento neste mês.");
+    expect(html).toContain("EM ANDAMENTO");
+    expect(html).not.toContain("PROVISÓRIO");
+    expect(html).not.toContain("Provisório");
+    expect(html).toContain("Mês ainda em andamento. O ponto de equilíbrio pode variar conforme novos lançamentos e vendas forem registrados.");
     expect(html).toContain("Faltam R$ 29.318,38 para o equilíbrio");
     expect(html).toContain(formatCurrency(40921.25)); // A) Ponto de equilíbrio
     expect(html).toContain(formatCurrency(11602.87)); // B) Faturado
@@ -352,6 +354,7 @@ describe("FinancialDreBreakEven — Frontend Components & Calculation", () => {
       progressPercent: 172.13,
       status: "ABOVE_BREAK_EVEN",
       statusLabel: "Superado em R$ 20.952,38",
+      monthStatus: "CLOSED",
       isProvisional: false,
       pendingItems: [],
       averageOperationalBreakEven: 30000,
@@ -384,6 +387,8 @@ describe("FinancialDreBreakEven — Frontend Components & Calculation", () => {
     expect(html).toContain("Superado");
     expect(html).toContain("tp-fill-emerald");
     expect(html).toContain("width:100%");
+    expect(html).not.toContain("EM ANDAMENTO");
     expect(html).not.toContain("PROVISÓRIO");
+    expect(html).not.toContain("Provisório");
   });
 });

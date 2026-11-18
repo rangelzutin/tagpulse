@@ -1501,6 +1501,11 @@ export function calculateMonthlyOperationalBreakEven(
     pendingItems.push("Pró-labore dos sócios");
   }
 
+  const isMonthOpen = targetMonth >= currentRefMonth;
+  const monthStatus: "IN_PROGRESS" | "CLOSED" = isMonthOpen
+    ? "IN_PROGRESS"
+    : "CLOSED";
+
   const isProvisional =
     targetMonth >= currentRefMonth ||
     !(targetDreMonth?.dataQuality.financiallyClosed ?? false) ||
@@ -1523,6 +1528,7 @@ export function calculateMonthlyOperationalBreakEven(
 
   return {
     referenceMonth: targetMonth,
+    monthStatus,
     period: {
       from: monthStartStr,
       to: monthEndStr,

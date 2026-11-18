@@ -34,7 +34,7 @@ interface ChartItem {
   sales: number;
   avgTicket: number;
   customers: number;
-  isJuly2026: boolean;
+  isMilestone: boolean;
   isPartial?: boolean;
 }
 
@@ -102,20 +102,20 @@ export function MonthlyChart({ trend, monthly, from, toDate }: MonthlyChartProps
       return trend.points.map((p) => {
         let tooltipTitle = p.label;
         let isPartial = false;
-        let isJuly = false;
+        let isMilestone = false;
 
         if (trend.granularity === "daily") {
           tooltipTitle = formatDisplayDate(p.periodStart);
-          isJuly = p.key === "2026-07-01";
+          isMilestone = p.key === "2026-06-03";
         } else if (trend.granularity === "weekly") {
           tooltipTitle = `Semana: ${formatDisplayDate(p.periodStart)} a ${formatDisplayDate(p.periodEnd)}`;
-          isJuly = p.periodStart <= "2026-07-01" && p.periodEnd >= "2026-07-01";
+          isMilestone = p.periodStart <= "2026-06-03" && p.periodEnd >= "2026-06-03";
         } else {
           // monthly
           isPartial = isMonthPartial(p.key, toDate);
           const full = formatFullMonthName(p.key);
           tooltipTitle = isPartial ? `${full} (parcial)` : full;
-          isJuly = p.key === "2026-07";
+          isMilestone = p.key === "2026-06";
         }
 
         return {
@@ -126,7 +126,7 @@ export function MonthlyChart({ trend, monthly, from, toDate }: MonthlyChartProps
           sales: p.sales,
           avgTicket: p.averageTicket,
           customers: p.customers,
-          isJuly2026: isJuly,
+          isMilestone,
           isPartial,
         };
       });
@@ -148,7 +148,7 @@ export function MonthlyChart({ trend, monthly, from, toDate }: MonthlyChartProps
           sales: item.sales,
           avgTicket: item.avgTicket,
           customers: item.customers,
-          isJuly2026: item.month === "2026-07",
+          isMilestone: item.month === "2026-06",
           isPartial,
         };
       });
@@ -157,13 +157,13 @@ export function MonthlyChart({ trend, monthly, from, toDate }: MonthlyChartProps
     return [];
   }, [trend, monthly, toDate]);
 
-  // Determine if July 1, 2026 is strictly within the selected from/to interval
-  const isJuly2026InInterval = Boolean(
-    from && toDate && from <= "2026-07-01" && toDate >= "2026-07-01",
+  // Determine if the June 2026 joint operation milestone is within the selected interval
+  const isMilestoneInInterval = Boolean(
+    from && toDate && from <= "2026-06-03" && toDate >= "2026-06-01",
   );
 
-  const julyItem = isJuly2026InInterval
-    ? chartData.find((item) => item.isJuly2026)
+  const milestoneItem = isMilestoneInInterval
+    ? chartData.find((item) => item.isMilestone)
     : undefined;
 
   const isSinglePoint = chartData.length === 1;
@@ -274,14 +274,14 @@ export function MonthlyChart({ trend, monthly, from, toDate }: MonthlyChartProps
               }}
             />
 
-            {julyItem && (
+            {milestoneItem && (
               <ReferenceLine
-                x={julyItem.xAxisLabel}
+                x={milestoneItem.xAxisLabel}
                 stroke="#64748b"
                 strokeDasharray="4 4"
                 strokeWidth={1.5}
                 label={{
-                  value: "Início da operação consolidada no TagPlus",
+                  value: "Nineclouds + Hustler no mesmo sistema",
                   position: "top",
                   fill: "#94a3b8",
                   fontSize: 11,

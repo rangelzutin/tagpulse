@@ -378,6 +378,7 @@ export interface MonthlyOperationalBreakEvenDto {
   progressPercent: number | null;
   status: "BELOW_BREAK_EVEN" | "ABOVE_BREAK_EVEN" | "UNVIABLE_MARGIN" | "NO_REVENUE";
   statusLabel: string;
+  monthStatus?: "IN_PROGRESS" | "CLOSED";
   isProvisional: boolean;
   pendingItems: string[];
   averageOperationalBreakEven: number | null;

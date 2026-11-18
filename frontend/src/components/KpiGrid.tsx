@@ -31,6 +31,20 @@ export function KpiGrid({ summary, operationalBreakEven }: KpiGridProps) {
       ? Math.min(100, Math.max(0, be.progressPercent))
       : 0;
 
+  // Semântica da Home: o badge indica se o mês de referência ainda está em andamento
+  const isMonthInProgress =
+    be?.monthStatus === "IN_PROGRESS" ||
+    (be?.monthStatus !== "CLOSED" &&
+      (be?.referenceMonth
+        ? (() => {
+            const now = new Date();
+            const currentMonth = `${now.getUTCFullYear()}-${String(
+              now.getUTCMonth() + 1,
+            ).padStart(2, "0")}`;
+            return be.referenceMonth >= currentMonth;
+          })()
+        : be?.isProvisional ?? false));
+
   const avgDiffPct =
     be?.averageOperationalBreakEven &&
     be.averageOperationalBreakEven > 0 &&
@@ -129,12 +143,12 @@ export function KpiGrid({ summary, operationalBreakEven }: KpiGridProps) {
               <span className="tp-kpi-label tp-breakeven-banner-title">
                 Ponto de equilíbrio do mês
               </span>
-              {be.isProvisional && (
+              {isMonthInProgress && (
                 <span
-                  className="tp-badge-provisional"
-                  title="Calculado com base nas despesas já lançadas com vencimento neste mês."
+                  className="tp-badge-in-progress"
+                  title="Mês ainda em andamento. O ponto de equilíbrio pode variar conforme novos lançamentos e vendas forem registrados."
                 >
-                  PROVISÓRIO
+                  EM ANDAMENTO
                 </span>
               )}
             </div>
@@ -346,19 +360,21 @@ export function KpiGrid({ summary, operationalBreakEven }: KpiGridProps) {
                   >
                     Critério Home: vencimento no mês
                   </span>
-                  {be.isProvisional && (
+                  {isMonthInProgress && (
                     <span
+                      className="tp-badge-in-progress"
+                      title="Mês ainda em andamento. O ponto de equilíbrio pode variar conforme novos lançamentos e vendas forem registrados."
                       style={{
                         fontSize: "11px",
                         fontWeight: 700,
                         padding: "2px 8px",
                         borderRadius: "999px",
-                        background: "rgba(245, 158, 11, 0.15)",
-                        color: "#fbbf24",
-                        border: "1px solid rgba(245, 158, 11, 0.35)",
+                        background: "rgba(56, 189, 248, 0.15)",
+                        color: "#38bdf8",
+                        border: "1px solid rgba(56, 189, 248, 0.35)",
                       }}
                     >
-                      PROVISÓRIO
+                      EM ANDAMENTO
                     </span>
                   )}
                 </div>

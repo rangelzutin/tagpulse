@@ -487,8 +487,15 @@ describe("Financial DRE — Break-Even Analysis (calculateBreakEven)", () => {
         referenceDate: new Date("2026-11-17T12:00:00Z"),
       });
       expect(homeNov.calculationBasis).toBe("CURRENT_MONTH_DUE_DATE");
+      expect(homeNov.monthStatus).toBe("IN_PROGRESS");
       expect(homeNov.variableExpenses.taxesOnRevenue).toBe(920.24);
       expect(homeNov.operatingExpenses.personnel).toBe(534.93);
+
+      const homeOct = calculateMonthlyOperationalBreakEven(baseTrend, records, {
+        targetMonth: "2026-10",
+        referenceDate: new Date("2026-11-17T12:00:00Z"),
+      });
+      expect(homeOct.monthStatus).toBe("CLOSED");
     });
 
     it("C & D: excludes inventory purchases (Plan 19) from KPI expenses and includes November partner compensation (Plan 39)", () => {

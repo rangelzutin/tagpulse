@@ -52,7 +52,7 @@ describe("MonthlyChart — Consolidated Revenue Trend & Historical Marker", () =
     },
   ];
 
-  it("renders ReferenceLine with 'Início da operação consolidada no TagPlus' when July 2026 is in range", () => {
+  it("renders ReferenceLine with 'Nineclouds + Hustler no mesmo sistema' when June 2026 is in range", () => {
     const html = renderToString(
       React.createElement(MonthlyChart, {
         monthly: mockMonthly,
@@ -61,11 +61,12 @@ describe("MonthlyChart — Consolidated Revenue Trend & Historical Marker", () =
       }),
     );
 
-    expect(html).toContain("Início da operação consolidada no TagPlus");
+    expect(html).toContain("Nineclouds + Hustler no mesmo sistema");
+    expect(html).not.toContain("Início da operação consolidada no TagPlus");
     expect(html).not.toContain("Entrada do varejo no TagPlus");
   });
 
-  it("does not render the ReferenceLine when July 2026 is outside the selected interval", () => {
+  it("does not render the ReferenceLine when June 2026 is outside the selected interval (earlier)", () => {
     const html = renderToString(
       React.createElement(MonthlyChart, {
         monthly: [
@@ -82,7 +83,28 @@ describe("MonthlyChart — Consolidated Revenue Trend & Historical Marker", () =
       }),
     );
 
+    expect(html).not.toContain("Nineclouds + Hustler no mesmo sistema");
     expect(html).not.toContain("Início da operação consolidada no TagPlus");
     expect(html).not.toContain("Entrada do varejo no TagPlus");
+  });
+
+  it("does not render the ReferenceLine when June 2026 is outside the selected interval (later)", () => {
+    const html = renderToString(
+      React.createElement(MonthlyChart, {
+        monthly: [
+          {
+            month: "2026-07",
+            revenue: 40000,
+            sales: 45,
+            avgTicket: 888.89,
+            customers: 35,
+          },
+        ],
+        from: "2026-07-01",
+        toDate: "2026-10-31",
+      }),
+    );
+
+    expect(html).not.toContain("Nineclouds + Hustler no mesmo sistema");
   });
 });
