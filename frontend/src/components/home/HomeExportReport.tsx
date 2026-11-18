@@ -12,7 +12,6 @@ import {
   formatPercent,
   formatDateBr,
   formatCompactCurrency,
-  formatDisplayDate,
   formatMonthLabel,
 } from "../../utils/formatters";
 import { formatExportGeneratedAt } from "../financial/dreExportService";
@@ -31,26 +30,36 @@ export interface HomeExportReportProps {
 }
 
 const HOME_EXPORT_REPORT_CSS = `
-  .tp-home-export-root {
-    background: #0b1120;
-    color: #f8fafc;
+  .tp-home-export-root,
+  .tp-home-export-page,
+  .tp-home-export-sheet,
+  .tp-home-export-sheet-section {
+    background: #ffffff;
+    color: #0f172a;
     font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.4;
     -webkit-font-smoothing: antialiased;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
     box-sizing: border-box;
   }
-  .tp-home-export-root * {
+  .tp-home-export-root *,
+  .tp-home-export-page *,
+  .tp-home-export-sheet *,
+  .tp-home-export-sheet-section * {
     box-sizing: border-box;
   }
 
   .tp-home-export-page {
     width: 1120px;
     height: 792px;
-    padding: 24px 32px;
-    background: #0b1120;
-    color: #f8fafc;
+    padding: 26px 34px;
+    background: #ffffff;
+    color: #0f172a;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
+    gap: 12px;
     page-break-after: always;
     break-after: page;
     position: relative;
@@ -59,104 +68,116 @@ const HOME_EXPORT_REPORT_CSS = `
 
   .tp-home-export-sheet {
     width: 1120px;
-    padding: 24px 32px;
-    background: #0b1120;
-    color: #f8fafc;
+    padding: 26px 34px;
+    background: #ffffff;
+    color: #0f172a;
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 28px;
   }
 
+  .tp-home-export-sheet-section {
+    width: 100%;
+    background: #ffffff;
+    color: #0f172a;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  /* Header — Padronizado com DRE */
   .tp-home-export-header {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    border-bottom: 1px solid rgba(56, 189, 248, 0.25);
+    border-bottom: 2px solid #0f172a;
     padding-bottom: 12px;
   }
   .tp-home-export-brand {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: #38bdf8;
-    margin-bottom: 3px;
+    color: #0284c7;
+    margin-bottom: 2px;
   }
   .tp-home-export-title {
-    font-size: 20px;
+    font-size: 21px;
     font-weight: 800;
-    color: #f8fafc;
+    color: #0f172a;
     margin: 0;
     letter-spacing: -0.02em;
   }
   .tp-home-export-subtitle {
-    font-size: 11px;
-    color: #94a3b8;
+    font-size: 13px;
+    font-weight: 600;
+    color: #334155;
     margin: 2px 0 0 0;
   }
   .tp-home-export-meta {
     text-align: right;
-    font-size: 11px;
-    color: #94a3b8;
+    font-size: 11.5px;
+    color: #334155;
     display: flex;
     flex-direction: column;
     gap: 3px;
   }
   .tp-home-export-meta strong {
-    color: #f1f5f9;
+    color: #0f172a;
     font-weight: 600;
   }
 
-  /* 4 KPI Grid */
+  /* 4 KPI Grid — Padronizado com DRE (.tp-dre-export-kpi-card) */
   .tp-home-export-kpi-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 12px;
+    gap: 10px;
   }
   .tp-home-export-kpi-card {
-    background: #151e2e;
-    border: 1px solid rgba(148, 163, 184, 0.16);
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
     border-radius: 8px;
-    padding: 12px 14px;
+    padding: 11px 14px;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
   }
   .tp-home-export-kpi-card.is-highlight {
-    border-color: rgba(56, 189, 248, 0.4);
-    background: linear-gradient(135deg, rgba(14, 165, 233, 0.12) 0%, #151e2e 70%);
+    border-color: #7dd3fc;
+    background: #f0f9ff;
   }
   .tp-home-export-kpi-label {
-    font-size: 11px;
-    font-weight: 500;
-    color: #94a3b8;
+    font-size: 10.5px;
+    font-weight: 700;
+    color: #475569;
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }
   .tp-home-export-kpi-value {
-    font-size: 20px;
-    font-weight: 700;
-    color: #f8fafc;
+    font-size: 19px;
+    font-weight: 800;
+    color: #0f172a;
     margin-top: 4px;
     letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
   }
   .tp-home-export-kpi-value.is-cyan {
-    color: #38bdf8;
+    color: #0284c7;
   }
 
-  /* Break-even Banner */
+  /* Break-even Banner — Padronizado com DRE (.tp-dre-export-breakeven-box) */
   .tp-home-export-breakeven {
-    background: #151e2e;
-    border: 1px solid rgba(148, 163, 184, 0.18);
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
     border-radius: 8px;
-    padding: 14px 16px;
+    padding: 12px 16px;
     display: flex;
     flex-direction: column;
     gap: 10px;
   }
   .tp-home-export-breakeven.is-above {
-    border-color: rgba(16, 185, 129, 0.45);
-    background: linear-gradient(180deg, rgba(16, 185, 129, 0.08) 0%, #151e2e 50%);
+    border-color: #86efac;
+    background: #f0fdf4;
   }
   .tp-home-export-be-top {
     display: flex;
@@ -170,86 +191,93 @@ const HOME_EXPORT_REPORT_CSS = `
   }
   .tp-home-export-be-title {
     font-size: 13px;
-    font-weight: 700;
-    color: #f1f5f9;
+    font-weight: 800;
+    color: #0f172a;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
   }
   .tp-home-export-badge-inprogress {
-    font-size: 9px;
+    font-size: 9.5px;
     font-weight: 700;
-    padding: 2px 6px;
-    border-radius: 4px;
-    background: rgba(245, 158, 11, 0.2);
-    color: #fbbf24;
-    border: 1px solid rgba(245, 158, 11, 0.4);
-    letter-spacing: 0.04em;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fcd34d;
+    letter-spacing: 0.03em;
   }
   .tp-home-export-inprogress-note {
-    font-size: 10px;
-    color: #94a3b8;
+    font-size: 10.5px;
+    color: #64748b;
     font-style: italic;
     margin-left: 4px;
   }
   .tp-home-export-be-pill {
     font-size: 10px;
     font-weight: 700;
-    padding: 3px 8px;
-    border-radius: 4px;
+    padding: 2px 9px;
+    border-radius: 999px;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.03em;
   }
   .tp-home-export-be-pill.is-above {
-    background: rgba(16, 185, 129, 0.2);
-    color: #34d399;
-    border: 1px solid rgba(16, 185, 129, 0.4);
+    background: #dcfce7;
+    color: #166534;
+    border: 1px solid #86efac;
   }
   .tp-home-export-be-pill.is-below {
-    background: rgba(245, 158, 11, 0.2);
-    color: #fbbf24;
-    border: 1px solid rgba(245, 158, 11, 0.4);
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fcd34d;
   }
   .tp-home-export-be-grid {
     display: grid;
     grid-template-columns: 1.4fr 1fr 1fr 1fr;
-    gap: 12px;
+    gap: 10px;
   }
   .tp-home-export-be-col {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 8px 12px;
     display: flex;
     flex-direction: column;
     gap: 2px;
   }
   .tp-home-export-be-col-label {
     font-size: 10px;
-    font-weight: 600;
-    color: #94a3b8;
+    font-weight: 700;
+    color: #475569;
     text-transform: uppercase;
     letter-spacing: 0.03em;
   }
   .tp-home-export-be-col-val {
     font-size: 16px;
     font-weight: 800;
-    color: #f8fafc;
+    color: #0f172a;
+    font-variant-numeric: tabular-nums;
   }
-  .tp-home-export-be-col-val.is-cyan { color: #38bdf8; }
-  .tp-home-export-be-col-val.is-emerald { color: #34d399; }
-  .tp-home-export-be-col-val.is-amber { color: #fbbf24; }
+  .tp-home-export-be-col-val.is-cyan { color: #0284c7; }
+  .tp-home-export-be-col-val.is-emerald { color: #15803d; }
+  .tp-home-export-be-col-val.is-amber { color: #92400e; }
   .tp-home-export-be-subtext {
     font-size: 10px;
     color: #64748b;
   }
   .tp-home-export-be-avg {
     font-size: 10px;
-    color: #94a3b8;
+    color: #475569;
     margin-top: 2px;
   }
   .tp-home-export-be-avg strong {
-    color: #cbd5e1;
+    color: #0f172a;
   }
   .tp-home-export-be-avg-diff {
-    font-weight: 600;
+    font-weight: 700;
     margin-left: 4px;
   }
-  .tp-home-export-be-avg-diff.is-pos { color: #34d399; }
-  .tp-home-export-be-avg-diff.is-neg { color: #f87171; }
+  .tp-home-export-be-avg-diff.is-pos { color: #92400e; }
+  .tp-home-export-be-avg-diff.is-neg { color: #15803d; }
 
   /* Progress bar */
   .tp-home-export-be-bar-container {
@@ -261,30 +289,29 @@ const HOME_EXPORT_REPORT_CSS = `
   .tp-home-export-be-bar-labels {
     display: flex;
     justify-content: space-between;
-    font-size: 10px;
-    color: #94a3b8;
+    font-size: 10.5px;
+    font-weight: 600;
+    color: #475569;
   }
   .tp-home-export-be-bar-track {
-    height: 6px;
-    background: #0f172a;
+    height: 7px;
+    background: #e2e8f0;
     border-radius: 999px;
     overflow: hidden;
-    border: 1px solid rgba(148, 163, 184, 0.12);
   }
   .tp-home-export-be-bar-fill {
     height: 100%;
     border-radius: 999px;
-    background: #38bdf8;
-    transition: width 0.2s ease;
+    background: #0284c7;
   }
   .tp-home-export-be-bar-fill.is-above {
-    background: #10b981;
+    background: #15803d;
   }
 
-  /* Chart Card */
+  /* Chart Card — Padronizado com DRE (.tp-dre-export-section-box) */
   .tp-home-export-chart-card {
-    background: #151e2e;
-    border: 1px solid rgba(148, 163, 184, 0.16);
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
     border-radius: 8px;
     padding: 12px 16px;
     display: flex;
@@ -298,35 +325,40 @@ const HOME_EXPORT_REPORT_CSS = `
     align-items: center;
   }
   .tp-home-export-chart-title {
-    font-size: 13px;
+    font-size: 13.5px;
     font-weight: 700;
-    color: #f1f5f9;
+    color: #0f172a;
     display: flex;
     align-items: center;
     gap: 8px;
   }
   .tp-home-export-chart-badge {
     font-size: 10px;
-    font-weight: 600;
-    padding: 1px 6px;
-    border-radius: 4px;
-    background: rgba(148, 163, 184, 0.15);
-    color: #cbd5e1;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #f1f5f9;
+    color: #334155;
+    border: 1px solid #cbd5e1;
   }
   .tp-home-export-chart-subtitle {
-    font-size: 10px;
-    color: #94a3b8;
+    font-size: 11px;
+    color: #64748b;
   }
   .tp-home-export-svg-container {
     width: 100%;
     height: 195px;
     position: relative;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 4px;
   }
 
-  /* Page 2: Customers Table */
+  /* Page 2: Customers Table — Padronizado com DRE (.tp-dre-export-table) */
   .tp-home-export-table-card {
-    background: #151e2e;
-    border: 1px solid rgba(148, 163, 184, 0.16);
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
     border-radius: 8px;
     padding: 14px 16px;
     flex: 1;
@@ -337,22 +369,24 @@ const HOME_EXPORT_REPORT_CSS = `
   .tp-home-export-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 11px;
+    font-size: 11.5px;
   }
   .tp-home-export-table th {
     text-align: left;
-    color: #94a3b8;
-    font-weight: 600;
+    color: #475569;
+    font-weight: 700;
     text-transform: uppercase;
-    font-size: 9.5px;
-    letter-spacing: 0.05em;
-    padding: 8px 10px;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+    font-size: 10.5px;
+    letter-spacing: 0.04em;
+    padding: 7px 10px;
+    background: #f8fafc;
+    border-bottom: 2px solid #cbd5e1;
   }
   .tp-home-export-table td {
-    padding: 10px 10px;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
-    color: #f1f5f9;
+    padding: 9px 10px;
+    border-bottom: 1px solid #e2e8f0;
+    color: #1e293b;
+    font-variant-numeric: tabular-nums;
   }
   .tp-home-export-table tr:last-child td {
     border-bottom: none;
@@ -367,8 +401,9 @@ const HOME_EXPORT_REPORT_CSS = `
     width: 20px;
     height: 20px;
     border-radius: 4px;
-    background: rgba(56, 189, 248, 0.15);
-    color: #38bdf8;
+    background: #e0f2fe;
+    color: #0369a1;
+    border: 1px solid #bae6fd;
     font-weight: 700;
     font-size: 10px;
   }
@@ -380,25 +415,25 @@ const HOME_EXPORT_REPORT_CSS = `
   }
   .tp-home-export-share-bar {
     width: 60px;
-    height: 5px;
-    background: rgba(148, 163, 184, 0.15);
-    border-radius: 3px;
+    height: 6px;
+    background: #e2e8f0;
+    border-radius: 999px;
     overflow: hidden;
   }
   .tp-home-export-share-fill {
     height: 100%;
-    background: #38bdf8;
-    border-radius: 3px;
+    background: #0284c7;
+    border-radius: 999px;
   }
 
-  /* Footers */
+  /* Footers — Padronizado com DRE (.tp-dre-export-page-footer) */
   .tp-home-export-footer {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 9.5px;
+    font-size: 10.5px;
     color: #64748b;
-    border-top: 1px solid rgba(148, 163, 184, 0.12);
+    border-top: 1px solid #cbd5e1;
     padding-top: 8px;
   }
 `;
@@ -526,12 +561,12 @@ export function HomeExportReport({
   );
 
   // SVG Chart Geometry
-  const svgWidth = 1056;
-  const svgHeight = 195;
+  const svgWidth = 1044;
+  const svgHeight = 185;
   const paddingLeft = 65;
   const paddingRight = 30;
-  const paddingTop = 25;
-  const paddingBottom = 30;
+  const paddingTop = 24;
+  const paddingBottom = 28;
   const plotWidth = svgWidth - paddingLeft - paddingRight;
   const plotHeight = svgHeight - paddingTop - paddingBottom;
 
@@ -572,8 +607,8 @@ export function HomeExportReport({
       {/* Header */}
       <div className="tp-home-export-header">
         <div>
-          <div className="tp-home-export-brand">TAGPULSE · NINECLOUDS</div>
-          <h1 className="tp-home-export-title">Performance Comercial</h1>
+          <div className="tp-home-export-brand">TAGPULSE • RELATÓRIO EXECUTIVO</div>
+          <h1 className="tp-home-export-title">Nineclouds — Performance Comercial</h1>
           <p className="tp-home-export-subtitle">
             Visão executiva comercial e operacional
           </p>
@@ -812,9 +847,9 @@ export function HomeExportReport({
           >
             <defs>
               <linearGradient id="tpHomeExportGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#38bdf8" stopOpacity={0.35} />
-                <stop offset="85%" stopColor="#0284c7" stopOpacity={0.05} />
-                <stop offset="100%" stopColor="#0b1120" stopOpacity={0} />
+                <stop offset="0%" stopColor="#0284c7" stopOpacity={0.22} />
+                <stop offset="85%" stopColor="#0284c7" stopOpacity={0.03} />
+                <stop offset="100%" stopColor="#ffffff" stopOpacity={0} />
               </linearGradient>
             </defs>
 
@@ -828,15 +863,16 @@ export function HomeExportReport({
                     y1={y}
                     x2={svgWidth - paddingRight}
                     y2={y}
-                    stroke="#1e293b"
-                    strokeDasharray="3 3"
+                    stroke="#cbd5e1"
+                    strokeDasharray={i === 0 ? undefined : "3 3"}
                     strokeWidth={1}
                   />
                   <text
                     x={paddingLeft - 8}
                     y={y + 3}
-                    fill="#64748b"
+                    fill="#475569"
                     fontSize={10}
+                    fontWeight={600}
                     textAnchor="end"
                   >
                     {formatCompactCurrency(tickVal)}
@@ -858,7 +894,7 @@ export function HomeExportReport({
               <polyline
                 points={polylinePoints}
                 fill="none"
-                stroke="#38bdf8"
+                stroke="#0284c7"
                 strokeWidth={2.5}
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -872,16 +908,15 @@ export function HomeExportReport({
                   key={i}
                   cx={p.x}
                   cy={p.y}
-                  r={pointsCoords.length === 1 ? 5 : 2.5}
-                  fill="#38bdf8"
-                  stroke="#0b1120"
+                  r={pointsCoords.length === 1 ? 5 : 2.8}
+                  fill="#0284c7"
+                  stroke="#ffffff"
                   strokeWidth={1.5}
                 />
               ))}
 
             {/* X-axis labels */}
             {pointsCoords.map((p, i) => {
-              // Show label every few ticks if there are many points
               const step = Math.ceil(pointsCoords.length / 12);
               if (i % step !== 0 && i !== pointsCoords.length - 1) return null;
               return (
@@ -889,8 +924,9 @@ export function HomeExportReport({
                   key={i}
                   x={p.x}
                   y={paddingTop + plotHeight + 16}
-                  fill="#94a3b8"
+                  fill="#475569"
                   fontSize={10}
+                  fontWeight={500}
                   textAnchor="middle"
                 >
                   {p.item.label}
@@ -906,7 +942,7 @@ export function HomeExportReport({
                   y1={paddingTop}
                   x2={milestoneCoord.x}
                   y2={paddingTop + plotHeight}
-                  stroke="#94a3b8"
+                  stroke="#92400e"
                   strokeDasharray="4 4"
                   strokeWidth={1.5}
                 />
@@ -914,16 +950,16 @@ export function HomeExportReport({
                   cx={milestoneCoord.x}
                   cy={milestoneCoord.y}
                   r={4}
-                  fill="#f59e0b"
-                  stroke="#0b1120"
+                  fill="#d97706"
+                  stroke="#ffffff"
                   strokeWidth={1.5}
                 />
                 <text
                   x={milestoneCoord.x}
                   y={paddingTop - 6}
-                  fill="#cbd5e1"
+                  fill="#92400e"
                   fontSize={10}
-                  fontWeight={600}
+                  fontWeight={700}
                   textAnchor="middle"
                 >
                   Nineclouds + Hustler no mesmo sistema
@@ -937,10 +973,10 @@ export function HomeExportReport({
       {/* Footer */}
       <div className="tp-home-export-footer">
         <span>
-          TAGPULSE · Relatório executivo de performance comercial e operacional
+          Nineclouds • Performance Comercial ({formattedPeriod})
         </span>
         <span>
-          {hasCustomerPage ? "Página 1 de 2" : "Página 1 de 1"} · Confidencial
+          {hasCustomerPage ? "Página 1 de 2" : "Página 1 de 1"}
         </span>
       </div>
     </div>
@@ -959,9 +995,9 @@ export function HomeExportReport({
         {/* Header */}
         <div className="tp-home-export-header">
           <div>
-            <div className="tp-home-export-brand">TAGPULSE · NINECLOUDS</div>
+            <div className="tp-home-export-brand">TAGPULSE • RELATÓRIO EXECUTIVO</div>
             <h1 className="tp-home-export-title">
-              Performance Comercial · Inteligência de Clientes
+              Nineclouds — Performance Comercial · Inteligência de Clientes
             </h1>
             <p className="tp-home-export-subtitle">
               Comportamento, concentração de faturamento e taxa de recorrência
@@ -973,6 +1009,9 @@ export function HomeExportReport({
             </div>
             <div>
               Data de geração: <strong>{formattedGeneratedAt}</strong>
+            </div>
+            <div>
+              Última sincronização: <strong>{formattedLastSync}</strong>
             </div>
           </div>
         </div>
@@ -1056,7 +1095,7 @@ export function HomeExportReport({
                     </span>
                   </td>
                   <td>
-                    <strong style={{ color: "#f8fafc" }}>
+                    <strong style={{ color: "#0f172a" }}>
                       {cust.displayName || "Cliente"}
                     </strong>
                     {cust.code && (
@@ -1071,7 +1110,7 @@ export function HomeExportReport({
                       </span>
                     )}
                   </td>
-                  <td className="col-right" style={{ fontWeight: 700, color: "#38bdf8" }}>
+                  <td className="col-right" style={{ fontWeight: 700, color: "#0284c7" }}>
                     {formatCurrency(cust.revenue)}
                   </td>
                   <td className="col-right">{formatNumber(cust.purchaseCount)}</td>
@@ -1113,9 +1152,9 @@ export function HomeExportReport({
         {/* Footer */}
         <div className="tp-home-export-footer">
           <span>
-            TAGPULSE · Relatório executivo de performance comercial e operacional
+            Nineclouds • Performance Comercial ({formattedPeriod})
           </span>
-          <span>Página 2 de 2 · Confidencial</span>
+          <span>Página 2 de 2</span>
         </div>
       </div>
     );
@@ -1130,6 +1169,7 @@ export function HomeExportReport({
       <style>{HOME_EXPORT_REPORT_CSS}</style>
       {layoutMode === "continuous" ? (
         <div className="tp-home-export-sheet" data-export-continuous="true">
+          <style>{HOME_EXPORT_REPORT_CSS}</style>
           {renderPage1(true)}
           {hasCustomerPage && renderPage2(true)}
         </div>
