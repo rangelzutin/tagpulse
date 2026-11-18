@@ -134,17 +134,25 @@ function extractJpegBytes(dataUrl: string): Uint8Array {
   return base64ToUint8Array(base64);
 }
 
+export interface BuildPdfOptions {
+  orientation?: "portrait" | "landscape";
+}
+
 /**
- * Generates a standard A4 Portrait (595.28 x 841.89 pt) PDF 1.4 binary
- * embedding one high-resolution JPEG image per page via native /DCTDecode.
+ * Generates a standard A4 (Portrait: 595.28 x 841.89 pt or Landscape: 841.89 x 595.28 pt)
+ * PDF 1.4 binary embedding one high-resolution JPEG image per page via native /DCTDecode.
  */
-export function buildPdfFromJpegPages(pages: JpegPageImage[]): Uint8Array {
+export function buildPdfFromJpegPages(
+  pages: JpegPageImage[],
+  options?: BuildPdfOptions,
+): Uint8Array {
   if (pages.length === 0) {
     throw new Error("Nenhuma página disponível para gerar o PDF.");
   }
 
-  const A4_WIDTH_PT = 595.28;
-  const A4_HEIGHT_PT = 841.89;
+  const isLandscape = options?.orientation === "landscape";
+  const A4_WIDTH_PT = isLandscape ? 841.89 : 595.28;
+  const A4_HEIGHT_PT = isLandscape ? 595.28 : 841.89;
   const encoder = new TextEncoder();
 
   const chunks: Uint8Array[] = [];
@@ -317,6 +325,72 @@ export async function exportDreReportToPdf(
   }
 
   const pdfBytes = buildPdfFromJpegPages(renderedPages);
+  const blob = new Blob([pdfBytes as unknown as BlobPart], {
+    type: "application/pdf",
+  });
+  triggerBlobDownload(blob, filename);
+
+  return {
+    pdfBytes,
+    pageCount: renderedPages.length,
+    filename,
+  };
+}
+
+export function buildHomeExportFilename(
+  period: { from: string; to: string },
+  format: "pdf" | "jpg",
+): string {
+  const safeFrom = (period.from || "").trim().replace(/[^0-9-]/g, "");
+  const safeTo = (period.to || "").trim().replace(/[^0-9-]/g, "");
+  return `tagpulse-performance-${safeFrom}-a-${safeTo}.${format}`;
+}
+
+export async function exportHomeReportToJpg(
+  reportElement: HTMLElement,
+  filename: string,
+): Promise<{ image: JpegPageImage; filename: string }> {
+  const continuousSheet =
+    (reportElement.querySelector(
+      '[data-export-continuous="true"]',
+    ) as HTMLElement | null) ?? reportElement;
+
+  const image = await renderElementToJpegDataUrl(continuousSheet, {
+    scale: 2,
+    quality: 0.92,
+    logicalWidth: 1120,
+  });
+
+  const blob = dataUrlToBlob(image.dataUrl, "image/jpeg");
+  triggerBlobDownload(blob, filename);
+
+  return { image, filename };
+}
+
+export async function exportHomeReportToPdf(
+  reportElement: HTMLElement,
+  filename: string,
+): Promise<{ pdfBytes: Uint8Array; pageCount: number; filename: string }> {
+  const pageNodes = Array.from(
+    reportElement.querySelectorAll<HTMLElement>("[data-export-page]"),
+  );
+
+  const targets = pageNodes.length > 0 ? pageNodes : [reportElement];
+  const renderedPages: JpegPageImage[] = [];
+
+  for (const pageNode of targets) {
+    const img = await renderElementToJpegDataUrl(pageNode, {
+      scale: 2,
+      quality: 0.92,
+      logicalWidth: 1120,
+      logicalHeight: 792,
+    });
+    renderedPages.push(img);
+  }
+
+  const pdfBytes = buildPdfFromJpegPages(renderedPages, {
+    orientation: "landscape",
+  });
   const blob = new Blob([pdfBytes as unknown as BlobPart], {
     type: "application/pdf",
   });

@@ -43,8 +43,23 @@ import {
 } from "./api/financial";
 import type { CustomerRecencyBucket, CustomerSegmentType } from "./api/bi";
 import type { RateContextData } from "./components/CustomerSegmentView";
-import { AlertCircle, RefreshCw, Users } from "lucide-react";
+import {
+  AlertCircle,
+  RefreshCw,
+  Users,
+  Download,
+  ChevronDown,
+  FileText,
+  Image as ImageIcon,
+} from "lucide-react";
 import { getDefaultPeriod, formatDateBr } from "./utils/formatters";
+import { fetchTagPlusSyncStatus } from "./api/sync";
+import { HomeExportReport } from "./components/home/HomeExportReport";
+import {
+  buildHomeExportFilename,
+  exportHomeReportToPdf,
+  exportHomeReportToJpg,
+} from "./components/financial/dreExportService";
 
 export function App() {
   const [activeNav, setActiveNav] = useState<
@@ -145,6 +160,90 @@ export function App() {
   const [financialRefreshTrigger, setFinancialRefreshTrigger] = useState(0);
   const [operationalBreakEvenData, setOperationalBreakEvenData] =
     useState<MonthlyOperationalBreakEvenDto | null>(null);
+
+  // Home Export State
+  const [isHomeExportMenuOpen, setIsHomeExportMenuOpen] = useState(false);
+  const [homeExportingFormat, setHomeExportingFormat] = useState<"pdf" | "jpg" | null>(null);
+  const [homeExportError, setHomeExportError] = useState<string | null>(null);
+  const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
+  const homeExportDropdownRef = useRef<HTMLDivElement>(null);
+  const homeExportReportHostRef = useRef<HTMLDivElement>(null);
+
+  const isHomeExportBusy = homeExportingFormat !== null;
+
+  const loadLastSync = useCallback(async () => {
+    try {
+      const res = await fetchTagPlusSyncStatus();
+      setLastSyncAt(res.lastSuccessfulSync ?? res.lastCompletedSync ?? null);
+    } catch {
+      // Ignora erro silenciosamente
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadLastSync();
+  }, [loadLastSync]);
+
+  // Fechar dropdown de exportação da Home ao clicar fora
+  useEffect(() => {
+    if (!isHomeExportMenuOpen) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (
+        homeExportDropdownRef.current &&
+        !homeExportDropdownRef.current.contains(e.target as Node)
+      ) {
+        setIsHomeExportMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+    };
+  }, [isHomeExportMenuOpen]);
+
+  const handleHomeExport = useCallback(
+    async (format: "pdf" | "jpg") => {
+      if (homeExportingFormat !== null) return;
+      setHomeExportingFormat(format);
+      setHomeExportError(null);
+      setIsHomeExportMenuOpen(false);
+
+      try {
+        await new Promise<void>((resolve) => {
+          window.setTimeout(() => resolve(), 30);
+        });
+
+        const hostNode = homeExportReportHostRef.current;
+        const reportElement =
+          (hostNode?.querySelector(
+            '[data-testid="home-export-report"]',
+          ) as HTMLElement | null) ?? hostNode;
+
+        if (!reportElement) {
+          throw new Error(
+            "Não foi possível preparar o relatório para exportação.",
+          );
+        }
+
+        const filename = buildHomeExportFilename(currentPeriod, format);
+
+        if (format === "pdf") {
+          await exportHomeReportToPdf(reportElement, filename);
+        } else {
+          await exportHomeReportToJpg(reportElement, filename);
+        }
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Não foi possível concluir a exportação da Home.";
+        setHomeExportError(message);
+      } finally {
+        setHomeExportingFormat(null);
+      }
+    },
+    [currentPeriod, homeExportingFormat],
+  );
 
   // Fetch Sales Overview independently
   const loadSalesOverview = useCallback(
@@ -482,6 +581,7 @@ export function App() {
   };
 
   const handleSyncSuccess = useCallback(() => {
+    void loadLastSync();
     fetchDataRange()
       .then((res) => {
         setDataRange(res);
@@ -853,14 +953,83 @@ export function App() {
                   <span>Atualizar</span>
                 </button>
               ) : (
-                <PeriodFilter
-                  initialFrom={currentPeriod.from}
-                  initialTo={currentPeriod.to}
-                  periodMode={periodMode}
-                  minDate={dataRange?.firstRealizedDate}
-                  isLoading={isAnyLoading}
-                  onApply={handleApplyFilter}
-                />
+                <div className="tp-header-actions-group">
+                  <PeriodFilter
+                    initialFrom={currentPeriod.from}
+                    initialTo={currentPeriod.to}
+                    periodMode={periodMode}
+                    minDate={dataRange?.firstRealizedDate}
+                    isLoading={isAnyLoading}
+                    onApply={handleApplyFilter}
+                  />
+                  {activeNav === "commercial" && (
+                    <div className="tp-home-export-dropdown" ref={homeExportDropdownRef}>
+                      <button
+                        type="button"
+                        className="tp-home-export-btn"
+                        data-testid="home-export-button"
+                        disabled={isHomeExportBusy}
+                        aria-haspopup="menu"
+                        aria-expanded={isHomeExportMenuOpen}
+                        onClick={() => {
+                          if (!isHomeExportBusy) {
+                            setHomeExportError(null);
+                            setIsHomeExportMenuOpen((prev) => !prev);
+                          }
+                        }}
+                        title="Exportar relatório executivo da Home"
+                      >
+                        {homeExportingFormat === "pdf" ? (
+                          <>
+                            <RefreshCw size={13} className="tp-spin" />
+                            <span>Gerando PDF...</span>
+                          </>
+                        ) : homeExportingFormat === "jpg" ? (
+                          <>
+                            <RefreshCw size={13} className="tp-spin" />
+                            <span>Gerando imagem...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Download size={13} />
+                            <span>Exportar</span>
+                            <ChevronDown size={12} />
+                          </>
+                        )}
+                      </button>
+
+                      {isHomeExportMenuOpen && !isHomeExportBusy && (
+                        <div
+                          className="tp-home-export-menu"
+                          role="menu"
+                          aria-label="Opções de exportação da Performance Comercial"
+                          data-testid="home-export-menu"
+                        >
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="tp-home-export-menu-item"
+                            data-testid="home-export-pdf-option"
+                            onClick={() => void handleHomeExport("pdf")}
+                          >
+                            <FileText size={14} />
+                            <span>Exportar PDF</span>
+                          </button>
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="tp-home-export-menu-item"
+                            data-testid="home-export-jpg-option"
+                            onClick={() => void handleHomeExport("jpg")}
+                          >
+                            <ImageIcon size={14} />
+                            <span>Exportar JPG</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               )}
             </Header>
 
@@ -1109,6 +1278,26 @@ export function App() {
               </>
             )}
           </>
+        )}
+
+        {/* Offscreen Home Export Report Host */}
+        {(isHomeExportMenuOpen || isHomeExportBusy) && (
+          <div
+            ref={homeExportReportHostRef}
+            className="tp-home-export-offscreen-host"
+            aria-hidden="true"
+          >
+            <HomeExportReport
+              period={currentPeriod}
+              lastSyncAt={lastSyncAt}
+              salesData={salesData}
+              operationalBreakEven={operationalBreakEvenData}
+              customerData={customerData}
+              layoutMode={
+                homeExportingFormat === "pdf" ? "paginated" : "continuous"
+              }
+            />
+          </div>
         )}
       </main>
 
