@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   DollarSign,
+  HelpCircle,
   Scale,
   ShoppingBag,
   TrendingUp,
@@ -15,6 +16,11 @@ import {
   formatNumber,
   formatPercent,
 } from "../utils/formatters";
+
+const CURRENT_BREAK_EVEN_HELP_TEXT =
+  "Ponto de equilíbrio calculado com a margem de contribuição realizada no mês. Pode variar conforme o mix, custos e margens das vendas.";
+const RECENT_AVERAGE_HELP_TEXT =
+  "Referência baseada em meses completos e comparáveis da estrutura operacional atual.";
 
 interface KpiGridProps {
   summary: SalesOverviewSummary;
@@ -49,14 +55,12 @@ export function KpiGrid({ summary, operationalBreakEven }: KpiGridProps) {
     be?.averageOperationalBreakEven &&
     be.averageOperationalBreakEven > 0 &&
     be.operationalBreakEvenRevenue !== null
-      ? ((be.operationalBreakEvenRevenue - be.averageOperationalBreakEven) /
-          be.averageOperationalBreakEven) *
-        100
+      ? ((be.operationalBreakEvenRevenue / be.averageOperationalBreakEven) - 1) * 100
       : null;
   const avgDiffSign = avgDiffPct !== null && avgDiffPct > 0 ? "+" : "";
   const avgDiffFormatted =
     avgDiffPct !== null
-      ? `${avgDiffSign}${formatPercent(avgDiffPct, 2)} vs média`
+      ? `${avgDiffSign}${formatPercent(avgDiffPct, 1)} vs média`
       : null;
 
   return (
@@ -169,10 +173,23 @@ export function KpiGrid({ summary, operationalBreakEven }: KpiGridProps) {
 
           {/* Metrics horizontal row/grid: A) Ponto de equilíbrio, B) FALTA VENDER (destaque principal), C) Progresso, D) Média recente */}
           <div className="tp-breakeven-metrics-grid">
-            {/* Block A: Ponto de equilíbrio do mês */}
-            <div className="tp-breakeven-metric-block">
-              <span className="tp-breakeven-metric-label">
+            {/* Block A: Ponto de equilíbrio do mês (Dinâmico / Principal) */}
+            <div
+              className="tp-breakeven-metric-block"
+              title={CURRENT_BREAK_EVEN_HELP_TEXT}
+            >
+              <span
+                className="tp-breakeven-metric-label"
+                style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}
+              >
                 Ponto de equilíbrio do mês
+                <span
+                  title={CURRENT_BREAK_EVEN_HELP_TEXT}
+                  aria-label={CURRENT_BREAK_EVEN_HELP_TEXT}
+                  style={{ display: "inline-flex", alignItems: "center", color: "#94a3b8", cursor: "help" }}
+                >
+                  <HelpCircle size={11} />
+                </span>
               </span>
               <div className="tp-breakeven-metric-value tp-breakeven-val-white">
                 {be.operationalBreakEvenRevenue !== null
@@ -225,10 +242,25 @@ export function KpiGrid({ summary, operationalBreakEven }: KpiGridProps) {
               </span>
             </div>
 
-            {/* Block D: Média recente */}
-            <div className="tp-breakeven-metric-block">
-              <span className="tp-breakeven-metric-label">Média recente</span>
-              <div className="tp-breakeven-metric-value tp-breakeven-val-white">
+            {/* Block D: Média recente (Referência estrutural histórica) */}
+            <div
+              className="tp-breakeven-metric-block"
+              title={RECENT_AVERAGE_HELP_TEXT}
+            >
+              <span
+                className="tp-breakeven-metric-label"
+                style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}
+              >
+                Média recente
+                <span
+                  title={RECENT_AVERAGE_HELP_TEXT}
+                  aria-label={RECENT_AVERAGE_HELP_TEXT}
+                  style={{ display: "inline-flex", alignItems: "center", color: "#94a3b8", cursor: "help" }}
+                >
+                  <HelpCircle size={11} />
+                </span>
+              </span>
+              <div className="tp-breakeven-metric-value tp-breakeven-val-muted">
                 {be.averageOperationalBreakEven !== null
                   ? formatCurrency(be.averageOperationalBreakEven)
                   : "—"}
@@ -419,7 +451,10 @@ export function KpiGrid({ summary, operationalBreakEven }: KpiGridProps) {
                     {formatCurrency(be.realizedRevenue)}
                   </div>
                 </div>
-                <div style={{ background: "#1e293b", padding: "12px 14px", borderRadius: "8px", border: "1px solid #334155" }}>
+                <div
+                  style={{ background: "#1e293b", padding: "12px 14px", borderRadius: "8px", border: "1px solid #334155" }}
+                  title={CURRENT_BREAK_EVEN_HELP_TEXT}
+                >
                   <div style={{ fontSize: "11px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>
                     Ponto de Equilíbrio
                   </div>
@@ -427,6 +462,9 @@ export function KpiGrid({ summary, operationalBreakEven }: KpiGridProps) {
                     {be.operationalBreakEvenRevenue !== null
                       ? formatCurrency(be.operationalBreakEvenRevenue)
                       : "—"}
+                  </div>
+                  <div style={{ fontSize: "10.5px", color: "#94a3b8", marginTop: "2px" }}>
+                    Dinâmico · margem do mês
                   </div>
                 </div>
                 <div style={{ background: "#1e293b", padding: "12px 14px", borderRadius: "8px", border: "1px solid #334155" }}>
@@ -447,15 +485,18 @@ export function KpiGrid({ summary, operationalBreakEven }: KpiGridProps) {
                   </div>
                 </div>
                 {be.averageOperationalBreakEven !== null && (
-                  <div style={{ background: "#1e293b", padding: "12px 14px", borderRadius: "8px", border: "1px solid #334155" }}>
+                  <div
+                    style={{ background: "#1e293b", padding: "12px 14px", borderRadius: "8px", border: "1px solid #334155" }}
+                    title={RECENT_AVERAGE_HELP_TEXT}
+                  >
                     <div style={{ fontSize: "11px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>
-                      Média Mensal ({be.averageReferenceMonthsCount} meses)
+                      Média Recente ({be.averageReferenceMonthsCount} meses)
                     </div>
                     <div style={{ fontSize: "17px", fontWeight: 700, color: "#cbd5e1", marginTop: "4px" }}>
                       {formatCurrency(be.averageOperationalBreakEven)}
                     </div>
                     <div style={{ fontSize: "10.5px", color: "#64748b", marginTop: "2px" }}>
-                      Ref.: {be.averageReferenceStartMonth} a {be.averageReferenceEndMonth}
+                      {avgDiffFormatted ? `${avgDiffFormatted} · ` : ""}Ref.: {be.averageReferenceStartMonth} a {be.averageReferenceEndMonth}
                     </div>
                   </div>
                 )}

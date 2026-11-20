@@ -259,6 +259,41 @@ describe("Home Export Suite (Section 16)", () => {
     expect(html).toContain("EM ABERTO");
   });
 
+  // Requirement D2: compara PE dinâmico do mês vs média recente (-17,7% vs média para dados consolidados)
+  it("D2. calcula dinamicamente a variação vs média recente (-17,7% vs média para dados de 19/11)", () => {
+    const period = { from: "2026-11-01", to: "2026-11-19" };
+    const mockBreakEvenNovCurrent = {
+      referenceMonth: "2026-11",
+      operationalBreakEvenRevenue: 33419.51,
+      realizedRevenue: 25513.45,
+      remainingRevenueNeeded: 7906.06,
+      surplusRevenue: 0,
+      progressPercent: 76.34,
+      status: "BELOW_BREAK_EVEN",
+      statusLabel: "EM ABERTO",
+      monthStatus: "IN_PROGRESS",
+      isProvisional: true,
+      averageOperationalBreakEven: 40630.17,
+    } as unknown as MonthlyOperationalBreakEvenDto;
+
+    const html = renderToString(
+      <HomeExportReport
+        period={period}
+        salesData={mockSalesNov2026}
+        operationalBreakEven={mockBreakEvenNovCurrent}
+      />,
+    );
+
+    // PE Atual dinâmico: R$ 33.419,51
+    expect(html).toContain(formatCurrency(33419.51));
+    // Média recente: R$ 40.630,17
+    expect(html).toContain(formatCurrency(40630.17));
+    // Falta vender: R$ 7.906,06
+    expect(html).toContain(formatCurrency(7906.06));
+    // Variação calculada: ((33419.51 / 40630.17) - 1) * 100 = -17,7% vs média
+    expect(html).toContain("-17,7% vs média");
+  });
+
   // Requirement E: status EM ANDAMENTO aparece em mês aberto
   it("E. status EM ANDAMENTO e aviso discreto aparecem em mês aberto", () => {
     const period = { from: "2026-11-01", to: "2026-11-17" };

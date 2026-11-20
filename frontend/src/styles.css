@@ -12169,6 +12169,11 @@ body {
   color: #f1f5f9;
 }
 
+.tp-breakeven-val-muted {
+  color: var(--tp-text-secondary, #94a3b8);
+  font-weight: 600;
+}
+
 .tp-breakeven-metric-subtext {
   font-size: 11px;
   color: var(--tp-text-muted, #64748b);

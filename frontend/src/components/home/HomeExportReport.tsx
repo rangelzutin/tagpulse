@@ -281,6 +281,10 @@ const HOME_EXPORT_REPORT_CSS = `
     font-weight: 800;
     letter-spacing: -0.02em;
   }
+  .tp-home-export-be-col-val.is-secondary {
+    color: #64748b;
+    font-weight: 700;
+  }
   .tp-home-export-be-col-val.is-cyan { color: #0284c7; }
   .tp-home-export-be-col-val.is-emerald { color: #15803d; }
   .tp-home-export-be-col-val.is-amber { color: #b45309; }
@@ -637,19 +641,18 @@ export function HomeExportReport({
           })()
         : be?.isProvisional ?? false));
 
-  // Diferença vs média recente
+  // Diferença vs média recente (((PE_ATUAL / MEDIA_RECENTE) - 1) * 100)
   const avgDiffPct =
     be?.averageOperationalBreakEven &&
     be.averageOperationalBreakEven > 0 &&
     be.operationalBreakEvenRevenue !== null
-      ? ((be.operationalBreakEvenRevenue - be.averageOperationalBreakEven) /
-          be.averageOperationalBreakEven) *
+      ? ((be.operationalBreakEvenRevenue / be.averageOperationalBreakEven) - 1) *
         100
       : null;
   const avgDiffSign = avgDiffPct !== null && avgDiffPct > 0 ? "+" : "";
   const avgDiffFormatted =
     avgDiffPct !== null
-      ? `${avgDiffSign}${formatPercent(avgDiffPct, 2)} vs média`
+      ? `${avgDiffSign}${formatPercent(avgDiffPct, 1)} vs média`
       : null;
 
   // Granularidade e pontos do gráfico
@@ -898,8 +901,11 @@ export function HomeExportReport({
           </div>
 
           <div className="tp-home-export-be-grid">
-            {/* A) Ponto de equilíbrio do mês */}
-            <div className="tp-home-export-be-col">
+            {/* A) Ponto de equilíbrio do mês (Dinâmico / Principal) */}
+            <div
+              className="tp-home-export-be-col"
+              title="Ponto de equilíbrio calculado com a margem de contribuição realizada no mês. Pode variar conforme o mix, custos e margens das vendas."
+            >
               <span className="tp-home-export-be-col-label">
                 Ponto de equilíbrio do mês
               </span>
@@ -958,11 +964,14 @@ export function HomeExportReport({
               </span>
             </div>
 
-            {/* D) Média recente */}
-            <div className="tp-home-export-be-col">
+            {/* D) Média recente (Referência estrutural histórica) */}
+            <div
+              className="tp-home-export-be-col"
+              title="Referência baseada em meses completos e comparáveis da estrutura operacional atual."
+            >
               <span className="tp-home-export-be-col-label">Média recente</span>
               <span
-                className="tp-home-export-be-col-val"
+                className="tp-home-export-be-col-val is-secondary"
                 data-testid="export-be-avg"
               >
                 {be.averageOperationalBreakEven !== null

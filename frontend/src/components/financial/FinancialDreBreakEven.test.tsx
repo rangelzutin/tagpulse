@@ -300,7 +300,7 @@ describe("FinancialDreBreakEven — Frontend Components & Calculation", () => {
     expect(html).toContain(formatCurrency(29318.38)); // C) Falta vender
     expect(html).toContain("28,4%"); // D) Progresso
     expect(html).toContain(formatCurrency(40630.17)); // E) Média recente
-    expect(html).toContain("+0,72% vs média"); // F) Comparação com média
+    expect(html).toContain("+0,7% vs média"); // F) Comparação com média (1 casa decimal)
     expect(html).toContain(`${formatCurrency(11602.87)} de ${formatCurrency(40921.25)}`);
     expect(html).not.toContain("Meta atingida");
   });
