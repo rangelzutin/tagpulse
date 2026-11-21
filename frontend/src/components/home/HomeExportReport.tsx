@@ -626,6 +626,105 @@ const HOME_EXPORT_REPORT_CSS = `
     vertical-align: middle;
   }
 
+  /* Page 2: Detalhamento do Ponto de Equilíbrio */
+  .tp-home-export-bedetail-card {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+    justify-content: space-between;
+  }
+  .tp-home-export-bedetail-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    line-height: 1.25;
+  }
+  .tp-home-export-bedetail-table th {
+    text-align: left;
+    color: #475569;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 9.5px;
+    letter-spacing: 0.04em;
+    padding: 4px 8px;
+    background: #f8fafc;
+    border-bottom: 1.5px solid #cbd5e1;
+  }
+  .tp-home-export-bedetail-table td {
+    padding: 3px 8px;
+    border-bottom: 1px solid #f1f5f9;
+    color: #1e293b;
+    font-variant-numeric: tabular-nums;
+  }
+  .tp-home-export-bedetail-table .col-right {
+    text-align: right;
+  }
+  .tp-home-export-bedetail-row-primary {
+    font-weight: 700;
+    font-size: 11.5px;
+    color: #0f172a;
+    background: #ffffff;
+  }
+  .tp-home-export-bedetail-row-subtotal {
+    font-weight: 700;
+    font-size: 11.5px;
+    background: #f8fafc;
+    border-top: 1px solid #e2e8f0;
+    border-bottom: 1px solid #cbd5e1;
+  }
+  .tp-home-export-bedetail-row-highlight {
+    font-weight: 800;
+    font-size: 12px;
+    background: #f0f9ff;
+    border-top: 1px solid #bae6fd;
+    border-bottom: 1px solid #bae6fd;
+    color: #0369a1;
+  }
+  .tp-home-export-bedetail-row-hero {
+    font-weight: 800;
+    font-size: 12px;
+    background: #f8fafc;
+    border-top: 1.5px solid #0f172a;
+    border-bottom: 1.5px solid #0f172a;
+    color: #0f172a;
+  }
+  .tp-home-export-bedetail-row-child {
+    font-size: 10.5px;
+    color: #475569;
+  }
+  .tp-home-export-bedetail-row-child td:first-child {
+    padding-left: 20px;
+  }
+  .tp-home-export-bedetail-val-negative {
+    color: #dc2626;
+  }
+  .tp-home-export-bedetail-val-positive {
+    color: #15803d;
+  }
+  .tp-home-export-bedetail-val-cyan {
+    color: #0284c7;
+    font-weight: 800;
+  }
+  .tp-home-export-bedetail-val-amber {
+    color: #b45309;
+    font-weight: 800;
+  }
+  .tp-home-export-bedetail-note {
+    font-size: 9.5px;
+    color: #64748b;
+    font-style: italic;
+    padding-top: 5px;
+    border-top: 1px dashed #cbd5e1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
   /* Footers — Padronizado com DRE (.tp-dre-export-page-footer) */
   .tp-home-export-footer {
     display: flex;
@@ -801,10 +900,15 @@ export function HomeExportReport({
     };
   }, [topCustomers, summary.revenue, customerData]);
 
+  const hasBreakEvenPage = Boolean(operationalBreakEven);
   const hasCustomerPage = Boolean(
     customerData?.customers &&
       (customerData.customers.buyingCustomers > 0 || topCustomers.length > 0),
   );
+
+  const totalPages = 1 + (hasBreakEvenPage ? 1 : 0) + (hasCustomerPage ? 1 : 0);
+  const breakEvenPageNum = hasBreakEvenPage ? 2 : null;
+  const customerPageNum = hasCustomerPage ? (hasBreakEvenPage ? 3 : 2) : null;
 
   // SVG Chart Geometry
   const svgWidth = 1044;
@@ -1225,23 +1329,450 @@ export function HomeExportReport({
       {/* Footer */}
       <div className="tp-home-export-footer">
         <span>
-          Nineclouds • Performance Comercial ({formattedPeriod})
+          {`Nineclouds • Performance Comercial (${formattedPeriod})`}
         </span>
         <span>
-          {hasCustomerPage ? "Página 1 de 2" : "Página 1 de 1"}
+          {`Página 1 de ${totalPages}`}
         </span>
       </div>
     </div>
   );
 
-  // Render Page 2 Content (Customer Intelligence & Commercial Concentration)
-  const renderPage2 = (isSheet = false) => {
+  // Render Page 2 Content (Operational Break-Even Detail Breakdown)
+  const renderBreakEvenDetailPage = (isSheet = false) => {
+    if (!hasBreakEvenPage || !be) return null;
+
+    const variableExpenses = be.variableExpenses ?? {
+      paymentFees: 0,
+      taxesOnRevenue: 0,
+      freightLogistics: 0,
+      salesCommissions: 0,
+      packaging: 0,
+      other: 0,
+      total: 0,
+    };
+    const operatingExpenses = be.operatingExpenses ?? {
+      partnerCompensation: 0,
+      personnel: 0,
+      occupancy: 0,
+      marketing: 0,
+      athletes: 0,
+      utilities: 0,
+      software: 0,
+      accounting: 0,
+      infrastructure: 0,
+      administrative: 0,
+      losses: 0,
+      other: 0,
+      total: 0,
+    };
+    const financialResult = be.financialResult ?? {
+      financialIncome: 0,
+      financialExpenses: 0,
+      total: 0,
+    };
+    const fixedCostBase = be.fixedCostBase ?? 0;
+
+    return (
+      <div
+        className={isSheet ? "tp-home-export-sheet-section" : "tp-home-export-page"}
+        data-export-page={String(breakEvenPageNum ?? 2)}
+        key="page-breakeven-detail"
+      >
+        <style>{HOME_EXPORT_REPORT_CSS}</style>
+        {/* Header */}
+        <div className="tp-home-export-header">
+          <div>
+            <div className="tp-home-export-brand">TAGPULSE • RELATÓRIO EXECUTIVO</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <h1 className="tp-home-export-title">
+                Nineclouds — Detalhamento do Ponto de Equilíbrio
+              </h1>
+              {isMonthInProgress ? (
+                <span
+                  className="tp-home-export-badge-inprogress"
+                  data-testid="export-be-page-badge"
+                >
+                  EM ANDAMENTO
+                </span>
+              ) : (
+                <span
+                  className="tp-home-export-chart-badge"
+                  data-testid="export-be-page-badge"
+                >
+                  FECHADO
+                </span>
+              )}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 3 }}>
+              <p className="tp-home-export-subtitle" style={{ margin: 0 }}>
+                Composição operacional do equilíbrio do mês
+              </p>
+              <span
+                className="tp-home-export-chart-badge"
+                style={{ fontSize: "9.5px", background: "#f8fafc", color: "#64748b" }}
+              >
+                Critério Home: vencimento no mês
+              </span>
+            </div>
+          </div>
+          <div className="tp-home-export-meta">
+            <div>
+              Período: <strong>{formattedPeriod}</strong>
+            </div>
+            <div>
+              Data de geração: <strong>{formattedGeneratedAt}</strong>
+            </div>
+            <div>
+              Dados sincronizados até: <strong>{formattedLastSync}</strong>
+            </div>
+          </div>
+        </div>
+
+        {/* 4 Break-even Detail Cards */}
+        <div className="tp-home-export-kpi-grid">
+          <div className="tp-home-export-kpi-card is-highlight">
+            <span className="tp-home-export-kpi-label">Receita Realizada</span>
+            <span
+              className="tp-home-export-kpi-value is-cyan"
+              data-testid="export-bedetail-realized-rev"
+            >
+              {formatCurrency(be.realizedRevenue)}
+            </span>
+            <span className="tp-home-export-be-subtext">Faturamento do período</span>
+          </div>
+
+          <div className="tp-home-export-kpi-card">
+            <span className="tp-home-export-kpi-label">Ponto de Equilíbrio</span>
+            <span
+              className="tp-home-export-kpi-value is-cyan"
+              data-testid="export-bedetail-breakeven-rev"
+            >
+              {be.operationalBreakEvenRevenue !== null
+                ? formatCurrency(be.operationalBreakEvenRevenue)
+                : "—"}
+            </span>
+            <span className="tp-home-export-be-subtext">Equilíbrio atual do mês</span>
+          </div>
+
+          <div
+            className={`tp-home-export-kpi-card ${
+              isAbove ? "is-highlight" : ""
+            }`}
+          >
+            <span className="tp-home-export-kpi-label">
+              {isAbove ? "Superado em" : "Quanto falta vender"}
+            </span>
+            <span
+              className={`tp-home-export-kpi-value ${
+                isAbove ? "is-emerald" : "is-amber"
+              }`}
+              data-testid="export-bedetail-remaining-rev"
+            >
+              {isAbove
+                ? formatCurrency(be.surplusRevenue ?? 0)
+                : formatCurrency(be.remainingRevenueNeeded ?? 0)}
+            </span>
+            <span className="tp-home-export-be-subtext">
+              {isAbove ? "Meta operacional atingida" : "Necessário para cobrir a base"}
+            </span>
+          </div>
+
+          <div className="tp-home-export-kpi-card">
+            <span className="tp-home-export-kpi-label">
+              Média Recente ({be.averageReferenceMonthsCount ?? 3} meses)
+            </span>
+            <span
+              className="tp-home-export-kpi-value is-secondary"
+              data-testid="export-bedetail-avg-rev"
+            >
+              {be.averageOperationalBreakEven !== null
+                ? formatCurrency(be.averageOperationalBreakEven)
+                : "—"}
+            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+              {avgDiffFormatted ? (
+                <span
+                  className={`tp-home-export-be-avg-diff ${
+                    avgDiffPct && avgDiffPct > 0 ? "is-pos" : "is-neg"
+                  }`}
+                >
+                  {avgDiffFormatted}
+                </span>
+              ) : null}
+              {be.averageReferenceStartMonth && be.averageReferenceEndMonth && (
+                <span className="tp-home-export-be-subtext">
+                  Ref.: {be.averageReferenceStartMonth} a {be.averageReferenceEndMonth}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Detalhamento Operacional Vertical */}
+        <div className="tp-home-export-bedetail-card">
+          <div className="tp-home-export-chart-header" style={{ marginBottom: 4 }}>
+            <div className="tp-home-export-chart-title">
+              <span>Estrutura de Formação do Ponto de Equilíbrio</span>
+              <span className="tp-home-export-chart-badge">
+                {be.referenceMonth}
+              </span>
+            </div>
+            <span className="tp-home-export-chart-subtitle">
+              Demonstração do faturamento, margens e cobertura de despesas
+            </span>
+          </div>
+
+          <table
+            className="tp-home-export-bedetail-table"
+            data-testid="export-bedetail-table"
+          >
+            <thead>
+              <tr>
+                <th>Componente Operacional</th>
+                <th className="col-right" style={{ width: 180 }}>
+                  Valor (R$)
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {/* 1. Receita Realizada */}
+              <tr className="tp-home-export-bedetail-row-primary">
+                <td>Receita realizada</td>
+                <td className="col-right">{formatCurrency(be.realizedRevenue)}</td>
+              </tr>
+
+              {/* 2. (-) CMV */}
+              <tr className="tp-home-export-bedetail-val-negative">
+                <td>(-) CMV</td>
+                <td className="col-right">-{formatCurrency(be.estimatedCOGS)}</td>
+              </tr>
+
+              {/* 3. (=) Margem Bruta */}
+              <tr className="tp-home-export-bedetail-row-subtotal">
+                <td>
+                  (=) Margem Bruta{" "}
+                  {be.estimatedGrossMarginPercent !== null && (
+                    <span style={{ fontSize: "10.5px", color: "#64748b", fontWeight: 600 }}>
+                      ({formatPercent(be.estimatedGrossMarginPercent, 2)})
+                    </span>
+                  )}
+                </td>
+                <td className="col-right">{formatCurrency(be.estimatedGrossProfit)}</td>
+              </tr>
+
+              {/* 4. (-) Despesas Variáveis (vencimento no mês) */}
+              <tr className="tp-home-export-bedetail-row-subtotal tp-home-export-bedetail-val-negative">
+                <td>(-) Despesas Variáveis (vencimento no mês)</td>
+                <td className="col-right">-{formatCurrency(variableExpenses.total)}</td>
+              </tr>
+
+              {/* Sub-itens Despesas Variáveis */}
+              <tr className="tp-home-export-bedetail-row-child">
+                <td>• Taxas de Pagamento</td>
+                <td className="col-right">{formatCurrency(variableExpenses.paymentFees)}</td>
+              </tr>
+              <tr className="tp-home-export-bedetail-row-child">
+                <td>• Impostos sobre Vendas (DAS / ICMS no vencimento)</td>
+                <td className="col-right">{formatCurrency(variableExpenses.taxesOnRevenue)}</td>
+              </tr>
+              <tr className="tp-home-export-bedetail-row-child">
+                <td>• Fretes / Logística</td>
+                <td className="col-right">{formatCurrency(variableExpenses.freightLogistics)}</td>
+              </tr>
+              {(variableExpenses.packaging ?? 0) > 0 && (
+                <tr className="tp-home-export-bedetail-row-child">
+                  <td>• Embalagens / Expedição</td>
+                  <td className="col-right">{formatCurrency(variableExpenses.packaging ?? 0)}</td>
+                </tr>
+              )}
+              {(variableExpenses.salesCommissions ?? 0) > 0 && (
+                <tr className="tp-home-export-bedetail-row-child">
+                  <td>• Comissões de Vendas</td>
+                  <td className="col-right">{formatCurrency(variableExpenses.salesCommissions ?? 0)}</td>
+                </tr>
+              )}
+              {(variableExpenses.other ?? 0) > 0 && (
+                <tr className="tp-home-export-bedetail-row-child">
+                  <td>• Outras Despesas Variáveis</td>
+                  <td className="col-right">{formatCurrency(variableExpenses.other ?? 0)}</td>
+                </tr>
+              )}
+
+              {/* 5. (=) Margem de Contribuição */}
+              <tr className="tp-home-export-bedetail-row-highlight">
+                <td>
+                  (=) Margem de Contribuição{" "}
+                  <span style={{ fontSize: "10.5px", color: "#0284c7", fontWeight: 700 }}>
+                    {`(Taxa de Margem de Contribuição: ${
+                      be.contributionMarginPercent !== null
+                        ? formatPercent(be.contributionMarginPercent, 2)
+                        : "—"
+                    })`}
+                  </span>
+                </td>
+                <td className="col-right tp-home-export-bedetail-val-cyan">
+                  {formatCurrency(be.contributionMargin)}
+                </td>
+              </tr>
+
+              {/* 6. (-) Despesas Operacionais (vencimento no mês) */}
+              <tr className="tp-home-export-bedetail-row-subtotal tp-home-export-bedetail-val-negative">
+                <td>(-) Despesas Operacionais (vencimento no mês)</td>
+                <td className="col-right">-{formatCurrency(operatingExpenses.total)}</td>
+              </tr>
+
+              {/* Sub-itens Despesas Operacionais */}
+              <tr className="tp-home-export-bedetail-row-child">
+                <td>• Pró-labore dos Sócios</td>
+                <td className="col-right">{formatCurrency(operatingExpenses.partnerCompensation)}</td>
+              </tr>
+              <tr className="tp-home-export-bedetail-row-child">
+                <td>• Encargos sobre Pró-labore / Pessoal (GPS no vencimento)</td>
+                <td className="col-right">{formatCurrency(operatingExpenses.personnel)}</td>
+              </tr>
+              <tr className="tp-home-export-bedetail-row-child">
+                <td>• Aluguel e Espaço Físico</td>
+                <td className="col-right">{formatCurrency(operatingExpenses.occupancy)}</td>
+              </tr>
+              <tr className="tp-home-export-bedetail-row-child">
+                <td>• Marketing e Publicidade</td>
+                <td className="col-right">{formatCurrency(operatingExpenses.marketing)}</td>
+              </tr>
+              <tr className="tp-home-export-bedetail-row-child">
+                <td>• Serviços Operacionais</td>
+                <td className="col-right">{formatCurrency(operatingExpenses.utilities)}</td>
+              </tr>
+              <tr className="tp-home-export-bedetail-row-child">
+                <td>• Software e Assinaturas</td>
+                <td className="col-right">{formatCurrency(operatingExpenses.software)}</td>
+              </tr>
+              <tr className="tp-home-export-bedetail-row-child">
+                <td>• Contabilidade / Jurídico</td>
+                <td className="col-right">{formatCurrency(operatingExpenses.accounting)}</td>
+              </tr>
+              <tr className="tp-home-export-bedetail-row-child">
+                <td>• Infraestrutura / Manutenção</td>
+                <td className="col-right">{formatCurrency(operatingExpenses.infrastructure)}</td>
+              </tr>
+              <tr className="tp-home-export-bedetail-row-child">
+                <td>• Administrativo</td>
+                <td className="col-right">{formatCurrency(operatingExpenses.administrative)}</td>
+              </tr>
+              {(operatingExpenses.athletes ?? 0) > 0 && (
+                <tr className="tp-home-export-bedetail-row-child">
+                  <td>• Atletas / Patrocínios</td>
+                  <td className="col-right">{formatCurrency(operatingExpenses.athletes ?? 0)}</td>
+                </tr>
+              )}
+              {(operatingExpenses.losses ?? 0) > 0 && (
+                <tr className="tp-home-export-bedetail-row-child">
+                  <td>• Perdas / Despesas Eventuais</td>
+                  <td className="col-right">{formatCurrency(operatingExpenses.losses ?? 0)}</td>
+                </tr>
+              )}
+              {(operatingExpenses.other ?? 0) > 0 && (
+                <tr className="tp-home-export-bedetail-row-child">
+                  <td>• Outras Despesas Operacionais</td>
+                  <td className="col-right">{formatCurrency(operatingExpenses.other ?? 0)}</td>
+                </tr>
+              )}
+
+              {/* 7. (+/-) Resultado Financeiro Líquido */}
+              <tr className="tp-home-export-bedetail-row-subtotal">
+                <td>(+/-) Resultado Financeiro Líquido</td>
+                <td
+                  className={`col-right ${
+                    financialResult.total < 0
+                      ? "tp-home-export-bedetail-val-negative"
+                      : "tp-home-export-bedetail-val-positive"
+                  }`}
+                >
+                  {formatCurrency(financialResult.total)}
+                </td>
+              </tr>
+
+              {/* 8. (=) Base Fixa Operacional Total */}
+              <tr className="tp-home-export-bedetail-row-subtotal">
+                <td>(=) Base Fixa Operacional Total</td>
+                <td className="col-right" style={{ fontWeight: 800 }}>
+                  {formatCurrency(fixedCostBase)}
+                </td>
+              </tr>
+
+              {/* 9. (=) Ponto de Equilíbrio Operacional do Mês */}
+              <tr className="tp-home-export-bedetail-row-hero">
+                <td style={{ fontSize: "12.5px" }}>(=) Ponto de Equilíbrio Operacional do Mês</td>
+                <td
+                  className="col-right tp-home-export-bedetail-val-cyan"
+                  style={{ fontSize: "14px" }}
+                >
+                  {be.operationalBreakEvenRevenue !== null
+                    ? formatCurrency(be.operationalBreakEvenRevenue)
+                    : "—"}
+                </td>
+              </tr>
+
+              {/* 10. (-) Receita Realizada */}
+              <tr className="tp-home-export-bedetail-row-primary">
+                <td>(-) Receita Realizada</td>
+                <td className="col-right">-{formatCurrency(be.realizedRevenue)}</td>
+              </tr>
+
+              {/* 11. (=) Quanto Falta Vender ou Superado */}
+              <tr className="tp-home-export-bedetail-row-hero">
+                <td style={{ fontSize: "12.5px" }}>
+                  {isAbove ? "(=) Superado em" : "(=) Quanto Falta Vender"}
+                </td>
+                <td
+                  className={`col-right ${
+                    isAbove
+                      ? "tp-home-export-bedetail-val-positive"
+                      : "tp-home-export-bedetail-val-amber"
+                  }`}
+                  style={{ fontSize: "14px" }}
+                >
+                  {isAbove
+                    ? formatCurrency(be.surplusRevenue ?? 0)
+                    : formatCurrency(be.remainingRevenueNeeded ?? 0)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* Nota discreta */}
+          <div className="tp-home-export-bedetail-note">
+            <span>
+              Visão operacional por vencimento no mês. Pode diferir do DRE Gerencial, que utiliza competência econômica.
+            </span>
+            <span>
+              Base Fixa: {formatCurrency(fixedCostBase)} • TMC:{" "}
+              {be.contributionMarginPercent !== null
+                ? formatPercent(be.contributionMarginPercent, 2)
+                : "—"}
+            </span>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="tp-home-export-footer">
+          <span>
+            {`Nineclouds • Detalhamento do Ponto de Equilíbrio (${formattedPeriod})`}
+          </span>
+          <span>{`Página ${breakEvenPageNum} de ${totalPages}`}</span>
+        </div>
+      </div>
+    );
+  };
+
+  // Render Customer Page Content (Customer Intelligence & Commercial Concentration)
+  const renderCustomerPage = (isSheet = false) => {
     if (!hasCustomerPage) return null;
     return (
       <div
         className={isSheet ? "tp-home-export-sheet-section" : "tp-home-export-page"}
-        data-export-page="2"
-        key="page-2"
+        data-export-page={String(customerPageNum ?? 3)}
+        key="page-customer-intelligence"
       >
         <style>{HOME_EXPORT_REPORT_CSS}</style>
         {/* Header */}
@@ -1630,9 +2161,9 @@ export function HomeExportReport({
         {/* Footer */}
         <div className="tp-home-export-footer">
           <span>
-            Nineclouds • Performance Comercial ({formattedPeriod})
+            {`Nineclouds • Performance Comercial (${formattedPeriod})`}
           </span>
-          <span>Página 2 de 2</span>
+          <span>{`Página ${customerPageNum} de ${totalPages}`}</span>
         </div>
       </div>
     );
@@ -1649,12 +2180,14 @@ export function HomeExportReport({
         <div className="tp-home-export-sheet" data-export-continuous="true">
           <style>{HOME_EXPORT_REPORT_CSS}</style>
           {renderPage1(true)}
-          {hasCustomerPage && renderPage2(true)}
+          {hasBreakEvenPage && renderBreakEvenDetailPage(true)}
+          {hasCustomerPage && renderCustomerPage(true)}
         </div>
       ) : (
         <>
           {renderPage1(false)}
-          {renderPage2(false)}
+          {hasBreakEvenPage && renderBreakEvenDetailPage(false)}
+          {hasCustomerPage && renderCustomerPage(false)}
         </>
       )}
     </div>

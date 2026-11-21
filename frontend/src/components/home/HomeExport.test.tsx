@@ -65,6 +65,45 @@ const mockBreakEvenNovOpen = {
   monthStatus: "IN_PROGRESS",
   isProvisional: true,
   averageOperationalBreakEven: 40630.17,
+  averageReferenceStartMonth: "2026-08",
+  averageReferenceEndMonth: "2026-10",
+  averageReferenceMonthsCount: 3,
+  estimatedCOGS: 4500.0,
+  estimatedGrossProfit: 7102.87,
+  estimatedGrossMarginPercent: 61.22,
+  variableExpenses: {
+    paymentFees: 350.0,
+    taxesOnRevenue: 600.0,
+    freightLogistics: 420.0,
+    salesCommissions: 0,
+    packaging: 150.0,
+    other: 0,
+    total: 1520.0,
+  },
+  contributionMargin: 5582.87,
+  contributionMarginPercent: 48.12,
+  contributionMarginRate: 0.4812,
+  operatingExpenses: {
+    partnerCompensation: 8000.0,
+    personnel: 3500.0,
+    occupancy: 2200.0,
+    marketing: 1500.0,
+    utilities: 600.0,
+    software: 850.0,
+    accounting: 1200.0,
+    infrastructure: 400.0,
+    administrative: 650.0,
+    athletes: 0,
+    losses: 0,
+    other: 0,
+    total: 18900.0,
+  },
+  financialResult: {
+    financialIncome: 50.0,
+    financialExpenses: 840.0,
+    total: -790.0,
+  },
+  fixedCostBase: 19690.0,
 } as unknown as MonthlyOperationalBreakEvenDto;
 
 // Mock operational break-even for closed month (October 2026)
@@ -80,6 +119,45 @@ const mockBreakEvenOctClosed = {
   monthStatus: "CLOSED",
   isProvisional: false,
   averageOperationalBreakEven: 39000.0,
+  averageReferenceStartMonth: "2026-07",
+  averageReferenceEndMonth: "2026-09",
+  averageReferenceMonthsCount: 3,
+  estimatedCOGS: 16000.0,
+  estimatedGrossProfit: 26100.0,
+  estimatedGrossMarginPercent: 61.99,
+  variableExpenses: {
+    paymentFees: 1200.0,
+    taxesOnRevenue: 2400.0,
+    freightLogistics: 1500.0,
+    salesCommissions: 0,
+    packaging: 300.0,
+    other: 0,
+    total: 5400.0,
+  },
+  contributionMargin: 20700.0,
+  contributionMarginPercent: 49.17,
+  contributionMarginRate: 0.4917,
+  operatingExpenses: {
+    partnerCompensation: 8000.0,
+    personnel: 3500.0,
+    occupancy: 2200.0,
+    marketing: 1500.0,
+    utilities: 600.0,
+    software: 850.0,
+    accounting: 1200.0,
+    infrastructure: 400.0,
+    administrative: 650.0,
+    athletes: 0,
+    losses: 0,
+    other: 0,
+    total: 18900.0,
+  },
+  financialResult: {
+    financialIncome: 60.0,
+    financialExpenses: 100.0,
+    total: -40.0,
+  },
+  fixedCostBase: 18940.0,
 } as unknown as MonthlyOperationalBreakEvenDto;
 
 // Mock customer intelligence data
@@ -427,8 +505,13 @@ describe("Home Export Suite (Section 16)", () => {
       />,
     );
 
-    // Página 2 existe
+    // Página 1 (Comercial), Página 2 (PE Detalhado) e Página 3 (Clientes) existem com paginação de 3 páginas
+    expect(html).toContain('data-export-page="1"');
     expect(html).toContain('data-export-page="2"');
+    expect(html).toContain('data-export-page="3"');
+    expect(html).toContain("Página 1 de 3");
+    expect(html).toContain("Página 2 de 3");
+    expect(html).toContain("Página 3 de 3");
     expect(html).toContain("Performance Comercial · Inteligência de Clientes");
 
     // Top 5 Clientes presentes e tipografia padronizada em CAIXA ALTA
@@ -453,13 +536,150 @@ describe("Home Export Suite (Section 16)", () => {
     expect(html).not.toContain(">Faturado<");
     expect(html).toContain("is-gap-highlight");
 
-    // Concentração Comercial e Novos x Recorrentes presentes na Página 2
+    // Concentração Comercial e Novos x Recorrentes presentes na Página 3
     expect(html).toContain('data-testid="export-commercial-concentration"');
     expect(html).toContain("Concentração Comercial");
     expect(html).toContain("Top 5 representam");
     expect(html).toContain("Maior cliente");
     expect(html).toContain('data-testid="export-new-vs-returning"');
     expect(html).toContain("Novos x Recorrentes");
+  });
+
+  // Requirement I: Detalhamento do Ponto de Equilíbrio na Página 2 (MODAL_VALUE = EXPORT_VALUE)
+  it("I. renderiza Página 2 com Detalhamento do Ponto de Equilíbrio idêntico ao modal", () => {
+    const period = { from: "2026-11-01", to: "2026-11-17" };
+    const html = renderToString(
+      <HomeExportReport
+        period={period}
+        salesData={mockSalesNov2026}
+        operationalBreakEven={mockBreakEvenNovOpen}
+        customerData={mockCustomerData}
+        lastSyncAt="2026-11-17T22:30:00.000Z"
+      />,
+    );
+
+    // Cabeçalho da Página 2
+    expect(html).toContain("Nineclouds — Detalhamento do Ponto de Equilíbrio");
+    expect(html).toContain("Composição operacional do equilíbrio do mês");
+    expect(html).toContain("Critério Home: vencimento no mês");
+    expect(html).toContain('data-testid="export-be-page-badge"');
+    expect(html).toContain("EM ANDAMENTO");
+
+    // Top Cards da Página 2
+    expect(html).toContain('data-testid="export-bedetail-realized-rev"');
+    expect(html).toContain(formatCurrency(11602.87));
+    expect(html).toContain('data-testid="export-bedetail-breakeven-rev"');
+    expect(html).toContain(formatCurrency(40921.25));
+    expect(html).toContain('data-testid="export-bedetail-remaining-rev"');
+    expect(html).toContain(formatCurrency(29318.38));
+    expect(html).toContain('data-testid="export-bedetail-avg-rev"');
+    expect(html).toContain(formatCurrency(40630.17));
+
+    // Tabela vertical do Detalhamento (11 linhas canônicas + subitens indentados)
+    expect(html).toContain('data-testid="export-bedetail-table"');
+    expect(html).toContain("Receita realizada");
+    expect(html).toContain("(-) CMV");
+    expect(html).toContain(formatCurrency(4500.0));
+    expect(html).toContain("(=) Margem Bruta");
+    expect(html).toContain(formatCurrency(7102.87));
+    expect(html).toContain(formatPercent(61.22, 2));
+
+    // Despesas variáveis e subitens
+    expect(html).toContain("(-) Despesas Variáveis (vencimento no mês)");
+    expect(html).toContain(formatCurrency(1520.0));
+    expect(html).toContain("• Taxas de Pagamento");
+    expect(html).toContain(formatCurrency(350.0));
+    expect(html).toContain("• Impostos sobre Vendas (DAS / ICMS no vencimento)");
+    expect(html).toContain(formatCurrency(600.0));
+    expect(html).toContain("• Fretes / Logística");
+    expect(html).toContain(formatCurrency(420.0));
+    expect(html).toContain("• Embalagens / Expedição");
+    expect(html).toContain(formatCurrency(150.0));
+
+    // Margem de Contribuição e TMC
+    expect(html).toContain("(=) Margem de Contribuição");
+    expect(html).toContain(formatCurrency(5582.87));
+    expect(html).toContain("Taxa de Margem de Contribuição: 48,12%");
+
+    // Despesas operacionais e subitens
+    expect(html).toContain("(-) Despesas Operacionais (vencimento no mês)");
+    expect(html).toContain(formatCurrency(18900.0));
+    expect(html).toContain("• Pró-labore dos Sócios");
+    expect(html).toContain(formatCurrency(8000.0));
+    expect(html).toContain("• Encargos sobre Pró-labore / Pessoal (GPS no vencimento)");
+    expect(html).toContain(formatCurrency(3500.0));
+    expect(html).toContain("• Aluguel e Espaço Físico");
+    expect(html).toContain(formatCurrency(2200.0));
+    expect(html).toContain("• Marketing e Publicidade");
+    expect(html).toContain(formatCurrency(1500.0));
+    expect(html).toContain("• Serviços Operacionais");
+    expect(html).toContain(formatCurrency(600.0));
+    expect(html).toContain("• Software e Assinaturas");
+    expect(html).toContain(formatCurrency(850.0));
+    expect(html).toContain("• Contabilidade / Jurídico");
+    expect(html).toContain(formatCurrency(1200.0));
+    expect(html).toContain("• Infraestrutura / Manutenção");
+    expect(html).toContain(formatCurrency(400.0));
+    expect(html).toContain("• Administrativo");
+    expect(html).toContain(formatCurrency(650.0));
+
+    // Resultado financeiro e Base Fixa
+    expect(html).toContain("(+/-) Resultado Financeiro Líquido");
+    expect(html).toContain(formatCurrency(-790.0));
+    expect(html).toContain("(=) Base Fixa Operacional Total");
+    expect(html).toContain(formatCurrency(19690.0));
+
+    // Linhas finais de fechamento
+    expect(html).toContain("(=) Ponto de Equilíbrio Operacional do Mês");
+    expect(html).toContain("(-) Receita Realizada");
+    expect(html).toContain("(=) Quanto Falta Vender");
+
+    // Nota discreta
+    expect(html).toContain(
+      "Visão operacional por vencimento no mês. Pode diferir do DRE Gerencial, que utiliza competência econômica.",
+    );
+  });
+
+  // Requirement J: Mês fechado exibe FECHADO e Superado na Página 2
+  it("J. renderiza mês fechado com badge FECHADO e linha de superavit", () => {
+    const period = { from: "2026-10-01", to: "2026-10-31" };
+    const html = renderToString(
+      <HomeExportReport
+        period={period}
+        salesData={mockSalesNov2026}
+        operationalBreakEven={mockBreakEvenOctClosed}
+      />,
+    );
+
+    expect(html).toContain('data-testid="export-be-page-badge"');
+    expect(html).toContain("FECHADO");
+    expect(html).not.toContain("EM ANDAMENTO");
+    expect(html).toContain("Superado em");
+    expect(html).toContain(formatCurrency(3600.0));
+    expect(html).toContain("(=) Superado em");
+  });
+
+  // Requirement K: Modo contínuo (JPG) preserva ordem vertical das 3 seções
+  it("K. modo contínuo (JPG) renderiza as 3 seções em ordem vertical em um único container", () => {
+    const period = { from: "2026-11-01", to: "2026-11-17" };
+    const html = renderToString(
+      <HomeExportReport
+        period={period}
+        salesData={mockSalesNov2026}
+        operationalBreakEven={mockBreakEvenNovOpen}
+        customerData={mockCustomerData}
+        layoutMode="continuous"
+      />,
+    );
+
+    expect(html).toContain('data-export-continuous="true"');
+    const idxP1 = html.indexOf("Nineclouds — Performance Comercial");
+    const idxP2 = html.indexOf("Nineclouds — Detalhamento do Ponto de Equilíbrio");
+    const idxP3 = html.indexOf("Performance Comercial · Inteligência de Clientes");
+
+    expect(idxP1).toBeGreaterThanOrEqual(0);
+    expect(idxP2).toBeGreaterThan(idxP1);
+    expect(idxP3).toBeGreaterThan(idxP2);
   });
 
   // Extra check: PDF Landscape generator produces valid PDF binary header
