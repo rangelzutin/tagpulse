@@ -440,9 +440,12 @@ describe("Home Export Suite (Section 16)", () => {
     // 6º cliente NÃO deve aparecer (apenas Top 5)
     expect(html).not.toContain("Cliente Zeta (Deverá ser omitido do Top 5)");
 
-    // Última sincronização exibida
+    // Sincronização clara (dados sincronizados até)
     expect(html).toContain('data-testid="export-last-sync"');
-    expect(html).toContain("Última sincronização:");
+    expect(html).toContain("Dados sincronizados até:");
+
+    // Subtítulo do Ponto de Equilíbrio
+    expect(html).toContain("Equilíbrio atual do mês");
 
     // Sem bloco duplicado de Faturado na faixa de ponto de equilíbrio
     expect(html).not.toContain(">Faturado<");

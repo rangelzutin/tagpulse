@@ -416,17 +416,50 @@ const HOME_EXPORT_REPORT_CSS = `
     background: #f8fafc;
     border-bottom: 2px solid #cbd5e1;
   }
+  .tp-home-export-table tbody tr {
+    height: 48px;
+  }
   .tp-home-export-table td {
-    padding: 13px 10px;
+    padding: 6px 10px;
     border-bottom: 1px solid #e2e8f0;
     color: #1e293b;
     font-variant-numeric: tabular-nums;
+    vertical-align: middle;
   }
   .tp-home-export-table tr:last-child td {
     border-bottom: none;
   }
   .tp-home-export-table .col-right {
     text-align: right;
+  }
+  .tp-home-export-td-client {
+    max-width: 220px;
+    vertical-align: middle;
+  }
+  .tp-home-export-client-wrap {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 36px;
+    gap: 2px;
+  }
+  .tp-home-export-client-name {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1.25;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-break: break-word;
+  }
+  .tp-home-export-client-code {
+    font-size: 9.5px;
+    font-weight: 500;
+    color: #64748b;
+    line-height: 1.2;
   }
   .tp-home-export-rank-badge {
     display: inline-flex;
@@ -830,7 +863,7 @@ export function HomeExportReport({
             Data de geração: <strong>{formattedGeneratedAt}</strong>
           </div>
           <div data-testid="export-last-sync">
-            Última sincronização: <strong>{formattedLastSync}</strong>
+            Dados sincronizados até: <strong>{formattedLastSync}</strong>
           </div>
         </div>
       </div>
@@ -918,7 +951,7 @@ export function HomeExportReport({
                   : "—"}
               </span>
               <span className="tp-home-export-be-subtext">
-                Meta operacional do mês
+                Equilíbrio atual do mês
               </span>
             </div>
 
@@ -1226,7 +1259,7 @@ export function HomeExportReport({
               Data de geração: <strong>{formattedGeneratedAt}</strong>
             </div>
             <div>
-              Última sincronização: <strong>{formattedLastSync}</strong>
+              Dados sincronizados até: <strong>{formattedLastSync}</strong>
             </div>
           </div>
         </div>
@@ -1312,21 +1345,20 @@ export function HomeExportReport({
                           {idx + 1}
                         </span>
                       </td>
-                      <td>
-                        <strong style={{ color: "#0f172a" }}>
-                          {cust.displayName || "Cliente"}
-                        </strong>
-                        {cust.code && (
+                      <td className="tp-home-export-td-client">
+                        <div className="tp-home-export-client-wrap">
                           <span
-                            style={{
-                              color: "#64748b",
-                              fontSize: "10px",
-                              marginLeft: 6,
-                            }}
+                            className="tp-home-export-client-name"
+                            title={cust.displayName || "Cliente"}
                           >
-                            ({cust.code})
+                            {cust.displayName || "Cliente"}
                           </span>
-                        )}
+                          {cust.code && (
+                            <span className="tp-home-export-client-code">
+                              Cód. {cust.code}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="col-right" style={{ fontWeight: 700, color: "#0284c7" }}>
                         {formatCurrency(cust.revenue)}

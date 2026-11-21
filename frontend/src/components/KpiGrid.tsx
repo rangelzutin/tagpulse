@@ -197,7 +197,7 @@ export function KpiGrid({ summary, operationalBreakEven }: KpiGridProps) {
                   : "—"}
               </div>
               <span className="tp-breakeven-metric-subtext">
-                Meta operacional do mês
+                Equilíbrio atual do mês
               </span>
             </div>
 

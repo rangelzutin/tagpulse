@@ -65,6 +65,7 @@ describe("KpiGrid — Ponto de Equilíbrio Dinâmico e Referência Histórica", 
 
     // 2. Ponto de equilíbrio atual do mês
     expect(html).toContain("Ponto de equilíbrio do mês");
+    expect(html).toContain("Equilíbrio atual do mês");
     expect(html).toContain(formatCurrency(33419.51));
 
     // 3. Progresso
