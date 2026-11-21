@@ -431,12 +431,14 @@ describe("Home Export Suite (Section 16)", () => {
     expect(html).toContain('data-export-page="2"');
     expect(html).toContain("Performance Comercial · Inteligência de Clientes");
 
-    // Top 5 Clientes presentes
+    // Top 5 Clientes presentes e tipografia padronizada em CAIXA ALTA
     expect(html).toContain("Cliente Alfa LTDA");
     expect(html).toContain("Cliente Beta ME");
     expect(html).toContain("Cliente Gama Comércio");
     expect(html).toContain("Cliente Delta Eireli");
     expect(html).toContain("Cliente Épsilon S.A.");
+    expect(html).toContain("tp-home-export-client-name");
+    expect(html).toContain("text-transform: uppercase");
     // 6º cliente NÃO deve aparecer (apenas Top 5)
     expect(html).not.toContain("Cliente Zeta (Deverá ser omitido do Top 5)");
 

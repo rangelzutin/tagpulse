@@ -1469,6 +1469,8 @@ body {
   font-weight: 600;
   color: var(--tp-text-primary, #f8fafc);
   line-height: 1.25;
+  letter-spacing: 0.015em;
+  text-transform: uppercase;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -1482,6 +1484,7 @@ body {
   font-weight: 500;
   color: var(--tp-text-muted, #94a3b8);
   line-height: 1.2;
+  text-transform: none;
 }
 
 .tp-td-num {

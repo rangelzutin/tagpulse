@@ -448,6 +448,8 @@ const HOME_EXPORT_REPORT_CSS = `
     font-weight: 700;
     color: #0f172a;
     line-height: 1.25;
+    letter-spacing: 0.015em;
+    text-transform: uppercase;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
@@ -460,6 +462,7 @@ const HOME_EXPORT_REPORT_CSS = `
     font-weight: 500;
     color: #64748b;
     line-height: 1.2;
+    text-transform: none;
   }
   .tp-home-export-rank-badge {
     display: inline-flex;
@@ -577,6 +580,7 @@ const HOME_EXPORT_REPORT_CSS = `
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    text-transform: uppercase;
   }
   .tp-home-export-conc-bar-block {
     display: flex;
